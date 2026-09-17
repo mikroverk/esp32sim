@@ -331,7 +331,9 @@ impl SocBus {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
         self.flush_ticks();                                         // registers must show exact time
-        self.periph.read32(addr)
+        let value = self.periph.read32(addr);
+        if addr & 0xfff == 0 && matches!((addr - PERIPH_BASE) >> 12, 0x00 | 0x10 | 0x2e) { self.irq_dirty = true; }
+        value
     }
     fn periph_write(&mut self, addr: u32, v: u32) {
         self.periph_write_inner(addr, v);

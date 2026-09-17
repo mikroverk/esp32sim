@@ -41,6 +41,8 @@ pub mod src {
 /// cleared by writing CPU_INT_CLEAR.
 pub struct Intc {
     pub map: [u32; src::COUNT],
+    /// Raw peripheral-source status exposed through INTR_STATUS_REG_0/1.
+    pub source_status: [u32; 2],
     pub enable: u32,
     pub int_type: u32,
     pub pri: [u32; 32],
@@ -58,13 +60,15 @@ impl Default for Intc { fn default() -> Self { Self::new() } }
 
 impl Intc {
     pub fn new() -> Self {
-        Intc { map: [0; src::COUNT], enable: 0, int_type: 0, pri: [0; 32], thresh: 0,
+        Intc { map: [0; src::COUNT], source_status: [0; 2], enable: 0, int_type: 0, pri: [0; 32], thresh: 0,
                edge_pending: 0, level: 0, prev: 0, ram: RegRam::new() }
     }
 
     pub fn read(&self, off: u32) -> u32 {
         match off {
-            0x000..=0x0f8 => self.map.get((off / 4) as usize).copied().unwrap_or(0),
+            0x000..=0x0f4 => self.map[(off / 4) as usize],
+            0x0f8 => self.source_status[0],
+            0x0fc => self.source_status[1],
             0x104 => self.enable,
             0x108 => self.int_type,
             0x110 => self.level | self.edge_pending,     // EIP_STATUS: raw source state
@@ -76,7 +80,7 @@ impl Intc {
 
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
-            0x000..=0x0f8 => { if let Some(m) = self.map.get_mut((off / 4) as usize) { *m = v & 0x1f; } }
+            0x000..=0x0f4 => self.map[(off / 4) as usize] = v & 0x1f,
             0x104 => self.enable = v,
             0x108 => self.int_type = v,
             0x10c => self.edge_pending &= !v,            // CPU_INT_CLEAR
@@ -88,6 +92,7 @@ impl Intc {
 
     /// Recompute line state from the sources that are currently asserted.
     pub fn update(&mut self, status: &[u32]) {
+        self.source_status.copy_from_slice(&status[..2]);
         let mut lines = 0u32;
         for s in 0..src::COUNT {
             if status[s / 32] & (1 << (s % 32)) == 0 { continue; }
@@ -284,5 +289,24 @@ impl Peripherals {
         self.last_status = st;
         self.intc.update(&st);
         changed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interrupt_status_registers_expose_uart_source() {
+        let mut p = Peripherals::new([0; 6]);
+        p.uart[0].write(0x24, 1);
+        p.uart[0].write(0x0c, 1);
+        p.uart[0].host_input(b"x");
+        p.refresh_lines();
+
+        assert_eq!(p.intc.read(0x0f8), 1 << src::UART0);
+        assert_eq!(p.intc.read(0x0fc), 0);
+        p.intc.write((src::COUNT as u32 - 1) * 4, 7);
+        assert_eq!(p.intc.map[src::COUNT - 1], 7);
     }
 }

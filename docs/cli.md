@@ -102,6 +102,11 @@ The legacy v1.3.0 S3 stub contains an upstream hard-coded classic-ESP32 flash-da
 panics after upload. esp32sim does not add a non-silicon memory alias for it. Use the v2 stub or
 `--no-stub`.
 
+C3 and C6 use the same socket workflow with `--chip c3`/`esp32c3` or `--chip c6`/`esp32c6`.
+ROM-loader `flash_id` and the v2 stub's `flash_id`, compressed write and digest verification are
+validated on both. Their flash-state persistence and the rest of the command matrix are still in
+progress, so omit `--flash-state` and treat those runs as single-process flashing sessions for now.
+
 After flashing, stop the download-mode process and start a normal ROM boot with the same
 `--flash-state` path.
 

@@ -53,3 +53,13 @@ fn machine_feeds_uart_without_overflow_and_routes_tx_to_tcp() {
     client.read_exact(&mut from_machine).unwrap();
     assert_eq!(from_machine, reply);
 }
+
+#[test]
+fn fifo_read_marks_interrupt_routing_dirty() {
+    let mut machine = esp32c3::machine([0x02, 0, 0, 0, 0, 1], 4 << 20);
+    machine.bus.periph.uart[0].write(0x24, 2);
+    machine.bus.periph.uart[0].host_input(b"ab");
+    machine.bus.irq_dirty = false;
+    assert_eq!(machine.bus.read32(0x6000_0000).unwrap(), b'a' as u32);
+    assert!(machine.bus.irq_dirty);
+}

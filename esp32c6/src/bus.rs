@@ -99,6 +99,7 @@ impl SocBus {
         } else {
             self.periph.read32(addr & !3)
         };
+        if (PERIPH_BASE..PERIPH_END).contains(&addr) && addr & 0xfff == 0 && matches!((addr - PERIPH_BASE) >> 12, 0x00 | 0x10) { self.irq_dirty = true; }
         match size { 1 => (w >> ((addr & 3) * 8)) & 0xff, 2 => (w >> ((addr & 2) * 8)) & 0xffff, _ => w }
     }
 

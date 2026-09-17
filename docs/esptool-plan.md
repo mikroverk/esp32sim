@@ -3,8 +3,10 @@
 Date: 2026-09-17
 
 Status: milestones 1 through 5 implemented for ESP32-S3 with the ROM loader and modern v2 stub.
-The legacy v1 S3 stub has the documented upstream address defect below. C3/C6 parity and automated
-external-tool regression coverage remain.
+Milestone 6 is in progress: C3 and C6 pass ROM-loader `flash-id`, and esptool 4.8.1's v2 stub now
+passes upload, `flash-id`, compressed write and digest verification on both chips. The legacy v1
+S3 stub has the documented upstream address defect below. C3/C6 persistence, the remaining command
+matrix and automated external-tool regression coverage remain.
 
 Update, 2026-09-17: the apparent ULP mismatch was a stale default Cargo target artifact; a fresh
 target builds the complete CLI. S3 strap `0x7` reaches `UART0_BOOT`. With UART autobaud counters
@@ -25,6 +27,14 @@ comparison confirms the persisted flash range is byte-identical to the 161,712-b
 Lifecycle acceptance also passes: the v2 stub flashed bootloader, partition table and application
 into a fresh 8 MiB `--flash-state`; a separate process booted that state through the real mask ROM
 and printed `Hello world!`.
+
+C3/C6 parity update: C6 ROM autobaud uses bit 19 and its pulse/count registers are at
+`0x7c/0x80/0x84`. Both RISC-V chips also expose the raw peripheral source bitmap through their
+interrupt-matrix `INTR_STATUS_REG_n` registers. Before those registers were modelled at their real
+offsets, the CPU entered the UART priority handler but esp-hal observed no UART source, returned
+without draining the FIFO, and immediately took the same level interrupt again. With the status
+registers and FIFO-read interrupt refresh in place, the unmodified v2 stubs service UART0 and pass
+161,712-byte compressed writes with flash hash verification on C3 and C6.
 
 ## Objective
 
