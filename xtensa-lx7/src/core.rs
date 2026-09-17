@@ -78,8 +78,8 @@ impl emu_core::Core for Cpu {
     fn dump(&self, core: usize, sym: &dyn Fn(u32) -> String) -> String {
         let c = self;
         let mut s = format!("core{}: ", core);
-        s += &format!("pc={:08x} {}  ps={:08x} wb={} ws={:04x} sar={} lcount={} exccause={} excvaddr={:08x} epc1={:08x} intenable={:08x} interrupt={:08x} ccount={} insns={}\n",
-            c.pc, sym(c.pc), c.ps, c.windowbase, c.windowstart, c.sar, c.lcount, c.exccause, c.excvaddr, c.epc[1], c.intenable, c.interrupt, c.ccount, c.insn_count);
+        s += &format!("pc={:08x} {}  ps={:08x} wb={} ws={:04x} sar={} lcount={} exccause={} excvaddr={:08x} epc1={:08x} depc={:08x} intenable={:08x} interrupt={:08x} ccount={} insns={}\n",
+            c.pc, sym(c.pc), c.ps, c.windowbase, c.windowstart, c.sar, c.lcount, c.exccause, c.excvaddr, c.epc[1], c.depc, c.intenable, c.interrupt, c.ccount, c.insn_count);
         for i in 0..16 { s += &format!("a{:<2}={:08x} ", i, c.get_ar(i)); if i % 8 == 7 { s += "\n"; } }
         s
     }
@@ -233,6 +233,15 @@ mod tests {
         assert_eq!((illegal.bytes, illegal.length), (Some([0, 0, 0, 0xaa]), 3));
         assert_eq!(illegal.kind, StepKind::TrapDuring(Trap::Exception(exc::ILLEGAL)));
         assert_eq!((cpu.insn_count, cpu.ccount), (1, 1));
+    }
+
+    #[test]
+    fn reset_enables_configured_coprocessors() {
+        let mut cpu = crate::Cpu::new(0);
+        assert_eq!(cpu.cpenable, 0xff);
+        cpu.cpenable = 0;
+        cpu.reset();
+        assert_eq!(cpu.cpenable, 0xff);
     }
 
     #[test]

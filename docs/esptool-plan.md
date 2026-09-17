@@ -12,10 +12,14 @@ modelled, esptool 4.7.0 `--no-stub` passes `flash-id`, writes the repository's 1
 starts uploading, but the transition to the uploaded stub still fails and remains under
 investigation.
 
-Further result: pacing TCP input at the emulated 115200-baud line rate allows the default stub to
-upload and print `Stub running`. The legacy v1 S3 stub then panics in its flash-status path because
-it embeds the classic ESP32 `g_rom_flashchip` address `0x3ffae270`; the newer bundled v2 stub does
-not contain that pointer. Compatibility with the default v1 stub remains open.
+Further result: pacing TCP input at the emulated 115200-baud line rate allows both stub generations
+to upload. The legacy v1.3.0 S3 stub then panics in its flash-status path because its official
+source hard-codes the classic ESP32 `g_rom_flashchip` address `0x3ffae270`, while the same source's
+S3 ROM linker file places `rom_spiflash_legacy_data` at `0x3fceffe4`. No non-silicon address alias
+is added to hide that upstream defect. The newer v2 stub works after modelling the S3/C3 UART
+configuration-update self-clear and correcting Xtensa's reset `CPENABLE` value to `0xff`: esptool
+4.8.1 v2 passes `flash-id`, compressed write and flash digest verification. An independent host
+comparison confirms the persisted flash range is byte-identical to the 161,712-byte input image.
 
 ## Objective
 

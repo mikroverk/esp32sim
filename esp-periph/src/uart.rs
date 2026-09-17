@@ -25,11 +25,14 @@ pub struct UartLayout {
     pub rxfifo_rst: u32,
     /// STATUS rxfifo_cnt: mask of the field at bit 0
     pub rxfifo_cnt_mask: u32,
+    /// Register and self-clearing bit used to synchronize configuration into the UART clock domain.
+    pub reg_update_off: u32,
+    pub reg_update_mask: u32,
 }
 impl UartLayout {
-    pub const S3: UartLayout = UartLayout { thrhd_mask: 0x3ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff };
-    pub const C3: UartLayout = UartLayout { thrhd_mask: 0x1ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff };
-    pub const C6: UartLayout = UartLayout { thrhd_mask: 0xff, rxfifo_rst: 1 << 22, rxfifo_cnt_mask: 0xff };
+    pub const S3: UartLayout = UartLayout { thrhd_mask: 0x3ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff, reg_update_off: 0x80, reg_update_mask: 1 << 31 };
+    pub const C3: UartLayout = UartLayout { thrhd_mask: 0x1ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff, reg_update_off: 0x80, reg_update_mask: 1 << 31 };
+    pub const C6: UartLayout = UartLayout { thrhd_mask: 0xff, rxfifo_rst: 1 << 22, rxfifo_cnt_mask: 0xff, reg_update_off: 0x98, reg_update_mask: 1 };
 }
 
 // ------------------------------------------------------------------ UART
@@ -71,7 +74,7 @@ impl Uart {
             0x8 => self.int_raw & self.int_ena,
             0xc => self.int_ena,
             0x1c => 0xe000_c000 | (self.rx.len() as u32 & self.layout.rxfifo_cnt_mask),   // STATUS: rxfifo_cnt, tx count 0, TXD/RTSN/DSRN idle levels as on silicon
-            0x98 => 0,                              // REG_UPDATE (C6 and later): the driver sets it and spins until hardware clears it
+            x if x == self.layout.reg_update_off => self.ram.read(off) & !self.layout.reg_update_mask,
             _ => self.ram.read(off),
         }
     }
@@ -90,6 +93,7 @@ impl Uart {
                 self.ram.write(off, v);
             }   // CONF0 rxfifo_rst / AUTOBAUD_EN
             0x24 => { self.ram.write(off, v); self.refresh_rx_full(); }
+            x if x == self.layout.reg_update_off => self.ram.write(off, v & !self.layout.reg_update_mask),
             _ => self.ram.write(off, v),
         }
     }
@@ -155,5 +159,15 @@ mod tests {
         assert!(u.read(0x30) > 127);
         assert_eq!(u.read(0x28), AUTOBAUD_PULSE_115200);
         assert_eq!(u.read(0x2c), AUTOBAUD_PULSE_115200);
+    }
+
+    #[test]
+    fn register_update_self_clears_at_each_layouts_offset() {
+        for layout in [UartLayout::S3, UartLayout::C3, UartLayout::C6] {
+            let mut u = Uart::new(layout);
+            u.write(layout.reg_update_off, layout.reg_update_mask | 0x1234);
+            assert_eq!(u.read(layout.reg_update_off) & layout.reg_update_mask, 0);
+            assert_eq!(u.read(layout.reg_update_off) & 0x1234, 0x1234 & !layout.reg_update_mask);
+        }
     }
 }
