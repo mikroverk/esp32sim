@@ -2,8 +2,9 @@
 
 Date: 2026-09-17
 
-Status: milestones 1 and 2 implemented. Milestone 3 is working on S3 for the validated no-stub
-commands below; default uploaded-stub support is the next active target.
+Status: milestones 1 through 5 implemented for ESP32-S3 with the ROM loader and modern v2 stub.
+The legacy v1 S3 stub has the documented upstream address defect below. C3/C6 parity and automated
+external-tool regression coverage remain.
 
 Update, 2026-09-17: the apparent ULP mismatch was a stale default Cargo target artifact; a fresh
 target builds the complete CLI. S3 strap `0x7` reaches `UART0_BOOT`. With UART autobaud counters
@@ -20,6 +21,10 @@ is added to hide that upstream defect. The newer v2 stub works after modelling t
 configuration-update self-clear and correcting Xtensa's reset `CPENABLE` value to `0xff`: esptool
 4.8.1 v2 passes `flash-id`, compressed write and flash digest verification. An independent host
 comparison confirms the persisted flash range is byte-identical to the 161,712-byte input image.
+
+Lifecycle acceptance also passes: the v2 stub flashed bootloader, partition table and application
+into a fresh 8 MiB `--flash-state`; a separate process booted that state through the real mask ROM
+and printed `Hello world!`.
 
 ## Objective
 

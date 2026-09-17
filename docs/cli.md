@@ -71,6 +71,40 @@ browser profiles and security considerations.
 | `--cooja-rx-timing start\|end` | what an `rx` at `t` is: the frame's start (default — csim hands a frame-consuming mote the frame when it starts: `t` is the first preamble byte, the SFD five byte times later, RX_DONE after the whole PPDU, the ACK 192 µs after that) or its end, complete at `t` |
 | `--cooja-verbose` | narrate the exchange on stderr |
 
+### esptool over UART TCP
+
+Start the S3 in its UART0-only ROM download mode. A persistent flash state represents the mutable
+device; firmware seed files are not modified:
+
+```sh
+esp32sim --chip s3 --board none --boot download \
+  --flash-mb 8 --flash-state .state/device-flash.bin \
+  --uart-tcp 127.0.0.1:5555 --console none
+```
+
+Raw TCP does not carry RTS/DTR, so esptool cannot reset the emulator into or out of download mode.
+Use the no-reset options. ROM-loader mode works with esptool 4.7 and later:
+
+```sh
+esptool.py --chip esp32s3 --port socket://127.0.0.1:5555 \
+  --before no_reset --after no_reset --no-stub flash_id
+```
+
+For the uploaded flasher, use esptool's modern v2 stub (available in esptool 4.8 and later):
+
+```sh
+ESPTOOL_STUB_VERSION=2 esptool.py --chip esp32s3 \
+  --port socket://127.0.0.1:5555 --before no_reset --after no_reset \
+  write_flash 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 app.bin
+```
+
+The legacy v1.3.0 S3 stub contains an upstream hard-coded classic-ESP32 flash-data address and
+panics after upload. esp32sim does not add a non-silicon memory alias for it. Use the v2 stub or
+`--no-stub`.
+
+After flashing, stop the download-mode process and start a normal ROM boot with the same
+`--flash-state` path.
+
 ## Outputs
 | Flag | Meaning |
 | --- | --- |
