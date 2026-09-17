@@ -43,6 +43,12 @@ impl esp_soc::SocBus for SocBus {
     fn misc(&mut self) -> &mut Misc { &mut self.periph.misc }
     fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> { SocBus::load_bytes(self, addr, data) }
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> { SocBus::write_flash(self, offset, data) }
+    fn persistent_flash_loaded(&self) -> bool { SocBus::persistent_flash_loaded(self) }
+    fn initialize_storage(&mut self) -> Result<(), String> { SocBus::initialize_storage(self) }
+    fn flush_storage(&mut self) -> Result<(), String> { SocBus::flush_storage(self) }
+    fn storage_generation(&self) -> u64 { SocBus::storage_generation(self) }
+    fn export_storage(&self, kind: u32) -> Option<Vec<u8>> { SocBus::export_storage(self, kind) }
+    fn import_storage(&mut self, kind: u32, data: &[u8]) -> Result<(), String> { SocBus::import_storage(self, kind, data) }
     /// Copy the RAM segments and map the flash-resident ones through the MMU, as the 2nd-stage
     /// bootloader would. One flat window for code and data makes this straightforward here;
     /// the system registers the bootloader would have set up are not preset, so this is a

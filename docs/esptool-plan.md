@@ -4,9 +4,10 @@ Date: 2026-09-17
 
 Status: milestones 1 through 5 implemented for ESP32-S3 with the ROM loader and modern v2 stub.
 Milestone 6 is in progress: C3 and C6 pass ROM-loader `flash-id`, and esptool 4.8.1's v2 stub now
-passes upload, `flash-id`, compressed write and digest verification on both chips. The legacy v1
-S3 stub has the documented upstream address defect below. C3/C6 persistence, the remaining command
-matrix and automated external-tool regression coverage remain.
+passes upload, `flash-id`, compressed write and digest verification on both chips. Mutable flash
+state is persistent across processes on both RISC-V chips. The legacy v1 S3 stub has the documented
+upstream address defect below. The remaining command matrix, C3/C6 eFuse persistence and automated
+external-tool regression coverage remain.
 
 Update, 2026-09-17: the apparent ULP mismatch was a stale default Cargo target artifact; a fresh
 target builds the complete CLI. S3 strap `0x7` reaches `UART0_BOOT`. With UART autobaud counters
