@@ -12,6 +12,11 @@ modelled, esptool 4.7.0 `--no-stub` passes `flash-id`, writes the repository's 1
 starts uploading, but the transition to the uploaded stub still fails and remains under
 investigation.
 
+Further result: pacing TCP input at the emulated 115200-baud line rate allows the default stub to
+upload and print `Stub running`. The legacy v1 S3 stub then panics in its flash-status path because
+it embeds the classic ESP32 `g_rom_flashchip` address `0x3ffae270`; the newer bundled v2 stub does
+not contain that pointer. Compatibility with the default v1 stub remains open.
+
 ## Objective
 
 Allow unmodified `esptool`, `espefuse` and `idf.py flash` processes to communicate with a

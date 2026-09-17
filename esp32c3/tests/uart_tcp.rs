@@ -1,4 +1,5 @@
 //! Native UART/TCP integration: real C3 machine, shared UART model and localhost transport.
+use emu_core::Bus;
 use esp_soc::UartTcp;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -31,6 +32,7 @@ fn machine_feeds_uart_without_overflow_and_routes_tx_to_tcp() {
 
     let mut received = Vec::new();
     while received.len() < sent.len() {
+        machine.bus.tick(160_000_000 * 10 / 115_200);
         let _ = machine.run(0);
         let uart = &mut machine.bus.periph.uart[0];
         while uart.rx_pending() > 0 {

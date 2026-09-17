@@ -93,6 +93,8 @@ pub struct Machine<S: Soc> {
     pub uart_tcp: Option<crate::uart_tcp::UartTcp>,
     #[cfg(not(target_arch = "wasm32"))]
     uart_tcp_pending: VecDeque<u8>,
+    #[cfg(not(target_arch = "wasm32"))]
+    uart_tcp_next_rx: u64,
     ws: WebState,
     pub rt: Realtime,
     debug_rom: bool,
@@ -186,6 +188,8 @@ impl<S: Soc> Machine<S> {
             uart_tcp: None,
             #[cfg(not(target_arch = "wasm32"))]
             uart_tcp_pending: VecDeque::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            uart_tcp_next_rx: 0,
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
@@ -302,6 +306,8 @@ impl<S: Soc> Machine<S> {
         let cause = self.bus.reboot(self.mac);
         for (i, c) in self.cores.iter_mut().enumerate() { S::reset_core(c, i); if i > 0 { self.core_held[i] = true; } }
         self.reboots += 1;
+        #[cfg(not(target_arch = "wasm32"))]
+        { self.uart_tcp_next_rx = 0; }
         self.model_ready_at.fill(self.bus.cycles());
         if let Some(model) = &mut self.cost {
             let facts = LifecycleFacts { kind: LifecycleKind::ChipReset, chip: S::NAME, cores: S::CORES, cpu_hz: S::CPU_HZ };
@@ -937,10 +943,25 @@ impl<S: Soc> Machine<S> {
     #[cfg(not(target_arch = "wasm32"))]
     fn uart_tcp_poll_input(&mut self) {
         let Some(uart_tcp) = self.uart_tcp.clone() else { return };
+        let now = self.bus.cycles();
+        if uart_tcp.pending_input() == 0 {
+            self.uart_tcp_next_rx = now;
+            return;
+        }
+        // TCP has no baud metadata. esptool starts at 115200 baud, with ten wire bits per byte.
+        // Pace delivery in emulated time so a large TCP read cannot instantaneously overflow the
+        // ROM loader's software receive ring even though the hardware FIFO itself has room.
+        const BAUD: u64 = 115_200;
+        let cycles_per_byte = (S::CPU_HZ * 10 / BAUD).max(1);
+        if now < self.uart_tcp_next_rx { return; }
+        let due = 1 + (now - self.uart_tcp_next_rx) / cycles_per_byte;
         let room = self.bus.uart_rx_capacity(0);
         if room == 0 { return; }
-        let data = uart_tcp.take_input(room);
-        if !data.is_empty() { self.bus.uart_input(0, &data); }
+        let data = uart_tcp.take_input(room.min(due as usize));
+        if !data.is_empty() {
+            self.bus.uart_input(0, &data);
+            self.uart_tcp_next_rx = self.uart_tcp_next_rx.saturating_add(data.len() as u64 * cycles_per_byte);
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

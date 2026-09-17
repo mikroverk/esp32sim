@@ -17,6 +17,7 @@ fn usage(chip: &str) -> ! {
 
 fn hex(s: &str, what: &str) -> u32 { u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or_else(|_| { eprintln!("--{}: bad hex {}", what, s); std::process::exit(2) }) }
 fn pair(s: &str, dflt: usize) -> (u32, usize) { match s.split_once(',') { Some((a, n)) => (hex(a, "addr"), n.parse().unwrap_or(dflt)), None => (hex(s, "addr"), dflt) } }
+fn download_strap(chip: &str) -> u32 { if chip == "esp32s3" { 0x7 } else { 0x2 } }
 
 /// Everything the command line can say, chip-agnostic; `None` means "the chip's default".
 #[derive(Default)]
@@ -323,12 +324,17 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if o.no_jit { for c in &mut m.cores { c.set_jit(false); } }
     match boot.as_str() {
         "app" => match m.boot_app(o.app_offset.unwrap_or(0x10000) as usize) { Ok(entry) => eprintln!("[emu] app boot: entry {:#010x} {}", entry, m.sym(entry)), Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2) } },
-        "rom" => { m.boot_rom(); eprintln!("[emu] ROM boot from reset vector {:#010x}", m.cores[0].pc()); }
-        _ => { eprintln!("--boot app|rom"); std::process::exit(2); }
+        "rom" | "download" => { m.boot_rom(); eprintln!("[emu] ROM boot from reset vector {:#010x}", m.cores[0].pc()); }
+        _ => { eprintln!("--boot app|rom|download"); std::process::exit(2); }
     }
     // Match a real board's boot conditions: the ROM prints the reset cause and the strapping-derived boot mode
     if let Some(c) = o.reset_cause { m.bus.set_reset_cause(c); }
     if let Some(v) = o.strap { m.bus.set_strap(v); }
+    else if boot == "download" {
+        let strap = download_strap(S::NAME);
+        m.bus.set_strap(strap);
+        eprintln!("[emu] {} UART download strap {:#x}", S::NAME, strap);
+    }
     for &(a, n) in &o.peeks { eprintln!("[peek before run]\n{}", m.peek(a, n)); }
     m.dbg.stop_after_exceptions = o.stop_exc;
     m.console.mask = match console.as_str() { "usb" => 1, "uart0" => 2, "uart" => 2, "both" => 3, "all" => 7, "none" => 0, _ => 3 };
