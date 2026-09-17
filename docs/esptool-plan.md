@@ -2,9 +2,15 @@
 
 Date: 2026-09-17
 
-Status: milestones 1 and 2 implemented; Milestone 2 runtime acceptance complete on C3 transport
-integration, with full CLI validation pending resolution of the repository's unrelated ULP API
-mismatch. Milestone 3 is next.
+Status: milestones 1 and 2 implemented. Milestone 3 is working on S3 for the validated no-stub
+commands below; default uploaded-stub support is the next active target.
+
+Update, 2026-09-17: the apparent ULP mismatch was a stale default Cargo target artifact; a fresh
+target builds the complete CLI. S3 strap `0x7` reaches `UART0_BOOT`. With UART autobaud counters
+modelled, esptool 4.7.0 `--no-stub` passes `flash-id`, writes the repository's 161,712-byte
+`hello_world.bin`, and verifies its digest through `socket://`. Default stub mode synchronizes and
+starts uploading, but the transition to the uploaded stub still fails and remains under
+investigation.
 
 ## Objective
 

@@ -11,6 +11,8 @@ const INT_RXFIFO_FULL: u32 = 1 << 0;
 const INT_TXFIFO_EMPTY: u32 = 1 << 1;
 const INT_RXFIFO_OVF: u32 = 1 << 4;
 const INT_TX_DONE: u32 = 1 << 14;
+const AUTOBAUD_EN: u32 = 1 << 27;
+const AUTOBAUD_PULSE_115200: u32 = 80_000_000 / 115_200;
 /// TXFIFO_EMPTY and TX_DONE: always true here, so INT_CLR cannot take them down.
 const INT_ALWAYS: u32 = INT_TXFIFO_EMPTY | INT_TX_DONE;
 
@@ -36,9 +38,21 @@ impl Uart {
     pub fn new(layout: UartLayout) -> Self { Uart { tx_out: Vec::new(), int_raw: INT_ALWAYS, int_ena: 0, layout, rx: VecDeque::new(), ram: RegRam::new() } }
     /// Bytes from the host into the receive FIFO; what does not fit is dropped and flagged RXFIFO_OVF.
     pub fn host_input(&mut self, data: &[u8]) {
+        let before = self.rx.len();
         for &b in data {
             if self.rx.len() >= RX_FIFO_SIZE { self.int_raw |= INT_RXFIFO_OVF; break; }
             self.rx.push_back(b);
+        }
+        let accepted = self.rx.len() - before;
+        if accepted > 0 && self.ram.read(0x20) & AUTOBAUD_EN != 0 {
+            // A raw TCP stream has no baud metadata. Match esptool's initial 115200-baud sync:
+            // the ROM waits for more than 127 RX edges, then derives the divider from the minimum
+            // low/high pulse widths. Ten edge opportunities per UART frame are a conservative
+            // approximation; the repeated 0x55 sync payload reaches the threshold immediately.
+            let edges = self.ram.read(0x30).saturating_add((accepted as u32).saturating_mul(10));
+            self.ram.write(0x28, AUTOBAUD_PULSE_115200);
+            self.ram.write(0x2c, AUTOBAUD_PULSE_115200);
+            self.ram.write(0x30, edges.min(0x3ff));
         }
         self.refresh_rx_full();
     }
@@ -66,7 +80,15 @@ impl Uart {
             0x0 => self.tx_out.push(v as u8),
             0xc => self.int_ena = v,
             0x10 => { self.int_raw &= !v | INT_ALWAYS; self.refresh_rx_full(); }
-            0x20 => { if v & self.layout.rxfifo_rst != 0 { self.rx.clear(); } self.ram.write(off, v); }   // CONF0 rxfifo_rst
+            0x20 => {
+                if v & self.layout.rxfifo_rst != 0 { self.rx.clear(); }
+                if v & AUTOBAUD_EN != 0 && self.ram.read(0x20) & AUTOBAUD_EN == 0 {
+                    self.ram.write(0x28, 0xfff);
+                    self.ram.write(0x2c, 0xfff);
+                    self.ram.write(0x30, 0);
+                }
+                self.ram.write(off, v);
+            }   // CONF0 rxfifo_rst / AUTOBAUD_EN
             0x24 => { self.ram.write(off, v); self.refresh_rx_full(); }
             _ => self.ram.write(off, v),
         }
@@ -122,5 +144,16 @@ mod tests {
         assert_eq!(u.read(0x1c) & 0xff, 1);
         u.write(0x20, 1 << 22);
         assert_eq!(u.read(0x1c) & 0xff, 0);
+    }
+
+    #[test]
+    fn host_sync_completes_autobaud_measurement() {
+        let mut u = Uart::new(UartLayout::S3);
+        u.write(0x20, AUTOBAUD_EN);
+        assert_eq!(u.read(0x30), 0);
+        u.host_input(&[0x55; 16]);
+        assert!(u.read(0x30) > 127);
+        assert_eq!(u.read(0x28), AUTOBAUD_PULSE_115200);
+        assert_eq!(u.read(0x2c), AUTOBAUD_PULSE_115200);
     }
 }
