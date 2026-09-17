@@ -42,6 +42,8 @@ impl Uart {
         }
         self.refresh_rx_full();
     }
+    /// Bytes that can enter RX without setting the hardware overflow condition.
+    pub fn rx_capacity(&self) -> usize { RX_FIFO_SIZE - self.rx.len() }
     /// CONF1 rxfifo_full_thrhd (the layout says how wide); the silicon reset value is 0x60, a
     /// driver that wants every byte sets 1. RXFIFO_FULL is a level here: it stays raised while the count is at or
     /// over the threshold, so a driver that clears it before draining is woken again.
@@ -99,11 +101,14 @@ mod tests {
     #[test]
     fn receive_fifo_overflow_is_flagged_and_reset_by_conf0() {
         let mut u = Uart::new(UartLayout::S3);
+        assert_eq!(u.rx_capacity(), RX_FIFO_SIZE);
         u.host_input(&[b'x'; RX_FIFO_SIZE + 3]);
         assert_eq!(u.read(0x1c) & 0x3ff, RX_FIFO_SIZE as u32);
+        assert_eq!(u.rx_capacity(), 0);
         assert_ne!(u.read(0x4) & INT_RXFIFO_OVF, 0);
         u.write(0x20, 1 << 17);
         assert_eq!(u.read(0x1c) & 0x3ff, 0);
+        assert_eq!(u.rx_capacity(), RX_FIFO_SIZE);
     }
     /// The C6 map: the IDF driver's default txfifo_empty_thrhd of 10 sits in bits 15:8 of CONF1,
     /// right above an 8-bit rxfifo_full_thrhd, and rxfifo_rst is bit 22 of CONF0_SYNC.

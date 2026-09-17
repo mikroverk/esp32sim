@@ -1,0 +1,207 @@
+# esptool and UART download-mode integration plan
+
+Date: 2026-09-17
+
+Status: milestones 1 and 2 implemented; Milestone 2 runtime acceptance complete on C3 transport
+integration, with full CLI validation pending resolution of the repository's unrelated ULP API
+mismatch. Milestone 3 is next.
+
+## Objective
+
+Allow unmodified `esptool`, `espefuse` and `idf.py flash` processes to communicate with a
+running esp32sim instance over a raw TCP UART connection. Both the mask-ROM loader
+(`--no-stub`) and esptool's uploaded RAM flasher stub are required outcomes.
+
+The implementation must preserve esp32sim's existing execution model. The real mask ROM remains
+the source of truth for the download protocol; esp32sim will not add a host-side implementation
+of SLIP or esptool commands.
+
+## User-facing target
+
+The intended native workflow is:
+
+```sh
+esp32sim --chip s3 --boot download \
+  --uart-tcp 127.0.0.1:5555 \
+  --flash-mb 16 \
+  --flash-state .state/device-flash.bin
+```
+
+In another shell:
+
+```sh
+esptool.py --chip esp32s3 --port socket://127.0.0.1:5555 \
+  --before no-reset --after no-reset flash-id
+
+ESPPORT=socket://127.0.0.1:5555 idf.py flash
+```
+
+Raw TCP does not carry RTS/DTR modem-control state. Automatic reset through esptool is therefore
+out of scope for the initial implementation. Commands must use no-reset behavior, and the
+emulator must provide an explicit, deterministic way to restart into SPI-flash boot afterwards.
+
+## Design constraints
+
+- UART transport is raw bytes. It must never pass through UTF-8 conversion, JSON or the web
+  console protocol.
+- Socket reads must not be copied directly into the 128-byte emulated UART FIFO. A bounded host
+  queue supplies bytes only as the guest drains FIFO space, preventing packet-sized TCP reads
+  from becoming artificial UART overruns.
+- Socket writers must not run on the emulator thread. A stalled client cannot stall CPU/device
+  scheduling.
+- TCP connection and reconnection do not reset the chip or discard flash.
+- Download mode boots the real mask ROM. Protocol emulation, command shortcuts and synthetic
+  flasher responses are not acceptable.
+- Existing console, script and WebSocket input paths remain unchanged when the TCP bridge is off.
+- Firmware seed images remain immutable. Mutable flash and eFuse state use the existing state
+  backends rather than overwriting build artifacts.
+- Native-only transport code must not add socket dependencies to the WebAssembly build.
+
+## Milestone 0 — characterization and retained fixtures
+
+Purpose: establish observable download-mode behavior before changing the machine.
+
+Work:
+
+- Record the correct download and SPI-boot strap values for S3, C3 and C6 from their ROM behavior.
+- Add a small retained, non-sensitive esptool command corpus: sync, chip identification and flash
+  identification request/response boundaries. Do not reimplement the protocol from those bytes.
+- Add a ROM-download smoke harness that can report the first unimplemented instruction,
+  peripheral register or exception without hiding it behind transport errors.
+
+Acceptance:
+
+- Each supported chip either reaches its ROM download receive loop or has a documented, directly
+  observed blocker.
+- No production behavior is changed by the characterization tests.
+
+## Milestone 1 — native raw UART/TCP transport
+
+Purpose: make socket behavior independently testable before attaching it to a chip.
+
+Work:
+
+- Add a native-only TCP listener with one active client, reconnect support and `TCP_NODELAY`.
+- Provide bounded binary input/output queues.
+- Apply TCP backpressure instead of dropping bytes when a queue is full.
+- Expose connection state and the listener's resolved address for diagnostics and tests.
+
+Acceptance:
+
+- Round trips preserve `0x00`, `0xc0`, `0xdb`, `0xff` and arbitrary non-UTF-8 bytes exactly.
+- Input can be drained in smaller pieces without loss or reordering.
+- A second connection replaces a disconnected client without restarting the listener.
+- Queue bounds and disconnected-output behavior have tests.
+- Native `esp-soc` tests pass; the WebAssembly build continues to compile without the module.
+
+## Milestone 2 — machine and CLI integration
+
+Purpose: expose UART0 as an interactive host transport without changing UART device semantics.
+
+Work:
+
+- Add `--uart-tcp HOST:PORT` and attach the transport to UART0.
+- Route UART0 TX to the socket while preserving internal console capture needed by tests.
+- Feed queued input only up to currently available UART RX capacity.
+- Poll host input at scheduler boundaries and wake interrupt delivery immediately after injection.
+- Prevent emulated receive timeouts from outrunning a waiting host. Initially, TCP mode may force
+  real-time pacing; remove that restriction only after deterministic host-wait behavior exists.
+- Keep USB-Serial/JTAG and UART1/2 behavior unchanged.
+
+Acceptance:
+
+- A binary loopback firmware exchanges multi-kilobyte data without corruption or RX overflow.
+- Slow and reconnecting clients cannot block the emulator thread.
+- Runs without `--uart-tcp` retain their golden console output and instruction counts.
+
+## Milestone 3 — real ROM loader (`--no-stub`)
+
+Purpose: prove the real mask-ROM download path before involving uploaded code.
+
+Work:
+
+- Add `--boot download`, mapping to the correct per-chip strap while retaining `--strap` as the
+  low-level override.
+- Validate esptool sync, chip-id, flash-id, read-flash, write-flash, verify-flash, erase-region and
+  erase-flash using `--no-stub`.
+- Fix only directly observed UART, ROM, SPI flash, reset or eFuse model deficiencies.
+- Preserve and test NOR semantics: programming only clears bits; erase restores `0xff`.
+
+Acceptance for S3:
+
+- Every command above succeeds through `socket://` against an unmodified esptool release.
+- Written bytes are visible to both the ROM loader and a subsequent normal ROM boot.
+- Failures and disconnects leave a valid flash state.
+
+## Milestone 4 — uploaded esptool flasher stub
+
+Purpose: support normal esptool and `idf.py flash` behavior rather than requiring a diagnostic
+fallback.
+
+Work:
+
+- Validate RAM upload, execution transfer and the stub greeting.
+- Validate compressed and incompressible writes at the default block sizes.
+- Exercise stub read, write, verify and erase paths.
+- Investigate failures through instruction/peripheral traces; do not bypass the stub with
+  host-side command handling.
+
+Acceptance for S3:
+
+- The same command matrix passes with esptool's default stub mode and `--no-stub`.
+- `idf.py flash` succeeds when configured with `ESPPORT=socket://...` and no-reset options.
+- Stub and ROM-loader writes produce identical flash bytes.
+
+## Milestone 5 — lifecycle, persistence and operator workflow
+
+Purpose: make flashing useful beyond a single emulator process.
+
+Work:
+
+- Integrate S3 `--flash-state` and `--efuse-state` with download-mode mutations.
+- Define explicit post-flash behavior: restart the process, or request a controlled strap change
+  followed by chip reset. Do not infer reset from a TCP disconnect.
+- Flush persistent storage before controlled reset and normal shutdown.
+- Add graceful socket shutdown and concise diagnostics without dumping protocol or fuse contents.
+- Document fresh-device, retained-device and recovery workflows.
+
+Acceptance:
+
+- Flash with esptool, exit, restart in SPI-boot mode and run the newly flashed application.
+- NVS/OTA data and successful supported eFuse burns survive restart.
+- Seed images remain byte-identical.
+
+## Milestone 6 — C3 and C6 parity
+
+Purpose: extend the proven S3 path without weakening the more mature target.
+
+Work per chip:
+
+- Run the complete ROM-loader and stub command matrices.
+- Fix directly observed chip-specific ROM, UART, SPI and reset gaps.
+- Add flash persistence before claiming cross-process flashing support.
+- Add eFuse persistence before claiming `espefuse` support.
+
+Acceptance:
+
+- Capability is reported per chip and per command; unsupported combinations fail explicitly.
+- S3 regressions remain green while C3/C6 support is added.
+
+## Milestone 7 — regression suite and release documentation
+
+Work:
+
+- Pin the tested esptool and ESP-IDF versions in test metadata.
+- Add native integration tests for no-stub, stub, `idf.py flash`, disconnect/reconnect and restart.
+- Add negative tests for malformed addresses, queue pressure, missing ROM, unsupported chips and
+  state-size mismatch.
+- Document differences from Espressif QEMU and esp-emulator, especially reset handling and
+  esp32sim's separate immutable seed versus mutable state files.
+
+Completion criteria:
+
+- Default esptool stub mode and `--no-stub` both work on S3.
+- `idf.py flash` works over `socket://` with documented no-reset settings.
+- Flashing is byte-accurate, persistent and followed by a successful normal ROM boot.
+- C3/C6 support is either complete or precisely reported as partial with retained failing tests.
+- No host-side protocol shortcut, mock firmware or simplified replacement component is introduced.

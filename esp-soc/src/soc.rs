@@ -101,6 +101,8 @@ pub trait SocBus: Bus {
     fn serial_input(&mut self, data: &[u8]);
     /// Bytes from the host into UART `n`'s receive FIFO (a terminal on the chip's UART0 pins).
     fn uart_input(&mut self, n: usize, data: &[u8]);
+    /// Bytes UART `n` can currently accept without overflowing its hardware receive FIFO.
+    fn uart_rx_capacity(&self, _n: usize) -> usize { 0 }
     fn gpio_set_input(&mut self, pin: u8, level: bool);
     /// Deliver host touch at the bus's current time horizon.
     fn touch_input(&mut self, x: u16, y: u16, down: bool) { self.board().touch(x, y, down); }

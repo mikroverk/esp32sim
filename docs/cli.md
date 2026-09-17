@@ -62,6 +62,7 @@ browser profiles and security considerations.
 | `--max-seconds S`, `--max-insns N` | stop after emulated time / instructions |
 | `--script F` | host actions at emulated times (below) |
 | `--console usb\|uart0\|both\|all\|none`, `--console-prefix` | which consoles to print |
+| `--uart-tcp HOST:PORT` | expose UART0 as a raw binary TCP server; implies real-time pacing and removes UART0 from stdout |
 | `--realtime` | pace to wall time without the UI |
 | `--web PORT [--web-dir DIR]` | browser UI (implies real time) |
 | `--cam-image F`, `--cam-fps N` | camera source for boards with a camera |

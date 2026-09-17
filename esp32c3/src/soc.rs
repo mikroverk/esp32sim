@@ -106,6 +106,7 @@ impl esp_soc::SocBus for SocBus {
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
+    fn uart_rx_capacity(&self, n: usize) -> usize { self.periph.uart.get(n).map_or(0, |uart| uart.rx_capacity()) }
     fn gpio_set_input(&mut self, pin: u8, level: bool) { self.periph.gpio.set_input(pin, level); if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); } }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
