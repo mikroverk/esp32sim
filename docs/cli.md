@@ -103,9 +103,10 @@ panics after upload. esp32sim does not add a non-silicon memory alias for it. Us
 `--no-stub`.
 
 C3 and C6 use the same socket workflow with `--chip c3`/`esp32c3` or `--chip c6`/`esp32c6`.
-ROM-loader `flash_id` and the v2 stub's `flash_id`, compressed write and digest verification are
-validated on both. `--flash-state` persists their writes across processes as it does on S3; the
-rest of the command matrix is still in progress.
+Their ROM loaders support `flash_id`, write, verify and read-back; those ROMs explicitly do not
+implement `erase_region`. The v2 stub supports `flash_id`, compressed write, verify, read-back,
+bounded erase and chip erase on both. `--flash-state` persists the results across processes, and
+normal ROM boot from an esptool-flashed ESP-IDF image is validated on both chips.
 
 After flashing, stop the download-mode process and start a normal ROM boot with the same
 `--flash-state` path.

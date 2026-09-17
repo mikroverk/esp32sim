@@ -106,6 +106,8 @@ pub struct Machine<S: Soc> {
 
 const QUANTUM: u64 = 64;
 
+#[cfg(not(target_arch = "wasm32"))]
+fn uart_tcp_pacing_baud(chip: &str) -> u64 { if chip == "esp32c6" { 230_400 } else { 115_200 } }
 /// Records only accesses made synchronously by `Core::step`. Generated direct-memory access is
 /// disabled so every load and store passes through one of the typed methods below.
 struct RecordingBus<'a, B> { bus: &'a mut B, accesses: Vec<MemoryAccess> }
@@ -948,11 +950,13 @@ impl<S: Soc> Machine<S> {
             self.uart_tcp_next_rx = now;
             return;
         }
-        // TCP has no baud metadata. esptool starts at 115200 baud, with ten wire bits per byte.
-        // Pace delivery in emulated time so a large TCP read cannot instantaneously overflow the
-        // ROM loader's software receive ring even though the hardware FIFO itself has room.
-        const BAUD: u64 = 115_200;
-        let cycles_per_byte = (S::CPU_HZ * 10 / BAUD).max(1);
+        // TCP has no baud metadata. Keep delivery paced and FIFO-backpressured so a large socket
+        // read cannot instantaneously overrun the ROM loader. C6 needs two-times wall-clock
+        // headroom because it emulates below real time: at a literal 115200 simulated baud, a
+        // 16 KiB esptool block took over its three-second host timeout even though the guest
+        // consumed every byte correctly. Keep the already-proven S3/C3 pacing unchanged.
+        let baud = uart_tcp_pacing_baud(S::NAME);
+        let cycles_per_byte = (S::CPU_HZ * 10 / baud).max(1);
         if now < self.uart_tcp_next_rx { return; }
         let due = 1 + (now - self.uart_tcp_next_rx) / cycles_per_byte;
         let room = self.bus.uart_rx_capacity(0);
@@ -1230,5 +1234,17 @@ impl<S: Soc> Machine<S> {
         let mut out = String::new();
         for (i, c) in self.cores.iter().enumerate() { if i == 0 || !self.core_held[i] { out += &c.dump(i, &sym); } }
         out
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod uart_tcp_pacing_tests {
+    use super::uart_tcp_pacing_baud;
+
+    #[test]
+    fn c6_gets_timeout_headroom_without_changing_other_chips() {
+        assert_eq!(uart_tcp_pacing_baud("esp32c6"), 230_400);
+        assert_eq!(uart_tcp_pacing_baud("esp32c3"), 115_200);
+        assert_eq!(uart_tcp_pacing_baud("esp32s3"), 115_200);
     }
 }

@@ -4,10 +4,12 @@ Date: 2026-09-17
 
 Status: milestones 1 through 5 implemented for ESP32-S3 with the ROM loader and modern v2 stub.
 Milestone 6 is in progress: C3 and C6 pass ROM-loader `flash-id`, and esptool 4.8.1's v2 stub now
-passes upload, `flash-id`, compressed write and digest verification on both chips. Mutable flash
-state is persistent across processes on both RISC-V chips. The legacy v1 S3 stub has the documented
-upstream address defect below. The remaining command matrix, C3/C6 eFuse persistence and automated
-external-tool regression coverage remain.
+passes upload, `flash-id`, compressed write, digest verification, read, bounded erase and chip
+erase on both chips. Their ROM loaders pass write, verify and byte-identical read-back; the C3/C6
+ROMs themselves explicitly do not implement bounded erase. Mutable flash state is persistent, and
+separate normal-ROM processes boot esptool-flashed ESP-IDF 6.0.1 hello-world images on both chips.
+The legacy v1 S3 stub has the documented upstream address defect below. C3/C6 eFuse persistence and
+automated external-tool regression coverage remain.
 
 Update, 2026-09-17: the apparent ULP mismatch was a stale default Cargo target artifact; a fresh
 target builds the complete CLI. S3 strap `0x7` reaches `UART0_BOOT`. With UART autobaud counters
@@ -16,8 +18,11 @@ modelled, esptool 4.7.0 `--no-stub` passes `flash-id`, writes the repository's 1
 starts uploading, but the transition to the uploaded stub still fails and remains under
 investigation.
 
-Further result: pacing TCP input at the emulated 115200-baud line rate allows both stub generations
-to upload. The legacy v1.3.0 S3 stub then panics in its flash-status path because its official
+Further result: paced TCP input allows both stub generations to upload without overflowing the ROM
+loader's receive path. S3/C3 retain the conservative 115200-baud ceiling; C6 uses 230400, still
+bounded by emulated FIFO capacity but with enough wall-clock headroom for v2-stub 16 KiB writes to
+meet esptool's default three-second command timeout. The legacy v1.3.0 S3 stub then panics in its
+flash-status path because its official
 source hard-codes the classic ESP32 `g_rom_flashchip` address `0x3ffae270`, while the same source's
 S3 ROM linker file places `rom_spiflash_legacy_data` at `0x3fceffe4`. No non-silicon address alias
 is added to hide that upstream defect. The newer v2 stub works after modelling the S3/C3 UART
@@ -36,6 +41,11 @@ offsets, the CPU entered the UART priority handler but esp-hal observed no UART 
 without draining the FIFO, and immediately took the same level interrupt again. With the status
 registers and FIFO-read interrupt refresh in place, the unmodified v2 stubs service UART0 and pass
 161,712-byte compressed writes with flash hash verification on C3 and C6.
+
+Lifecycle acceptance now passes on all three chips. For C3 and C6, ESP-IDF 6.0.1 hello-world
+bootloader, partition table and application images were flashed through esptool 4.8.1's v2 stub
+into fresh 4 MiB state files. Separate `--boot rom` processes loaded those state files through the
+real mask ROM and printed `Hello world!`.
 
 ## Objective
 
