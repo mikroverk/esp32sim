@@ -19,7 +19,7 @@ starts uploading, but the transition to the uploaded stub still fails and remain
 investigation.
 
 Further result: paced TCP input allows both stub generations to upload without overflowing the ROM
-loader's receive path. S3/C3 retain the conservative 115200-baud ceiling; C6 uses 230400, still
+loader's receive path. S3 retains the conservative 115200-baud ceiling; C3/C6 use 230400, still
 bounded by emulated FIFO capacity but with enough wall-clock headroom for v2-stub 16 KiB writes to
 meet esptool's default three-second command timeout. The legacy v1.3.0 S3 stub then panics in its
 flash-status path because its official

@@ -33,9 +33,16 @@ tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energ
 ```
 
 Tests named `external_*` need inputs only a developer machine has (full objdump listings via
-`XTENSA_DIS_FILES`/`RISCV_DIS_FILES`, Apple's clang for the encoder fixture) and fail loudly
-without them; run them by name. Their hermetic counterparts (`decoder_matches_corpus`,
+`XTENSA_DIS_FILES`/`RISCV_DIS_FILES`, Apple's clang for the encoder fixture, or esptool 4.8.1 via
+`ESPTOOL_PYTHON`) and fail loudly without them; run them by name. The esptool tests flash the
+tracked C3/C6 hello-world assets through localhost and then boot the persistent state. Their
+hermetic counterparts (`decoder_matches_corpus`,
 `encodings_match_fixture`) run in the default suite against checked-in oracles.
+
+```sh
+ESPTOOL_PYTHON=/path/to/esptool-4.8.1/bin/python \
+  cargo test --release -p esp32sim --test esptool -- --ignored --nocapture
+```
 
 Use `--release`: the debug build runs the same scenarios ~30x slower. On a mismatch the actual
 output is left next to the golden as `*.actual` for diffing.
