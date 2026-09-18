@@ -50,6 +50,7 @@ pub struct SocBus {
     pub gpio_events: Option<Vec<(u64, u8, bool)>>,
     pub debug: esp_soc::DebugFlags,
     flash_state: Option<StateSlot>,
+    efuse_state: Option<StateSlot>,
     storage_error: Option<String>,
     storage_generation: u64,
 }
@@ -67,7 +68,7 @@ impl SocBus {
             mmu: [MMU_INVALID; MMU_ENTRIES],
             periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard),
             cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(),
-            flash_state: None, storage_error: None, storage_generation: 0,
+            flash_state: None, efuse_state: None, storage_error: None, storage_generation: 0,
         }
     }
 
@@ -79,25 +80,42 @@ impl SocBus {
         }
     }
 
+    pub fn configure_efuse_state(&mut self, path: impl Into<PathBuf>) -> Result<bool, String> {
+        let path = path.into();
+        match StateFile::open_sizes(&path, &[esp_periph::EFUSE_STATE_BYTES, 1024])? {
+            Some((file, bytes)) => { self.periph.efuse.load_state(&bytes[..esp_periph::EFUSE_STATE_BYTES])?; self.efuse_state = Some(StateSlot { path, file: Some(file), loaded: true }); Ok(true) }
+            None => { self.efuse_state = Some(StateSlot { path, file: None, loaded: false }); Ok(false) }
+        }
+    }
+
     pub fn persistent_flash_loaded(&self) -> bool { self.flash_state.as_ref().is_some_and(|state| state.loaded) }
+    pub fn persistent_efuse_loaded(&self) -> bool { self.efuse_state.as_ref().is_some_and(|state| state.loaded) }
     pub fn initialize_storage(&mut self) -> Result<(), String> {
         if let Some(state) = &mut self.flash_state {
             if state.file.is_none() { state.file = Some(StateFile::create(&state.path, &self.flash)?); }
+        }
+        if let Some(state) = &mut self.efuse_state {
+            if state.file.is_none() { state.file = Some(StateFile::create(&state.path, &self.periph.efuse.state_bytes())?); }
         }
         Ok(())
     }
     pub fn flush_storage(&mut self) -> Result<(), String> {
         if let Some(file) = self.flash_state.as_mut().and_then(|state| state.file.as_mut()) { file.sync()?; }
+        if let Some(file) = self.efuse_state.as_mut().and_then(|state| state.file.as_mut()) { file.sync()?; }
         if let Some(error) = self.storage_error.take() { return Err(error); }
         Ok(())
     }
     pub fn storage_generation(&self) -> u64 { self.storage_generation }
-    pub fn export_storage(&self, kind: u32) -> Option<Vec<u8>> { (kind == 0).then(|| self.flash.clone()) }
+    pub fn export_storage(&self, kind: u32) -> Option<Vec<u8>> { match kind { 0 => Some(self.flash.clone()), 1 => Some(self.periph.efuse.state_bytes()), _ => None } }
     pub fn import_storage(&mut self, kind: u32, data: &[u8]) -> Result<(), String> {
-        if kind != 0 { return Err(format!("unknown persistent state kind {}", kind)); }
-        if data.len() != self.flash.len() { return Err(format!("flash state is {} bytes, expected {}", data.len(), self.flash.len())); }
-        self.flash.copy_from_slice(data);
-        Ok(())
+        match kind {
+            0 => {
+                if data.len() != self.flash.len() { return Err(format!("flash state is {} bytes, expected {}", data.len(), self.flash.len())); }
+                self.flash.copy_from_slice(data); Ok(())
+            }
+            1 => self.periph.efuse.load_state(data),
+            _ => Err(format!("unknown persistent state kind {}", kind)),
+        }
     }
     fn persist_flash(&mut self, offset: usize, len: usize) {
         let end = offset.saturating_add(len).min(self.flash.len());
@@ -105,6 +123,12 @@ impl SocBus {
         self.storage_generation = self.storage_generation.wrapping_add(1);
         if let Some(file) = self.flash_state.as_mut().and_then(|state| state.file.as_mut()) {
             if let Err(error) = file.write_range(offset, &self.flash[offset..end]) { self.storage_error.get_or_insert(error); }
+        }
+    }
+    fn persist_efuse(&mut self) {
+        self.storage_generation = self.storage_generation.wrapping_add(1);
+        if let Some(file) = self.efuse_state.as_mut().and_then(|state| state.file.as_mut()) {
+            if let Err(error) = file.write_range(0, &self.periph.efuse.state_bytes()).and_then(|_| file.sync()) { self.storage_error.get_or_insert(error); }
         }
     }
 
@@ -151,6 +175,7 @@ impl SocBus {
             _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
         };
         self.periph.write32(a, v);
+        if self.periph.efuse.take_dirty() { self.persist_efuse(); }
         // A SPI flash command must complete before the guest can read its result: firmware kicks
         // the command and polls/reads the data registers a few instructions later, well inside one
         // scheduling quantum. Running it at the quantum boundary instead loses the race and the
@@ -265,14 +290,14 @@ impl Bus for SocBus {
 mod tests {
     use super::*;
 
-    fn state_path() -> PathBuf {
-        std::env::temp_dir().join(format!("esp32sim-c3-flash-state-{}.bin", std::process::id()))
+    fn state_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("esp32sim-c3-{name}-state-{}.bin", std::process::id()))
     }
 
     #[test]
     fn flash_program_survives_a_new_bus() {
         const SPI1: u32 = 0x6000_2000;
-        let path = state_path(); let _ = std::fs::remove_file(&path);
+        let path = state_path("flash"); let _ = std::fs::remove_file(&path);
         {
             let mut bus = SocBus::new(0x2000, [0; 6]);
             assert!(!bus.configure_flash_state(&path).unwrap()); bus.initialize_storage().unwrap();
@@ -281,5 +306,20 @@ mod tests {
         }
         let mut bus = SocBus::new(0x2000, [0; 6]); assert!(bus.configure_flash_state(&path).unwrap());
         assert_eq!(&bus.flash[0x120..0x124], &[0x11, 0x22, 0x33, 0x44]); std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn efuse_identity_and_burn_survive_a_new_bus() {
+        const EFUSE: u32 = 0x6000_8800;
+        let path = state_path("efuse"); let _ = std::fs::remove_file(&path);
+        let identity;
+        {
+            let mut bus = SocBus::new(0x2000, [0; 6]);
+            identity = bus.periph.efuse.read(0x50);
+            assert!(!bus.configure_efuse_state(&path).unwrap()); bus.initialize_storage().unwrap();
+            bus.write32(EFUSE, 0x55).unwrap(); bus.write32(EFUSE + 0x1d4, (4 << 2) | 2).unwrap(); bus.flush_storage().unwrap();
+        }
+        let mut bus = SocBus::new(0x2000, [0; 6]); assert!(bus.configure_efuse_state(&path).unwrap());
+        assert_eq!(bus.periph.efuse.read(0x50), identity); assert_eq!(bus.periph.efuse.read(0x9c), 0x55); std::fs::remove_file(path).unwrap();
     }
 }

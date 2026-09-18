@@ -16,10 +16,9 @@ other flash-backed partition without esp32sim interpreting their contents.
 | Flag | Purpose |
 | --- | --- |
 | `--flash-state PATH` | Load or create the mutable S3/C3/C6 logical flash state file |
-| `--efuse-state PATH` | Load or create the mutable ESP32-S3 physical eFuse state file |
+| `--efuse-state PATH` | Load or create the mutable S3/C3/C6 physical eFuse state file |
 
-Flash state supports S3, C3 and C6. Physical eFuse state remains S3-only;
-C3 and C6 reject `--efuse-state` rather than silently using ephemeral state.
+Flash and physical eFuse state support S3, C3 and C6.
 
 Example:
 
@@ -129,5 +128,5 @@ to one ESP32-S3 machine, not C3/C6 or multi-node network manifests.
   same browser profile and origin.
 - **An eFuse bit will not clear:** physical eFuses are one-time programmable;
   create a fresh eFuse-state file instead.
-- **C3/C6 rejects `--efuse-state`:** flash persistence is supported on both
-  chips, but physical eFuse persistence remains ESP32-S3-only.
+- **An `espefuse` burn disappeared:** use the same `--efuse-state` path on the
+  download-mode and subsequent processes.

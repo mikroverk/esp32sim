@@ -243,7 +243,11 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
         let loaded = m.bus.configure_flash_state(path).unwrap_or_else(|e| { eprintln!("--flash-state: {}", e); std::process::exit(2) });
         eprintln!("[emu] flash state: {} ({})", path, if loaded { "loaded" } else { "new" });
     }
-    for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--efuse-state", o.efuse_state.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
+    if let Some(path) = &o.efuse_state {
+        let loaded = m.bus.configure_efuse_state(path).unwrap_or_else(|e| { eprintln!("--efuse-state: {}", e); std::process::exit(2) });
+        eprintln!("[emu] eFuse state: {} ({})", path, if loaded { "loaded" } else { "new" });
+    }
+    for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
     }
     m
@@ -259,7 +263,11 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
         let loaded = m.bus.configure_flash_state(path).unwrap_or_else(|e| { eprintln!("--flash-state: {}", e); std::process::exit(2) });
         eprintln!("[emu] flash state: {} ({})", path, if loaded { "loaded" } else { "new" });
     }
-    for (flag, on) in [("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--efuse-state", o.efuse_state.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
+    if let Some(path) = &o.efuse_state {
+        let loaded = m.bus.configure_efuse_state(path).unwrap_or_else(|e| { eprintln!("--efuse-state: {}", e); std::process::exit(2) });
+        eprintln!("[emu] eFuse state: {} ({})", path, if loaded { "loaded" } else { "new" });
+    }
+    for (flag, on) in [("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C6", flag); std::process::exit(2); }
     }
     m

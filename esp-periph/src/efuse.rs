@@ -7,8 +7,9 @@ const BLOCK_WORDS: [usize; 11] = [6, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8];
 const BLOCK_BASE: [usize; 11] = [0, 6, 12, 20, 28, 36, 44, 52, 60, 68, 76];
 const SHADOW_BASE: [u32; 11] = [0x2c, 0x44, 0x5c, 0x7c, 0x9c, 0xbc, 0xdc, 0xfc, 0x11c, 0x13c, 0x15c];
 
-/// ESP32-S3 eFuse controller. `physical` is the one-time-programmable array; `ram` also holds
-/// transient program registers and controller state. Read shadows are rebuilt from physical data.
+/// ESP32-S3/C3/C6 eFuse controller. `physical` is the one-time-programmable array; `ram` also
+/// holds transient program registers and controller state. Read shadows are rebuilt from physical
+/// data.
 pub struct Efuse { pub ram: RegRam, physical: [u32; EFUSE_STATE_WORDS], dirty: bool }
 
 impl Efuse {

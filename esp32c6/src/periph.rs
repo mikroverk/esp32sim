@@ -386,10 +386,10 @@ pub use esp_periph::Rng;
 /// revisions on every boot and refuses an app whose `min_chip_rev` is above the wafer version.
 pub fn efuse_c6(mac: [u8; 6], rev_major: u32, rev_minor: u32, pkg: u32, blk_major: u32, blk_minor: u32) -> Efuse {
     let mut e = Efuse::new(mac);
-    e.write(0x48, (mac[0] as u32) << 8 | mac[1] as u32 | 0xfffe << 16);       // BLK1 word 1: MAC high, MAC_EXT ff:fe
-    e.write(0x50, (rev_minor & 0xf) << 18 | (rev_major & 3) << 22 | (pkg & 7) << 24 | (blk_minor & 7) << 27 | (blk_major & 3) << 30);
-    e.write(0x54, 1 | 1 << 5);                                                 // FLASH_CAP = 1 (4 MB), FLASH_VENDOR = 1
-    e.write(0x6c, 0);                                                          // (the S3 layout's BLK_VERSION_MAJOR lives elsewhere here)
+    e.import_shadow(0x48, (mac[0] as u32) << 8 | mac[1] as u32 | 0xfffe << 16);       // BLK1 word 1: MAC high, MAC_EXT ff:fe
+    e.import_shadow(0x50, (rev_minor & 0xf) << 18 | (rev_major & 3) << 22 | (pkg & 7) << 24 | (blk_minor & 7) << 27 | (blk_major & 3) << 30);
+    e.import_shadow(0x54, 1 | 1 << 5);                                                 // FLASH_CAP = 1 (4 MB), FLASH_VENDOR = 1
+    e.import_shadow(0x6c, 0);                                                          // (the S3 layout's BLK_VERSION_MAJOR lives elsewhere here)
     e
 }
 

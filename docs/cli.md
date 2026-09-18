@@ -19,7 +19,7 @@ register presets).
 | `--app-offset 0xNNNN` | where `--app` is written (and, in `--boot app`, where its image is read from), default 0x10000 — match the offset of the partition you're booting (e.g. the `factory` app partition's actual offset from your partition table), which can differ once earlier partitions have been resized or reordered |
 | `--flash-image F` | whole flash dump written at 0 |
 | `--flash-state F` | persistent mutable logical flash on S3/C3/C6; create from seed images when missing, otherwise load it and ignore the seeds |
-| `--efuse-state F` | persistent mutable ESP32-S3 physical eFuse state: native 336-byte payload or compatible 1 KiB QEMU backing file |
+| `--efuse-state F` | persistent mutable S3/C3/C6 physical eFuse state: native 336-byte payload or compatible 1 KiB QEMU backing file |
 | `--chip s3\|c3\|c6` | which chip (default s3) |
 | `--rom F` | mask ROM ELF (default: the chip's in `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |

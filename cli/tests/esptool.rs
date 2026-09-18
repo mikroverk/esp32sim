@@ -23,14 +23,21 @@ fn tail(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[bytes.len().saturating_sub(2000)..]).to_string()
 }
 
-fn esptool(args: &[&str]) -> Output {
+fn python_module(module: &str, args: &[&str]) -> Output {
     Command::new(python())
-        .args(["-m", "esptool"])
+        .args(["-m", module])
         .args(args)
         .env("ESPTOOL_STUB_VERSION", "2")
         .current_dir(root())
         .output()
-        .unwrap_or_else(|error| panic!("start esptool: {error}"))
+        .unwrap_or_else(|error| panic!("start {module}: {error}"))
+}
+
+fn esptool(args: &[&str]) -> Output {
+    python_module("esptool", args)
+}
+fn espefuse(args: &[&str]) -> Output {
+    python_module("espefuse", args)
 }
 
 fn require_tested_esptool() {
@@ -88,14 +95,10 @@ fn wait_for_exit(mut child: Child) -> Output {
     }
 }
 
-fn lifecycle(chip: &str, rom_name: &str, prefix: &str) {
-    require_tested_esptool();
-    let state = tmp(&format!("esptool-{chip}-flash.bin"));
-    let _ = std::fs::remove_file(&state);
+fn start_download(chip: &str, state_flag: &str, state: &std::path::Path) -> (Child, String) {
     let port = free_port();
     let socket = format!("socket://127.0.0.1:{port}");
     let listen = format!("127.0.0.1:{port}");
-
     let mut emulator = Command::new(BIN)
         .args([
             "--chip",
@@ -106,9 +109,9 @@ fn lifecycle(chip: &str, rom_name: &str, prefix: &str) {
             "download",
             "--flash-mb",
             "4",
-            "--flash-state",
+            state_flag,
         ])
-        .arg(&state)
+        .arg(state)
         .args(["--uart-tcp", &listen, "--console", "none", "--no-dump"])
         .current_dir(root())
         .stdout(Stdio::piped())
@@ -116,6 +119,19 @@ fn lifecycle(chip: &str, rom_name: &str, prefix: &str) {
         .spawn()
         .unwrap();
     wait_for_listener(&mut emulator, port);
+    (emulator, socket)
+}
+
+fn stop_download(mut child: Child) -> Output {
+    let _ = child.kill();
+    child.wait_with_output().unwrap()
+}
+
+fn lifecycle(chip: &str, rom_name: &str, prefix: &str) {
+    require_tested_esptool();
+    let state = tmp(&format!("esptool-{chip}-flash.bin"));
+    let _ = std::fs::remove_file(&state);
+    let (mut emulator, socket) = start_download(chip, "--flash-state", &state);
 
     let bootloader = root().join(format!("{FW}/{prefix}-hello-bootloader.bin"));
     let ptable = root().join(format!("{FW}/{prefix}-hello-ptable.bin"));
@@ -180,6 +196,70 @@ fn lifecycle(chip: &str, rom_name: &str, prefix: &str) {
     std::fs::remove_file(state).unwrap();
 }
 
+fn efuse_lifecycle(chip: &str, expected_identity: &str) {
+    require_tested_esptool();
+    let state = tmp(&format!("espefuse-{chip}.bin"));
+    let _ = std::fs::remove_file(&state);
+    let (emulator, socket) = start_download(chip, "--efuse-state", &state);
+    let base = ["--chip", chip, "--port", &socket, "--before", "no_reset"];
+
+    let summary = espefuse(&[base.as_slice(), &["summary"]].concat());
+    assert!(
+        summary.status.success(),
+        "espefuse summary failed:\n{}\n{}",
+        tail(&summary.stdout),
+        tail(&summary.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&summary.stdout).contains(expected_identity),
+        "espefuse reported the wrong identity:\n{}",
+        tail(&summary.stdout)
+    );
+
+    let burn = espefuse(
+        &[
+            base.as_slice(),
+            &["--do-not-confirm", "burn_bit", "BLOCK3", "0"],
+        ]
+        .concat(),
+    );
+    if !burn.status.success() {
+        let emulator_output = stop_download(emulator);
+        panic!(
+            "espefuse burn failed:\n{}\n{}\nemulator:\n{}",
+            tail(&burn.stdout),
+            tail(&burn.stderr),
+            tail(&emulator_output.stderr)
+        );
+    }
+    assert!(
+        String::from_utf8_lossy(&burn.stdout).contains("BURN BLOCK3  - OK"),
+        "burn was not verified:\n{}",
+        tail(&burn.stdout)
+    );
+    stop_download(emulator);
+
+    let (emulator, socket) = start_download(chip, "--efuse-state", &state);
+    let dump = espefuse(&[
+        "--chip", chip, "--port", &socket, "--before", "no_reset", "dump",
+    ]);
+    stop_download(emulator);
+    assert!(
+        dump.status.success(),
+        "espefuse dump failed:\n{}\n{}",
+        tail(&dump.stdout),
+        tail(&dump.stderr)
+    );
+    let dump = String::from_utf8_lossy(&dump.stdout);
+    let block3 = dump.lines().find(|line| line.starts_with("BLOCK_USR_DATA"));
+    assert!(
+        block3.is_some_and(|line| line.contains("dump: 00000001 ")),
+        "BLOCK3 burn did not persist:\n{}",
+        tail(dump.as_bytes())
+    );
+    std::fs::remove_file(state).unwrap();
+}
+
 #[test]
 #[ignore = "needs esptool 4.8.1 (ESPTOOL_PYTHON) and the ESP32-C3 mask ROM ELF"]
 fn external_esptool_c3_v2_lifecycle() {
@@ -190,4 +270,16 @@ fn external_esptool_c3_v2_lifecycle() {
 #[ignore = "needs esptool 4.8.1 (ESPTOOL_PYTHON) and the ESP32-C6 mask ROM ELF"]
 fn external_esptool_c6_v2_lifecycle() {
     lifecycle("esp32c6", "esp32c6_rev0", "c6");
+}
+
+#[test]
+#[ignore = "needs espefuse 4.8.1 (ESPTOOL_PYTHON) and the ESP32-C3 mask ROM ELF"]
+fn external_espefuse_c3_persistence() {
+    efuse_lifecycle("esp32c3", "60:55:f9:00:11:22");
+}
+
+#[test]
+#[ignore = "needs espefuse 4.8.1 (ESPTOOL_PYTHON) and the ESP32-C6 mask ROM ELF"]
+fn external_espefuse_c6_persistence() {
+    efuse_lifecycle("esp32c6", "dc:1e:d5:ff:fe:6e:8c:dc");
 }

@@ -35,7 +35,8 @@ tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energ
 Tests named `external_*` need inputs only a developer machine has (full objdump listings via
 `XTENSA_DIS_FILES`/`RISCV_DIS_FILES`, Apple's clang for the encoder fixture, or esptool 4.8.1 via
 `ESPTOOL_PYTHON`) and fail loudly without them; run them by name. The esptool tests flash the
-tracked C3/C6 hello-world assets through localhost and then boot the persistent state. Their
+tracked C3/C6 hello-world assets through localhost and then boot the persistent state; the
+espefuse tests burn one user-data bit and verify it after reopening the state. Their
 hermetic counterparts (`decoder_matches_corpus`,
 `encodings_match_fixture`) run in the default suite against checked-in oracles.
 

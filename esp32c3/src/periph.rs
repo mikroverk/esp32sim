@@ -158,10 +158,10 @@ impl Extmem {
 /// an app whose `min_chip_rev` is above the wafer version.
 pub fn efuse_c3(mac: [u8; 6], rev_major: u32, rev_minor: u32, blk_minor: u32) -> Efuse {
     let mut e = Efuse::new(mac);
-    e.write(0x48, (mac[0] as u32) << 8 | mac[1] as u32);       // BLK1 word 1: MAC high, nothing else
+    e.import_shadow(0x48, (mac[0] as u32) << 8 | mac[1] as u32);       // BLK1 word 1: MAC high, nothing else
     // BLK1 word 3 holds WAFER_VERSION_MINOR_LO (bit 114), PKG_VERSION (117) and BLK_VERSION_MINOR (120)
-    e.write(0x50, (rev_minor & 7) << 18 | (blk_minor & 7) << 24);
-    e.write(0x58, ((rev_minor >> 3) & 1) << 23 | (rev_major & 3) << 24);
+    e.import_shadow(0x50, (rev_minor & 7) << 18 | (blk_minor & 7) << 24);
+    e.import_shadow(0x58, ((rev_minor >> 3) & 1) << 23 | (rev_major & 3) << 24);
     e                                                          // BLK_VERSION_MAJOR = 1 comes from Efuse::new (0x6c)
 }
 impl Device for Intc {
