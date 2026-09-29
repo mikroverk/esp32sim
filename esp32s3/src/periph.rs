@@ -469,6 +469,7 @@ impl DeviceSet for Peripherals {
         match block {
             0xc2 if !write => self.intmatrix.status = self.source_status(),   // INTERRUPT_*_STATUS reads the live sources
             0x35 => self.wifi.now_cycles = self.clock.cycles(),               // TSF timestamps
+            0x08 => self.rtc.now_cycles = self.clock.cycles(),                // SENS ADC samples analog sources at this time
             0x06 => self.fe.done = self.wifi.ap.is_some(),                    // IQ estimation completes once there is an AP
             _ => {}
         }
