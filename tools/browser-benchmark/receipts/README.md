@@ -1,6 +1,6 @@
 # Browser regions and PIE results — 2026-09-06
 
-The TinyDraw gate-1 workload on the Waveshare AMOLED 1.8 V2 model took **21.7% less wall time** with the browser engine changes in [PR #63](https://github.com/joakimeriksson/esp32sim/pull/63). Three alternating pairs gave medians of 115.55 seconds on `ea1de070` and 90.42 seconds on `ddaac9af`. All six runs passed all 36 firmware checks, completed exactly 9,819,885,134 instructions, produced identical console output, and reported zero JIT compilation failures.
+The TinyDraw gate-1 workload on the Waveshare AMOLED 1.8 V2 model took **21.7% less wall time** with the browser engine changes in [PR #63](https://github.com/mikroverk/esp32sim/pull/63). Three alternating pairs gave medians of 115.55 seconds on `ea1de070` and 90.42 seconds on `ddaac9af`. All six runs passed all 36 firmware checks, completed exactly 9,819,885,134 instructions, produced identical console output, and reported zero JIT compilation failures.
 
 The [compact receipt](2026-09-06-regions-pie.json) contains individual timings, execution order, build and input hashes, browser/toolchain versions, verdicts, generated-code statistics, and the page-test summary. The runs used Chrome 152.0.7977.77 / V8 15.2.124.19 and Rust 1.98.0, with ordinary release WASM builds and profiling disabled.
 
@@ -14,7 +14,7 @@ SHA-256: `7fbf3a1fa2dba925c3af48bd9d71cbe4d75c500fc226ff5d78821464144ec552`
 
 It contains the complete `events.json` and `result.json` for all six battery runs, the production-page receipt and three screenshots, the compact receipt, and a per-file hash manifest. The compact receipt omits the raw event streams, complete console output, and page trace/frame arrays; they are retained in the archive. Firmware binaries and ROMs are not included; their hashes identify the required local inputs.
 
-The measured engine revisions are `ea1de070bf5bec37cfddb2e9147799d5165d9412` and `ddaac9af88c519c163658fb3858e8d1a50c68233`. The paired harness is at `380f9050b051c7bba7bf6ae191b39e94d6e11d52`, published through [PR #62](https://github.com/joakimeriksson/esp32sim/pull/62).
+The measured engine revisions are `ea1de070bf5bec37cfddb2e9147799d5165d9412` and `ddaac9af88c519c163658fb3858e8d1a50c68233`. The paired harness is at `380f9050b051c7bba7bf6ae191b39e94d6e11d52`, published through [PR #62](https://github.com/mikroverk/esp32sim/pull/62).
 
 ## Reproduce
 

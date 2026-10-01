@@ -99,7 +99,7 @@ python -m espefuse --port /dev/cu.usbmodem1101 summary          # the revision f
 
 The C3 is in the WebAssembly build too — pick board `esp32c3` on the page, or open it directly:
 
-    https://joakimeriksson.github.io/esp32sim/run.html?fw=c3-hello
+    https://mikroverk.github.io/esp32sim/run.html?fw=c3-hello
 
 Console-only, real time, from the same mask ROM and binaries. See [wasm.md](wasm.md).
 
