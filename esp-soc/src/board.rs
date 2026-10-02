@@ -52,6 +52,12 @@ pub trait BoardModel {
     fn spi_transfer_pins(&mut self, host: u8, _pins: SpiPins, tx: &[u8], rx_len: usize) -> Vec<u8> {
         self.spi_transfer(host, tx, rx_len)
     }
+    /// A completed UART byte, with the routing and baud at the FIFO write. Console output is
+    /// independent. Inverted signals and bit-level serial timing are not modelled here.
+    fn uart_tx(&mut self, _route: crate::uart::UartRoute, _byte: u8) {}
+    /// Completed device-to-chip bytes to deliver at the next device tick. Pin numbers name
+    /// chip GPIOs. Unrouted input is dropped; a baud mismatch raises UART FRM_ERR.
+    fn uart_rx(&mut self) -> Vec<crate::uart::UartInput> { Vec::new() }
     fn gpio_events(&self) -> u64 { 0 }
     /// Devices on the I2C buses: (bus, 7-bit address, device).
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> { Vec::new() }

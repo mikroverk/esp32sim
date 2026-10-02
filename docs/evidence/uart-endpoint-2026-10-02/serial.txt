@@ -1,0 +1,22 @@
+s3
+chip=esp32s3 received=0 mismatches=0 wrong_pin=0 resets=2
+ROM: rst:0x10 (RTCWDT_RTC_RST),boot:0xf (SPI_FAST_FLASH_BOOT)
+ROM: entry 0x403c88b8
+
+c3
+UART echo=FAIL bytes=0
+UART echo=FAIL bytes=0
+UART FAIL reset
+UART echo=FAIL bytes=0
+UART echo=FAIL bytes=0
+UART FAIL reset
+chip=esp32c3 received=40 mismatches=2 wrong_pin=0 resets=2
+
+c6
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+chip=esp32c6 received=40 mismatches=2 wrong_pin=0 resets=2

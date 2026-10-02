@@ -114,6 +114,9 @@ impl SocBus {
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
+        if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), _ => None } {
+            self.board.uart_tx(self.periph.uart_route(port), v as u8);
+        }
         // A SPI flash command must complete before the guest can read its result: firmware kicks
         // the command and polls/reads the data registers a few instructions later, well inside one
         // scheduling quantum. Running it at the quantum boundary instead loses the race and the
@@ -209,6 +212,10 @@ impl SocBus {
             }
         }
         self.periph.gpio.input_changes.clear();
+        for input in self.board.uart_rx() {
+            self.periph.uart_pin_input(&input);
+            self.irq_dirty = true;
+        }
         1
     }
 }

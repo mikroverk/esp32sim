@@ -1,0 +1,241 @@
+{
+  "base_revision": "dddb128052dca15250e2169b92ab73c4d87f524c",
+  "reference_revision": "221080ffccfa829106b398f896653535853c76c8",
+  "final_source": "Initial source at 9142a78a16745985aa188149c07efb1da0ed7c26; source-hashes.json records its production and test files. See followup for current results.",
+  "checks": [
+    {
+      "command": "cargo build --release",
+      "exit": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "exit": 0,
+      "test_totals": {
+        "passed": 466,
+        "failed": 0,
+        "ignored": 22
+      }
+    },
+    {
+      "command": "cargo test -p esp32sim --test uart_endpoint",
+      "exit": 0,
+      "passed": 5
+    },
+    {
+      "command": "tools/wasm-build.sh",
+      "exit": 0
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "arduino": [
+    {
+      "chip": "s3",
+      "build_exit": 0,
+      "run_exit": 101,
+      "echo_passes": 0,
+      "device_bytes": 0,
+      "baud_mismatches": 0,
+      "wrong_pin_bytes": 0,
+      "resets": 2,
+      "failure": "ROM reports RTCWDT_RTC_RST before sketch output"
+    },
+    {
+      "chip": "c3",
+      "build_exit": 0,
+      "run_exit": 101,
+      "echo_passes": 0,
+      "device_bytes": 40,
+      "baud_mismatches": 2,
+      "wrong_pin_bytes": 0,
+      "resets": 2,
+      "failure": "four UART echo=FAIL bytes=0 reports"
+    },
+    {
+      "chip": "c6",
+      "build_exit": 0,
+      "run_exit": 0,
+      "echo_passes": 4,
+      "device_bytes": 40,
+      "baud_mismatches": 2,
+      "wrong_pin_bytes": 0,
+      "resets": 2
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "target/release/examples/uart_echo",
+      "bytes": 1425704,
+      "sha256": "2092e9a879f929e3005f14c469e8d05ce2efd9ccd2ece6a852a1bd3ab12add61"
+    },
+    {
+      "file": "web/wasm/esp32sim.wasm",
+      "bytes": 2121078,
+      "sha256": "7f60eae27e2dc66706f1bb041e4b990e36e17d00edbd8e4264ec725c2e7d2fe9"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/firmware.cpp",
+      "bytes": 889,
+      "sha256": "7d52b39b22fe79bc11592566b9285ecf321cf55aac73631317326a21f1191538"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/platformio.ini",
+      "bytes": 253,
+      "sha256": "9d019210b8cf28ebb6269d16eb9c0fae828276fa51d968b1442561066288a09a"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/arduino-candidate.patch",
+      "bytes": 13280,
+      "sha256": "2ab9c95666c062813a21fdd397d5d4d2bedcc04bc9ac53ff36d428781aa700c5"
+    }
+  ],
+  "limits": [
+    "Arduino runs used the preserved candidate, before final pin-mask cleanup, empty-batch guard and S3 UART2 IRQ mapping.",
+    "C3 and S3 Arduino acceptance remains incomplete; one correction attempt was made, then retries stopped.",
+    "No electrical timing or performance claim.",
+    "Native firmware artifacts are retained locally under ignored target/uart-evidence; PlatformIO .pio build directory was deleted."
+  ],
+  "followup": {
+    "parent_revision": "9142a78a16745985aa188149c07efb1da0ed7c26",
+    "source": "Containing Git commit; followup-source-hashes.json identifies the measured final source.",
+    "experiment": "EX203",
+    "baseline": {
+      "revision": "dddb128052dca15250e2169b92ab73c4d87f524c",
+      "clean_checkout": true,
+      "checkout_command": "git clone --shared --no-checkout . /tmp/esp32sim-uart-base && git -C /tmp/esp32sim-uart-base checkout --detach dddb128",
+      "build_command": "cargo build --release --manifest-path /tmp/esp32sim-uart-base/Cargo.toml -p esp32sim",
+      "build_exit": 0,
+      "run_command": "/tmp/esp32sim-uart-base/target/release/esp32sim --chip s3 --boot rom --board none --mac 00:00:00:00:00:00 --rom \"$ROM_DIR/esp32s3_rev0_rom.elf\" --bootloader target/uart-evidence/firmware/s3/bootloader.bin --ptable target/uart-evidence/firmware/s3/partitions.bin --app target/uart-evidence/firmware/s3/firmware.bin --elf target/uart-evidence/firmware/s3/firmware.elf --max-seconds 5 --no-reboot --console uart0",
+      "exit": 0,
+      "sketch_reached": true,
+      "echo_timeouts_without_endpoint": 2,
+      "reset_cause": "0xc",
+      "reset_guest_seconds": 2.053,
+      "core_instruction_counts": [
+        6283827,
+        3441448
+      ],
+      "executable": {
+        "file": "/tmp/esp32sim-uart-base/target/release/esp32sim",
+        "bytes": 2201272,
+        "sha256": "a6f9eae373b611227b66b3438ff337f025a1ee532621505023b479b364cbb6e8"
+      }
+    },
+    "diagnosis": {
+      "s3": "Acceptance runner used run_until_cycle, which schedules only core 0. Machine::run schedules both S3 cores and boots the original image.",
+      "c3": {
+        "input_register": "0x44",
+        "io_mux": "0x200",
+        "baud": 9600,
+        "old_decoded_rx_pin": null,
+        "input_select_bit": 6,
+        "input_invert_bit": 5,
+        "pin_bits": "4:0",
+        "output_signal_bits": "7:0",
+        "output_invert_bit": 8,
+        "output_enable_select_bit": 9
+      }
+    },
+    "checks": [
+      {
+        "command": "cargo build --release",
+        "exit": 0
+      },
+      {
+        "command": "cargo test --workspace",
+        "exit": 0,
+        "test_totals": {
+          "passed": 467,
+          "failed": 0,
+          "ignored": 22
+        }
+      },
+      {
+        "command": "cargo test -p esp32sim --test uart_endpoint",
+        "exit": 0,
+        "passed": 6
+      },
+      {
+        "command": "cargo build --release -p esp32sim --example uart_echo",
+        "exit": 0
+      },
+      {
+        "command": "tools/wasm-build.sh",
+        "exit": 0
+      },
+      {
+        "command": "node tools/check-evidence-privacy.mjs",
+        "exit": 0
+      },
+      {
+        "command": "git diff --check",
+        "exit": 0
+      }
+    ],
+    "arduino": [
+      {
+        "chip": "s3",
+        "exit": 0,
+        "echo_passes": 4,
+        "echo_bytes_per_report": 10,
+        "device_bytes": 40,
+        "baud_mismatches": 2,
+        "wrong_pin_bytes": 0,
+        "resets": 2,
+        "command": "target/release/examples/uart_echo s3 target/uart-evidence/firmware/s3 \"$ROM_DIR/esp32s3_rev0_rom.elf\""
+      },
+      {
+        "chip": "c3",
+        "exit": 0,
+        "echo_passes": 4,
+        "echo_bytes_per_report": 10,
+        "device_bytes": 40,
+        "baud_mismatches": 2,
+        "wrong_pin_bytes": 0,
+        "resets": 2,
+        "command": "target/release/examples/uart_echo c3 target/uart-evidence/firmware/c3 \"$ROM_DIR/esp32c3_rev3_rom.elf\""
+      },
+      {
+        "chip": "c6",
+        "exit": 0,
+        "echo_passes": 4,
+        "echo_bytes_per_report": 10,
+        "device_bytes": 40,
+        "baud_mismatches": 2,
+        "wrong_pin_bytes": 0,
+        "resets": 2,
+        "command": "target/release/examples/uart_echo c6 target/uart-evidence/firmware/c6 \"$ROM_DIR/esp32c6_rev0_rom.elf\""
+      }
+    ],
+    "unchanged_inputs_verified": 15,
+    "artifacts": [
+      {
+        "file": "target/release/examples/uart_echo",
+        "bytes": 1650616,
+        "sha256": "6bd8991c03cb18b4c3714a5fb1e5e2b9e96990fa4023915cf70c2b7554cbeb2d"
+      },
+      {
+        "file": "web/wasm/esp32sim.wasm",
+        "bytes": 2121110,
+        "sha256": "d7570a92d720e1ac0acba60fef3a3d8e17e39b2dabab63faa53918b7cfcad5c2"
+      },
+      {
+        "file": "docs/evidence/uart-endpoint-2026-10-02/followup-source-hashes.json",
+        "bytes": 1138,
+        "sha256": "8682025a07fba89d3f975273e441ef6842cc8ea0117800dcc105d46af34eeff7"
+      }
+    ],
+    "open_issues": [],
+    "limits": [
+      "Completed non-inverted 8N1 bytes; no wire timing, parity, flow control or clock gating simulation.",
+      "No performance or electrical timing claim."
+    ],
+    "excluded_run": "An early rerun used the preceding diagnostic executable before the release link completed. Final acceptance waited for successful build completion."
+  }
+}

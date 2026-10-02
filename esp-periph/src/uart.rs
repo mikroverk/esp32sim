@@ -55,6 +55,20 @@ impl Uart {
         if self.rx.len() >= self.rx_full_threshold() { self.int_raw |= INT_RXFIFO_FULL; }
         if !self.rx.is_empty() { self.int_raw |= INT_RXFIFO_TOUT; }
     }
+    /// Configured baud, including the fractional UART and source-clock dividers.
+    /// `clock` is CLK_CONF on S3/C3 or PCR_UARTn_SCLK_CONF on C6.
+    pub fn baud(&self, clock: u32, rc_hz: u32) -> Option<u32> {
+        let source = match (clock >> 20) & 3 { 1 => 80_000_000u64, 2 => rc_hz as u64, 3 => 40_000_000, _ => return None };
+        let div = self.ram.read(0x14);
+        let uart_div = (div & 0xfff) as u64 * 16 + ((div >> 20) & 15) as u64;
+        if uart_div == 0 { return None; }
+        let denominator = (clock & 63) as u64;
+        let numerator = ((clock >> 6) & 63) as u64;
+        let integer = ((clock >> 12) & 255) as u64 + 1;
+        let (n, d) = if denominator == 0 { (integer, 1) } else { (integer * denominator + numerator, denominator) };
+        Some((source * 16 * d / (n * uart_div)) as u32)
+    }
+    pub fn clock_config(&self) -> u32 { self.ram.read(0x78) }
     pub fn rx_pending(&self) -> usize { self.rx.len() }
     pub fn read(&mut self, off: u32) -> u32 {
         match off {

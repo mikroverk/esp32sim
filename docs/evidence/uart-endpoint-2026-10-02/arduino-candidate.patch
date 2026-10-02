@@ -1,0 +1,360 @@
+--- a/esp-periph/src/uart.rs
++++ b/esp-periph/src/uart.rs
+@@ -57,0 +58,14 @@
++    /// Configured baud, including the fractional UART and source-clock dividers.
++    /// `clock` is CLK_CONF on S3/C3 or PCR_UARTn_SCLK_CONF on C6.
++    pub fn baud(&self, clock: u32, rc_hz: u32) -> Option<u32> {
++        let source = match (clock >> 20) & 3 { 1 => 80_000_000u64, 2 => rc_hz as u64, 3 => 40_000_000, _ => return None };
++        let div = self.ram.read(0x14);
++        let uart_div = (div & 0xfff) as u64 * 16 + ((div >> 20) & 15) as u64;
++        if uart_div == 0 { return None; }
++        let denominator = (clock & 63) as u64;
++        let numerator = ((clock >> 6) & 63) as u64;
++        let integer = ((clock >> 12) & 255) as u64 + 1;
++        let (n, d) = if denominator == 0 { (integer, 1) } else { (integer * denominator + numerator, denominator) };
++        Some((source * 16 * d / (n * uart_div)) as u32)
++    }
++    pub fn clock_config(&self) -> u32 { self.ram.read(0x78) }
+--- a/esp-soc/src/board.rs
++++ b/esp-soc/src/board.rs
+@@ -31,0 +32,6 @@
++    /// A completed UART byte, with the routing and baud at the FIFO write. Console output is
++    /// independent. Inverted signals and bit-level serial timing are not modelled here.
++    fn uart_tx(&mut self, _route: crate::uart::UartRoute, _byte: u8) {}
++    /// Completed device-to-chip bytes to deliver at the next device tick. Pin numbers name
++    /// chip GPIOs. Unrouted input is dropped; a baud mismatch raises UART FRM_ERR.
++    fn uart_rx(&mut self) -> Vec<crate::uart::UartInput> { Vec::new() }
+--- a/esp-soc/src/lib.rs
++++ b/esp-soc/src/lib.rs
+@@ -22,0 +23 @@
++pub mod uart;
+--- /dev/null
++++ b/esp-soc/src/uart.rs
+@@ -0,0 +1,92 @@
++//! Byte-level UART endpoints for board models. Pins are chip GPIO numbers, so a device's
++//! receive pin connects to `tx_pins`, and its transmit pin connects to `rx_pin`.
++use esp_periph::{Gpio, RegRam};
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct UartRoute {
++    pub port: usize,
++    /// Every non-inverted, enabled TX output, including GPIO matrix fan-out.
++    pub tx_pins: u64,
++    pub rx_pin: Option<u8>,
++    /// None when no source or divider is configured.
++    pub baud: Option<u32>,
++}
++impl UartRoute {
++    /// Three percent tolerance for divider rounding and oscillator error.
++    pub fn matches_baud(&self, baud: u32) -> bool {
++        baud != 0
++            && self
++                .baud
++                .is_some_and(|actual| actual.abs_diff(baud) as u64 * 100 <= baud as u64 * 3)
++    }
++    pub fn transmits_on(&self, pin: u8) -> bool {
++        pin < 64 && self.tx_pins & (1u64 << pin) != 0
++    }
++}
++
++pub struct UartInput {
++    pub pin: u8,
++    pub baud: u32,
++    /// Completed characters; the ordinary 128-byte RX FIFO/overflow rules apply.
++    pub data: Vec<u8>,
++}
++
++/// Chip wiring from the IDF GPIO signal and IO_MUX tables.
++pub struct UartPins {
++    pins: u8,
++    signals: &'static [usize],
++    native: &'static [(u8, u8, u32)],
++}
++impl UartPins {
++    pub const S3: Self = Self {
++        pins: 49,
++        signals: &[12, 15, 18],
++        native: &[(43, 44, 0), (17, 18, 2)],
++    };
++    pub const C3: Self = Self {
++        pins: 22,
++        signals: &[6, 9],
++        native: &[(21, 20, 0)],
++    };
++    pub const C6: Self = Self {
++        pins: 31,
++        signals: &[6, 9],
++        native: &[(16, 17, 0)],
++    };
++
++    pub fn route(&self, port: usize, gpio: &Gpio, mux: &RegRam, baud: Option<u32>) -> UartRoute {
++        let mut route = UartRoute {
++            port,
++            tx_pins: 0,
++            rx_pin: None,
++            baud,
++        };
++        let Some(&signal) = self.signals.get(port) else {
++            return route;
++        };
++        let native = self.native.get(port);
++        let function = |pin: u8| (mux.read(4 + pin as u32 * 4) >> 12) & 7;
++        for pin in 0..self.pins {
++            // S3 GPIO22..25 are not bonded GPIOs; GPIO46 is input-only.
++            if self.pins == 49 && ((22..=25).contains(&pin) || pin == 46) {
++                continue;
++            }
++            let matrix =
++                function(pin) == 1 && gpio.func_out_sel[pin as usize] & 0x3ff == signal as u32;
++            let direct = native.is_some_and(|&(tx, _, f)| tx == pin && function(pin) == f);
++            if direct || (gpio.enable & (1u64 << pin) != 0 && matrix) {
++                route.tx_pins |= 1u64 << pin;
++            }
++        }
++        let input = gpio.func_in_sel[signal];
++        let pin = if input & 0x80 != 0 {
++            let pin = (input & 63) as u8;
++            (input & 0x40 == 0 && pin < self.pins && !(self.pins == 49 && (22..=25).contains(&pin)))
++                .then_some(pin)
++        } else {
++            native.and_then(|&(_, rx, f)| (function(rx) == f).then_some(rx))
++        };
++        route.rx_pin = pin.filter(|&pin| mux.read(4 + pin as u32 * 4) & (1 << 9) != 0);
++        route
++    }
++}
+--- /dev/null
++++ b/cli/examples/uart_echo.rs
+@@ -0,0 +1,131 @@
++//! Run the UART evidence sketch with a board-owned 9600-baud echo endpoint on GPIO5/4.
++//! Usage: cargo run --release -p esp32sim --example uart_echo -- s3|c3|c6 BUILD_DIR ROM_ELF
++use esp_soc::{
++    uart::{UartInput, UartRoute},
++    BoardModel, LoadKind, Machine, RunUntil, Soc, SocBus, Stop,
++};
++use std::{cell::RefCell, path::Path, rc::Rc};
++
++#[derive(Default)]
++struct Counts {
++    received: usize,
++    mismatches: usize,
++    wrong_pin: usize,
++}
++struct Echo {
++    counts: Rc<RefCell<Counts>>,
++    pending: Vec<UartInput>,
++}
++impl BoardModel for Echo {
++    fn name(&self) -> &'static str {
++        "uart-echo"
++    }
++    fn uart_tx(&mut self, route: UartRoute, byte: u8) {
++        let mut counts = self.counts.borrow_mut();
++        if route.transmits_on(7) && route.matches_baud(9600) {
++            counts.wrong_pin += 1;
++        }
++        if !route.transmits_on(5) {
++            return;
++        }
++        if !route.matches_baud(9600) {
++            counts.mismatches += 1;
++            return;
++        }
++        counts.received += 1;
++        self.pending.push(UartInput {
++            pin: 4,
++            baud: 9600,
++            data: vec![byte],
++        });
++    }
++    fn uart_rx(&mut self) -> Vec<UartInput> {
++        std::mem::take(&mut self.pending)
++    }
++}
++
++fn run<S: Soc>(mut machine: Machine<S>, build: &Path, rom: &Path, counts: Rc<RefCell<Counts>>) {
++    machine.console.capture = true;
++    machine
++        .load_input(LoadKind::Rom, &std::fs::read(rom).unwrap())
++        .unwrap();
++    for (kind, file) in [
++        (LoadKind::Bootloader, "bootloader.bin"),
++        (LoadKind::Partitions, "partitions.bin"),
++        (LoadKind::App, "firmware.bin"),
++    ] {
++        machine
++            .load_input(kind, &std::fs::read(build.join(file)).unwrap())
++            .unwrap();
++    }
++    machine.boot_rom();
++    let mut resets = 0;
++    for _ in 0..10_000 {
++        let target = machine.bus.cycles() + S::CPU_HZ / 1000;
++        match machine.run_until_cycle(target) {
++            RunUntil::Reached | RunUntil::Yield => {}
++            RunUntil::Stop(Stop::SwReset) => {
++                resets += 1;
++                if resets == 2 {
++                    break;
++                }
++                machine.reboot();
++            }
++            RunUntil::Stop(stop) => panic!("unexpected stop: {stop:?}"),
++        }
++    }
++    machine.drain_console();
++    let output = String::from_utf8_lossy(&machine.console.all);
++    for line in output.lines().filter(|line| line.starts_with("UART ")) {
++        println!("{line}");
++    }
++    let counts = counts.borrow();
++    println!(
++        "chip={} received={} mismatches={} wrong_pin={} resets={}",
++        S::NAME,
++        counts.received,
++        counts.mismatches,
++        counts.wrong_pin,
++        resets
++    );
++    assert_eq!(resets, 2, "firmware did not reset twice");
++    assert_eq!(
++        output.matches("UART echo=PASS bytes=10").count(),
++        4,
++        "{output}"
++    );
++    assert_eq!(output.matches("UART PASS reset").count(), 2);
++    assert!(!output.contains("UART FAIL"));
++    assert_eq!(
++        (counts.received, counts.mismatches, counts.wrong_pin),
++        (40, 2, 0)
++    );
++}
++fn main() {
++    let args: Vec<_> = std::env::args().collect();
++    assert_eq!(args.len(), 4, "expected CHIP BUILD_DIR ROM_ELF");
++    let counts = Rc::new(RefCell::new(Counts::default()));
++    let board = Box::new(Echo {
++        counts: counts.clone(),
++        pending: Vec::new(),
++    });
++    let (build, rom) = (Path::new(&args[2]), Path::new(&args[3]));
++    match args[1].as_str() {
++        "s3" => {
++            let mut m = esp32s3::machine([0; 6]);
++            m.bus.board = board;
++            run(m, build, rom, counts);
++        }
++        "c3" => {
++            let mut m = esp32c3::machine([0; 6], 4 * 1024 * 1024);
++            m.bus.board = board;
++            run(m, build, rom, counts);
++        }
++        "c6" => {
++            let mut m = esp32c6::machine([0; 6], 4 * 1024 * 1024);
++            m.bus.board = board;
++            run(m, build, rom, counts);
++        }
++        _ => panic!("expected s3, c3 or c6"),
++    }
++}
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -478,0 +479,3 @@
++        if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), 0x6002e000 => Some(2), _ => None } {
++            self.board.uart_tx(self.periph.uart_route(port), v as u8);
++        }
+@@ -812,0 +816,4 @@
++        for input in self.board.uart_rx() {
++            self.periph.uart_pin_input(&input);
++            self.irq_dirty = true;
++        }
+--- a/esp32s3/src/periph.rs
++++ b/esp32s3/src/periph.rs
+@@ -504,0 +505,15 @@
++    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
++        let clock = self.uart[port].clock_config();
++        esp_soc::uart::UartPins::S3.route(port, &self.gpio, &self.io_mux,
++            self.uart[port].baud(clock, 8000000))
++    }
++
++    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
++        for port in 0..3 {
++            let route = self.uart_route(port);
++            if route.rx_pin != Some(input.pin) { continue; }
++            if route.matches_baud(input.baud) { self.uart[port].host_input(&input.data); }
++            else { self.uart[port].int_raw |= 1 << 3; }
++        }
++    }
++
+--- a/esp32c3/src/bus.rs
++++ b/esp32c3/src/bus.rs
+@@ -107,0 +108,3 @@
++        if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), _ => None } {
++            self.board.uart_tx(self.periph.uart_route(port), v as u8);
++        }
+@@ -147,0 +151,4 @@
++        for input in self.board.uart_rx() {
++            self.periph.uart_pin_input(&input);
++            self.irq_dirty = true;
++        }
+--- a/esp32c3/src/periph.rs
++++ b/esp32c3/src/periph.rs
+@@ -142,0 +143 @@
++    pub io_mux: esp_periph::RegRam,
+@@ -163,0 +165 @@
++    0x09 "IO_MUX" (io_mux) => [];
+@@ -201 +203 @@
+-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new_c3(),
++            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: esp_periph::RegRam::new(), rtc: RtcCntl::new_c3(),
+@@ -225,0 +228,15 @@
++    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
++        let clock = self.uart[port].clock_config();
++        esp_soc::uart::UartPins::C3.route(port, &self.gpio, &self.io_mux,
++            self.uart[port].baud(clock, 8000000))
++    }
++
++    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
++        for port in 0..2 {
++            let route = self.uart_route(port);
++            if route.rx_pin != Some(input.pin) { continue; }
++            if route.matches_baud(input.baud) { self.uart[port].host_input(&input.data); }
++            else { self.uart[port].int_raw |= 1 << 3; }
++        }
++    }
++
+--- a/esp32c6/src/bus.rs
++++ b/esp32c6/src/bus.rs
+@@ -127,0 +128,3 @@
++        if let Some(port) = match a { 0x60000000 => Some(0), 0x60001000 => Some(1), _ => None } {
++            self.board.uart_tx(self.periph.uart_route(port), v as u8);
++        }
+@@ -415,0 +419,4 @@
++        for input in self.board.uart_rx() {
++            self.periph.uart_pin_input(&input);
++            self.irq_dirty = true;
++        }
+--- a/esp32c6/src/periph.rs
++++ b/esp32c6/src/periph.rs
+@@ -364,0 +365 @@
++    pub io_mux: esp_periph::RegRam,
+@@ -397,0 +399 @@
++    0x90 "IO_MUX" (io_mux) => [];
+@@ -447 +449 @@
+-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(),
++            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: esp_periph::RegRam::new(),
+@@ -475,0 +478,15 @@
++    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
++        let clock = self.pcr.read(4 + port as u32 * 12);
++        esp_soc::uart::UartPins::C6.route(port, &self.gpio, &self.io_mux,
++            self.uart[port].baud(clock, 20000000))
++    }
++
++    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
++        for port in 0..2 {
++            let route = self.uart_route(port);
++            if route.rx_pin != Some(input.pin) { continue; }
++            if route.matches_baud(input.baud) { self.uart[port].host_input(&input.data); }
++            else { self.uart[port].int_raw |= 1 << 3; }
++        }
++    }
++
