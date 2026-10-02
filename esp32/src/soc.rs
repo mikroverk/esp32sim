@@ -217,6 +217,11 @@ impl esp_soc::SocBus for SocBus {
                 lines.push(format!("[emu] spi{}: {} transfers", index + 2, spi.transfers));
             }
         }
+        if self.periph.rmt.tx_count != 0 {
+            lines.push(format!("[emu] rmt: {} transmissions", self.periph.rmt.tx_count));
+            let rmt = self.rmt_observer.report();
+            if !rmt.is_empty() { lines.push(rmt); }
+        }
         let board = self.board.report();
         if !board.is_empty() { lines.push(board); }
         lines.join("\n")

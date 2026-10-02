@@ -3,6 +3,7 @@ pub mod bus;
 pub mod i2c;
 pub mod ledc;
 pub mod periph;
+pub mod rmt;
 pub mod soc;
 pub mod spi;
 pub mod timers;

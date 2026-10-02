@@ -1,6 +1,7 @@
 //! Classic ESP32 peripheral map. Shared models are adapted only where this chip's register layout
 //! predates the S3/C3 layout.
 use crate::ledc::ClassicLedc;
+use crate::rmt::ClassicRmt;
 use crate::spi::ClassicGpSpi;
 use crate::timers::ClassicTimer;
 use emu_core::{ClockDomain, ClockTree};
@@ -31,7 +32,8 @@ const SRC_UART0: usize = 34;
 const SRC_UART1: usize = 35;
 const SRC_UART2: usize = 36;
 const SRC_LEDC: usize = 43;
-const SRC_RTC_CORE: usize = 47;
+const SRC_RTC_CORE: usize = 46;
+const SRC_RMT: usize = 47;
 const SRC_I2C0: usize = 49;
 const SRC_I2C1: usize = 50;
 const SRC_SPI2_DMA: usize = 53;
@@ -366,6 +368,13 @@ impl ClassicGpio {
         self.signal_oe[signal] = enable;
         self.note_driven(old);
     }
+    pub fn output_pin(&self, signal: usize) -> Option<(u8, bool)> {
+        (0..34).find_map(|pin| {
+            let cfg = self.gpio.func_out_sel[pin];
+            (self.matrix_pad(pin) && cfg & 0x1ff == signal as u32 && self.driven(pin).is_some())
+                .then_some((pin as u8, cfg & (1 << 9) != 0))
+        })
+    }
 }
 impl Device for ClassicGpio {
     fn read(&mut self, off: u32) -> u32 {
@@ -573,6 +582,7 @@ pub struct Peripherals {
     pub spi: [ClassicGpSpi; 2],
     pub gpio: ClassicGpio,
     pub ledc: ClassicLedc,
+    pub rmt: ClassicRmt,
     pub rtc: ClassicRtc,
     pub efuse: ClassicEfuse,
     pub sha: ClassicSha,
@@ -594,6 +604,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x49 "IO_MUX" alias (gpio) delta 0x1000 => [];
     0x50 "UART1" (uart[1]) => [SRC_UART1];
     0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
+    0x56 "RMT" (rmt) => [SRC_RMT];
     0x59 "LEDC" (ledc) => [SRC_LEDC];
     0x5a "EFUSE" (efuse) => [];
     0x5f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1, SRC_TG0_WDT, SRC_TG0_LACT, SRC_TG0_T0_EDGE, SRC_TG0_T0_EDGE + 1, SRC_TG0_T0_EDGE + 2, SRC_TG0_T0_EDGE + 3];
@@ -638,6 +649,7 @@ impl Peripherals {
             spi: [ClassicGpSpi::new(), ClassicGpSpi::new()],
             gpio,
             ledc: ClassicLedc::new(),
+            rmt: ClassicRmt::new(),
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
             sha: ClassicSha::new(),
@@ -697,6 +709,9 @@ impl Peripherals {
         if addr == 0x3ff0_00c4 && v & (1 << 11) != 0 {
             self.ledc = ClassicLedc::new();
         }
+        if addr == 0x3ff0_00c4 && v & (1 << 9) != 0 {
+            self.rmt = ClassicRmt::new();
+        }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) {
             self.spi_exec = true;
         }
@@ -708,8 +723,11 @@ impl Peripherals {
         if matches!(addr, 0x3ff0_00c0 | 0x3ff0_00c4) {
             self.ledc.clock_enabled = self.dport.ram.read(0xc0) & (1 << 11) != 0
                 && self.dport.ram.read(0xc4) & (1 << 11) == 0;
+            self.rmt.clock_enabled = self.dport.ram.read(0xc0) & (1 << 9) != 0
+                && self.dport.ram.read(0xc4) & (1 << 9) == 0;
         }
         self.sync_ledc_outputs();
+        self.sync_rmt_outputs();
     }
     pub fn tick(&mut self, cycles: u64) {
         Dispatch::tick(self, cycles);
@@ -722,6 +740,7 @@ impl Peripherals {
             }
         }
         self.sync_ledc_outputs();
+        self.sync_rmt_outputs();
     }
     pub fn source_status(&self, core: usize) -> [u32; 3] {
         let all = Dispatch::source_status(self);
@@ -747,6 +766,11 @@ impl Peripherals {
                 let (level, enable) = self.ledc.signal_level(channel);
                 self.gpio.set_output_signal(71 + channel, level, enable);
             }
+        }
+    }
+    fn sync_rmt_outputs(&mut self) {
+        for (channel, level) in std::mem::take(&mut self.rmt.outputs) {
+            self.gpio.set_output_signal(crate::rmt::SIGNAL0 + channel, level, true);
         }
     }
     pub fn pwm_output(&self, pin: u32) -> Option<(f64, u32)> {
@@ -1025,9 +1049,11 @@ mod tests {
         p.tick(6);
         assert_ne!(p.cpu_lines(0) & (1 << 10), 0);
 
-        p.write32(0x3ff0_0104 + 4 * SRC_RTC_CORE as u32, 11);
+        p.write32(0x3ff0_0104 + 4 * 46, 11);
         p.rtc.0.ram.write(0x3c, 1 << 3);
         p.rtc.0.ram.write(0x44, 1 << 3);
+        assert_ne!(p.source_status(0)[1] & (1 << (46 - 32)), 0);
+        assert_eq!(p.source_status(0)[1] & (1 << (47 - 32)), 0);
         assert_ne!(p.cpu_lines(0) & (1 << 11), 0);
     }
 

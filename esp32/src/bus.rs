@@ -42,6 +42,7 @@ pub struct SocBus {
     pub mmu: [[u32; 2048]; 2],
     pub periph: Peripherals,
     pub board: esp_soc::Board,
+    pub rmt_observer: crate::rmt::RmtObserver,
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     pub irq_dirty: bool,
@@ -66,6 +67,7 @@ impl SocBus {
             mmu: [[MMU_INVALID; 2048]; 2],
             periph: Peripherals::new(mac),
             board: Box::new(esp_soc::NoBoard),
+            rmt_observer: Default::default(),
             cycles: 0,
             last_fault: None,
             irq_dirty: true,
@@ -209,6 +211,7 @@ impl SocBus {
             self.run_spi();
         }
         self.run_gp_spi();
+        self.flush_rmt();
         self.flush_gpio();
         self.irq_dirty = true;
     }
@@ -223,6 +226,15 @@ impl SocBus {
             }
         }
         self.board.gpio_changes(&changes);
+    }
+    fn flush_rmt(&mut self) {
+        for frame in std::mem::take(&mut self.periph.rmt.done) {
+            if let Some((pin, inverted)) = self.periph.gpio.output_pin(crate::rmt::SIGNAL0 + frame.channel) {
+                if let Some(bits) = self.rmt_observer.observe(frame, pin, inverted) {
+                    self.board.rmt_frame(pin, &bits);
+                }
+            }
+        }
     }
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
@@ -526,6 +538,8 @@ impl Bus for SocBus {
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
         self.periph.tick(cycles as u64);
+        self.flush_rmt();
+        self.flush_gpio();
         1
     }
 }
@@ -621,5 +635,82 @@ mod tests {
         assert_eq!(b.read32(SPI2).unwrap() & (1 << 18), 0);
         assert_eq!(b.read32(SPI2 + 0x114).unwrap() & 0x1e8, 0x1e8);
         assert_eq!(b.periph.spi[0].transfers, 1);
+    }
+
+    #[test]
+    fn classic_rmt_routes_inverted_gpio_frames_to_shared_board_and_report() {
+        struct LedBoard(esp_soc::devices::Ws2812Chain);
+        impl esp_soc::BoardModel for LedBoard {
+            fn name(&self) -> &'static str { "rmt-test" }
+            fn rmt_frame(&mut self, pin: u8, bits: &[bool]) {
+                assert_eq!(pin, 4);
+                self.0.from_bits(bits);
+            }
+            fn leds(&self) -> Option<(&[[u8; 3]], u64)> { Some((&self.0.leds, self.0.updates)) }
+        }
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        b.board = Box::new(LedBoard(esp_soc::devices::Ws2812Chain::new(1)));
+        b.write32(0x3ff4_9048, 2 << 12).unwrap();
+        b.write32(0x3ff4_4540, crate::rmt::SIGNAL0 as u32 | (1 << 9)).unwrap();
+        b.periph.gpio.set_output_signal(crate::rmt::SIGNAL0, false, true);
+        let mut pulses = Vec::new();
+        for byte in [0u8, 255, 64] {
+            for shift in (0..8).rev() {
+                let one = byte & (1 << shift) != 0;
+                pulses.push((false, if one { 64 } else { 32 }));
+                pulses.push((true, if one { 32 } else { 64 }));
+            }
+        }
+        b.periph.rmt.done.push(crate::rmt::RmtFrame { channel: 0, pulses, truncated: false });
+        b.periph.rmt.tx_count = 1;
+        b.tick(0);
+        assert_eq!(b.board.leds(), Some((&[[255, 0, 64]][..], 1)));
+        assert!(esp_soc::SocBus::report(&b).contains("GPIO4 WS2812 RGB [[255, 0, 64]]"));
+        assert!(b.periph.rmt.done.is_empty());
+    }
+
+    #[test]
+    fn classic_rmt_clock_gate_deadline_reset_and_dport_source_47() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        let rmt = 0x3ff5_6000;
+        b.write32(0x3ff4_9048, (2 << 12) | (1 << 9)).unwrap();
+        b.write32(0x3ff4_4540, 87).unwrap();
+        b.write32(0x3ff0_0104 + 47 * 4, 5).unwrap();
+        b.write32(0x3ff0_0218 + 47 * 4, 6).unwrap();
+        b.write32(0x3ff0_0104 + 46 * 4, 7).unwrap();
+        b.write32(0x3ff0_00c0, 1 << 9).unwrap();
+        b.write32(rmt + 0x20, (1 << 24) | 1).unwrap();
+        b.write32(rmt + 0x800, 4 | (1 << 15) | (6 << 16)).unwrap();
+        b.write32(rmt + 0xa8, 1).unwrap();
+        b.write32(rmt + 0x24, (1 << 17) | (1 << 18) | (1 << 19) | 1).unwrap();
+        assert_eq!(esp_soc::SocBus::next_deadline(&b), Some(9));
+        b.tick(9);
+        b.write32(0x3ff0_00c0, 0).unwrap();
+        assert_eq!(esp_soc::SocBus::next_deadline(&b), None);
+        b.tick(300);
+        assert_eq!(b.read32(rmt + 0xa0), Ok(0));
+        b.write32(0x3ff0_00c0, 1 << 9).unwrap();
+        b.tick(3);
+        assert_eq!(esp_soc::SocBus::next_deadline(&b), Some(15));
+        b.tick(18);
+        assert_ne!(b.read32(0x3ff4_403c).unwrap() & (1 << 4), 0, "idle level is high");
+        assert_eq!(b.periph.cpu_lines(0), 1 << 5);
+        assert_eq!(b.periph.cpu_lines(1), 1 << 6);
+        assert_eq!(b.periph.source_status(0)[1] & ((1 << 14) | (1 << 15)), 1 << 15);
+        b.write32(rmt + 0xac, 1).unwrap();
+        assert_eq!(b.periph.cpu_lines(0), 0);
+
+        b.periph.rtc.0.ram.write(0x44, 1 << 3);
+        b.periph.rtc.0.ram.write(0x3c, 1 << 3);
+        assert_eq!(b.periph.cpu_lines(0), 1 << 7, "RTC remains source 46");
+        b.periph.rtc.0.ram.write(0x44, 0);
+        b.write32(0x3ff0_00c4, 1 << 9).unwrap();
+        assert_eq!(b.read32(0x3ff4_403c).unwrap() & (1 << 4), 0, "reset returns the signal low");
+        assert_eq!(b.read32(rmt + 0x800), Ok(0));
+        assert_eq!(b.read32(rmt + 0xa8), Ok(0));
+        assert!(!b.periph.rmt.clock_enabled);
+        assert_eq!(b.periph.cpu_lines(0), 0);
+        b.write32(0x3ff0_00c4, 0).unwrap();
+        assert!(b.periph.rmt.clock_enabled);
     }
 }
