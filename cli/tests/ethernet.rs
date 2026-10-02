@@ -18,7 +18,7 @@ fn discover() -> Vec<u8> {
     ip[9] = 17;
     ip[16..20].fill(255);
     let mut sum: u32 = ip
-        .chunks_exact(2)
+        .as_chunks::<2>().0.iter()
         .map(|w| u16::from_be_bytes([w[0], w[1]]) as u32)
         .sum();
     while sum > 65535 {
@@ -42,7 +42,9 @@ fn ap() -> VirtualAp {
     ap
 }
 
-fn buses() -> Vec<(Box<dyn SocBus>, u32, u32, u32, bool)> {
+type BusCase = (Box<dyn SocBus>, u32, u32, u32, bool);
+
+fn buses() -> Vec<BusCase> {
     let mut s3 = esp32s3::bus::SocBus::new(1 << 20, 0, STA);
     s3.periph.wifi.ap = Some(ap());
     s3.periph.wifi.net = Some(VirtualNet::new(false));
