@@ -16,6 +16,7 @@ pub const PERIPH_BASE: u32 = 0x3ff0_0000;
 pub const PERIPH_END: u32 = 0x3ff8_0000;
 pub(crate) const NUM_SOURCES: usize = 69;
 
+const SRC_WIFI_MAC: usize = 0;
 const SRC_TG0_T0: usize = 14;
 const SRC_TG0_T1: usize = 15;
 const SRC_TG0_WDT: usize = 16;
@@ -51,6 +52,7 @@ pub struct Dport {
 impl Dport {
     fn new() -> Self {
         let mut ram = RegRam::new();
+        ram.write(0xcc, 0xfffc_e030); // Wi-Fi clock reset value
         ram.write(0x2c, 1); // APP CPU held in reset
         Self {
             ram,
@@ -517,7 +519,14 @@ impl ClassicEfuse {
     fn new(mac: [u8; 6]) -> Self {
         let mut r = RegRam::new();
         r.write(0x04, u32::from_be_bytes([mac[2], mac[3], mac[4], mac[5]]));
-        r.write(0x08, (mac[0] as u32) << 8 | mac[1] as u32);
+        let mut crc = 0u8;
+        for byte in mac {
+            crc ^= byte;
+            for _ in 0..8 {
+                crc = (crc >> 1) ^ if crc & 1 != 0 { 0x8c } else { 0 };
+            }
+        }
+        r.write(0x08, (crc as u32) << 16 | (mac[0] as u32) << 8 | mac[1] as u32);
         r.write(0x0c, 1 << 15); // ECO1+
         r.write(0x14, 1 << 20); // ECO2+; together these identify ECO3
         Self { ram: r, cmd: 0 }
@@ -556,6 +565,9 @@ pub struct Peripherals {
     pub rsa: ClassicRsa,
     pub timg: [ClassicTimer; 2],
     pub i2c: [crate::i2c::I2c; 2],
+    pub wifi: crate::wifi::WifiMac,
+    pub analog: crate::wifi::Analog,
+    pub fe: crate::wifi::FrontEnd,
     pub misc: Misc,
     pub spi_exec: bool,
     clock: ClockTree<2>,
@@ -570,8 +582,10 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x42 "SPI1" (spi1) => [];
     0x43 "SPI0" (spi0) => [];
     0x44 "GPIO" (gpio) => [];
+    0x46 "FE" (fe) => [];
     0x48 "RTCCNTL" (rtc) => [SRC_RTC_CORE];
     0x49 "IO_MUX" alias (gpio) delta 0x1000 => [];
+    0x4e "I2C_MST" (analog) => [];
     0x50 "UART1" (uart[1]) => [SRC_UART1];
     0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
     0x56 "RMT" (rmt) => [SRC_RMT];
@@ -583,6 +597,9 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x65 "SPI3" (spi[1]) => [SRC_SPI3, SRC_SPI3_DMA];
     0x67 "I2C1" (i2c[1]) => [SRC_I2C1];
     0x6e "UART2" (uart[2]) => [SRC_UART2];
+    0x73 "WIFI_MAC" (wifi) => [SRC_WIFI_MAC];
+    0x74 "WIFI_MAC" alias (wifi) delta 0x1000 => [];
+    0x75 "WIFI_MAC" alias (wifi) delta 0x2000 => [];
 }
 
 impl DeviceSet for Peripherals {
@@ -627,6 +644,9 @@ impl Peripherals {
             rsa: ClassicRsa::new(),
             timg: [ClassicTimer::new(0), ClassicTimer::new(1)],
             i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()],
+            wifi: crate::wifi::WifiMac::new(),
+            analog: crate::wifi::Analog::new(),
+            fe: crate::wifi::FrontEnd::new(),
             misc: Misc::new(),
             spi_exec: false,
             clock: Self::new_clock(),
@@ -644,8 +664,10 @@ impl Peripherals {
             0x42 => "SPI1",
             0x43 => "SPI0",
             0x44 => "GPIO",
+            0x46 => "FE",
             0x48 => "RTCCNTL",
             0x49 => "IO_MUX",
+            0x4e => "I2C_MST",
             0x50 => "UART1",
             0x53 => "I2C0",
             0x56 => "RMT",
@@ -658,6 +680,7 @@ impl Peripherals {
             0x66 => "SYSCON",
             0x67 => "I2C1",
             0x6e => "UART2",
+            0x73..=0x75 => "WIFI_MAC",
             _ => "?",
         }
     }
@@ -682,6 +705,7 @@ impl Peripherals {
             let (scl, sda) = I2C_SIGNALS[bus];
             self.i2c[bus].set_lines(self.gpio.signal_input(scl), self.gpio.signal_input(sda));
         }
+        if addr == 0x3ff0_00d0 && v & (1 << 2) != 0 { self.wifi.reset(); }
         if addr == 0x3ff0_00c4 && v & (1 << 11) != 0 {
             self.ledc = ClassicLedc::new();
         }
@@ -769,6 +793,13 @@ impl Peripherals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classic_factory_mac_includes_rom_crc8() {
+        let mut p = Peripherals::new([0x24, 0x6f, 0x28, 0, 0x11, 0x22]);
+        assert_eq!(p.read32(0x3ff5_a004), 0x2800_1122);
+        assert_eq!(p.read32(0x3ff5_a008), 0x00cf_246f);
+    }
 
     fn configure_i2c0_pins(p: &mut Peripherals) {
         for (pin, mux, signal) in [(21u32, 0x7c, 30u32), (22, 0x80, 29)] {

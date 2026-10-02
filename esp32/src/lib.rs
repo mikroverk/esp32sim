@@ -8,6 +8,7 @@ pub mod rmt;
 pub mod soc;
 pub mod spi;
 pub mod timers;
+pub mod wifi;
 
 pub use esp_soc::Stop;
 pub use soc::{machine, Esp32, Machine};

@@ -113,6 +113,9 @@ impl esp_soc::SocBus for SocBus {
         let cause = self.periph.rtc.0.reset_cause;
         let old = std::mem::replace(&mut self.periph, Peripherals::new(mac));
         self.periph.efuse = old.efuse;
+        self.periph.wifi.ap = old.wifi.ap;
+        self.periph.wifi.net = old.wifi.net;
+        self.periph.wifi.log = old.wifi.log;
         self.periph.misc.log_unknown = old.misc.log_unknown;
         self.periph.gpio.gpio.strap = old.gpio.gpio.strap;
         self.periph.rtc.0.ram = old.rtc.0.ram;

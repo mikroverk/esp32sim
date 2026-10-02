@@ -1,12 +1,12 @@
 //! Classic ESP32 memory map and flash-cache MMUs.
 use crate::periph::{Peripherals, PERIPH_BASE, PERIPH_END};
-use esp_periph::{Device, RegRam, Rng};
+use esp_periph::{Device, Rng};
 use xtensa_lx7::bus::{Bus, Fault};
 
 pub const DRAM_LOW: u32 = 0x3ffa_e000;
 pub const DRAM_HIGH: u32 = 0x4000_0000;
 // The ECO3 ELF carries one reset-integrity payload 0x504 bytes below documented DRAM.
-const ROM_DRAM_LOW: u32 = 0x3ffa_dafc;
+pub(crate) const ROM_DRAM_LOW: u32 = 0x3ffa_dafc;
 pub const IRAM_LOW: u32 = 0x4008_0000;
 pub const IRAM_HIGH: u32 = 0x400c_0000;
 pub const IROM_MASK_LOW: u32 = 0x4000_0000;
@@ -37,7 +37,6 @@ pub struct SocBus {
     pub rtc_fast: Vec<u8>,
     pub rtc_slow: Vec<u8>,
     pub flash: Vec<u8>,
-    pub ana: RegRam,
     pub rng: Rng,
     pub mmu: [[u32; 2048]; 2],
     pub periph: Peripherals,
@@ -62,7 +61,6 @@ impl SocBus {
             rtc_fast: vec![0; 0x2000],
             rtc_slow: vec![0; 0x2000],
             flash: vec![0xff; flash_size],
-            ana: RegRam::new(),
             rng: Rng::new(),
             mmu: [[MMU_INVALID; 2048]; 2],
             periph: Peripherals::new(mac),
@@ -120,12 +118,12 @@ impl SocBus {
                 .map(|off| (&mut self.flash, off, false)),
         }
     }
+    fn ahb_to_apb(addr: u32) -> Option<u32> {
+        (0x6000_0000..0x6004_0000).contains(&addr)
+            .then(|| addr - 0x6000_0000 + 0x3ff4_0000)
+    }
     fn is_periph(addr: u32) -> bool {
-        (PERIPH_BASE..PERIPH_END).contains(&addr)
-            || (0x6000_e000..0x6000_f000).contains(&addr)
-            || (addr & !3) == WDEV_RND
-            || UART_FIFO_AHB.contains(&(addr & !3))
-            || I2C_FIFO_AHB.contains(&(addr & !3))
+        (PERIPH_BASE..PERIPH_END).contains(&addr) || Self::ahb_to_apb(addr).is_some()
     }
     fn mmu_slot(addr: u32) -> Option<(usize, usize)> {
         for (cpu, base) in [(0, MMU_PRO), (1, MMU_APP)] {
@@ -140,17 +138,15 @@ impl SocBus {
             return self.mmu[cpu][n];
         }
         let a = addr & !3;
-        let w = if a == WDEV_RND {
+        let w = if a == WDEV_RND || a == 0x3ff7_5144 {
             self.rng.now = self.cycles as u32;
             self.rng.read(0)
         } else if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
             self.periph.uart[n].read(0)
         } else if let Some(n) = I2C_FIFO_AHB.iter().position(|&fifo| fifo == a) {
             self.periph.i2c[n].read(0x1c)
-        } else if (0x6000_e000..0x6000_f000).contains(&a) {
-            self.ana.read(a - 0x6000_e000)
         } else {
-            self.periph.read32(a)
+            self.periph.read32(Self::ahb_to_apb(a).unwrap_or(a))
         };
         match size {
             1 => (w >> ((addr & 3) * 8)) & 0xff,
@@ -165,7 +161,7 @@ impl SocBus {
             return;
         }
         let a = addr & !3;
-        if a == WDEV_RND {
+        if a == WDEV_RND || a == 0x3ff7_5144 {
             return;
         }
         if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
@@ -177,22 +173,7 @@ impl SocBus {
             self.irq_dirty = true;
             return;
         }
-        if (0x6000_e000..0x6000_f000).contains(&a) {
-            let old = self.ana.read(a - 0x6000_e000);
-            let v = match size {
-                4 => value,
-                1 => {
-                    let sh = (addr & 3) * 8;
-                    (old & !(0xff << sh)) | ((value & 0xff) << sh)
-                }
-                _ => {
-                    let sh = (addr & 2) * 8;
-                    (old & !(0xffff << sh)) | ((value & 0xffff) << sh)
-                }
-            };
-            self.ana.write(a - 0x6000_e000, v);
-            return;
-        }
+        let a = Self::ahb_to_apb(a).unwrap_or(a);
         let v = match size {
             4 => value,
             1 => {
@@ -248,7 +229,7 @@ impl SocBus {
             }
         }
     }
-    fn dma_read_word(&mut self, addr: u32) -> Option<u32> {
+    pub(crate) fn dma_read_word(&mut self, addr: u32) -> Option<u32> {
         let mut bytes = [0; 4];
         for (i, byte) in bytes.iter_mut().enumerate() {
             let (mem, off, _) = self.memory(addr.wrapping_add(i as u32))?;
@@ -256,7 +237,7 @@ impl SocBus {
         }
         Some(u32::from_le_bytes(bytes))
     }
-    fn dma_write_word(&mut self, addr: u32, value: u32) -> bool {
+    pub(crate) fn dma_write_word(&mut self, addr: u32, value: u32) -> bool {
         for (i, byte) in value.to_le_bytes().into_iter().enumerate() {
             let Some((mem, off, true)) = self.memory(addr.wrapping_add(i as u32)) else {
                 return false;
@@ -540,6 +521,7 @@ impl Bus for SocBus {
         self.periph.tick(cycles as u64);
         self.flush_rmt();
         self.flush_gpio();
+        self.wifi_step();
         1
     }
 }
@@ -574,6 +556,11 @@ mod tests {
         let mut b = SocBus::new(4 << 20, [0; 6]);
         b.write32(0x6000_e044, 0x1234).unwrap();
         assert_eq!(b.read32(0x6000_e044), Ok(0x1234));
+        assert_eq!(b.read32(0x3ff4_e044), Ok(0x1234));
+        b.write32(0x6003_3d24, 2).unwrap();
+        assert_eq!(b.read32(0x3ff7_3d24), Ok(3));
+        b.write32(0x6000_607c, 3).unwrap();
+        assert_eq!(b.read32(0x3ff4_607c), Ok(0x8000_0003));
     }
 
     #[test]
