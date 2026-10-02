@@ -1,18 +1,20 @@
-# Virtual BLE on S3 and C3
+# Virtual BLE on S3, C3 and C6
 
 The unchanged Arduino-ESP32 3.3.8 Server, Notify, Write and Scan examples pass on
-S3 and C3. C6 is unfinished and rejects `--ble`. This change starts from upstream
+S3, C3 and C6, including ROM reboot on each chip. This change starts from upstream
 `dddb128`; it does not require classic ESP32 support or the Schematik fork.
 
-Implementation commit: `b8c5295535348f2fbafdde9e7389052994af5caa`.
+S3/C3 implementation: `b8c5295535348f2fbafdde9e7389052994af5caa`.
+C6 implementation: `6e1186478845eebcb0fa3b9a69d2c895e57ada2a`.
 
-The shared H4/HCI/ACL/ATT controller comes from local prototype `0755b8b`, whose
-classic-chip evidence is at `a79fa7a`, experiment EX199. The classic adapter was
-inspected but not imported. EX200 changes the host stack to NimBLE, adds LX7 and
+The shared H4/HCI/ACL/ATT controller was first prototyped on the classic ESP32
+(Bluedroid over VHCI), commit `0755b8b` with evidence `a79fa7a` on branch
+`schematik-engineering:classic-ble`. That classic adapter is not part of this change;
+it follows the classic ESP32 target in #168. EX200 changes the host stack to NimBLE, adds LX7 and
 RV32 calling glue, and tests callback scheduling on a single-core guest. The
 fork at `221080f` was consulted as context, not used as an upstream dependency.
 
-## Design and contract
+## S3/C3 design and shared contract
 
 `esp-soc::ble::Controller` exchanges H4 packets and supplies one virtual central
 and one virtual Battery Service peripheral. Shared VHCI glue resolves controller
@@ -63,11 +65,12 @@ monitor_speed = 115200
 
 Use `esp32-c3-devkitm-1` for C3 and `esp32-c6-devkitc-1` for C6. Build each with
 `pio run -d /tmp/up-ble-firmware/CHIP/EXAMPLE`. The examples are Server, Notify,
-Write and Scan. C6 Server was built only for transport inspection and the rejection
-check. PlatformIO build directories were removed after recording their hashes.
+Write and Scan. The C6 follow-up builds all four examples and uses `--flash-mb 8` for this
+board. The initial Server-only inspection and rejected run remain in `inputs.json`. PlatformIO build directories were removed after recording their hashes: nine in
+the original pass and four C6 directories in the follow-up.
 
 ```sh
-python3 docs/evidence/ble-s3-c3-2026-10-02/run.py \
+python3 docs/evidence/ble-s3-c3-c6-2026-10-02/run.py \
   --emulator target/release/esp32sim \
   --firmware /tmp/up-ble-firmware \
   --roms "$HOME/.platformio/packages/tool-esp-rom-elfs" \
@@ -79,7 +82,7 @@ checks, stop summaries and timings. Logs stay under ignored `target/ble`.
 It uses the discovered handle `0x0010` for these pinned examples and `0x0011`
 for Notify's CCCD. Other firmware must use handles from its own discovery.
 
-## Arduino results
+## S3/C3 Arduino results
 
 Both chips advertise `BLE Server Example` and the custom service
 `4fafc201-1fb5-459e-8fcc-c5c9c331914b`, connect, discover that service and read
@@ -119,7 +122,7 @@ runtime substitution and boots through ROM again. S3 advertises at 0.258738 and
 0.854738 seconds; C3 at 0.267993 and 0.863994 seconds. `reboot.json` records the
 commands and checks. The second boot's startup timing differs from power-on.
 
-## C6 remaining work
+## C6 initial transport gap
 
 The C6 configuration selects NimBLE without legacy VHCI. The unchanged Server ELF
 contains `ble_transport_to_ll_cmd_impl` and `ble_transport_to_ll_acl_impl`, which
@@ -129,25 +132,104 @@ routes type 2 to `ble_transport_to_hs_acl_impl` and other types to
 `ble_transport_to_hs_evt_impl`.
 
 Command allocation calls `r_ble_hci_trans_buf_alloc(3)`; transport free calls
-`r_ble_hci_trans_buf_free`. Thus lifecycle substitution alone would leave the
-controller-owned buffer environment uninitialized. A separate adapter must keep
-or replace that setup, allocate/free event buffers, transfer ownership of chained
-`os_mbuf` ACL packets, and call the host from a guest task. Its controller BSS is
-only 324 bytes, so the VHCI packet reservation cannot be copied unchanged.
+`r_ble_hci_trans_buf_free`. Lifecycle substitution alone left the controller-owned buffer setup unresolved
+in the initial attempt. Its controller BSS is only 324 bytes, too small for the
+S3/C3 VHCI reservation. The follow-up below replaces that setup.
 
-This adapter was not implemented. C6 Server exits with status 2 and
-`--ble: BLE is unsupported on this chip`; no C6 boot-to-advertising time or BLE
-success is claimed. Notify, Write and Scan were not built or run on C6.
+At `e7bbcd5`, the adapter was not implemented: C6 Server exited with status 2 and
+`--ble: BLE is unsupported on this chip`. The original attempt did not build or
+run C6 Notify, Write or Scan. Those historical results are preserved; the
+follow-up completes all four examples.
 `inputs.json` retains ELF addresses and hashes for the inspected transport.
 The installed NimBLE `transport.h` and the ELF disassembly are the primary evidence;
 [ESP-IDF's VHCI source](https://github.com/espressif/esp-idf/blob/v5.5.4/components/bt/host/nimble/esp-hci/src/esp_nimble_hci.c)
 explains the different S3/C3 H4 callback path.
 
+## C6 native transport follow-up
+
+The C6 adapter is implemented at `6e1186478845eebcb0fa3b9a69d2c895e57ada2a` in `esp32c6/src/ble.rs`; `c6-followup.json` pins
+its source revision and checks. The shared controller, VHCI glue and S3/C3 code
+are unchanged. The only shared CLI test change makes C6 require its symbols
+instead of asserting that it is unsupported.
+
+The adapter substitutes `ble_transport_to_ll_cmd_impl` and
+`ble_transport_to_ll_acl_impl`, preserves registration through
+`hci_transport_host_callback_register`, and calls that native receive callback
+from an emulator-created guest FreeRTOS task. Events use native type 4 and ACL
+uses type 2. H4 packet framing stays inside the shared controller.
+
+The initialization trampoline calls the guest's NPL function setup, registers
+the controller-side NPL function table, creates the host NPL pools and default
+event queue, and allocates 5,120 zeroed heap bytes. That reservation contains the
+pool descriptors, a packet scratch area and sixteen 288-byte mbuf blocks.
+`r_os_mempool_init`, `r_os_mbuf_pool_init` and `r_os_msys_register` initialize the
+pool. The packet-header selector requires bit 1 of `mp_flags`, verified against
+the original controller's initialization and selector disassembly. The adapter
+sets that bit; it does not overwrite the 324-byte controller BSS.
+
+Command/event allocation and release substitute `r_ble_hci_trans_buf_alloc/free`
+with ordinary guest `malloc/free`. TX commands are copied into H4 packets and
+then freed in the guest. TX ACL walks the real `os_mbuf` chain with pointer,
+length and cycle checks, copies its bytes, then transfers the whole chain to
+`r_os_mbuf_free_chain`. RX events allocate an owned guest buffer; RX ACL calls
+`r_os_msys_get_pkthdr` and `r_os_mbuf_append`. The host callback then takes
+ownership normally. Allocation failure delays and retries the same packet;
+append failure and shutdown release buffers not yet transferred to the host.
+A delay after delivery preserves the host scheduling rule established on C3.
+
+The checked guest heap reservation replaces the proposed BSS reservation.
+Trampoline code fits in a checked 120-byte span inside controller init. Since
+C6's loader intentionally skips flash-window loads, installation writes only the
+resolved contiguous physical flash span. Reboot restores its saved original bytes.
+The existing loader is unchanged. `native-rv.S` assembles byte-for-byte to the
+Rust trampoline with RV32IMAC GNU as/ld/objcopy; guest instruction tests also
+execute it. The task, NPL pools and mbuf reservation live until reboot. A failed
+partial initialization requires reboot before another initialization attempt.
+
+All four unchanged examples pass. C6 discovers the same characteristic and CCCD
+handles as S3/C3, reads `Hello World says Neil`, receives notification values
+1 through 4, prints `New value: Hello from host`, reads that value back, and
+scans exactly one `esp32sim` peripheral. The final runner captures serial stdout
+separately from diagnostic stderr so a diagnostic cannot split the onWrite
+assertion. Full normalized captures stay in ignored `target/ble-c6/final`;
+`c6-runs.json` records their hashes and exact commands.
+
+| C6 example | Modeled boot to advertising | Wall to advertising |
+| --- | ---: | ---: |
+| Server | 0.255737 s | 0.371185 s |
+| Notify | 0.254918 s | 0.119020 s |
+| Write | 0.255760 s | 0.105152 s |
+
+Wall time includes process launch and image/ELF loading. These are single native
+samples under uncontrolled host load; the separate reboot validation overlapped
+the beginning of the example batch. No speed comparison or radio timing is
+claimed. The cycle clock is 160 MHz. Firmware/package/ROM hashes are pinned in
+`c6-runs.json` and `c6-followup.json`.
+
+The C6 reboot script is `0.6 poke 600b1034 80000000`. BLE advertises at 0.255737
+seconds before reset and 0.854780 seconds after reset. `c6-reboot.json` records
+the actual command and two advertisements. No panic or assertion occurs.
+
+Retained negatives in `c6-followup.json` cover the initial 4/8 MiB flash mismatch,
+the skipped flash-window write, mbuf selection without the packet-pool flag,
+and an initial Write false negative caused by stdout/stderr interleaving.
+`native-without-pool-flag.patch` reconstructs the allocator failure against the
+final implementation; apply with `git apply --unidiff-zero` in an isolated
+checkout. It is not a byte-identical snapshot of the earlier uncommitted source.
+
+C6 is validated against the installed IDF 5.5.4 native transport/mbuf layout.
+It retains the shared one-link, MTU-23, unencrypted/no-RF scope; unsupported HCI
+queries still return Unknown Command. There are no remaining C6 acceptance failures.
+
 ## Checks and evidence handling
 
-Workspace tests: 477 passed, 0 failed, 22 ignored.
+Initial S3/C3 validation: 477 tests passed, zero failed, 22 ignored.
+Final C6 follow-up: 482 passed, zero failed, 22 ignored; release and WASM builds pass.
+Five C6 tests cover actual trampoline execution, allocation/callback ownership,
+chained ACL validation/freeing, retry/shutdown behavior and flash restoration.
 
-`validation.json` records the release build, workspace tests, WASM build, privacy
+`validation.json` preserves the initial checks; `c6-followup.json` records the final
+checks. These include the release build, workspace tests, WASM build, privacy
 check and whitespace check. Focused tests execute both instruction sets' actual
 trampolines, callback arguments, host yielding, function-boundary dispatch,
 invalid-buffer handling and physical flash restoration after MMU changes. C3 also

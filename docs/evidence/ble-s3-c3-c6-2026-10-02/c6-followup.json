@@ -1,0 +1,147 @@
+{
+  "parent": "e7bbcd57fbcfe0933d82046e40af4f0ddac5e8c2",
+  "framework": "Arduino-ESP32 3.3.8, IDF libraries 5.5.4+sha.735507283d",
+  "platform": "https://github.com/pioarduino/platform-espressif32.git#55.03.38-1",
+  "board": "esp32-c6-devkitc-1",
+  "flash_mb": 8,
+  "headers_sha256": {
+    "os_mbuf.h": "46843baf3b07b95138e8e35710cea6191a3f2a99f4e0ab8f0276dd1032bcc66e",
+    "os_mempool.h": "79fb923edaf6b30a51622b931f6351b18a00dffb1ba79739267791c4aef19f79"
+  },
+  "builds": {
+    "Server": {
+      "command": "pio run -d /tmp/up-ble-firmware/c6/Server",
+      "passed": true,
+      "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+      "unchanged": true,
+      "platformio_ini_sha256": "fbfd8537906f7c645bd4c1ade675ee51fce5d722856e4f9f81738f9418f45722"
+    },
+    "Notify": {
+      "command": "pio run -d /tmp/up-ble-firmware/c6/Notify",
+      "passed": true,
+      "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+      "unchanged": true,
+      "platformio_ini_sha256": "fbfd8537906f7c645bd4c1ade675ee51fce5d722856e4f9f81738f9418f45722"
+    },
+    "Write": {
+      "command": "pio run -d /tmp/up-ble-firmware/c6/Write",
+      "passed": true,
+      "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+      "unchanged": true,
+      "platformio_ini_sha256": "fbfd8537906f7c645bd4c1ade675ee51fce5d722856e4f9f81738f9418f45722"
+    },
+    "Scan": {
+      "command": "pio run -d /tmp/up-ble-firmware/c6/Scan",
+      "passed": true,
+      "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+      "unchanged": true,
+      "platformio_ini_sha256": "fbfd8537906f7c645bd4c1ade675ee51fce5d722856e4f9f81738f9418f45722"
+    }
+  },
+  "reservation": {
+    "controller_bss_bytes": 324,
+    "extra_controller_bss_reserved": 0,
+    "guest_heap_bytes": 5120,
+    "guest_task_stack_bytes": 4096,
+    "mbuf_blocks": 16,
+    "mbuf_block_bytes": 288,
+    "command_event_allocation_bytes": 260
+  },
+  "abi": {
+    "os_mbuf_bytes": 16,
+    "os_mbuf_pkthdr_bytes": 8,
+    "data_offset": 0,
+    "header_length_offset": 5,
+    "segment_length_offset": 6,
+    "next_offset": 12,
+    "packet_length_offset": 16,
+    "os_mempool_bytes": 28,
+    "mp_flags_offset": 10,
+    "packet_pool_flag": 2,
+    "source": "Installed ESP-IDF headers and C6 Server ELF disassembly of r_os_msys_get_pkthdr, r__os_msys_find_pool and r_ble_ll_mem_msys_init. The latter ORs bit 1 into mp_flags; the former selects that pool for packet headers."
+  },
+  "validation": {
+    "passed": 482,
+    "failed": 0,
+    "ignored": 22,
+    "focused_c6_tests": 5,
+    "release_build": true,
+    "wasm_build": true,
+    "whitespace": true,
+    "native_sha256": "8fa33f242f812c4da64dded958923616703a316a512a0bda9e61878dfabad0a6",
+    "wasm_sha256": "650237cb2ef660edb380ecdac5eaf05788fcff933a6438d9a4f6544faf4dd561",
+    "trampoline_source_matches_bytes": true,
+    "cargo build --release": {
+      "log_sha256": "dfa6c4dec8930df429c3c11667b5364fe777f0ccedc14e964e388cc417a0bb3c",
+      "passed": true
+    },
+    "cargo test --workspace": {
+      "log_sha256": "044e87d891f2c525114d8dd23f66fbfab1f86d3b9b69c73cc7de4da021ccf51c",
+      "passed": true
+    },
+    "tools/wasm-build.sh": {
+      "log_sha256": "b4b4c45ee6921b7cb06d90e7b43982bc56c79d00275dbcd3a27be861bb19bdd6",
+      "passed": true
+    },
+    "node tools/check-evidence-privacy.mjs": {
+      "passed": true,
+      "tracked_files": 1485,
+      "gzip_files": 15,
+      "log_sha256": "5ba7e9d8fb5cfdcc6b20cb4f0bf0d8302761bca43c3fd42fe84068943d51cc04",
+      "manual_review": true
+    }
+  },
+  "conditions": "Single sequential native C6 example runs; macOS 26.6.2 arm64, Rust 1.96.0, default JIT, 160 MHz cycle clock. Host load uncontrolled; a separate reboot validation overlapped the beginning of the example batch. Wall time includes launch and image/ELF loading. No timing calibration or speed comparison.",
+  "privacy": "Only task source, commands, synthetic BLE addresses, artifact hashes and selected results retained. Home labels normalized before retaining diagnostic captures; original and normalized hashes recorded below. No private originals committed.",
+  "negative_attempts": [
+    {
+      "name": "default flash capacity",
+      "error": "Detected size(4096k) smaller than the size in the binary image header(8192k). Probe failed.",
+      "resolution": "Pass --flash-mb 8; unchanged board firmware has an 8 MiB flash header.",
+      "log": "server-initial.log",
+      "original_sha256": "72323fc4d5568367fe426861427e186ba3206d6da7e96edd026c536b8757a98f",
+      "normalized_sha256": "2a889b83f58b37e72ca89075249d0629dcb7aff92faf40421b57947bd5268236"
+    },
+    {
+      "name": "runtime trampoline through loader",
+      "error": "Instruction access fault; MEPC 0x001800fe, RA 0x001800ff.",
+      "resolution": "C6 load_bytes intentionally ignores flash-window loads. Install only the checked contiguous physical flash span, preserving original bytes for reset. The loader is unchanged.",
+      "log": "server-flash8.log",
+      "original_sha256": "3ae3a0eaa97fb913028660e44a5661809537607ee98cb66e4df56994c2a3d94a",
+      "normalized_sha256": "0a5654aa979d229644831c315f6a2fa144cf687986b075a0ab88dcdaf198385b"
+    },
+    {
+      "name": "ACL pool selection",
+      "error": "[ble] native receive allocation failed",
+      "resolution": "The ESP-IDF packet-header allocator requires mp_flags bit 1; set that bit after real guest mempool initialization. Discovery then passes.",
+      "log": "server-native.log",
+      "original_sha256": "62d9c42e1722ac158384c7e8548bb327edee4afd3127aa7ed756b715094f7ca8",
+      "normalized_sha256": "6c55f587cb9b8524c11f40e6aa3030f6ee31f61ee020771c9f1e17f38cb940c7"
+    },
+    {
+      "name": "Write capture",
+      "error": "The combined stdout/stderr capture split New value: Hello from host with the write-complete diagnostic.",
+      "resolution": "Capture serial separately from diagnostic stderr. The byte-exact serial callback and readback checks pass.",
+      "initial_checks": {
+        "New value: Hello from host": false,
+        "text=\"Hello from host\"": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      }
+    },
+    {
+      "name": "assembler comment",
+      "error": "junk at end of line, first unrecognized character is '/'",
+      "resolution": "Use assembler # comment syntax. Assembly succeeds; extracted bytes exactly match the Rust trampoline."
+    }
+  ],
+  "implementation_commit": "6e1186478845eebcb0fa3b9a69d2c895e57ada2a",
+  "cleanup": {
+    "directories": 4,
+    "bytes_before_removal": 184716450,
+    "scope": "Only /tmp/up-ble-firmware/c6/*/.pio. Artifact hashes and unchanged-sketch checks recorded before removal."
+  }
+}
