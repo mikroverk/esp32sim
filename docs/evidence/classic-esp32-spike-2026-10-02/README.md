@@ -256,13 +256,161 @@ reported 1,472 tracked evidence files checked and no configured patterns found; 
 review found no retained user name, host name, device identifier or unrelated process
 data in this extension.
 
+## I2C controller extension
+
+Revision `caabeb7` extends EX199 again. It keeps the classic ECO3 target, mask ROM and
+Arduino-ESP32 3.3.8 platform. The mechanism and correctness contract differ from the
+earlier GPIO work. Both classic I2C controllers now execute the classic command encoding,
+use their FIFO aliases and DPORT interrupt sources, resolve SDA and SCL through the
+classic GPIO matrix, and transact with the existing board-device models. The workload is
+an I2C scanner, a repeated-start register read, and an address-NACK check. This is
+functional evidence, not a bus-timing or execution-speed measurement.
+
+The implementation reuses the shared I2C command engine and adds only its classic layout:
+16 command registers and the older RSTART, READ, and STOP opcode values. The classic adapter
+maps I2C0 at `0x3ff53000`, I2C1 at `0x3ff67000`, the APB FIFO write aliases at
+`0x6001301c` and `0x6002701c`, GPIO-matrix SCL and SDA signals 29, 30, 95, and 96, and
+DPORT sources 49 and 50. The model handles START, STOP, repeated START, address and data
+ACK and NACK, and 32-byte transmit and receive FIFOs. It raises END_DETECT,
+TRANS_COMPLETE, NACK, and TIMEOUT interrupts. A transaction times out if either routed
+input is absent or low when `TRANS_START` is written.
+
+Classic `--board` accepts the existing S3 board names for their reusable board-device
+models. The validation used `waveshare-amoled18-v2`, whose I2C0 devices are CST820 at
+`0x15`, TCA9554 at `0x20`, AXP2101 at `0x34`, PCF85063A at `0x51`, and QMI8658 at
+`0x6b`. Device attachment is repeated after a chip reset.
+
+Register-level tests cover both controllers, all 16 classic command slots, FIFO aliases,
+END and STOP completion, repeated-start register reads, address NACK, held-SCL timeout,
+GPIO-matrix input and output hooks, PRO DPORT delivery from sources 49 and 50, board-device
+attachment and reset reattachment. At the implementation revision, these touched-crate
+checks passed:
+
+```text
+cargo test -p esp-periph -p esp32
+  esp-periph: 59 passed; esp32: 14 passed; 0 failed
+
+cargo test -p esp32sim
+  28 passed; 0 failed; 15 external-firmware tests ignored by their contracts
+```
+
+The temporary PlatformIO project used the same `platformio.ini` as the earlier checks.
+Its fixed sketch was:
+
+```cpp
+#include <Arduino.h>
+#include <Wire.h>
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+
+  unsigned found = 0;
+  for (uint8_t address = 1; address < 127; ++address) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("found=0x%02x\n", address);
+      ++found;
+    }
+  }
+  Serial.printf("count=%u\n", found);
+
+  Wire.beginTransmission(0x6b);
+  Wire.write(0x00);
+  uint8_t write_error = Wire.endTransmission(false);
+  uint8_t received = Wire.requestFrom(0x6b, static_cast<uint8_t>(1));
+  int who_am_i = received ? Wire.read() : -1;
+  Serial.printf("qmi write=%u received=%u who=0x%02x\n", write_error, received, who_am_i);
+
+  Wire.beginTransmission(0x7e);
+  Serial.printf("missing=%u\n", Wire.endTransmission());
+}
+
+void loop() {
+  delay(1000);
+}
+```
+
+Build and run commands were:
+
+```sh
+cd /tmp/esp32sim-classic-i2c-validation
+pio run
+
+# From the repository root:
+cargo build --release
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-i2c-validation/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-i2c-validation/.pio/build/esp32dev/firmware.elf \
+  --board waveshare-amoled18-v2 \
+  --max-seconds 1.2 --no-reboot --no-dump
+```
+
+PlatformIO reported platform `55.3.38+sha.fbdfc29`, Arduino-ESP32 3.3.8 and framework
+libraries `5.5.4+sha.735507283d`. The relevant UART output was:
+
+```text
+found=0x15
+found=0x20
+found=0x34
+found=0x51
+found=0x6b
+count=5
+qmi write=0 received=1 who=0x05
+missing=2
+
+[emu] stop: Halted; core0 6595449 + core1 2857161 insns;
+emulated 1.200s (288000000 cycles); 14419 exceptions, 2600 interrupts
+```
+
+The five scanner hits exactly match the attached board devices. The QMI8658 WHO_AM_I
+register returned `0x05` after a no-STOP write and repeated-start read. Arduino Wire
+returned error 2, address NACK, for unattached address `0x7e`.
+
+SHA-256 inputs and temporary artifacts:
+
+| Item | SHA-256 |
+| --- | --- |
+| `$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf` | `920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31` |
+| `/tmp/esp32sim-classic-i2c-validation/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-i2c-validation/src/main.cpp` | `a0b0a9b1a56bc27034bba45bef996ee18f8d2ce1fc07f3969ff4b494539bd9ed` |
+| `bootloader.bin` | `a227e3ab93f15f1155efb3144810cc06ff7a259e9bc9b4542417afcc6c238214` |
+| `partitions.bin` | `148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1` |
+| `firmware.bin` | `b329a331ea762f27f7d5ccc0e44363aa0befcd641c6858a92acd4a7f5eaaec7c` |
+| `firmware.factory.bin` | `1f2266ba4b66a14393eba45dc7b093a5d94bc07d105609c9aee12afa773aff69` |
+| `firmware.elf` | `bf76bbc3bf99ea7b1a47a0b09f0616938a548dcd1dbfb5558a1ea4571539e642` |
+
+Host tools were Rust and Cargo 1.96.0 and PlatformIO Core 6.1.19 on Darwin arm64, macOS
+26.6.2 build 25G83. The first sandboxed PlatformIO build failed with
+`PermissionError: [Errno 1] Operation not permitted: '$HOME/.platformio/platforms.lock'`;
+repeating it with access to the existing package cache succeeded. A repository-wide
+`cargo fmt --check` exited 1 on pre-existing formatting differences. The first difference
+was at `cli/src/bin/esp32sim-c3.rs:1`. The command changed no files and was not a requested
+gate.
+
+The controller executes each command list atomically when `TRANS_START` is written. It
+does not generate bit-level SDA and SCL waveforms, model clock-stretch duration, arbitration,
+10-bit addressing or slave mode. The GPIO matrix must resolve both inputs high, and its
+output hooks hold the open-drain lines released between transactions. Board devices are
+functional transaction models rather than electrical bus models.
+
+The final source tree passed `cargo build --release`, touched-crate tests,
+`cargo test --workspace`, `tools/wasm-build.sh`, `git diff --check`, and
+`node tools/check-evidence-privacy.mjs`. Existing tests that require external firmware
+remained ignored by their stated contracts. The privacy check and a manual review found
+no retained login name, host name, device identifier, unrelated command line, raw capture
+or backup. Temporary paths use generic names and home paths are normalized to `$HOME`.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
 SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, partial
 RTC/TIMG watchdog behavior, ECO3 eFuse identity, SHA-256, random input and APP CPU
-control. GPIO0-39 now include output/enable aliases, pad input, supported pulls, matrix
-input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
+control. I2C0 and I2C1 execute classic master command lists against attached board devices and
+deliver their interrupts through DPORT. GPIO0-39 include output/enable aliases, pad input,
+supported pulls, matrix input/output routing and PRO/APP edge and level interrupts;
+GPIO34-39 remain input-only.
 DPORT routes GPIO, UART0-2, TIMG0/1 timer and watchdog, RTC watchdog and CPU-to-CPU
 sources through the per-core maps. Other peripheral blocks use the existing round-trip
 register RAM: reads start at zero and writes persist, but there is no device behavior or
