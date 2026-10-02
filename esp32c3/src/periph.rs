@@ -136,6 +136,7 @@ impl Device for Extmem {
 pub use esp_periph::Rng;
 
 pub struct Peripherals {
+    pub adc: esp_periph::sar_adc::SarAdc,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
     pub systimer: Systimer,
@@ -167,6 +168,7 @@ pub struct Peripherals {
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+    0x40 "APB_SARADC" (adc) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x10 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI1" (spi1) => [];
@@ -201,6 +203,7 @@ impl DeviceSet for Peripherals {
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+        if block == 0x40 { self.adc.now_cycles = self.clock.cycles(); }
         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
     }
 }
@@ -209,6 +212,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
+            adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
