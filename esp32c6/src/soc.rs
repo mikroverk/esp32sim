@@ -23,6 +23,8 @@ impl Soc for C6 {
     const ROM_DATA_TABLE_END: &'static [&'static str] = &["_data_table_end"];
     const ROM_DATA_TABLE_STRIDE: u32 = 12;
     fn new_core(_i: usize) -> Cpu { Cpu::new_rv32imac() }
+    fn function_hooks(bus: &SocBus) -> &[u32] { &bus.ble.hooks }
+    fn function_hook(core: &mut Cpu, bus: &mut SocBus) -> bool { crate::ble::intercept(core, bus) }
     fn reset_core(c: &mut Cpu, _i: usize) { Cpu::reset(c); }
     fn boot_core(c: &mut Cpu, entry: u32) {
         Cpu::reset(c);
@@ -33,6 +35,8 @@ impl Soc for C6 {
 }
 
 impl esp_soc::SocBus for SocBus {
+    fn enable_ble(&mut self, symbols: &std::collections::HashMap<String, u32>) -> Result<(), String> { self.ble.enable(symbols) }
+    fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles) }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
         let timer = match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) };
@@ -81,6 +85,8 @@ impl esp_soc::SocBus for SocBus {
     }
     /// Digital peripherals re-created; SRAM, the LP domain and the efuses kept.
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
+        if let Some((off, original)) = self.ble.original_flash.take() { self.flash[off..off + original.len()].copy_from_slice(&original); }
+        self.ble.reset();
         let cause = self.periph.lpsys.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
