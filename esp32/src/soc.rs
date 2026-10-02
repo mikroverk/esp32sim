@@ -44,7 +44,7 @@ impl Soc for Esp32 {
     }
     fn irqs(bus: &SocBus, out: &mut [u32]) {
         for (core, lines) in out.iter_mut().enumerate() {
-            *lines = bus.periph.dport.cpu_lines(core);
+            *lines = bus.periph.cpu_lines(core);
         }
     }
     fn core_state(bus: &SocBus, core: usize) -> CoreState {
@@ -114,7 +114,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, Peripherals::new(mac));
         self.periph.efuse = old.efuse;
         self.periph.misc.log_unknown = old.misc.log_unknown;
-        self.periph.gpio.0.strap = old.gpio.0.strap;
+        self.periph.gpio.gpio.strap = old.gpio.gpio.strap;
         self.periph.rtc.0.reset_cause = cause;
         cause
     }
@@ -141,20 +141,23 @@ impl esp_soc::SocBus for SocBus {
     }
     fn serial_input(&mut self, data: &[u8]) {
         self.periph.uart[0].host_input(data);
+        self.irq_dirty = true;
     }
     fn uart_input(&mut self, n: usize, data: &[u8]) {
         if let Some(u) = self.periph.uart.get_mut(n) {
             u.host_input(data);
+            self.irq_dirty = true;
         }
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
-        self.periph.gpio.0.set_input(pin, level);
+        self.periph.gpio.set_input(pin, level);
+        self.irq_dirty = true;
         if let Some(ev) = &mut self.gpio_events {
             ev.push((self.cycles, pin, level));
         }
     }
     fn gpio_input(&self) -> u64 {
-        self.periph.gpio.0.input
+        self.periph.gpio.gpio.input
     }
     fn observe_gpio(&mut self, on: bool) {
         self.gpio_events = on.then(Vec::new);
@@ -174,8 +177,10 @@ impl esp_soc::SocBus for SocBus {
     fn audio(&self) -> (&[i16], u32) {
         (&[], 44_100)
     }
-    fn irq_sources_of(&self, _core: usize, _line: u32) -> Vec<usize> {
-        Vec::new()
+    fn irq_sources_of(&self, core: usize, line: u32) -> Vec<usize> {
+        (0..periph::NUM_SOURCES)
+            .filter(|&source| self.periph.dport.map[core][source] == line)
+            .collect()
     }
     fn set_debug(&mut self, f: &esp_soc::DebugFlags) {
         self.debug = f.clone();
@@ -191,7 +196,7 @@ impl esp_soc::SocBus for SocBus {
         self.periph.spi1.0.jedec[2] = cap;
     }
     fn set_strap(&mut self, v: u32) {
-        self.periph.gpio.0.strap = v;
+        self.periph.gpio.gpio.strap = v;
     }
     fn set_reset_cause(&mut self, cause: u32) {
         self.periph.rtc.0.ram.write(0x38, cause | cause << 6);

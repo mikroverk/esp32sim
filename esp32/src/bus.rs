@@ -199,8 +199,8 @@ impl SocBus {
         if self.periph.spi_exec {
             self.run_spi();
         }
-        if !self.periph.gpio.0.changes.is_empty() {
-            let changes = std::mem::take(&mut self.periph.gpio.0.changes);
+        if !self.periph.gpio.gpio.changes.is_empty() {
+            let changes = std::mem::take(&mut self.periph.gpio.gpio.changes);
             if let Some(events) = &mut self.gpio_events {
                 for &(pin, level) in &changes {
                     events.push((self.cycles, pin, level));
