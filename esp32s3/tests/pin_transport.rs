@@ -217,19 +217,21 @@ fn output_cycles_include_low_release_and_input_edges_keep_their_timestamp() {
 /// PlatformIO configuration, then supply its build directory and a ROM ELF.
 #[test]
 #[ignore = "requires ESP32SIM_TRANSPORT_BUILD and ESP32SIM_ROM"]
-fn arduino_pin_transport() {
-    let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD").unwrap());
-    let rom = std::env::var_os("ESP32SIM_ROM").unwrap();
+fn external_arduino_pin_transport() {
+    let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD")
+        .expect("ESP32SIM_TRANSPORT_BUILD must name the PlatformIO build directory containing firmware.factory.bin"));
+    let rom = std::env::var_os("ESP32SIM_ROM").expect("ESP32SIM_ROM must name an ESP32-S3 revision-0 ROM ELF");
     let state = Arc::new(Mutex::new(State::default()));
     let mut m = esp32s3::machine([2, 0, 0, 0, 0, 1]);
     m.bus.board = Box::new(Board(state.clone()));
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).unwrap()).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("ESP32SIM_ROM must name a readable ESP32-S3 revision-0 ROM ELF")).unwrap();
     m.write_flash(
         0,
-        &std::fs::read(build.join("firmware.factory.bin")).unwrap(),
+        &std::fs::read(build.join("firmware.factory.bin"))
+            .expect("ESP32SIM_TRANSPORT_BUILD must contain a readable firmware.factory.bin"),
     )
     .unwrap();
     m.boot_rom();
