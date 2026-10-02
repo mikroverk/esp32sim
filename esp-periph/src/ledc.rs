@@ -98,7 +98,7 @@ impl Device for Ledc {
                     _ => self.regs.write(off, value),
                 }
             }
-            _ if (0xa0..=0xb8).contains(&off) && off % 8 == 0 => {
+            _ if (0xa0..=0xb8).contains(&off) && off.is_multiple_of(8) => {
                 self.regs.write(off, value & !(1 << (25 + self.shift())));
                 if value & (1 << (25 + self.shift())) != 0 { self.timer_params[((off - 0xa0) / 8) as usize] = value; }
                 if value & (1 << (23 + self.shift())) != 0 { self.phase[((off - 0xa0) / 8) as usize] = 0; }
