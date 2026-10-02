@@ -190,20 +190,6 @@ impl Cpu {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Cpu;
-
-    #[test]
-    fn lx6_dfp_context_registers_round_trip() {
-        let mut cpu = Cpu::default();
-        for (register, value) in (234..=236).zip([0x1234, 0x5678, 0x9abc]) {
-            assert_eq!(cpu.write_ur(register, value), Some(()));
-            assert_eq!(cpu.read_ur(register), Some(value));
-        }
-    }
-}
-
 /// Highest AR index an instruction touches (for the window-overflow check).
 pub(crate) fn max_ar(i: &Insn) -> u8 {
     i.gpr_effects().max_ar()
@@ -839,4 +825,18 @@ fn exec_mac16<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
     }
     cpu.pc = cpu.pc.wrapping_add(3);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cpu;
+
+    #[test]
+    fn lx6_dfp_context_registers_round_trip() {
+        let mut cpu = Cpu::default();
+        for (register, value) in (234..=236).zip([0x1234, 0x5678, 0x9abc]) {
+            assert_eq!(cpu.write_ur(register, value), Some(()));
+            assert_eq!(cpu.read_ur(register), Some(value));
+        }
+    }
 }

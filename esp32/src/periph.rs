@@ -1180,8 +1180,8 @@ mod tests {
         block[..3].copy_from_slice(b"abc");
         block[3] = 0x80;
         block[63] = 24;
-        for (i, word) in block.chunks_exact(4).enumerate() {
-            sha.write((i * 4) as u32, u32::from_be_bytes(word.try_into().unwrap()));
+        for (i, word) in block.as_chunks::<4>().0.iter().enumerate() {
+            sha.write((i * 4) as u32, u32::from_be_bytes(*word));
         }
         sha.write(0x90, 1);
         sha.write(0x98, 1);

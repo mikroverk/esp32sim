@@ -11,6 +11,12 @@ pub struct ClassicAes {
     debug: bool,
 }
 
+impl Default for ClassicAes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClassicAes {
     pub fn new() -> Self {
         Self {
@@ -105,6 +111,12 @@ pub struct ClassicSha {
     debug: bool,
 }
 
+impl Default for ClassicSha {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClassicSha {
     pub fn new() -> Self {
         Self {
@@ -178,19 +190,19 @@ mod tests {
 
     fn hex(s: &str) -> Vec<u8> {
         s.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
 
     fn write_aes_words(aes: &mut ClassicAes, base: u32, bytes: &[u8], endian: u32) {
-        for (i, word) in bytes.chunks_exact(4).enumerate() {
+        for (i, word) in bytes.as_chunks::<4>().0.iter().enumerate() {
             let index = if endian & 2 != 0 {
                 i
             } else {
                 bytes.len() / 4 - 1 - i
             };
-            let word = word.try_into().unwrap();
+            let word = *word;
             aes.write(
                 base + index as u32 * 4,
                 if endian & 1 != 0 {
@@ -252,7 +264,7 @@ mod tests {
         let mut bytes = message.to_vec();
         bytes.push(0x80);
         let length_bytes = if block == 128 { 16 } else { 8 };
-        while (bytes.len() + length_bytes) % block != 0 {
+        while !(bytes.len() + length_bytes).is_multiple_of(block) {
             bytes.push(0);
         }
         bytes.resize(bytes.len() + length_bytes - 8, 0);
@@ -261,8 +273,8 @@ mod tests {
     }
 
     fn sha_block(sha: &mut ClassicSha, algorithm: u32, block: &[u8], first: bool) {
-        for (i, word) in block.chunks_exact(4).enumerate() {
-            sha.write(i as u32 * 4, u32::from_be_bytes(word.try_into().unwrap()));
+        for (i, word) in block.as_chunks::<4>().0.iter().enumerate() {
+            sha.write(i as u32 * 4, u32::from_be_bytes(*word));
         }
         sha.write(0x80 + algorithm * 16 + if first { 0 } else { 4 }, 1);
         assert_eq!(sha.read(0x8c + algorithm * 16), 0);
@@ -322,7 +334,7 @@ mod tests {
         let message = [b'a'; 200];
         let blocks = padded(&message, 64);
         let sha512 = padded(b"abc", 128);
-        for (i, block) in blocks.chunks_exact(64).enumerate() {
+        for (i, block) in blocks.as_chunks::<64>().0.iter().enumerate() {
             sha_block(&mut sha, 0, block, i == 0);
             sha_block(&mut sha, 1, block, i == 0);
             sha_block(&mut sha, 3, &sha512, true);
