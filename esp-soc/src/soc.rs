@@ -65,10 +65,15 @@ pub trait Soc: 'static {
     fn boot_core(core: &mut Self::Core, entry: u32);
     /// The interrupt input of every core, from the bus's current source state.
     fn irqs(bus: &Self::Bus, out: &mut [<Self::Core as Core>::Irq]);
+    /// Optional function-entry substitutions, resolved from a guest ELF by the chip.
+    fn function_hooks(_bus: &Self::Bus) -> &[u32] { &[] }
+    fn function_hook(_core: &mut Self::Core, _bus: &mut Self::Bus) -> bool { false }
     fn core_state(_bus: &Self::Bus, _core: usize) -> CoreState { CoreState::Running }
 }
 
 pub trait SocBus: Bus {
+    fn enable_ble(&mut self, _symbols: &std::collections::HashMap<String, u32>) -> Result<(), String> { Err("BLE is unsupported on this chip".into()) }
+    fn ble_command(&mut self, _command: &str) -> Result<(), String> { Err("BLE is not enabled".into()) }
     fn cycles(&self) -> u64;
     /// CPU cycles from the current device horizon to the next transition that may wake a core.
     fn next_deadline(&self) -> Option<u64> { None }

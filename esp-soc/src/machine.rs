@@ -14,7 +14,7 @@ mod modeled;
 mod web;
 
 #[derive(Clone, Debug)]
-pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32) }
+pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32), Ble(String) }
 
 /// The stop conditions that are not observers.
 pub struct Debug { pub stop_on_unimplemented: bool, pub stop_after_exceptions: u64 }
@@ -378,6 +378,7 @@ impl<S: Soc> Machine<S> {
                 let (args, ret) = (cpu.probe_args(&mut self.bus), cpu.return_address(&mut self.bus));
                 eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, args, ret);
             }
+            if S::function_hook(cpu, &mut self.bus) { return (1, None); }
             if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return (1, None); }
         }
         let (used, trap) = cpu.run(&mut self.bus, budget);
@@ -450,6 +451,7 @@ impl<S: Soc> Machine<S> {
             }
         }
         if self.stub_bloom & pc_bit(pc) != 0 && !cpu.waiting() {
+            if S::function_hook(cpu, &mut self.bus) { return None; }
             if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return None; }
         }
         {
@@ -490,6 +492,7 @@ impl<S: Soc> Machine<S> {
             || self.approximate_jit_timing.is_some()
             || self.probes.0 != 0
             || !self.stubs.is_empty()
+            || !S::function_hooks(&self.bus).is_empty()
             || !self.fn_probes.is_empty()
             || self.script.pos < self.script.events.len()
             || self.bus.sw_reset()
@@ -517,7 +520,7 @@ impl<S: Soc> Machine<S> {
     fn run_unmodeled<const APPROXIMATE: bool>(&mut self, max_insns: u64) -> Stop {
         assert!(self.quantum != 0, "scheduling quantum must be nonzero");
         let (cpi, max_quantum) = if APPROXIMATE { self.approximate_jit_timing.unwrap() } else { (1, self.quantum as u32) };
-        self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
+        self.stub_bloom = self.stubs.keys().chain(S::function_hooks(&self.bus)).fold(0, |m, &pc| m | pc_bit(pc));
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
             c.set_boundaries(self.stub_bloom | self.probe_bloom);
@@ -887,7 +890,7 @@ impl<S: Soc> Machine<S> {
     pub fn run_until_cycle(&mut self, target: u64) -> RunUntil {
         self.web_poll_input();
         self.refresh_irq();
-        self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
+        self.stub_bloom = self.stubs.keys().chain(S::function_hooks(&self.bus)).fold(0, |m, &pc| m | pc_bit(pc));
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
             c.set_boundaries(self.stub_bloom | self.probe_bloom);
@@ -986,6 +989,7 @@ impl<S: Soc> Machine<S> {
                 ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::Touch(x, y, d) => { self.bus.touch_input(x, y, d); }
                 ScriptAction::Poke(a, v) => { let _ = self.bus.write32_unpriced(a, v); }
+                ScriptAction::Ble(command) => { if let Err(error) = self.bus.ble_command(&command) { eprintln!("[ble] {error}"); } }
             }
         }
         stopped
@@ -1082,6 +1086,7 @@ impl<S: Soc> Machine<S> {
                         tc += step * 4;
                     }
                 }
+                "ble" => ev.push((c, ScriptAction::Ble(rest.to_string()))),
                 "stop" => ev.push((c, ScriptAction::Stop)),
                 _ => return Err(format!("line {}: unknown command {}", ln + 1, cmd)),
             }
