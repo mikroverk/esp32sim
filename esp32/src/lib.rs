@@ -4,6 +4,7 @@ pub mod i2c;
 pub mod ledc;
 pub mod periph;
 pub mod soc;
+pub mod spi;
 pub mod timers;
 
 pub use esp_soc::Stop;

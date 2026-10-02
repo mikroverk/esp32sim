@@ -288,7 +288,7 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
     m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     let board = if o.board == "atech14" { "none" } else { o.board.as_str() };
-    m.bus.board = esp32s3::board::make_board(board).unwrap_or_else(|| { eprintln!("unknown classic ESP32 board '{}' (waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, none)", o.board); std::process::exit(2) });
+    m.bus.board = esp32::spi::make_board(board).or_else(|| esp32s3::board::make_board(board)).unwrap_or_else(|| { eprintln!("unknown classic ESP32 board '{}' (none, esp32dev-loopback, esp32dev-st7789, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2)", o.board); std::process::exit(2) });
     m.bus.attach_board_devices();
     for (flag, on) in [("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the classic ESP32 spike", flag); std::process::exit(2); }

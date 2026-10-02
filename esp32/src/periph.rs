@@ -1,6 +1,7 @@
 //! Classic ESP32 peripheral map. Shared models are adapted only where this chip's register layout
 //! predates the S3/C3 layout.
 use crate::ledc::ClassicLedc;
+use crate::spi::ClassicGpSpi;
 use crate::timers::ClassicTimer;
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
@@ -24,6 +25,8 @@ const SRC_TG1_LACT: usize = 21;
 const SRC_GPIO: usize = 22;
 const SRC_GPIO_NMI: usize = 23;
 const SRC_FROM_CPU0: usize = 24;
+const SRC_SPI2: usize = 30;
+const SRC_SPI3: usize = 31;
 const SRC_UART0: usize = 34;
 const SRC_UART1: usize = 35;
 const SRC_UART2: usize = 36;
@@ -31,6 +34,8 @@ const SRC_LEDC: usize = 43;
 const SRC_RTC_CORE: usize = 47;
 const SRC_I2C0: usize = 49;
 const SRC_I2C1: usize = 50;
+const SRC_SPI2_DMA: usize = 53;
+const SRC_SPI3_DMA: usize = 54;
 const SRC_TG0_T0_EDGE: usize = 57;
 const SRC_TG1_T0_EDGE: usize = 61;
 const I2C_SIGNALS: [(usize, usize); 2] = [(29, 30), (95, 96)];
@@ -209,11 +214,39 @@ impl ClassicGpio {
     fn matrix_pad(&self, pin: usize) -> bool {
         (self.mux(pin) >> 12) & 7 == 2
     }
+    fn direct_signal(pin: usize) -> Option<usize> {
+        Some(match pin {
+            2 => 13,
+            4 => 12,
+            12 => 9,
+            13 => 10,
+            14 => 8,
+            15 => 11,
+            5 => 68,
+            18 => 63,
+            19 => 64,
+            21 => 66,
+            22 => 67,
+            23 => 65,
+            _ => return None,
+        })
+    }
+    fn direct_pin(signal: usize) -> Option<usize> {
+        (0..40).find(|&pin| Self::direct_signal(pin) == Some(signal))
+    }
     fn input_enabled(&self, pin: usize) -> bool {
         self.mux(pin) & (1 << 9) != 0
     }
     fn driven(&self, pin: usize) -> Option<bool> {
-        if pin >= 34 || !self.matrix_pad(pin) {
+        if pin >= 34 {
+            return None;
+        }
+        if (self.mux(pin) >> 12) & 7 == 1 {
+            return Self::direct_signal(pin)
+                .filter(|&signal| self.signal_oe[signal])
+                .map(|signal| self.signal_out[signal]);
+        }
+        if !self.matrix_pad(pin) {
             return None;
         }
         let cfg = self.gpio.func_out_sel[pin];
@@ -305,6 +338,11 @@ impl ClassicGpio {
     }
     /// Resolve a peripheral input routed through GPIO_FUNCm_IN_SEL_CFG.
     pub fn signal_input(&self, signal: usize) -> Option<bool> {
+        if let Some(pin) = Self::direct_pin(signal) {
+            if (self.mux(pin) >> 12) & 7 == 1 && self.input_enabled(pin) {
+                return Some(self.pad_level(pin));
+            }
+        }
         let cfg = *self.gpio.func_in_sel.get(signal)?;
         if cfg & (1 << 7) == 0 {
             return None;
@@ -532,6 +570,7 @@ pub struct Peripherals {
     pub uart: [ClassicUart; 3],
     pub spi0: ClassicSpi,
     pub spi1: ClassicSpi,
+    pub spi: [ClassicGpSpi; 2],
     pub gpio: ClassicGpio,
     pub ledc: ClassicLedc,
     pub rtc: ClassicRtc,
@@ -559,6 +598,8 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x5a "EFUSE" (efuse) => [];
     0x5f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1, SRC_TG0_WDT, SRC_TG0_LACT, SRC_TG0_T0_EDGE, SRC_TG0_T0_EDGE + 1, SRC_TG0_T0_EDGE + 2, SRC_TG0_T0_EDGE + 3];
     0x60 "TIMG1" (timg[1]) => [SRC_TG1_T0, SRC_TG1_T1, SRC_TG1_WDT, SRC_TG1_LACT, SRC_TG1_T0_EDGE, SRC_TG1_T0_EDGE + 1, SRC_TG1_T0_EDGE + 2, SRC_TG1_T0_EDGE + 3];
+    0x64 "SPI2" (spi[0]) => [SRC_SPI2, SRC_SPI2_DMA];
+    0x65 "SPI3" (spi[1]) => [SRC_SPI3, SRC_SPI3_DMA];
     0x67 "I2C1" (i2c[1]) => [SRC_I2C1];
     0x6e "UART2" (uart[2]) => [SRC_UART2];
 }
@@ -594,6 +635,7 @@ impl Peripherals {
             ],
             spi0: ClassicSpi::new(false),
             spi1: ClassicSpi::new(true),
+            spi: [ClassicGpSpi::new(), ClassicGpSpi::new()],
             gpio,
             ledc: ClassicLedc::new(),
             rtc: ClassicRtc::new(),
@@ -854,6 +896,27 @@ mod tests {
         p.write32(0x3ff4_45b8, 256);
         p.write32(0x3ff4_4030, 1 << 2);
         assert_eq!(p.gpio.gpio.enable & (1 << 34), 0, "GPIO34 is input-only");
+    }
+
+    #[test]
+    fn classic_spi_signals_use_direct_iomux_or_gpio_matrix_routes() {
+        let mut p = Peripherals::new([0; 6]);
+
+        p.write32(0x3ff4_908c, (1 << 12) | (1 << 9));
+        p.gpio.set_output_signal(65, true, true);
+        assert_eq!(p.read32(0x3ff4_403c) & (1 << 23), 1 << 23);
+
+        p.write32(0x3ff4_9074, (1 << 12) | (1 << 9));
+        p.gpio.set_input(19, true);
+        assert_eq!(p.gpio.signal_input(64), Some(true));
+        p.write32(0x3ff4_9074, (2 << 12) | (1 << 9));
+
+        p.write32(0x3ff4_9048, (2 << 12) | (1 << 9));
+        p.write32(0x3ff4_4130 + 4 * 64, (1 << 7) | 4);
+        p.gpio.set_input(4, false);
+        assert_eq!(p.gpio.signal_input(64), Some(false));
+        p.gpio.set_input(4, true);
+        assert_eq!(p.gpio.signal_input(64), Some(true));
     }
 
     #[test]

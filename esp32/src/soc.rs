@@ -210,4 +210,15 @@ impl esp_soc::SocBus for SocBus {
         self.periph.rtc.0.ram.write(0x38, cause | cause << 6);
         self.periph.rtc.0.reset_cause = cause;
     }
+    fn report(&self) -> String {
+        let mut lines = Vec::new();
+        for (index, spi) in self.periph.spi.iter().enumerate() {
+            if spi.transfers != 0 {
+                lines.push(format!("[emu] spi{}: {} transfers", index + 2, spi.transfers));
+            }
+        }
+        let board = self.board.report();
+        if !board.is_empty() { lines.push(board); }
+        lines.join("\n")
+    }
 }

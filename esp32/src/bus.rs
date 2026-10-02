@@ -208,16 +208,21 @@ impl SocBus {
         if self.periph.spi_exec {
             self.run_spi();
         }
-        if !self.periph.gpio.gpio.changes.is_empty() {
-            let changes = std::mem::take(&mut self.periph.gpio.gpio.changes);
-            if let Some(events) = &mut self.gpio_events {
-                for &(pin, level) in &changes {
-                    events.push((self.cycles, pin, level));
-                }
-            }
-            self.board.gpio_changes(&changes);
-        }
+        self.run_gp_spi();
+        self.flush_gpio();
         self.irq_dirty = true;
+    }
+    fn flush_gpio(&mut self) {
+        if self.periph.gpio.gpio.changes.is_empty() {
+            return;
+        }
+        let changes = std::mem::take(&mut self.periph.gpio.gpio.changes);
+        if let Some(events) = &mut self.gpio_events {
+            for &(pin, level) in &changes {
+                events.push((self.cycles, pin, level));
+            }
+        }
+        self.board.gpio_changes(&changes);
     }
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
@@ -228,6 +233,151 @@ impl SocBus {
         for (bus, address, device) in self.board.i2c_devices() {
             if let Some(i2c) = self.periph.i2c.get_mut(bus as usize) {
                 i2c.attach(address, device);
+            }
+        }
+    }
+    fn dma_read_word(&mut self, addr: u32) -> Option<u32> {
+        let mut bytes = [0; 4];
+        for (i, byte) in bytes.iter_mut().enumerate() {
+            let (mem, off, _) = self.memory(addr.wrapping_add(i as u32))?;
+            *byte = *mem.get(off)?;
+        }
+        Some(u32::from_le_bytes(bytes))
+    }
+    fn dma_write_word(&mut self, addr: u32, value: u32) -> bool {
+        for (i, byte) in value.to_le_bytes().into_iter().enumerate() {
+            let Some((mem, off, true)) = self.memory(addr.wrapping_add(i as u32)) else {
+                return false;
+            };
+            let Some(dst) = mem.get_mut(off) else {
+                return false;
+            };
+            *dst = byte;
+        }
+        true
+    }
+    fn dma_read_chain(&mut self, mut desc: u32, wanted: usize) -> Option<(Vec<u8>, u32)> {
+        let mut data = Vec::with_capacity(wanted);
+        let mut last = 0;
+        for _ in 0..1024 {
+            if desc == 0 || data.len() == wanted {
+                break;
+            }
+            let control = self.dma_read_word(desc)?;
+            if control & (1 << 31) == 0 {
+                return None;
+            }
+            let len = ((control >> 12) & 0xfff) as usize;
+            let buf = self.dma_read_word(desc + 4)?;
+            let next = self.dma_read_word(desc + 8)?;
+            for i in 0..len.min(wanted - data.len()) {
+                let (mem, off, _) = self.memory(buf.wrapping_add(i as u32))?;
+                data.push(*mem.get(off)?);
+            }
+            last = desc;
+            if data.len() == wanted {
+                break;
+            }
+            if control & (1 << 30) != 0 || next == 0 || next == desc {
+                return None;
+            }
+            desc = next;
+        }
+        (data.len() == wanted).then_some((data, last))
+    }
+    fn dma_write_chain(&mut self, mut desc: u32, data: &[u8]) -> Option<u32> {
+        let mut pos = 0;
+        let mut last = 0;
+        for _ in 0..1024 {
+            if desc == 0 || pos == data.len() {
+                break;
+            }
+            let control = self.dma_read_word(desc)?;
+            if control & (1 << 31) == 0 {
+                return None;
+            }
+            let size = (control & 0xfff) as usize;
+            let buf = self.dma_read_word(desc + 4)?;
+            let next = self.dma_read_word(desc + 8)?;
+            let count = size.min(data.len() - pos);
+            for i in 0..count {
+                let Some((mem, off, true)) = self.memory(buf.wrapping_add(i as u32)) else {
+                    return None;
+                };
+                *mem.get_mut(off)? = data[pos + i];
+            }
+            let updated = (control & !(0xfff << 12) & !(1 << 31)) | (count as u32) << 12;
+            if !self.dma_write_word(desc, updated) {
+                return None;
+            }
+            pos += count;
+            last = desc;
+            if pos == data.len() {
+                break;
+            }
+            if control & (1 << 30) != 0 || next == 0 || next == desc {
+                return None;
+            }
+            desc = next;
+        }
+        (pos == data.len()).then_some(last)
+    }
+    fn run_gp_spi(&mut self) {
+        for index in 0..2 {
+            let Some((dma_len, rx_len, dma_rx)) = self.periph.spi[index]
+                .pending()
+                .map(|t| (t.dma_tx_len, t.rx_len, t.dma_rx))
+            else {
+                continue;
+            };
+            let (out_link, in_link) = self.periph.spi[index].dma_links();
+            let mut out_eof = 0;
+            if dma_len != 0 {
+                match self.dma_read_chain(out_link, dma_len) {
+                    Some((bytes, last)) => {
+                        out_eof = last;
+                        self.periph.spi[index].supply_dma_tx(&bytes);
+                    }
+                    None => self.periph.spi[index].dma_fault(true),
+                }
+            }
+            let Some(transfer) = self.periph.spi[index].take_transfer() else {
+                continue;
+            };
+            let host = index + 2;
+            let (clock_signal, mosi_signal, _miso_signal, cs_signals) = crate::spi::signals(host);
+            let (clock_idle, mosi_idle) = self.periph.spi[index].idle_levels(&transfer);
+            self.periph
+                .gpio
+                .set_output_signal(clock_signal, clock_idle, true);
+            self.periph
+                .gpio
+                .set_output_signal(mosi_signal, mosi_idle, true);
+            if let Some((cs, polarity)) = transfer.cs {
+                self.periph
+                    .gpio
+                    .set_output_signal(cs_signals[cs], polarity, true);
+            }
+            self.flush_gpio();
+            let rx = self
+                .board
+                .spi_transfer(host as u8, &transfer.tx, transfer.rx_len);
+            let mut in_eof = 0;
+            if dma_rx && rx_len != 0 {
+                match self.dma_write_chain(in_link, &rx[..rx.len().min(rx_len)]) {
+                    Some(last) => in_eof = last,
+                    None => self.periph.spi[index].dma_fault(false),
+                }
+            }
+            let cs = transfer.cs;
+            let keep_cs = transfer.keep_cs;
+            self.periph.spi[index].finish(transfer, &rx, out_eof, in_eof);
+            if !keep_cs {
+                if let Some((cs, polarity)) = cs {
+                    self.periph
+                        .gpio
+                        .set_output_signal(cs_signals[cs], !polarity, true);
+                }
             }
         }
     }
@@ -392,6 +542,8 @@ mod tests {
         }
     }
 
+    const SPI2: u32 = 0x3ff6_4000;
+
     #[test]
     fn pro_mmu_maps_classic_drom_and_irom() {
         let mut b = SocBus::new(4 << 20, [0; 6]);
@@ -439,5 +591,35 @@ mod tests {
         assert_eq!(esp_soc::SocBus::reboot(&mut b, [0; 6]), 12);
         assert_eq!(b.read32(0x3ff4_80b8), Ok(hint));
         assert_eq!(b.read32(0x3ff4_8034), Ok(12 | (12 << 6)));
+    }
+
+    #[test]
+    fn classic_spi_dma_walks_native_descriptors_and_stores_loopback_rx() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        b.board = crate::spi::make_board("loopback").unwrap();
+        let (tx_desc, rx_desc, tx_buf, rx_buf) =
+            (0x3ffb_0100, 0x3ffb_0140, 0x3ffb_0200, 0x3ffb_0240);
+        let descriptor = 0xc000_3003; // owner, eof, length=3, size=3
+        for (desc, buf) in [(tx_desc, tx_buf), (rx_desc, rx_buf)] {
+            b.write32(desc, descriptor).unwrap();
+            b.write32(desc + 4, buf).unwrap();
+            b.write32(desc + 8, 0).unwrap();
+        }
+        b.write32(tx_buf, 0x0033_2211).unwrap();
+        b.write32(SPI2 + 0x104, (1 << 29) | (tx_desc & 0xfffff))
+            .unwrap();
+        b.write32(SPI2 + 0x108, (1 << 29) | (rx_desc & 0xfffff))
+            .unwrap();
+        b.write32(SPI2 + 0x1c, (1 << 28) | (1 << 27) | 1).unwrap();
+        b.write32(SPI2 + 0x28, 23).unwrap();
+        b.write32(SPI2 + 0x2c, 23).unwrap();
+        b.write32(SPI2, 1 << 18).unwrap();
+
+        assert_eq!(b.read32(rx_buf), Ok(0x0033_2211));
+        assert_eq!((b.read32(rx_desc).unwrap() >> 12) & 0xfff, 3);
+        assert_eq!(b.read32(rx_desc).unwrap() >> 31, 0);
+        assert_eq!(b.read32(SPI2).unwrap() & (1 << 18), 0);
+        assert_eq!(b.read32(SPI2 + 0x114).unwrap() & 0x1e8, 0x1e8);
+        assert_eq!(b.periph.spi[0].transfers, 1);
     }
 }
