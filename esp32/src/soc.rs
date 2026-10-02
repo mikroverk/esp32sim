@@ -116,6 +116,7 @@ impl esp_soc::SocBus for SocBus {
         self.periph.misc.log_unknown = old.misc.log_unknown;
         self.periph.gpio.gpio.strap = old.gpio.gpio.strap;
         self.periph.rtc.0.reset_cause = cause;
+        self.attach_board_devices();
         cause
     }
     fn sw_reset(&self) -> bool {

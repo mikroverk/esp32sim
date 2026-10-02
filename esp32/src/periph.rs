@@ -26,8 +26,11 @@ const SRC_UART0: usize = 34;
 const SRC_UART1: usize = 35;
 const SRC_UART2: usize = 36;
 const SRC_RTC_CORE: usize = 47;
+const SRC_I2C0: usize = 49;
+const SRC_I2C1: usize = 50;
 const SRC_TG0_T0_EDGE: usize = 57;
 const SRC_TG1_T0_EDGE: usize = 61;
+const I2C_SIGNALS: [(usize, usize); 2] = [(29, 30), (95, 96)];
 
 pub struct Dport {
     pub ram: RegRam,
@@ -652,6 +655,7 @@ pub struct Peripherals {
     pub efuse: ClassicEfuse,
     pub sha: ClassicSha,
     pub timg: [ClassicTimer; 2],
+    pub i2c: [crate::i2c::I2c; 2],
     pub misc: Misc,
     pub spi_exec: bool,
     clock: ClockTree<2>,
@@ -667,9 +671,11 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x48 "RTCCNTL" (rtc) => [SRC_RTC_CORE];
     0x49 "IO_MUX" alias (gpio) delta 0x1000 => [];
     0x50 "UART1" (uart[1]) => [SRC_UART1];
+    0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
     0x5a "EFUSE" (efuse) => [];
     0x5f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1, SRC_TG0_WDT, SRC_TG0_LACT, SRC_TG0_T0_EDGE, SRC_TG0_T0_EDGE + 1, SRC_TG0_T0_EDGE + 2, SRC_TG0_T0_EDGE + 3];
     0x60 "TIMG1" (timg[1]) => [SRC_TG1_T0, SRC_TG1_T1, SRC_TG1_WDT, SRC_TG1_LACT, SRC_TG1_T0_EDGE, SRC_TG1_T0_EDGE + 1, SRC_TG1_T0_EDGE + 2, SRC_TG1_T0_EDGE + 3];
+    0x67 "I2C1" (i2c[1]) => [SRC_I2C1];
     0x6e "UART2" (uart[2]) => [SRC_UART2];
 }
 
@@ -709,6 +715,7 @@ impl Peripherals {
             efuse: ClassicEfuse::new(mac),
             sha: ClassicSha::new(),
             timg: [ClassicTimer::new(), ClassicTimer::new()],
+            i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()],
             misc: Misc::new(),
             spi_exec: false,
             clock: Self::new_clock(),
@@ -751,8 +758,22 @@ impl Peripherals {
         mmio::read32(self, addr)
     }
     pub fn write32(&mut self, addr: u32, v: u32) {
+        let i2c = match (addr - PERIPH_BASE) >> 12 {
+            0x53 => Some(0),
+            0x67 => Some(1),
+            _ => None,
+        };
+        if let Some(bus) = i2c.filter(|_| addr & 0xfff == 0x04 && v & (1 << 5) != 0) {
+            let (scl, sda) = I2C_SIGNALS[bus];
+            self.i2c[bus].set_lines(self.gpio.signal_input(scl), self.gpio.signal_input(sda));
+        }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) {
             self.spi_exec = true;
+        }
+        if let Some(bus) = i2c {
+            let (scl, sda) = I2C_SIGNALS[bus];
+            self.gpio.set_output_signal(scl, true, false);
+            self.gpio.set_output_signal(sda, true, false);
         }
     }
     pub fn tick(&mut self, cycles: u64) {
@@ -780,6 +801,86 @@ impl Peripherals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn configure_i2c0_pins(p: &mut Peripherals) {
+        for (pin, mux, signal) in [(21u32, 0x7c, 30u32), (22, 0x80, 29)] {
+            p.write32(0x3ff4_9000 + mux, (2 << 12) | (1 << 9) | (1 << 8));
+            p.write32(0x3ff4_4130 + 4 * signal, (1 << 7) | pin);
+            p.write32(0x3ff4_4530 + 4 * pin, signal);
+        }
+    }
+
+    fn command(op: u32, bytes: u32) -> u32 { (op << 11) | (1 << 8) | bytes }
+
+    #[test]
+    fn classic_i2c_commands_devices_matrix_timeout_and_interrupts() {
+        use esp_periph::i2c::{Reg8Device, INT_END_DETECT, INT_NACK, INT_TIMEOUT, INT_TRANS_COMPLETE};
+
+        const BASE: u32 = 0x3ff5_3000;
+        let mut p = Peripherals::new([0; 6]);
+        p.i2c[0].attach(0x6b, Box::new(Reg8Device::new("qmi8658", &[(0, 5)])));
+        configure_i2c0_pins(&mut p);
+        p.write32(0x3ff0_0104 + 4 * SRC_I2C0 as u32, 7);
+        p.write32(BASE + 0x28, INT_END_DETECT | INT_NACK | INT_TIMEOUT | INT_TRANS_COMPLETE);
+
+        p.write32(BASE + 0x1c, 0x6b << 1);
+        p.write32(BASE + 0x1c, 0);
+        p.write32(BASE + 0x58, command(0, 0));
+        p.write32(BASE + 0x5c, command(1, 2));
+        p.write32(BASE + 0x60, command(4, 0));
+        p.write32(BASE + 0x04, 1 << 5);
+        assert_ne!(p.read32(BASE + 0x20) & INT_END_DETECT, 0);
+
+        p.write32(BASE + 0x24, u32::MAX);
+        p.write32(BASE + 0x1c, (0x6b << 1) | 1);
+        p.write32(BASE + 0x58, command(0, 0));
+        p.write32(BASE + 0x5c, command(1, 1));
+        p.write32(BASE + 0x60, command(2, 1));
+        p.write32(BASE + 0x64, command(3, 0));
+        p.write32(BASE + 0x04, 1 << 5);
+        assert_eq!(p.read32(BASE + 0x1c), 5);
+        assert_ne!(p.read32(BASE + 0x20) & INT_TRANS_COMPLETE, 0);
+        assert_ne!(p.cpu_lines(0) & (1 << 7), 0);
+        assert_eq!(p.gpio.signal_input(29), Some(true));
+        assert_eq!(p.gpio.signal_input(30), Some(true));
+
+        p.write32(BASE + 0x24, u32::MAX);
+        p.write32(BASE + 0x1c, 0x7e << 1);
+        p.write32(BASE + 0x58, command(0, 0));
+        p.write32(BASE + 0x5c, command(1, 1));
+        p.write32(BASE + 0x60, command(3, 0));
+        p.write32(BASE + 0x04, 1 << 5);
+        assert_ne!(p.read32(BASE + 0x20) & INT_NACK, 0);
+        assert_ne!(p.read32(BASE + 0x08) & 1, 0);
+
+        p.write32(BASE + 0x24, u32::MAX);
+        p.gpio.set_input(22, false);
+        p.write32(BASE + 0x04, 1 << 5);
+        assert_ne!(p.read32(BASE + 0x20) & INT_TIMEOUT, 0);
+        assert_ne!(p.read32(BASE + 0x08) & (1 << 2), 0);
+        p.write32(BASE + 0x94, command(4, 0));
+        assert_eq!(p.read32(BASE + 0x94), command(4, 0));
+    }
+
+    #[test]
+    fn classic_i2c1_uses_its_own_dport_source() {
+        use esp_periph::i2c::INT_NACK;
+
+        const BASE: u32 = 0x3ff6_7000;
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x3ff4_4130 + 4 * 95, (1 << 7) | 0x38);
+        p.write32(0x3ff4_4130 + 4 * 96, (1 << 7) | 0x38);
+        p.write32(0x3ff0_0104 + 4 * SRC_I2C1 as u32, 9);
+        p.write32(BASE + 0x28, INT_NACK);
+        p.write32(BASE + 0x1c, 0x7e << 1);
+        p.write32(BASE + 0x58, command(0, 0));
+        p.write32(BASE + 0x5c, command(1, 1));
+        p.write32(BASE + 0x60, command(3, 0));
+        p.write32(BASE + 0x04, 1 << 5);
+        assert_ne!(p.source_status(0)[SRC_I2C1 / 32] & (1 << (SRC_I2C1 % 32)), 0);
+        assert_ne!(p.cpu_lines(0) & (1 << 9), 0);
+    }
+
     #[test]
     fn classic_spi_and_gpio_offsets_reach_shared_models() {
         let mut p = Peripherals::new([0; 6]);

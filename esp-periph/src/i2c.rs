@@ -18,6 +18,7 @@ pub trait I2cDevice {
 
 pub const INT_END_DETECT: u32 = 1 << 3;
 pub const INT_TRANS_COMPLETE: u32 = 1 << 7;
+pub const INT_TIMEOUT: u32 = 1 << 8;
 pub const INT_NACK: u32 = 1 << 10;
 
 pub struct I2c {
@@ -26,7 +27,8 @@ pub struct I2c {
     rx: VecDeque<u8>,
     pub int_raw: u32,
     pub int_ena: u32,
-    cmd: [u32; 8],
+    cmd: [u32; 16],
+    classic: bool,
     devices: Vec<(u8, Box<dyn I2cDevice>)>,
     cur: Option<usize>,
     expect_addr: bool,
@@ -37,9 +39,11 @@ pub struct I2c {
 
 impl I2c {
     pub fn new() -> Self {
-        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 8], devices: Vec::new(), cur: None, expect_addr: false, nack: false,
+        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 16], classic: false, devices: Vec::new(), cur: None, expect_addr: false, nack: false,
               log: false, transactions: 0 }
     }
+    /// Classic ESP32 has the same controller registers but 16 command slots and older opcodes.
+    pub fn new_classic() -> Self { Self { classic: true, ..Self::new() } }
     /// A device attached at an occupied address replaces the one there: a board swapped before
     /// boot (`esp32sim_set_measured_te`) must not leave the old board's devices answering.
     pub fn attach(&mut self, addr: u8, dev: Box<dyn I2cDevice>) {
@@ -53,13 +57,13 @@ impl I2c {
 
     pub fn read(&mut self, off: u32) -> u32 {
         match off {
-            0x08 => (self.nack as u32) | ((self.rx.len() as u32 & 0x3f) << 8) | ((self.tx.len() as u32 & 0x3f) << 18),   // SR: resp_rec, rxfifo_cnt, txfifo_cnt
+            0x08 => (self.nack as u32) | (((self.int_raw & INT_TIMEOUT != 0) as u32) << 2) | ((self.rx.len() as u32 & 0x3f) << 8) | ((self.tx.len() as u32 & 0x3f) << 18),   // SR: resp_rec, timeout, rxfifo_cnt, txfifo_cnt
             0x14 => ((self.rx.len() as u32 & 0x1f) << 5) | ((self.tx.len() as u32 & 0x1f) << 15),                        // FIFO_ST: waddr = count, raddr = 0
             0x1c => self.rx.pop_front().unwrap_or(0) as u32,
             0x20 => self.int_raw,
             0x28 => self.int_ena,
             0x2c => self.int_raw & self.int_ena,
-            0x58..=0x74 => self.cmd[((off - 0x58) / 4) as usize],
+            0x58..=0x94 if self.classic || off <= 0x74 => self.cmd[((off - 0x58) / 4) as usize],
             _ => self.regs.read(off),
         }
     }
@@ -73,7 +77,7 @@ impl I2c {
             0x1c => { if self.tx.len() < 32 { self.tx.push_back(v as u8); } }
             0x24 => self.int_raw &= !v,
             0x28 => self.int_ena = v,
-            0x58..=0x74 => self.cmd[((off - 0x58) / 4) as usize] = v & !(1 << 31),
+            0x58..=0x94 if self.classic || off <= 0x74 => self.cmd[((off - 0x58) / 4) as usize] = v & !(1 << 31),
             _ => self.regs.write(off, v),
         }
     }
@@ -81,9 +85,14 @@ impl I2c {
     fn run(&mut self) {
         self.nack = false;
         self.transactions += 1;
-        for i in 0..8 {
+        for i in 0..if self.classic { 16 } else { 8 } {
             let c = self.cmd[i];
-            let op = (c >> 11) & 7;
+            let op = match ((c >> 11) & 7, self.classic) {
+                (0, true) => 6,
+                (2, true) => 3,
+                (3, true) => 2,
+                (op, _) => op,
+            };
             let n = (c & 0xff) as usize;
             let ack_check = c & (1 << 8) != 0;
             match op {
