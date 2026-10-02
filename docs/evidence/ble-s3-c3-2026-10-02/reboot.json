@@ -1,0 +1,62 @@
+[
+  {
+    "chip": "s3",
+    "command": [
+      "target/release/esp32sim",
+      "--chip",
+      "esp32s3",
+      "--boot",
+      "rom",
+      "--rom",
+      "/Users/alice/.platformio/packages/tool-esp-rom-elfs/esp32s3_rev0_rom.elf",
+      "--flash-image",
+      "/tmp/up-ble-firmware/s3/Server/.pio/build/esp32-s3-devkitc-1/firmware.factory.bin",
+      "--elf",
+      "/tmp/up-ble-firmware/s3/Server/.pio/build/esp32-s3-devkitc-1/firmware.elf",
+      "--ble",
+      "--max-seconds",
+      "1.2",
+      "--no-dump",
+      "--script",
+      "/tmp/up-ble-firmware/reboot.script"
+    ],
+    "script": "0.6 poke 60008000 80000000",
+    "advertisements": [
+      "[ble] t=0.258738s advertising service=4fafc201-1fb5-459e-8fcc-c5c9c331914b name=\"BLE Server Example\" data=02010611074b9131c3c9c5cc8f9e45b51f01c2af4f051206001200",
+      "[ble] t=0.854738s advertising service=4fafc201-1fb5-459e-8fcc-c5c9c331914b name=\"BLE Server Example\" data=02010611074b9131c3c9c5cc8f9e45b51f01c2af4f051206001200"
+    ],
+    "exit_code": 0,
+    "passed": true,
+    "log_sha256": "81e7b4499856f2acd2aabd8f042dd965cb9499bd6a94124fa49b37fdd78249f1"
+  },
+  {
+    "chip": "c3",
+    "command": [
+      "target/release/esp32sim",
+      "--chip",
+      "esp32c3",
+      "--boot",
+      "rom",
+      "--rom",
+      "/Users/alice/.platformio/packages/tool-esp-rom-elfs/esp32c3_rev3_rom.elf",
+      "--flash-image",
+      "/tmp/up-ble-firmware/c3/Server/.pio/build/esp32-c3-devkitm-1/firmware.factory.bin",
+      "--elf",
+      "/tmp/up-ble-firmware/c3/Server/.pio/build/esp32-c3-devkitm-1/firmware.elf",
+      "--ble",
+      "--max-seconds",
+      "1.2",
+      "--no-dump",
+      "--script",
+      "/tmp/up-ble-firmware/reboot.script"
+    ],
+    "script": "0.6 poke 60008000 80000000",
+    "advertisements": [
+      "[ble] t=0.267993s advertising service=4fafc201-1fb5-459e-8fcc-c5c9c331914b name=\"BLE Server Example\" data=02010611074b9131c3c9c5cc8f9e45b51f01c2af4f051206001200",
+      "[ble] t=0.863994s advertising service=4fafc201-1fb5-459e-8fcc-c5c9c331914b name=\"BLE Server Example\" data=02010611074b9131c3c9c5cc8f9e45b51f01c2af4f051206001200"
+    ],
+    "exit_code": 0,
+    "passed": true,
+    "log_sha256": "1ee99326f5376c7350a94df9ad007da0dc2de644b7eca14d7072e4698e7441ec"
+  }
+]

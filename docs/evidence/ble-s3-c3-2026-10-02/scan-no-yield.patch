@@ -1,0 +1,19 @@
+--- a/esp-soc/src/ble/vhci.rs
++++ b/esp-soc/src/ble/vhci.rs
+@@ -56 +55,0 @@
+-    yield_to_host: bool,
+@@ -75 +73,0 @@
+-            yield_to_host: false,
+@@ -153 +150,0 @@
+-        self.yield_to_host = false;
+@@ -276 +272,0 @@
+-                bus.ble().yield_to_host = false;
+@@ -332,6 +327,0 @@
+-            // A command-complete callback wakes the host. Let it finish the operation
+-            // before delivering the next event, especially scan-enable followed by reports.
+-            if std::mem::take(&mut bus.ble().yield_to_host) {
+-                cpu.return_from_stub(bus, 0);
+-                return true;
+-            }
+@@ -350 +339,0 @@
+-                        bus.ble().yield_to_host = true;
