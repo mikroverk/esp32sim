@@ -148,12 +148,12 @@ impl Controller {
                 match data[1] {
                     8 | 9 => fields.push(format!("name={:?}", String::from_utf8_lossy(v))),
                     2 | 3 => {
-                        for u in v.chunks_exact(2) {
+                        for u in v.as_chunks::<2>().0 {
                             fields.push(format!("service={}", uuid(u)));
                         }
                     }
                     6 | 7 => {
-                        for u in v.chunks_exact(16) {
+                        for u in v.as_chunks::<16>().0 {
                             fields.push(format!("service={}", uuid(u)));
                         }
                     }
@@ -627,7 +627,7 @@ impl Controller {
                     Request::Characteristics => matches!(size, 7 | 21),
                     _ => matches!(size, 4 | 18),
                 };
-                if !allowed || p.len() == 2 || (p.len() - 2) % size != 0 {
+                if !allowed || p.len() == 2 || !(p.len() - 2).is_multiple_of(size) {
                     self.log.push(format!("invalid ATT entry size {}", hex(p)));
                     return;
                 }
