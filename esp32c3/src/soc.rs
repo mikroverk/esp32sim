@@ -136,6 +136,7 @@ impl esp_soc::SocBus for SocBus {
     fn observe_gpio(&mut self, on: bool) { self.gpio_events = if on { Some(Vec::new()) } else { None }; }
     fn take_gpio_events(&mut self) -> Vec<(u64, u8, bool)> { self.gpio_events.as_mut().map(std::mem::take).unwrap_or_default() }
     fn gpio_input(&self) -> u64 { self.periph.gpio.input }
+    fn pwm_output(&self, pin: u32) -> Option<(f64, u32)> { self.periph.ledc.output(&self.periph.gpio, pin) }
     fn board(&mut self) -> &mut dyn BoardModel { &mut *self.board }
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
     fn audio(&self) -> (&[i16], u32) { (&[], 44100) }

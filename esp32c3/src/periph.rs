@@ -7,7 +7,7 @@
 
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect, NO_SOURCE};
-use esp_periph::{Aes, Efuse, Gdma, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
+use esp_periph::{Aes, Efuse, Gdma, Gpio, Ledc, LedcLayout, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
 
 pub const CPU_HZ: u64 = 160_000_000;
 pub const PERIPH_BASE: u32 = 0x6000_0000;
@@ -140,6 +140,7 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
+    pub ledc: Ledc,
     pub rtc: RtcCntl,
     pub efuse: Efuse,
     pub system: SystemRegs,
@@ -166,6 +167,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x02 "SPI1" (spi1) => [];
     0x03 "SPI0" (spi0) => [];
     0x04 "GPIO" (gpio) => [src::GPIO];
+    0x19 "LEDC" (ledc) => [src::LEDC];
     // the efuse controller shares the RTC block on the C3, at +0x800
     0x08 "EFUSE" (efuse) delta -0x800 @ 0x800..=0xfff => [];
     0x08 "RTCCNTL" (rtc) => [];
@@ -198,7 +200,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new_c3(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), ledc: Ledc::new(LedcLayout::C3), rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
@@ -226,7 +228,11 @@ impl Peripherals {
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
+        if addr == PERIPH_BASE + 0xc0018 && v & (1 << 11) != 0 { self.ledc = Ledc::new(LedcLayout::C3); }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        if addr == PERIPH_BASE + 0xc0010 || addr == PERIPH_BASE + 0xc0018 {
+            self.ledc.clock_enabled = self.system.read(0x10) & (1 << 11) != 0 && self.system.read(0x18) & (1 << 11) == 0;
+        }
     }
 
     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
