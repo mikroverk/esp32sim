@@ -402,24 +402,208 @@ remained ignored by their stated contracts. The privacy check and a manual revie
 no retained login name, host name, device identifier, unrelated command line, raw capture
 or backup. Temporary paths use generic names and home paths are normalized to `$HOME`.
 
+## Classic LEDC extension
+
+Implementation revision `8836b87` extends EX199 again. The chip, ECO3 ROM, Arduino
+version and functional boot workload are unchanged. The material difference is the
+mechanism and correctness contract: the classic LEDC register layout now drives PWM
+through the GPIO matrix and source 43 through DPORT. This is not a retry of the newer
+S3/C3/C6 work preserved at `7f8df79` and `9cc58f1`. That model has only the newer
+low-speed register layout; classic ESP32 has separate banks of eight high-speed and
+eight low-speed channels, four timers per bank and explicit low-speed `PARA_UP` latches.
+
+The model covers 20-bit timer resolution, 18-bit 10.8 fixed-point clock dividers,
+APB/REF_TICK/nominal RC_FAST sources, pause/reset, DPORT clock/reset gating, timer
+selection, static duty updates and duty-readback. High-speed updates take effect without
+`PARA_UP`; low-speed channel and timer shadow registers wait for their update bits, which
+self-clear. Timer-overflow and static-duty-complete raw/status/enable/W1TC registers feed
+the existing DPORT source 43. GPIO-matrix signals 71-78 and 79-86 carry high-speed and
+low-speed channel output-enable state respectively. The shared CLI observer added by the
+preserved newer-chip work is reused as `--pwm PIN`.
+
+Register tests cover both channel and timer banks, 5 kHz at 8-bit
+resolution, 25% duty, duty latching at wrap, low-speed `PARA_UP`, timer and duty-complete
+interrupts, W1TC, GPIO output selection/inversion and DPORT delivery. They also prove
+that GPIO observation resolves the LEDC signal selected by the classic matrix.
+
+### Firmware inputs
+
+Both temporary projects used this configuration:
+
+```ini
+[env:esp32dev]
+platform = https://github.com/pioarduino/platform-espressif32.git#55.03.38-1
+board = esp32dev
+framework = arduino
+monitor_speed = 115200
+```
+
+The LEDC/tone source is the unchanged Arduino sketch used by the preserved newer-chip
+PWM experiment, now compiled for `esp32dev`:
+
+```cpp
+#include <Arduino.h>
+
+constexpr uint8_t kPin = 4;
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  const bool attached = ledcAttach(kPin, 5000, 8);
+  const bool written = ledcWrite(kPin, 64);
+  Serial.printf("LEDC pin=%u attach=%u write=%u requested_hz=5000 requested_duty=64\n",
+                kPin, attached, written);
+
+  delay(10000);
+  ledcDetach(kPin);
+  tone(kPin, 440);
+  Serial.printf("TONE pin=%u requested_hz=440\n", kPin);
+}
+
+void loop() { delay(1000); }
+```
+
+The separate analog-write check used:
+
+```cpp
+#include <Arduino.h>
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  analogWrite(5, 128);
+  Serial.println("ANALOG_WRITE pin=5 duty=128");
+}
+
+void loop() { delay(1000); }
+```
+
+The builds used PlatformIO Core 6.1.19, pioarduino platform
+`55.3.38+sha.fbdfc29`, Arduino-ESP32 3.3.8 and framework libraries
+`5.5.4+sha.735507283d`. The host tools were Rust/Cargo 1.96.0 on Darwin arm64,
+macOS 26.6.2 build 25G83.
+
+SHA-256 inputs and temporary artifacts:
+
+| Item | SHA-256 |
+| --- | --- |
+| `$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf` | `920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31` |
+| `/tmp/esp32sim-classic-ledc-validation/ledc-tone/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-ledc-validation/ledc-tone/src/main.cpp` | `3a67a3a50f4744edc931bd5fd8f8870ee280944476dbd1408c7dc0e40fc4e734` |
+| LEDC/tone `firmware.factory.bin` | `8a3feabce15aea750499b2bdd28f7236e9b5e75a1486df2ebeb2f8d2c7d727a7` |
+| LEDC/tone `firmware.elf` | `a0243302c7aeb6358e4402ae295a65f2d34046d6b3037e799025fa1c8e279b8a` |
+| `/tmp/esp32sim-classic-ledc-validation/analogwrite/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-ledc-validation/analogwrite/src/main.cpp` | `2c96d76c248690b6c66776d91a9a8e29bd38912bc520a8b4c2cc7cfef4cdfcac` |
+| analog-write `firmware.factory.bin` | `76b010f8c9789b4d0928d1abcd744f66e36e7f8fe2da623388baf994e556e927` |
+| analog-write `firmware.elf` | `496762dc7d08d9fa58573a85cb57289ca09236e70e8e99f2ffe73ecdafe3a412` |
+
+Build the artifacts with:
+
+```sh
+pio run -d /tmp/esp32sim-classic-ledc-validation/ledc-tone
+pio run -d /tmp/esp32sim-classic-ledc-validation/analogwrite
+```
+
+The sandboxed first LEDC/tone build could not create
+`$HOME/.platformio/platforms.lock` and reported
+`PermissionError: [Errno 1] Operation not permitted`. Repeating it with access to the
+existing PlatformIO cache succeeded. A diagnostic test command used the nonexistent
+Cargo package name `cli` and reported
+`error: package ID specification 'cli' did not match any packages`; the corrected
+package name `esp32sim` passed.
+
+### Firmware runs
+
+The LEDC and tone observations used the same artifact at two bounded stop times:
+
+```sh
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-ledc-validation/ledc-tone/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-ledc-validation/ledc-tone/.pio/build/esp32dev/firmware.elf \
+  --board none --max-seconds 5 --console all --pwm 4 --no-reboot --no-dump
+
+# Repeat with --max-seconds 15 to observe tone after the sketch's 10-second delay.
+```
+
+The 5-second run printed:
+
+```text
+LEDC pin=4 attach=1 write=1 requested_hz=5000 requested_duty=64
+[emu] stop: Halted; emulated 5.000s (1200000000 cycles)
+[pwm] GPIO4: 5000.000 Hz, 25.00% duty
+```
+
+The 15-second run printed:
+
+```text
+LEDC pin=4 attach=1 write=1 requested_hz=5000 requested_duty=64
+TONE pin=4 requested_hz=440
+[emu] stop: Halted; emulated 15.000s (3600000000 cycles)
+[pwm] GPIO4: 440.141 Hz, 49.90% duty
+```
+
+The analog-write run used:
+
+```sh
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-ledc-validation/analogwrite/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-ledc-validation/analogwrite/.pio/build/esp32dev/firmware.elf \
+  --board none --max-seconds 3 --console all --pwm 5 --no-reboot --no-dump
+```
+
+It printed:
+
+```text
+ANALOG_WRITE pin=5 duty=128
+[emu] stop: Halted; emulated 3.000s (720000000 cycles)
+[pwm] GPIO5: 1000.000 Hz, 50.00% duty
+```
+
+These are functional checks against the requested Arduino APIs. They do not claim
+silicon cycle accuracy or host speed. `--pwm` derives a steady-state frequency and duty
+from the active timer/channel registers after GPIO-matrix routing and inversion. The GPIO
+hook carries output-enable and a representative level, but the model does not synthesize
+every PWM edge into the board or VCD. Hardware fade sequences remain unmodeled; a channel
+with a nonzero fade scale does not claim completion or a valid observed output. Hpoint
+phase, RC_FAST calibration and light-sleep behavior were not validated.
+
+At implementation revision `8836b87`, these gates passed:
+
+```sh
+cargo test -p esp32 -p esp-soc -p esp32sim
+cargo test --workspace
+cargo build --release
+tools/wasm-build.sh
+node tools/check-evidence-privacy.mjs
+```
+
+The workspace run kept the S3, C3 and C6 suites green. Tests requiring external firmware
+remained ignored by their existing contracts. No raw build tree, console capture or VCD
+is committed. Home paths are normalized to `$HOME`; manual review removed no measured
+value, input hash or correctness observation.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
-SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, partial
-RTC/TIMG watchdog behavior, ECO3 eFuse identity, SHA-256, random input and APP CPU
-control. I2C0 and I2C1 execute classic master command lists against attached board devices and
-deliver their interrupts through DPORT. GPIO0-39 include output/enable aliases, pad input,
-supported pulls, matrix input/output routing and PRO/APP edge and level interrupts;
-GPIO34-39 remain input-only.
-DPORT routes GPIO, UART0-2, TIMG0/1 timer and watchdog, RTC watchdog and CPU-to-CPU
-sources through the per-core maps. Other peripheral blocks use the existing round-trip
+SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, classic
+LEDC, partial RTC/TIMG watchdog behavior, ECO3 eFuse identity, SHA-256, random input and
+APP CPU control. I2C0 and I2C1 execute classic master command lists against attached board
+devices and deliver their interrupts through DPORT. GPIO0-39 include output/enable aliases,
+pad input, supported pulls, matrix input/output routing and PRO/APP edge and level
+interrupts; GPIO34-39 remain input-only.
+DPORT routes GPIO, UART0-2, LEDC, I2C0/1, TIMG0/1 timer and watchdog, RTC watchdog and
+CPU-to-CPU sources through the per-core maps. Other unmodeled peripheral blocks use the
+existing round-trip
 register RAM: reads start at zero and writes persist, but there is no device behavior or
 interrupt generation.
 
-Direct IO_MUX function selection bypasses the GPIO matrix, but direct peripheral pad
-waveforms are not generated until those peripherals are modeled. The matrix exposes
-classic-local input and output hooks for that later work. Watchdog interrupt actions are
-modeled; watchdog reset actions are not. External GPIO drive is an absolute host level,
+Direct IO_MUX function selection bypasses the GPIO matrix. LEDC uses the classic-local
+output hook, although individual PWM edges are not generated. Other direct peripheral pad
+waveforms remain unmodeled. Watchdog interrupt actions are modeled; watchdog reset actions
+are not. External GPIO drive is an absolute host level,
 matching the existing script API; there is no separate release-to-pull command.
 
 The boot run first touched these register-RAM stubs:
