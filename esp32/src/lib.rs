@@ -1,4 +1,5 @@
 //! Classic ESP32 (D0WD ECO3): two LX6 cores, mask ROM, cache windows and the boot peripherals.
+pub mod adc;
 pub mod bus;
 pub mod crypto;
 pub mod i2c;

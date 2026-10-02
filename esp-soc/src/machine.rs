@@ -14,7 +14,7 @@ mod modeled;
 mod web;
 
 #[derive(Clone, Debug)]
-pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32), Analog(u8, esp_periph::AnalogSource),
+pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32), TouchPad(u8, bool), Analog(u8, esp_periph::AnalogSource),
     /// `waituart0 <timeout_s> <text>`: hold the rest of the script until UART0 prints `text` (or the
     /// timeout passes), then shift every later action by the time actually waited. Fields: text,
     /// timeout in cycles, the cycle the script placed it at.
@@ -1014,6 +1014,7 @@ impl<S: Soc> Machine<S> {
                 ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::Touch(x, y, d) => { self.bus.touch_input(x, y, d); }
                 ScriptAction::Poke(a, v) => { let _ = self.bus.write32_unpriced(a, v); }
+                ScriptAction::TouchPad(pin, touched) => self.bus.set_touch_input(pin, touched),
                 ScriptAction::Analog(pin, src) => self.bus.analog_set(pin, src),
                 ScriptAction::WaitUart0(..) => {}
             }
@@ -1100,6 +1101,13 @@ impl<S: Soc> Machine<S> {
                 "gpio" => { let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?; let l = p.next().unwrap_or("1") == "1"; ev.push((c, ScriptAction::Gpio(pn, l))); }
                 "poke" => { let mut p = rest.split_whitespace(); let a = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).map_err(|e| e.to_string())?; let v = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).map_err(|e| e.to_string())?; ev.push((c, ScriptAction::Poke(a, v))); }
                 "touch" => { let mut p = rest.split_whitespace(); let x: u16 = p.next().and_then(|v| v.parse().ok()).unwrap_or(0); let y: u16 = p.next().and_then(|v| v.parse().ok()).unwrap_or(0); let d = p.next().unwrap_or("1") == "1"; ev.push((c, ScriptAction::Touch(x, y, d))); }
+                "touchpad" => {
+                    let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?;
+                    if pn >= 64 { return Err(format!("line {}: GPIO must be below 64", ln + 1)); }
+                    let touched = match p.next() { Some("0") => false, Some("1") => true, _ => return Err(format!("line {}: touchpad needs 0 or 1", ln + 1)) };
+                    if p.next().is_some_and(|v| !v.starts_with('#')) { return Err(format!("line {}: touchpad takes a GPIO and one value", ln + 1)); }
+                    ev.push((c, ScriptAction::TouchPad(pn, touched)));
+                }
                 "serial" => ev.push((c, ScriptAction::Serial(format!("{}\n", rest)))),
                 // adc <gpio> <volts>: constant voltage on an analog pad
                 "adc" => { let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?;
