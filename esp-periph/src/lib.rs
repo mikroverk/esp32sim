@@ -23,6 +23,7 @@ pub mod rsa;
 pub mod gdma;
 pub mod i2s;
 pub mod rmt;
+pub mod rmt_compact;
 pub mod gpspi;
 pub mod rng;
 pub mod intmtx;

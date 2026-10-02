@@ -4,6 +4,8 @@
 //! MMU. SRAM1 is dual-mapped (IRAM `0x4038_0000` and DRAM `0x3FC8_0000` are the same bytes);
 //! SRAM0 below it is the instruction cache's, reachable only from the instruction bus.
 
+mod pins;
+
 use crate::periph::{Peripherals, PERIPH_BASE, PERIPH_END};
 use riscv_rv32::bus::{Bus, Fault};
 
@@ -104,13 +106,46 @@ impl SocBus {
             1 => { let old = self.periph.read32(a); let sh = (addr & 3) * 8; (old & !(0xff << sh)) | ((v & 0xff) << sh) }
             _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
         };
+        let drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
+        if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
+            self.deliver_gpio_output();
+        }
         // A SPI flash command must complete before the guest can read its result: firmware kicks
         // the command and polls/reads the data registers a few instructions later, well inside one
         // scheduling quantum. Running it at the quantum boundary instead loses the race and the
         // read returns zeros — which is exactly how `E memspi: no response` showed up on a
         // non-power-on boot while a power-on boot happened to survive it.
         if self.periph.spi_exec { self.run_spi(); }
+        self.deliver_spi2_transfer();
+        self.irq_dirty = true;
+    }
+
+    /// Attach controller 0 devices and reconnect board inputs after a reset.
+    pub fn attach_board_devices(&mut self) {
+        for (bus, address, device) in self.board.i2c_devices() {
+            if bus == 0 { self.periph.i2c.attach(address, device); }
+        }
+        for (pin, level) in self.board.input_levels() { self.periph.gpio.set_input(pin, level); }
+        self.irq_dirty = true;
+    }
+
+    fn deliver_gpio_output(&mut self) {
+        let changes = std::mem::take(&mut self.periph.gpio.changes);
+        if let Some(events) = &mut self.gpio_events {
+            events.extend(changes.iter().map(|&(pin, level)| (self.cycles, pin, level)));
+        }
+        self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.enable, self.periph.gpio.out);
+    }
+
+    fn deliver_spi2_transfer(&mut self) {
+        let Some(transfer) = self.periph.spi2.take_transfer() else { return };
+        let rx = if self.board.uses_spi_pins() {
+            self.board.spi_transfer_pins(2, self.periph.spi2_pins(), &transfer.tx, transfer.rx_len)
+        } else {
+            self.board.spi_transfer(2, &transfer.tx, transfer.rx_len)
+        };
+        self.periph.spi2.finish_transfer(transfer, &rx);
         self.irq_dirty = true;
     }
 
@@ -145,6 +180,20 @@ impl SocBus {
     fn devices(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
         self.periph.tick(cycles as u64);
+        if !self.periph.gpio.changes.is_empty() { self.deliver_gpio_output(); }
+        self.deliver_spi2_transfer();
+        for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
+            let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
+            self.board.rmt_frame(pin, &bits);
+            self.irq_dirty = true;
+        }
+        self.board.advance_to(self.cycles);
+        for edge in self.board.take_edges() {
+            self.periph.gpio.set_input(edge.pin, edge.level);
+            if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
+            self.irq_dirty = true;
+        }
+        self.periph.gpio.input_changes.clear();
     }
 }
 

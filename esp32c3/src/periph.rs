@@ -5,6 +5,7 @@
 //! register layouts — so the models come from `esp-periph` and only the address map, the cache
 //! controller and the interrupt controller are written here.
 
+use esp_periph::{i2c::I2c, rmt_compact::RmtCompact, GpSpi};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect, NO_SOURCE};
 use esp_periph::{Aes, Efuse, Gdma, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
@@ -21,7 +22,7 @@ pub mod src {
     pub const APB_CTRL: usize = 14; pub const GPIO: usize = 16; pub const SPI2: usize = 19;
     pub const UART0: usize = 21; pub const UART1: usize = 22; pub const LEDC: usize = 23;
     pub const EFUSE: usize = 24; pub const USB_SERIAL_JTAG: usize = 26; pub const RTC_CORE: usize = 27;
-    pub const I2C_EXT0: usize = 29;
+    pub const RMT: usize = 28; pub const I2C_EXT0: usize = 29;
     pub const TG0_T0: usize = 32; pub const TG0_WDT: usize = 33;
     pub const TG1_T0: usize = 34; pub const TG1_WDT: usize = 35;
     pub const SYSTIMER_T0: usize = 37; pub const SYSTIMER_T1: usize = 38; pub const SYSTIMER_T2: usize = 39;
@@ -135,6 +136,10 @@ impl Device for Extmem {
 pub use esp_periph::Rng;
 
 pub struct Peripherals {
+    pub i2c: I2c,
+    pub spi2: GpSpi,
+    pub rmt: RmtCompact,
+    pub io_mux: RegRam,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
     pub systimer: Systimer,
@@ -166,6 +171,10 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x02 "SPI1" (spi1) => [];
     0x03 "SPI0" (spi0) => [];
     0x04 "GPIO" (gpio) => [src::GPIO];
+    0x09 "IO_MUX" (io_mux) => [];
+    0x13 "I2C0" (i2c) => [src::I2C_EXT0];
+    0x16 "RMT" (rmt) => [src::RMT];
+    0x24 "SPI2" (spi2) => [src::SPI2];
     // the efuse controller shares the RTC block on the C3, at +0x800
     0x08 "EFUSE" (efuse) delta -0x800 @ 0x800..=0xfff => [];
     0x08 "RTCCNTL" (rtc) => [];
@@ -197,8 +206,9 @@ impl DeviceSet for Peripherals {
 impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
+            i2c: I2c::new(), spi2: GpSpi::new(), rmt: RmtCompact::new(CPU_HZ), io_mux: RegRam::new(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new_c3(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
@@ -226,6 +236,10 @@ impl Peripherals {
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
+        if addr == 0x6001_3004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
+            let pins = self.i2c_pin(54).zip(self.i2c_pin(53));
+            self.i2c.set_pins(pins);
+        }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
     }
 
