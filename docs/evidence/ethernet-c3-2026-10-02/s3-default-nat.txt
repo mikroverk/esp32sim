@@ -1,0 +1,5 @@
+NET start
+NET open status=3 ip=10.0.2.15
+NET http=200 body=upstream-net-ok
+NET done
+[emu] stop: Halted — core0 33574741 + core1 14458221 insns in 0.8s wall = 63.2 Minsn/s; emulated 10.000s (2400000000 cycles); 119406 exceptions, 20907 interrupts

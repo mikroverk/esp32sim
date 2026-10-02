@@ -1,0 +1,157 @@
+{
+  "source": "b4acf2366a602dcd78f6b5738756a2c1fd1b5cea",
+  "artifacts": {
+    "firmware/open/bootloader.bin": {
+      "sha256": "da409642ea1619c16b4ef485219a91c3c2ae873ce3bae37330c24100bd747439",
+      "bytes": 19520
+    },
+    "firmware/open/firmware.bin": {
+      "sha256": "99ae2b78cf542e356eef7b946a65c425e0c95308add83eadb20a3b3c0d29b843",
+      "bytes": 1106112
+    },
+    "firmware/open/firmware.elf": {
+      "sha256": "d4dbc02d0dc096c995fb81458db6cdefc8ce74d5749b394e84bc3f570a7846d9",
+      "bytes": 14287212
+    },
+    "firmware/open/firmware.factory.bin": {
+      "sha256": "6869d3db4407de2f26a27dcfd7cf018cb90c5d8b0a2b27cd962fe0fbaf5e2bb6",
+      "bytes": 1171648
+    },
+    "firmware/open/partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "firmware/wpa2/bootloader.bin": {
+      "sha256": "da409642ea1619c16b4ef485219a91c3c2ae873ce3bae37330c24100bd747439",
+      "bytes": 19520
+    },
+    "firmware/wpa2/firmware.bin": {
+      "sha256": "dc047b6e6458ae79331a50bccf8e541a087e66a2364e3748eb5a5185653671ca",
+      "bytes": 1106128
+    },
+    "firmware/wpa2/firmware.elf": {
+      "sha256": "299935af0f1e4eabe81e784ba7944cbc09c05b63bac6ea67a4630d181780dd3a",
+      "bytes": 14287212
+    },
+    "firmware/wpa2/firmware.factory.bin": {
+      "sha256": "e53cef8bd7cd7954d45285a2e3f8689665e74f8924c08666b157e100870e5a92",
+      "bytes": 1171664
+    },
+    "firmware/wpa2/partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "firmware/s3/bootloader.bin": {
+      "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432",
+      "bytes": 19984
+    },
+    "firmware/s3/firmware.bin": {
+      "sha256": "5cb44704e117cbf307186a98cfa1dfc725b9f2648c82435d4f724cf08d53cf01",
+      "bytes": 1016976
+    },
+    "firmware/s3/firmware.elf": {
+      "sha256": "edf9a6543ba57970ecf0dcf579830e432665d16cb805033ecf8d54637f0e08a1",
+      "bytes": 13434404
+    },
+    "firmware/s3/firmware.factory.bin": {
+      "sha256": "44af7c49792c07448e5803db338efcc4c24c0fb22b65549f76dd04a8276a25cb",
+      "bytes": 1082512
+    },
+    "firmware/s3/partitions.bin": {
+      "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+      "bytes": 3072
+    },
+    "firmware/c6/bootloader.bin": {
+      "sha256": "022390206caedbc5f780cd955b31e1dd1219091f374e420cd0531b2f5b5b5037",
+      "bytes": 20976
+    },
+    "firmware/c6/firmware.bin": {
+      "sha256": "5c16131314e3b71df946333a4a58883a24d80ee47e0c48f97d319cbc6fcb4e03",
+      "bytes": 1121456
+    },
+    "firmware/c6/firmware.elf": {
+      "sha256": "e06e919f4883b0d2bf02314bbfde805df84e3104580e57cdbf17a2393386c547",
+      "bytes": 14102112
+    },
+    "firmware/c6/firmware.factory.bin": {
+      "sha256": "bbab7ddf1d0fc7c3050f322c4b83d704af1cff71c66e9a94931e96a64e3df0fe",
+      "bytes": 1186992
+    },
+    "firmware/c6/partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "esp32c3_rev3_rom.elf": {
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "bytes": 556332
+    },
+    "esp32s3_rev0_rom.elf": {
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "bytes": 949552
+    },
+    "esp32c6_rev0_rom.elf": {
+      "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "bytes": 489768
+    },
+    "target/release/esp32sim": {
+      "sha256": "c7c519a5a07652366907f0b29243f13e535ab3250904f9c43313045feedb0d96",
+      "bytes": 2218392
+    },
+    "target/release/esp32sim-c3": {
+      "sha256": "01736fb9ed137ade3fa9760a259cf80d9dd4f89b7b87f9f189ced103fb89b7ab",
+      "bytes": 2218384
+    },
+    "target/release/esp32sim-c6": {
+      "sha256": "ae3691d41e4b4869efff2380e29d5aa90b0dc6d1b04e338166c6c4ee92a9ee39",
+      "bytes": 2218384
+    },
+    "web/wasm/esp32sim.wasm": {
+      "sha256": "998a94e30f66b485c1ee70d67eaf19ae61e2d4b869c11d8fb4832c4567110811",
+      "bytes": 2207002
+    }
+  },
+  "curation": {
+    "c3-open.txt": {
+      "original_sha256": "800832b746ab598b8d32475a184db0ca2a881a2cd71724346d856f146bbe608f",
+      "original_bytes": 1120,
+      "curated_sha256": "33c47f5053ddc40e6a0b6fd18b9ce29cdc6c9fc6d0080784b4bcc0c7fe54896d",
+      "curated_bytes": 224
+    },
+    "c3-wpa2.txt": {
+      "original_sha256": "e90b85c4f30f328dc079d49e818e2345fd86cb90d9ea79c3272e4a085056eda0",
+      "original_bytes": 1124,
+      "curated_sha256": "49e0370922acbc94417a20df082037ee75bad8055259dffc06f6d00317975628",
+      "curated_bytes": 224
+    },
+    "s3-default-nat.txt": {
+      "original_sha256": "02fbd8652c6b71c0c979629b67a3194c759fa0889daee49f7fb4dcd16a9807a0",
+      "original_bytes": 2860,
+      "curated_sha256": "23a336e142c3988607398636e8268ab4313db9db584a32f261d109562df1a966",
+      "curated_bytes": 248
+    },
+    "c6-default-nat.txt": {
+      "original_sha256": "d17b788fe372cd0b4423a29d132c069bbe9bb826afb32eca454b263e53c1bc89",
+      "original_bytes": 1279,
+      "curated_sha256": "9fbb1b46018806080ea2b411badfcc00f78afcf054ad96d6c6c7de32464d0e37",
+      "curated_bytes": 314
+    },
+    "s3-wasm-relay.txt": {
+      "original_sha256": "ce59be66bc31c4a71dba77be6d27433a0ae724005ba0710116482724c9b9fb40",
+      "original_bytes": 651,
+      "curated_sha256": "4f3e461f84b865d4c8d19afed5e55c611fb048d1cb0f1a4a2d0cc1af0f185015",
+      "curated_bytes": 630
+    },
+    "c3-wasm-relay.txt": {
+      "original_sha256": "4d92bc4cca7c664e19fce3c9252b6856399f520ad9f966a16a0bdefe6130b5c4",
+      "original_bytes": 618,
+      "curated_sha256": "895057f6707e181b13389eb6b30d1a21556c53df42c1f12e2777fcefab8ed813",
+      "curated_bytes": 599
+    },
+    "c6-wasm-relay.txt": {
+      "original_sha256": "3de98079beb18ab108630c828ac371402d2ea136b3bcea383604cfc80178a155",
+      "original_bytes": 794,
+      "curated_sha256": "7fa9fb858c419626617fe5dd818c46b83096fea5364f1aaf980532c3bf586e35",
+      "curated_bytes": 769
+    }
+  }
+}
