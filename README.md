@@ -332,6 +332,11 @@ instruction counts and PCs. `hw/wsdrive.py [port] [seconds]` drives the UI proto
 browser (button presses + knob turns) and reports push gaps, lag and audio delivered — use it
 to measure changes to the scheduler.
 
+## Contributing
+
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks a pull request needs
+(the same ones CI runs) and the conventions for tests, experiments and evidence.
+
 ## License
 
 esp32sim is released under the [MIT License](LICENSE), copyright Joakim Eriksson
