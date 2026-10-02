@@ -58,6 +58,7 @@ pub struct SocBus {
     /// Experimental register-derived SPI2 wire timing; disabled for baseline runs.
     pub spi2_timing: bool,
     spi2_scheduled: Option<(u64, Spi2DmaCompletion)>,
+    spi2_pins: Option<esp_soc::board::SpiPins>,
     /// set by any peripheral write: interrupt lines must be re-evaluated before the next instruction
     pub irq_dirty: bool,
     /// GPIO edges for observers, while one wants them: (cycle, pin, level)
@@ -136,7 +137,7 @@ fn tlb_idx(addr: u32) -> usize { xtensa_lx7::bus::tlb_index(addr) }
 static BUS_EPOCHS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl SocBus {
-    pub(crate) fn cancel_spi2_timing(&mut self) { self.spi2_scheduled = None; }
+    pub(crate) fn cancel_spi2_timing(&mut self) { self.spi2_scheduled = None; self.spi2_pins = None; }
 
     pub fn new(flash_size: usize, psram_size: usize, mac: [u8; 6]) -> Self { Self::with_sizes(flash_size, psram_size, mac) }
     pub fn with_sizes(flash_size: usize, psram_size: usize, mac: [u8; 6]) -> Self {
@@ -144,7 +145,7 @@ impl SocBus {
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
-            spi2_timing: false, spi2_scheduled: None,
+            spi2_timing: false, spi2_scheduled: None, spi2_pins: None,
             tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
             approximate_cache_yield_miss: false,
@@ -475,7 +476,18 @@ impl SocBus {
             }
         }
         let old_gpio_out = self.periph.gpio.out;
+        let old_gpio_enable = self.periph.gpio.enable;
+        if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 && !self.periph.spi2.has_pending_transfer() {
+            self.spi2_pins = self.board.uses_spi_pins().then(|| self.periph.spi2_pins());
+        }
         self.periph.write32(a, v);
+        if old_gpio_out != self.periph.gpio.out || old_gpio_enable != self.periph.gpio.enable {
+            let changes = std::mem::take(&mut self.periph.gpio.changes);
+            if let Some(events) = &mut self.gpio_events {
+                for &(pin, level) in &changes { events.push((self.cycles, pin, level)); }
+            }
+            self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.enable, self.periph.gpio.out);
+        }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
         // GPIO output writes usually only drive the board, but an enabled level
@@ -848,7 +860,7 @@ impl SocBus {
         if !self.periph.gpio.changes.is_empty() {
             let ch = std::mem::take(&mut self.periph.gpio.changes);
             if let Some(ev) = &mut self.gpio_events { for &(pin, level) in &ch { ev.push((self.cycles, pin, level)); } }
-            self.board.gpio_changes(&ch);
+            self.board.gpio_output_at(self.cycles, &ch, self.periph.gpio.enable, self.periph.gpio.out);
         }
         self.deliver_spi2_transfer();
         if !self.periph.rmt.done.is_empty() {
@@ -874,3 +886,6 @@ mod dma_tests;
 #[cfg(test)]
 #[path = "bus/memory_origin_tests.rs"]
 mod memory_origin_regressions;
+
+#[path = "bus/pins.rs"]
+mod pins;

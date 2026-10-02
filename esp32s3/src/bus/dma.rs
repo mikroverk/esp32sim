@@ -140,9 +140,13 @@ impl SocBus {
                     events.push((self.cycles, pin, level));
                 }
             }
-            self.board.gpio_changes(&changes);
+            self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.enable, self.periph.gpio.out);
         }
-        let rx = self.board.spi_transfer(2, &transfer.tx, transfer.rx_len);
+        let rx = if let Some(pins) = self.spi2_pins.take() {
+            self.board.spi_transfer_pins(2, pins, &transfer.tx, transfer.rx_len)
+        } else {
+            self.board.spi_transfer(2, &transfer.tx, transfer.rx_len)
+        };
         self.periph.spi2.finish_transfer(transfer, &rx);
     }
 
