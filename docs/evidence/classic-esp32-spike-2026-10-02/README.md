@@ -946,16 +946,84 @@ The privacy checker inspected 1,472 tracked evidence files and found no configur
 patterns. Manual review found no user name, host name, email address, device identifier
 or unrelated command in this extension.
 
+## RMT and WS2812 extension
+
+Revision `916e856` extends EX199 from `4ff7f45` with the original ESP32 RMT layout,
+shared RAM and streamed TX correctness contract. The ECO3 ROM and Arduino-ESP32 3.3.8
+platform are unchanged. This is functional evidence, with no speed or cycle-accuracy
+claim. [Firmware sources, configurations, hashes and exact commands](rmt-firmware.md)
+are retained separately to keep this receipt below 50 KB.
+
+The classic-local model at `0x3ff56000` implements eight channels and 512 shared words
+at `0x3ff56800`, 64 words per block. Allocations borrow following blocks and wrap the
+physical RAM address. It handles both item halves, zero-duration EOF, FIFO and direct
+RAM access, pointer resets, memory-owner state and invalid RX ownership, APB or 1 MHz
+REF_TICK with divider zero meaning 256, continuous loops with a one-tick idle gap,
+global RAM wrap, threshold refill, TX-end/error status and W1C interrupts. DPORT bit 9
+controls clock/reset. GPIO-matrix signals 87-94 deliver pulse levels and idle level.
+RMT uses source 47; this also corrects the inherited RTC source from 47 to 46, with
+literal-source tests for independent PRO/APP routing.
+
+The implementation follows the [ESP32 TRM, chapter 30](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
+and the pinned [IDF 5.5 RMT LL](https://github.com/espressif/esp-idf/blob/v5.5/components/hal/esp32/include/hal/rmt_ll.h).
+Classic hardware has continuous looping but no finite loop counter or TX_STOP register.
+The IDF stop path clears continuous mode and writes EOF into RAM. No later-chip register
+adapter or shared model was changed.
+
+The observer validates WS2812 high/low pulse ranges from the
+[Worldsemi WS2812B timing table](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf),
+then reuses `Ws2812Chain` for GRB-to-RGB conversion and `BoardModel::rmt_frame` for
+board delivery. The ordinary CLI report identifies the routed GPIO, raw pulse durations
+and decoded colors. No new CLI option is needed.
+
+All three unchanged Arduino API/library checks passed through real-ROM boot:
+
+```text
+RGB_LED gpio=4 rgb=255,0,64 completed=1
+[emu] rmt GPIO4 channel0: 48 pulses
+[emu] rmt GPIO4 WS2812 RGB [[255, 0, 64]]
+
+NEOPIXEL gpio=5 count=8 ff0000 00ff00 0000ff ffffff 010203 112233 ff0040 000000
+[emu] rmt GPIO5 channel0: 384 pulses
+[emu] rmt GPIO5 WS2812 RGB [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255], [1, 2, 3], [17, 34, 51], [255, 0, 64], [0, 0, 0]]
+
+RMT_RAW gpio=18 hz=1000000 init=1 write=1 completed=1
+[emu] rmt GPIO18 channel0: 6 pulses
+[emu] rmt GPIO18 level:APB-ticks (12.5ns): 1:800 0:1600 1:2400 0:3200 0:4000 1:4800
+```
+
+Each run reached 0.800 modeled seconds and 192,000,000 cycles. Adafruit NeoPixel 1.15.5
+sent 192 items through one 64-word block and delivered six source-47 interrupts, covering
+refill across wrap and completion. The raw halves are exactly 10, 20, 30, 40, 50 and
+60 microseconds. Raw IR-style pulses are not misreported as pixels.
+
+Validation passed: `cargo build --release`; `cargo test -p esp32` with 40 tests;
+`cargo test --workspace` with 503 passed, 0 failed and 22 existing ignored tests;
+`tools/wasm-build.sh`; `node tools/check-evidence-privacy.mjs`; `git diff --check`.
+The workspace includes unchanged S3/C3/C6 suites. Only `esp32/src/rmt.rs` was formatted.
+The initial smoke runs also passed; review then added pointer-restart, allocation-shrink
+and reset-output checks before the committed-source reruns. No validation command failed.
+
+RX capture and carrier modulation are not implemented. Owner bits and the invalid-RX-owner
+error are modeled, but this is not an RX engine. The observer retains at most 8,192
+pulse halves per frame and rejects truncated frames as LED data. It reports the latest
+frame on the first matching output pad, and recognizes frames at TX completion rather
+than waiting for a separate 50 microsecond latch interval. GPIO/VCD events within a
+single CPU tick can share a timestamp; the raw item-duration report is authoritative.
+No analog waveform, oscillator drift or hardware timing claim is made. Manual review
+retained no user/host identifiers, private captures or unrelated process data; raw logs
+remain outside Git and home paths in the receipt use `$HOME`.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
 SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, classic
-LEDC, SPI2/SPI3 with classic SPI DMA, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
+LEDC, RMT TX, SPI2/SPI3 with classic SPI DMA, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
 eFuse identity, SHA-256, random input and APP CPU control. I2C0 and I2C1 execute classic
 master command lists against attached board devices and deliver their interrupts through
 DPORT. GPIO0-39 include output/enable aliases, pad input, supported pulls, matrix
 input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
-DPORT routes GPIO, UART0-2, LEDC, I2C0/1, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
+DPORT routes GPIO, UART0-2, LEDC, RMT, I2C0/1, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
 CPU-to-CPU sources through the per-core maps. Other unmodeled peripheral blocks use the
 existing round-trip register RAM: reads start at zero and writes persist, but there is no
 device behavior or interrupt generation.
