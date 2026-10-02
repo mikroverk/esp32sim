@@ -1,6 +1,6 @@
 # Arduino LEDC and MCPWM validation
 
-This receipt covers EX199. It validates the same Arduino sketch on ESP32-S3, C3 and C6 and records the register-level MCPWM check. No prior experiment matched the searched `LEDC`, `MCPWM`, `PWM`, `tone`, `Arduino`, `timer duty` or `duty timer` aliases.
+This receipt covers EX204. It validates the same Arduino sketch on ESP32-S3, C3 and C6 and records the register-level MCPWM check. No prior experiment matched the searched `LEDC`, `MCPWM`, `PWM`, `tone`, `Arduino`, `timer duty` or `duty timer` aliases.
 
 ## Provenance and conditions
 
