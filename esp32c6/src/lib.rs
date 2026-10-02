@@ -17,3 +17,5 @@ pub mod wifi;
 
 pub use esp_soc::Stop;
 pub use soc::{machine, Machine, C6};
+
+mod ble;

@@ -28,6 +28,7 @@ pub const SPI_MMU_ITEM_INDEX: u32 = 0x380;
 pub const SPI_MMU_POWER_CTRL: u32 = 0x384;
 
 pub struct SocBus {
+    pub ble: crate::ble::Ble,
     pub rom: Vec<u8>,
     pub sram: Vec<u8>,
     pub lp_sram: Vec<u8>,
@@ -51,6 +52,7 @@ pub struct SocBus {
 impl SocBus {
     pub fn new(flash_size: usize, mac: [u8; 6]) -> Self {
         SocBus {
+            ble: Default::default(),
             rom: vec![0; (ROM_HIGH - ROM_LOW) as usize],
             sram: vec![0; (SRAM_HIGH - SRAM_LOW) as usize],
             lp_sram: vec![0; (LP_SRAM_HIGH - LP_SRAM_LOW) as usize],
@@ -393,6 +395,11 @@ impl SocBus {
             .ok_or("flash image too large")?;
         target.copy_from_slice(data);
         Ok(())
+    }
+
+    pub(crate) fn flash_off(&mut self, addr: u32) -> Option<usize> {
+        if !(FLASH_LOW..FLASH_HIGH).contains(&addr) { return None; }
+        self.resolve(addr).map(|(_, off, _)| off)
     }
 
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {
