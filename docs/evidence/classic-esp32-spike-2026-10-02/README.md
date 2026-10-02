@@ -1121,6 +1121,76 @@ Git. Retained evidence omits personal paths and unrelated process/session data;
 log hash pairs record path normalization without changing measured values. Manual
 review and the privacy checker found no retained personal information.
 
+## Wi-Fi station extension
+
+Revision `8722c4c` extends EX199 from `4ff7f45` with a classic-local Wi-Fi MAC,
+28-byte RX metadata, native DRAM descriptors, DPORT source 0, MAC clock/reset handling,
+three TSF counters and the analog/FE completion bits polled by the production PHY.
+The ROM and coexistence code use the documented AHB peripheral mirror. The eFuse adapter
+now supplies the factory MAC CRC required by `esp_phy_load_cal_and_init`.
+The shared AP, DHCP/DNS/SNTP network, WPA2 protocol and NAT are reused unchanged.
+
+This extends the correctness contract to unchanged Arduino-ESP32 3.3.8 `WiFi` and
+`HTTPClient` sketches on `esp32dev`. Classic blob disassembly and live `--regstat`,
+`--trace-fn` and `--debug` runs verified the offsets instead of assuming the S3 layout.
+No firmware patches, function stubs or fake-read overrides were used. The CLI accepts
+`--wifi`, `--net` and `--regstat` for classic ESP32.
+
+[Complete Wi-Fi receipt](wifi-validation.md) contains the three sketch sources, pinned
+PlatformIO configuration, input and artifact hashes, exact ROM-boot commands, register
+contracts, host HTTP fixture, timing method, negative results and test counts.
+All projects were built outside the repository with the same
+`pioarduino/platform-espressif32.git#55.03.38-1` platform as the earlier extensions.
+
+The final serial checks were:
+
+```text
+WIFI_SCAN_COUNT 1 millis=2415
+WIFI_SCAN_AP ssid=esp32sim channel=6 rssi=-40 auth=0
+WIFI_SCAN_DONE
+WIFI_OPEN_STATUS 3 millis=1739 ip=10.0.2.15
+WIFI_TARGETS_READY
+WIFI_DNS result=1 ip=104.20.23.154
+WIFI_HTTP_STATUS 200
+WIFI_HTTP_BODY CLASSIC_WIFI_NAT_OK
+WIFI_OPEN_DONE
+```
+
+The open sketch observed `WL_CONNECTED` at **1.7882 modeled seconds from reset**.
+Its status line arrived **0.975265 wall seconds after process launch**. The earlier
+IP-event callback ran at 1.6993 modeled seconds. The complete scan stopped at 2.458
+modeled seconds; the DNS/HTTP run stopped at 5.116 modeled seconds. These single samples
+include tracing and host scheduling, and do not establish RF timing or a speed comparison.
+The HTTP target was a caller-supplied host interface address, not guest loopback.
+
+WPA2 authenticated and associated, received EAPOL-Key message 1 at 0.8558 modeled seconds,
+and entered `wpa_supplicant_send_2_of_4`. It aborted at `sha_hal_read_digest` PC
+`0x4014f13e` while computing the message-2 MIC because SHA-1 returned an all-zero digest.
+The trace used SHA mode 0, start/continue/load registers `0x3ff03080/84/88`, and digest
+words `0x3ff03000..0x3ff03010`. Reset followed at 0.865 modeled seconds. No message 2 or
+AES call occurred. The existing classic SHA-256 boot model is unchanged; SHA-1 and the
+other accelerators remain the parallel crypto lane's work.
+
+`cargo build --release`, `cargo test -p esp32 -p esp32sim`, `cargo test --workspace`,
+`tools/wasm-build.sh`, the evidence privacy check and `git diff --check` passed.
+The ESP32 crate ran 31 unit tests. The workspace ran 494 enabled tests with 22 existing
+ignores. Tests cover independent register banks, interrupt masks, DPORT routing and reset,
+TX completion, RX bounds/ownership/header/FCS, TSF, PHY completion and the AHB aliases.
+Only `esp32/src/wifi.rs` was formatted. S3, C3, C6 and shared networking code are unchanged.
+
+Remaining limits are one station/AP, one descriptor per TX packet, immediate successful
+TX completion, fixed synthetic RSSI, no physical RF or channel filtering, no collision
+model, and no power-save/beacon deadline events. The WASM build passes, but browser Wi-Fi
+was not exercised. The receipt retains the early eFuse/alias/calibration failures, the
+register-bank correction and failed HTTP fixture attempts. Private host and resolver
+addresses, process identifiers and raw captures are omitted without changing guest
+measurements or firmware hashes.
+
+On the combined branch, after the AES, SHA and RSA extension, the same unchanged WPA2 sketch
+and command (`--wifi ssid=esp32sim,psk=classic-wifi-pass --net nat`) completes the 4-way
+handshake and connects: `WIFI_WPA2_STATUS 3 millis=1839 ip=10.0.2.15`. The SHA-1 blocker above
+is resolved by that extension, not by any Wi-Fi change.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
@@ -1130,7 +1200,8 @@ eFuse identity, AES, SHA-1/256/384/512, RSA/MPI, random input and APP CPU contro
 master command lists against attached board devices and deliver their interrupts through
 DPORT. GPIO0-39 include output/enable aliases, pad input, supported pulls, matrix
 input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
-DPORT routes GPIO, UART0-2, LEDC, RMT, I2C0/1, RSA, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
+The Wi-Fi MAC and PHY adapters support the open and WPA2-PSK station paths described above.
+DPORT routes Wi-Fi MAC, GPIO, UART0-2, LEDC, RMT, I2C0/1, RSA, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
 CPU-to-CPU sources through the per-core maps. Other unmodeled peripheral blocks use the
 existing round-trip register RAM: reads start at zero and writes persist, but there is no
 device behavior or interrupt generation.
