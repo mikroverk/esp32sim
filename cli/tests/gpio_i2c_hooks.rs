@@ -154,13 +154,13 @@ fn board_devices_can_be_removed_or_moved_without_reset() {
 /// HOOKS_ROM and HOOKS_FIRMWARE (the PlatformIO build directory).
 #[test]
 #[ignore = "requires Arduino firmware and the S3 ROM"]
-fn arduino_s3_gpio_and_i2c_detach() {
+fn external_arduino_s3_gpio_and_i2c_detach() {
     use std::{env, fs, path::PathBuf};
-    let firmware = PathBuf::from(env::var_os("HOOKS_FIRMWARE").expect("HOOKS_FIRMWARE"));
+    let firmware = PathBuf::from(env::var_os("HOOKS_FIRMWARE").expect("set HOOKS_FIRMWARE to the PlatformIO build directory for docs/evidence/gpio-i2c-hooks-2026-10-02"));
     let mut m = esp32s3::machine([0; 6]);
     m.bus.board = Box::new(esp_soc::NoBoard);
     m.console.capture = true;
-    m.load_rom(&fs::read(env::var_os("HOOKS_ROM").expect("HOOKS_ROM")).unwrap())
+    m.load_rom(&fs::read(env::var_os("HOOKS_ROM").expect("set HOOKS_ROM to the ESP32-S3 mask ROM ELF path")).unwrap())
         .unwrap();
     for (offset, name) in [
         (0, "bootloader.bin"),
