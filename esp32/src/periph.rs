@@ -1,10 +1,11 @@
 //! Classic ESP32 peripheral map. Shared models are adapted only where this chip's register layout
 //! predates the S3/C3 layout.
 use crate::ledc::ClassicLedc;
+use crate::timers::ClassicTimer;
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
     device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, Sha, SpiMem,
-    TimerGroup, Uart, UartLayout, WriteEffect,
+    Uart, UartLayout, WriteEffect,
 };
 
 pub const CPU_HZ: u64 = 240_000_000;
@@ -373,127 +374,6 @@ impl Device for ClassicGpio {
     }
 }
 
-pub struct ClassicTimer {
-    pub timer: TimerGroup,
-    wdt_ticks: u64,
-    wdt_acc: u64,
-    wdt_stage: usize,
-    wdt_unlocked: bool,
-    wdt_conf: u32,
-}
-impl ClassicTimer {
-    fn new() -> Self {
-        Self {
-            timer: TimerGroup::new(),
-            wdt_ticks: 0,
-            wdt_acc: 0,
-            wdt_stage: 0,
-            wdt_unlocked: false,
-            wdt_conf: 0,
-        }
-    }
-    fn off(off: u32) -> u32 {
-        match off {
-            0x98..=0xa4 => off - 0x28,
-            _ => off,
-        }
-    }
-    fn wdt_tick(&mut self, ticks: u64) {
-        let conf = self.wdt_conf;
-        if conf & (1 << 31) == 0 {
-            return;
-        }
-        let prescale = ((self.timer.read(0x4c) >> 16) as u64).max(1);
-        self.wdt_acc += ticks;
-        self.wdt_ticks += self.wdt_acc / prescale;
-        self.wdt_acc %= prescale;
-        while self.wdt_stage < 4 {
-            let action = (conf >> (29 - 2 * self.wdt_stage)) & 3;
-            if action == 0 {
-                self.wdt_stage += 1;
-                continue;
-            }
-            let hold = self.timer.read(0x50 + 4 * self.wdt_stage as u32) as u64;
-            if self.wdt_ticks < hold.max(1) {
-                break;
-            }
-            self.wdt_ticks = 0;
-            self.wdt_stage += 1;
-            if action == 1 {
-                self.timer.int_raw |= 1 << 2;
-            }
-        }
-    }
-    fn irq_bits(&self) -> u64 {
-        let pending = self.timer.int_raw & self.timer.int_ena;
-        let mut bits = 0;
-        for n in 0..2 {
-            if pending & (1 << n) != 0 {
-                let cfg = self.timer.t[n].config;
-                if cfg & (1 << 11) != 0 {
-                    bits |= 1 << n;
-                }
-                if cfg & (1 << 12) != 0 {
-                    bits |= 1 << (4 + n);
-                }
-            }
-        }
-        if pending & (1 << 2) != 0 {
-            let cfg = self.wdt_conf;
-            if cfg & (1 << 21) != 0 {
-                bits |= 1 << 2;
-            }
-            if cfg & (1 << 22) != 0 {
-                bits |= 1 << 6;
-            }
-        }
-        bits
-    }
-}
-impl Device for ClassicTimer {
-    fn read(&mut self, off: u32) -> u32 {
-        self.timer.read(Self::off(off))
-    }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        match off {
-            0x64 => {
-                self.wdt_unlocked = v == 0x50d8_3aa1;
-                self.timer.write(off, v);
-            }
-            0x48..=0x5c if self.wdt_unlocked => {
-                if off == 0x48 {
-                    self.wdt_conf = v;
-                }
-                self.timer.write(off, v);
-            }
-            0x60 if self.wdt_unlocked => {
-                self.wdt_ticks = 0;
-                self.wdt_acc = 0;
-                self.wdt_stage = 0;
-            }
-            0x48..=0x60 => {}
-            _ => self.timer.write(Self::off(off), v),
-        }
-        WriteEffect::NONE
-    }
-    fn irq_sources(&self) -> u64 {
-        self.irq_bits()
-    }
-    fn clock(&self) -> Option<ClockDomain> {
-        Some(ClockDomain::Apb)
-    }
-    fn tick(&mut self, ticks: u64) {
-        self.timer.tick(ticks);
-        self.wdt_tick(ticks);
-    }
-    fn has_deadline(&self) -> bool {
-        true
-    }
-    fn next_deadline(&self) -> Option<u64> {
-        <TimerGroup as Device>::next_deadline(&self.timer)
-    }
-}
-
 pub struct ClassicRtc(pub RtcCntl);
 impl ClassicRtc {
     fn new() -> Self {
@@ -719,7 +599,7 @@ impl Peripherals {
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
             sha: ClassicSha::new(),
-            timg: [ClassicTimer::new(), ClassicTimer::new()],
+            timg: [ClassicTimer::new(0), ClassicTimer::new(1)],
             i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()],
             misc: Misc::new(),
             spi_exec: false,
@@ -791,6 +671,14 @@ impl Peripherals {
     }
     pub fn tick(&mut self, cycles: u64) {
         Dispatch::tick(self, cycles);
+        for timer in &mut self.timg {
+            if let Some(cause) = timer.take_reset() {
+                if !self.rtc.0.sw_reset {
+                    self.rtc.0.sw_reset = true;
+                    self.rtc.0.reset_cause = cause;
+                }
+            }
+        }
         self.sync_ledc_outputs();
     }
     pub fn source_status(&self, core: usize) -> [u32; 3] {
@@ -1078,6 +966,47 @@ mod tests {
         p.rtc.0.ram.write(0x3c, 1 << 3);
         p.rtc.0.ram.write(0x44, 1 << 3);
         assert_ne!(p.cpu_lines(0) & (1 << 11), 0);
+    }
+
+    #[test]
+    fn classic_lact_counts_and_raises_its_interrupt() {
+        let mut p = Peripherals::new([0; 6]);
+        let base = 0x3ff5_f000;
+        p.write32(base + 0x84, 8);
+        p.write32(base + 0x98, 1 << 3);
+        p.write32(
+            base + 0x70,
+            (1 << 31) | (1 << 30) | (40 << 13) | (1 << 11) | (1 << 10),
+        );
+
+        p.tick(1_200); // 400 APB ticks, ten LACT ticks at the IDF's divider 40.
+        p.write32(base + 0x80, 1);
+        assert_eq!(p.read32(base + 0x78), 10);
+        assert_eq!(p.read32(base + 0x9c) & (1 << 3), 1 << 3);
+        assert_ne!(Device::irq_sources(&p.timg[0]) & (1 << 3), 0);
+        p.write32(base + 0xa4, 1 << 3);
+        assert_eq!(p.read32(base + 0x9c) & (1 << 3), 0);
+    }
+
+    #[test]
+    fn classic_timer_and_rtc_watchdogs_request_resets() {
+        let mut p = Peripherals::new([0; 6]);
+
+        p.write32(0x3ff5_f064, 0x50d8_3aa1);
+        p.write32(0x3ff5_f04c, 1 << 16);
+        p.write32(0x3ff5_f050, 2);
+        p.write32(0x3ff5_f048, (1 << 31) | (3 << 29));
+        p.tick(6);
+        assert!(p.rtc.0.sw_reset);
+        assert_eq!(p.rtc.0.reset_cause, 7);
+
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x3ff4_80a4, 0x50d8_3aa1);
+        p.write32(0x3ff4_8090, 2);
+        p.write32(0x3ff4_808c, (1 << 31) | (3 << 28));
+        p.tick(3_200);
+        assert!(p.rtc.0.sw_reset);
+        assert_eq!(p.rtc.0.reset_cause, esp_periph::RST_RTCWDT_SYS);
     }
 
     #[test]
