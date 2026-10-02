@@ -9,8 +9,7 @@ use esp_soc::SocBus;
 fn check(
     bus: &mut impl SocBus,
     pin: u8,
-    control: u32,
-    select: u32,
+    (control, select): (u32, u32),
     result: u32,
     done: u32,
     clear: Option<u32>,
@@ -68,8 +67,7 @@ fn s3_adc1_and_adc2_host_contract() {
         check(
             &mut m.bus,
             pin,
-            0x60008800 + off,
-            1 << (19 + (pin - 1) % 10),
+            (0x60008800 + off, 1 << (19 + (pin - 1) % 10)),
             0x60008800 + off,
             0x60008800 + off,
             None,
@@ -86,8 +84,7 @@ fn c3_adc1_adc2_and_c6_adc1_host_contract() {
         check(
             &mut m.bus,
             pin,
-            0x60040020,
-            (channel << 25) | (1 << (31 - unit)),
+            (0x60040020, (channel << 25) | (1 << (31 - unit))),
             0x6004002c + unit * 4,
             0x60040044,
             Some(0x6004004c),
@@ -98,8 +95,7 @@ fn c3_adc1_adc2_and_c6_adc1_host_contract() {
     check(
         &mut m.bus,
         6,
-        0x6000e020,
-        (6 << 25) | (1 << 31),
+        (0x6000e020, (6 << 25) | (1 << 31)),
         0x6000e02c,
         0x6000e044,
         Some(0x6000e04c),
@@ -151,22 +147,28 @@ fn firmware<S: esp_soc::Soc>(
     expected: &[[(u16, i32); 4]],
 ) {
     use std::{fs, path::PathBuf};
-    let build =
-        PathBuf::from(std::env::var("ADC_FIRMWARE_DIR").expect("ADC_FIRMWARE_DIR")).join(chip);
-    let roms = PathBuf::from(std::env::var("ADC_ROM_DIR").expect("ADC_ROM_DIR"));
+    let build = PathBuf::from(std::env::var("ADC_FIRMWARE_DIR").expect(
+        "set ADC_FIRMWARE_DIR to Arduino 3.3.8 builds with s3/c3/c6 subdirectories; see EX207 receipt",
+    )).join(chip);
+    let roms = PathBuf::from(std::env::var("ADC_ROM_DIR").expect(
+        "set ADC_ROM_DIR to Espressif ROM ELFs; see EX207 receipt",
+    ));
+    let read = |path: PathBuf| {
+        fs::read(&path).unwrap_or_else(|e| panic!("required ADC test input {}: {e}", path.display()))
+    };
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&fs::read(roms.join(format!("esp32{chip}_rev0_rom.elf"))).unwrap())
+    m.load_rom(&read(roms.join(format!("esp32{chip}_rev0_rom.elf"))))
         .unwrap();
-    m.write_flash(0, &fs::read(build.join("bootloader.bin")).unwrap())
+    m.write_flash(0, &read(build.join("bootloader.bin")))
         .unwrap();
-    m.write_flash(0x8000, &fs::read(build.join("partitions.bin")).unwrap())
+    m.write_flash(0x8000, &read(build.join("partitions.bin")))
         .unwrap();
-    m.write_flash(0x10000, &fs::read(build.join("firmware.bin")).unwrap())
+    m.write_flash(0x10000, &read(build.join("firmware.bin")))
         .unwrap();
     m.boot_rom();
     serial_until(&mut m, "ADC READY");
-    for phase in 0..4 {
+    for (phase, command) in (b'A'..=b'D').enumerate() {
         let before: Vec<_> = pins
             .iter()
             .map(|&pin| m.bus.adc_observation(pin).unwrap().generation)
@@ -180,7 +182,7 @@ fn firmware<S: esp_soc::Soc>(
             }
         }
         m.console.uart0.clear();
-        m.bus.uart_input(0, &[b'A' + phase as u8]);
+        m.bus.uart_input(0, &[command]);
         let output = serial_until(&mut m, "ADC DONE");
         println!("{output}");
         for (i, &pin) in pins.iter().enumerate() {
@@ -192,7 +194,7 @@ fn firmware<S: esp_soc::Soc>(
             let (raw, mv) = expected[i][phase];
             let line = format!(
                 "ADC {} pin={pin} raw={raw} mv={mv}",
-                (b'A' + phase as u8) as char
+                command as char
             );
             assert!(output.contains(&line), "expected {line}");
             assert_eq!(observed.raw, raw);
@@ -208,7 +210,7 @@ fn firmware<S: esp_soc::Soc>(
 
 #[test]
 #[ignore = "requires Arduino 3.3.8 firmware and Espressif ROM ELFs; see EX207 receipt"]
-fn arduino_s3() {
+fn external_arduino_s3() {
     firmware(
         esp32s3::machine([0; 6]),
         "s3",
@@ -221,7 +223,7 @@ fn arduino_s3() {
 }
 #[test]
 #[ignore = "requires Arduino 3.3.8 firmware and Espressif ROM ELFs; see EX207 receipt"]
-fn arduino_c3() {
+fn external_arduino_c3() {
     firmware(
         esp32c3::machine([0; 6], 4 << 20),
         "c3",
@@ -231,7 +233,7 @@ fn arduino_c3() {
 }
 #[test]
 #[ignore = "requires Arduino 3.3.8 firmware and Espressif ROM ELFs; see EX207 receipt"]
-fn arduino_c6() {
+fn external_arduino_c6() {
     firmware(
         esp32c6::machine([0; 6], 4 << 20),
         "c6",
