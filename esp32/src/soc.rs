@@ -160,6 +160,9 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_input(&self) -> u64 {
         self.periph.gpio.gpio.input
     }
+    fn pwm_output(&self, pin: u32) -> Option<(f64, u32)> {
+        self.periph.pwm_output(pin)
+    }
     fn observe_gpio(&mut self, on: bool) {
         self.gpio_events = on.then(Vec::new);
     }

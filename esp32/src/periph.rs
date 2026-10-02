@@ -1,5 +1,6 @@
 //! Classic ESP32 peripheral map. Shared models are adapted only where this chip's register layout
 //! predates the S3/C3 layout.
+use crate::ledc::ClassicLedc;
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
     device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, Sha, SpiMem,
@@ -25,6 +26,7 @@ const SRC_FROM_CPU0: usize = 24;
 const SRC_UART0: usize = 34;
 const SRC_UART1: usize = 35;
 const SRC_UART2: usize = 36;
+const SRC_LEDC: usize = 43;
 const SRC_RTC_CORE: usize = 47;
 const SRC_I2C0: usize = 49;
 const SRC_I2C1: usize = 50;
@@ -651,6 +653,7 @@ pub struct Peripherals {
     pub spi0: ClassicSpi,
     pub spi1: ClassicSpi,
     pub gpio: ClassicGpio,
+    pub ledc: ClassicLedc,
     pub rtc: ClassicRtc,
     pub efuse: ClassicEfuse,
     pub sha: ClassicSha,
@@ -672,6 +675,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x49 "IO_MUX" alias (gpio) delta 0x1000 => [];
     0x50 "UART1" (uart[1]) => [SRC_UART1];
     0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
+    0x59 "LEDC" (ledc) => [SRC_LEDC];
     0x5a "EFUSE" (efuse) => [];
     0x5f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1, SRC_TG0_WDT, SRC_TG0_LACT, SRC_TG0_T0_EDGE, SRC_TG0_T0_EDGE + 1, SRC_TG0_T0_EDGE + 2, SRC_TG0_T0_EDGE + 3];
     0x60 "TIMG1" (timg[1]) => [SRC_TG1_T0, SRC_TG1_T1, SRC_TG1_WDT, SRC_TG1_LACT, SRC_TG1_T0_EDGE, SRC_TG1_T0_EDGE + 1, SRC_TG1_T0_EDGE + 2, SRC_TG1_T0_EDGE + 3];
@@ -711,6 +715,7 @@ impl Peripherals {
             spi0: ClassicSpi::new(false),
             spi1: ClassicSpi::new(true),
             gpio,
+            ledc: ClassicLedc::new(),
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
             sha: ClassicSha::new(),
@@ -767,6 +772,9 @@ impl Peripherals {
             let (scl, sda) = I2C_SIGNALS[bus];
             self.i2c[bus].set_lines(self.gpio.signal_input(scl), self.gpio.signal_input(sda));
         }
+        if addr == 0x3ff0_00c4 && v & (1 << 11) != 0 {
+            self.ledc = ClassicLedc::new();
+        }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) {
             self.spi_exec = true;
         }
@@ -775,9 +783,15 @@ impl Peripherals {
             self.gpio.set_output_signal(scl, true, false);
             self.gpio.set_output_signal(sda, true, false);
         }
+        if matches!(addr, 0x3ff0_00c0 | 0x3ff0_00c4) {
+            self.ledc.clock_enabled = self.dport.ram.read(0xc0) & (1 << 11) != 0
+                && self.dport.ram.read(0xc4) & (1 << 11) == 0;
+        }
+        self.sync_ledc_outputs();
     }
     pub fn tick(&mut self, cycles: u64) {
         Dispatch::tick(self, cycles);
+        self.sync_ledc_outputs();
     }
     pub fn source_status(&self, core: usize) -> [u32; 3] {
         let all = Dispatch::source_status(self);
@@ -795,6 +809,27 @@ impl Peripherals {
     }
     pub fn cycles_until_timer(&self) -> u32 {
         Dispatch::cycles_until_deadline(self)
+    }
+    fn sync_ledc_outputs(&mut self) {
+        let dirty = self.ledc.take_signal_updates();
+        for channel in 0..16 {
+            if dirty & (1 << channel) != 0 {
+                let (level, enable) = self.ledc.signal_level(channel);
+                self.gpio.set_output_signal(71 + channel, level, enable);
+            }
+        }
+    }
+    pub fn pwm_output(&self, pin: u32) -> Option<(f64, u32)> {
+        let pin = pin as usize;
+        if pin >= 40 || !self.gpio.matrix_pad(pin) || self.gpio.driven(pin).is_none() {
+            return None;
+        }
+        let matrix = self.gpio.gpio.func_out_sel[pin];
+        let mut pwm = self.ledc.pwm((matrix & 0x1ff) as usize)?;
+        if matrix & (1 << 9) != 0 {
+            pwm.1 = 65535 - pwm.1;
+        }
+        Some(pwm)
     }
 }
 
@@ -955,6 +990,29 @@ mod tests {
         );
         p.gpio.set_input(4, true);
         assert_eq!(p.read32(0x3ff4_4068) & bit, 0);
+    }
+
+    #[test]
+    fn classic_ledc_routes_pwm_and_interrupt_through_gpio_and_dport() {
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x3ff0_00c0, 1 << 11);
+        p.write32(0x3ff0_0104 + 4 * SRC_LEDC as u32, 12);
+        p.write32(0x3ff5_9140, 8 | (16000 << 5) | (1 << 25));
+        p.write32(0x3ff5_9008, 64 << 4);
+        p.write32(0x3ff5_900c, (1 << 31) | (1 << 30) | (1 << 20) | (1 << 10));
+        p.write32(0x3ff5_9000, 4);
+        p.write32(0x3ff5_9188, (1 << 8) | 1);
+        p.write32(0x3ff4_9048, (2 << 12) | (1 << 9));
+        p.write32(0x3ff4_4540, 71);
+
+        p.tick(48_000);
+        let (hz, duty) = p.pwm_output(4).unwrap();
+        assert!((hz - 5000.0).abs() < 0.001);
+        assert_eq!(duty, 16384);
+        assert_ne!(p.cpu_lines(0) & (1 << 12), 0);
+
+        p.write32(0x3ff4_4540, 71 | (1 << 9));
+        assert_eq!(p.pwm_output(4).unwrap().1, 49151);
     }
 
     #[test]

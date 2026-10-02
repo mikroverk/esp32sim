@@ -111,3 +111,9 @@ fn timing_cycle_values_report_usage_errors() {
         assert_eq!(timing_cycles("4294967295", name), Ok(u32::MAX));
     }
 }
+
+#[test]
+fn pwm_pins_are_observation_options() {
+    let o = parse(&["esp32sim".into(), "--pwm".into(), "4".into(), "--pwm".into(), "21".into()], "s3");
+    assert_eq!(o.pwm_pins, [4, 21]);
+}
