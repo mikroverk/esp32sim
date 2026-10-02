@@ -123,14 +123,156 @@ The workspace run covered the new classic crate and the existing S3, C3, C6, sha
 peripheral, shared SoC, CLI, and WASM tests. Tests that require external firmware remain
 explicitly ignored by their existing contracts.
 
+## GPIO and interrupt-routing extension
+
+Revision `d64ac6e` extends EX199 rather than starting another experiment. The target,
+ROM, Arduino version and functional workload are unchanged. The material difference is
+the correctness contract: GPIO pad configuration, matrix routing, external edges and
+peripheral interrupts must now reach the running application through the classic DPORT
+matrix. This remains functional evidence, not a speed or cycle-accuracy claim.
+
+The added register tests cover GPIO output and enable aliases, matrix output selection,
+output and output-enable inversion, constant and pad input selection, IO_MUX input,
+pull-up and function selection, the GPIO34 input-only rule, falling and level interrupt
+status/clear behavior, both DPORT CPU maps, and delivery from GPIO, UART, timer, timer
+watchdog and RTC watchdog sources. They also cover the classic UART FIFO pointer status
+used by Arduino's receive path.
+
+The temporary validation sketch was built outside the repository with the same
+`platformio.ini` shown above. Its source was:
+
+```cpp
+#include <Arduino.h>
+
+volatile unsigned edges;
+
+void IRAM_ATTR on_falling() {
+  ++edges;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(4, INPUT_PULLUP);
+  attachInterrupt(4, on_falling, FALLING);
+  Serial.printf("initial=%d\n", digitalRead(4));
+}
+
+void loop() {
+  static unsigned sample;
+  Serial.printf("sample=%u level=%d edges=%u\n", sample++, digitalRead(4), edges);
+  while (Serial.available()) {
+    Serial.printf("rx=%02x\n", Serial.read());
+  }
+  delay(100);
+}
+```
+
+The CLI script used the existing S3-compatible host-input mechanism:
+
+```text
+0.20 gpio 4 0
+0.30 gpio 4 1
+0.40 gpio 4 0
+0.50 gpio 4 1
+0.60 serial Z
+```
+
+SHA-256 inputs and temporary artifacts:
+
+| Item | SHA-256 |
+| --- | --- |
+| `/tmp/esp32sim-classic-gpio-validation/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-gpio-validation/src/main.cpp` | `1c18cb54dc1929aafa5fefcbdbb3a89a96b8cec72562b9fc8f21d65ee1347593` |
+| `firmware.factory.bin` | `d4838cbfd862e6b1bdb9a96d8d43c3e9ccc4960b510f5ed541cb5509b7653844` |
+| `firmware.elf` | `f31527bca844cf90e1569c23870a1496203b7c64e740a8ac437cb232f9028101` |
+| `/tmp/esp32-classic-gpio.script` | `37b2579dca5c9c2a9fb45050d5a0557082e558e694d569b120f31c8c493bf38f` |
+| GPIO validation VCD | `c24e93dbfa30dadaf0a2e401ae45389512ca5dc0c4d24295f59ae8707348e077` |
+| Blink validation VCD | `b7ef6b9fd286854bf82708e66d16f31f456e89077341ac4c23d2839e7e523e08` |
+
+Build and run commands were:
+
+```sh
+cd /tmp/esp32sim-classic-gpio-validation
+pio run
+
+# From the repository root:
+cargo build --release
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-gpio-validation/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-gpio-validation/.pio/build/esp32dev/firmware.elf \
+  --max-seconds 1.2 --no-reboot --no-dump \
+  --script /tmp/esp32-classic-gpio.script \
+  --vcd /tmp/esp32-classic-gpio-validation.vcd
+```
+
+The relevant UART output was:
+
+```text
+initial=1
+sample=1 level=1 edges=0
+[script] t=0.200s Gpio(4, false)
+sample=2 level=0 edges=1
+[script] t=0.300s Gpio(4, true)
+sample=3 level=1 edges=1
+[script] t=0.400s Gpio(4, false)
+sample=4 level=0 edges=2
+[script] t=0.500s Gpio(4, true)
+sample=5 level=1 edges=2
+[script] t=0.600s Serial("Z\n")
+rx=5a
+rx=0a
+[emu] stop: Halted; emulated 1.200s (288000000 cycles)
+```
+
+The GPIO VCD contains the externally driven levels at exactly 0.2, 0.3, 0.4 and
+0.5 modeled seconds:
+
+```text
+#200000000000 0s4
+#300000000000 1s4
+#400000000000 0s4
+#500000000000 1s4
+```
+
+The unchanged blink artifact documented earlier was rerun for 2.2 modeled seconds. It
+printed five `tick 0` lines and recorded GPIO2 changes at 0.518145, 1.018151, 1.518157
+and 2.018163 seconds after its initial transition. This proves that `delay(500)` and the
+FreeRTOS timer interrupt continue past two seconds. `millis()` still reports zero because
+the classic high-resolution timer/latch path is not modeled; that limitation is retained.
+
+At `d64ac6e`, these commands passed:
+
+```sh
+cargo test -p esp32
+cargo test --workspace
+cargo build --release
+tools/wasm-build.sh
+node tools/check-evidence-privacy.mjs
+```
+
+The workspace run includes the existing S3, C3 and C6 suites. The privacy checker
+reported 1,472 tracked evidence files checked and no configured patterns found; manual
+review found no retained user name, host name, device identifier or unrelated process
+data in this extension.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
-SPI0/1 flash commands, three UARTs and their FIFO aliases, basic GPIO, boot strap `0x13`,
-partial RTC/TIMG watchdog behavior, ECO3 eFuse identity, SHA-256, random input, APP CPU
-control, and DPORT CPU-to-CPU interrupt sources 24 through 27. Other peripheral blocks
-use the existing round-trip register RAM: reads start at zero and writes persist, but
-there is no device behavior or interrupt generation.
+SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, partial
+RTC/TIMG watchdog behavior, ECO3 eFuse identity, SHA-256, random input and APP CPU
+control. GPIO0-39 now include output/enable aliases, pad input, supported pulls, matrix
+input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
+DPORT routes GPIO, UART0-2, TIMG0/1 timer and watchdog, RTC watchdog and CPU-to-CPU
+sources through the per-core maps. Other peripheral blocks use the existing round-trip
+register RAM: reads start at zero and writes persist, but there is no device behavior or
+interrupt generation.
+
+Direct IO_MUX function selection bypasses the GPIO matrix, but direct peripheral pad
+waveforms are not generated until those peripherals are modeled. The matrix exposes
+classic-local input and output hooks for that later work. Watchdog interrupt actions are
+modeled; watchdog reset actions are not. External GPIO drive is an absolute host level,
+matching the existing script API; there is no separate release-to-pull command.
 
 The boot run first touched these register-RAM stubs:
 
@@ -165,6 +307,13 @@ target. LX6 has a three-byte maximum instruction length; LX7 PIE can use four by
 - A later supplemental `pio pkg list` failed because the sandbox could not initialize
   `$HOME/.platformio/.cache/uv`. The earlier successful build had already reported the
   platform and framework versions.
+- The validation sketch rebuild initially failed with `PermissionError: [Errno 1]
+  Operation not permitted: '$HOME/.platformio/platforms.lock'`. Repeating it with
+  explicit access to the existing PlatformIO package cache succeeded.
+- The first Serial-input run returned the injected bytes followed by zero padding.
+  Arduino reads the classic `UART_MEM_RX_STATUS` FIFO pointers at offset `0x60`; the
+  shared newer-chip UART layout returned storage there. The classic adapter now reports
+  pointers from the actual FIFO depth, and the rerun returned exactly `5a` and `0a`.
 - Before preserving LX6 F64 user registers, `wur.f64r_lo` at `0x4008f497` entered the
   double-exception vector. Before DPORT CPU-to-CPU interrupts were connected, FreeRTOS
   did not schedule the application task. Before the UART FIFO aliases were mapped, the
