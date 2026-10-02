@@ -169,4 +169,13 @@ mod tests {
         pwm.write(0x64,1);assert!(pwm.output(&gpio,4).is_none());pwm.write(0x64,0);
         pwm.write(8,2|(2<<3));assert!(pwm.output(&gpio,4).is_none());
     }
+    #[test]
+    fn source_clock_scales_frequency_and_counter() {
+        let mut pwm=Mcpwm::new(87);pwm.clock_enabled=true;pwm.source_hz=40_000_000;
+        pwm.write(4,99<<8);pwm.write(8,2|(1<<3));pwm.write(0x40,50);pwm.write(0x50,2|(1<<4));
+        let mut gpio=Gpio::new();gpio.enable=1;gpio.func_out_sel[0]=87;
+        assert_eq!(pwm.output(&gpio,0),Some((400_000.0,32768)));
+        pwm.tick(1);assert_eq!(pwm.read(0x10),0);
+        pwm.tick(1);assert_eq!(pwm.read(0x10),1);
+    }
 }
