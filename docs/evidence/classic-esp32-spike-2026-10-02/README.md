@@ -585,25 +585,226 @@ remained ignored by their existing contracts. No raw build tree, console capture
 is committed. Home paths are normalized to `$HOME`; manual review removed no measured
 value, input hash or correctness observation.
 
+## Timer and watchdog extension
+
+Revision `7bcb5a9` extends EX199 again. The target, ROM and Arduino platform are the
+same, but the mechanism and correctness contract differ from the boot and GPIO work:
+TIMG0's classic 64-bit LACT must drive the ESP-IDF high-resolution timer, general TIMG
+alarms must reach Arduino ISRs, and timer/RTC watchdog actions must reset the emulator
+with a usable reset cause. This is functional modeled-time evidence, not a host-speed or
+cycle-accuracy claim.
+
+The installed Arduino-ESP32 source implements `micros()` and `millis()` with
+`esp_timer_get_time()` in `cores/esp32/esp32-hal-misc.c`. Its ESP-IDF source selects
+`PERIPH_TIMG0_MODULE` in `components/esp_timer/src/esp_timer_impl_lac.c`; the associated
+`components/esp_hw_support/include/esp_private/systimer.h` selects LACT module 0 and two
+LACT ticks per microsecond. The implementation therefore adds a classic-local TIMG
+adapter rather than changing the shared S3/C3/C6 layout. It models LACT configuration,
+divider, count latch, load, one-shot/auto-reload alarm and level/edge interrupt routing;
+reuses the shared T0/T1 counter and alarm behavior at compatible offsets; and adds the
+classic main-watchdog write protection, feed, stage actions and reset causes. The
+existing RTC watchdog model is wired to the classic reset path. Reboot now preserves
+the RTC reset-hint registers needed by ESP-IDF to translate a task-watchdog panic's
+software CPU reset into `ESP_RST_TASK_WDT`.
+
+The register-level LACT test was first run before the implementation and failed with
+`left: 0`, `right: 10`: the old adapter treated classic offset `0x70` as the newer-chip
+interrupt-enable register, so the counter never started. The same test then passed and
+checks a latched count of 10, raw interrupt assertion, routed source assertion and
+write-one-to-clear behavior. Other focused tests cover DPORT timer/watchdog delivery,
+TIMG and RTC watchdog system-reset requests, reset-cause publication and RTC reset-hint
+retention.
+
+Both temporary validation projects used the same pinned `platformio.ini` shown above.
+The first build attempt failed with `PermissionError: [Errno 1] Operation not permitted:
+'$HOME/.platformio/platforms.lock'`; the one permitted retry against the existing
+PlatformIO cache succeeded with `platform-espressif32` 55.3.38 and Arduino-ESP32 3.3.8.
+No temporary build tree is retained in Git.
+
+SHA-256 inputs and temporary artifacts:
+
+| Item | SHA-256 |
+| --- | --- |
+| `/tmp/esp32sim-classic-timers-validation/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-timers-validation/src/main.cpp` | `87c67a9caec594dd75bb9b2e650d7948193deefa5e7b960ae5155b3d58b8eb0d` |
+| timer `firmware.factory.bin` | `67bf709f709f72741a3ef83c06e16f1034ee9d55f88140c534c6b77495d3fb5e` |
+| timer `firmware.elf` | `be51939601bac145a7c84889a45d4f8d038034e64c05dfa7ed78d07db4b30239` |
+| `/tmp/esp32sim-classic-wdt-validation/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-wdt-validation/src/main.cpp` | `7601e4f2122c09eac0d74667cee1c9604013091734d88646687c0f30feb9303a` |
+| watchdog `firmware.factory.bin` | `29d52770d0641a083fbb43a6ed5f1b03f5712d6884f9e3ef69e57c53c11a9a13` |
+| watchdog `firmware.elf` | `1e4f7f3b1e1f1e23b469a332ad0b8e3ac93834ee8ef67543c7084b26798c67f2` |
+
+The combined timer sketch was:
+
+```cpp
+#include <Arduino.h>
+#include <esp_timer.h>
+
+volatile uint32_t espTicks;
+volatile uint32_t hwTicks;
+
+void onEspTimer(void *) { ++espTicks; }
+void ARDUINO_ISR_ATTR onHardwareTimer() { ++hwTicks; }
+
+void setup() {
+  Serial.begin(115200);
+  esp_timer_create_args_t args = {};
+  args.callback = onEspTimer;
+  args.name = "periodic";
+  esp_timer_handle_t periodic;
+  ESP_ERROR_CHECK(esp_timer_create(&args, &periodic));
+  ESP_ERROR_CHECK(esp_timer_start_periodic(periodic, 100000));
+  hw_timer_t *hardware = timerBegin(1000000);
+  timerAttachInterrupt(hardware, onHardwareTimer);
+  timerAlarm(hardware, 50000, true, 0);
+  Serial.printf("start millis=%lu micros=%lu\n", millis(), micros());
+}
+
+void loop() {
+  delay(100);
+  Serial.printf("sample millis=%lu micros=%lu esp=%u hw=%u\n",
+                millis(), micros(), espTicks, hwTicks);
+}
+```
+
+Build it with `pio run` in `/tmp/esp32sim-classic-timers-validation`. At committed
+revision `7bcb5a9`, the exact run command was:
+
+```sh
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-timers-validation/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-timers-validation/.pio/build/esp32dev/firmware.elf \
+  --max-seconds 0.8 --no-reboot --no-dump
+```
+
+The relevant serial output was:
+
+```text
+start millis=3 micros=3041
+sample millis=102 micros=102525 esp=0 hw=1
+sample millis=202 micros=202527 esp=1 hw=3
+sample millis=302 micros=302528 esp=2 hw=5
+sample millis=402 micros=402529 esp=3 hw=7
+sample millis=502 micros=502530 esp=4 hw=9
+sample millis=602 micros=602532 esp=5 hw=11
+sample millis=702 micros=702533 esp=6 hw=13
+[emu] stop: Halted; emulated 0.800s (192000000 cycles)
+```
+
+This checks that `micros()` follows modeled time, the 100 ms `esp_timer` callback keeps
+firing after its initial scheduling latency, and the 50 ms hardware alarm continues at
+twice that rate. The unchanged blink artifact was also rerun with:
+
+```sh
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-pio/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-pio/.pio/build/esp32dev/firmware.elf \
+  --max-seconds 2.2 --no-reboot --no-dump
+```
+
+It now prints advancing values, superseding the retained earlier `tick 0` observation:
+
+```text
+CLASSIC_BOOT
+tick 3
+tick 502
+tick 1002
+tick 1502
+tick 2002
+[emu] stop: Halted; emulated 2.200s (528000000 cycles)
+```
+
+The task-watchdog sketch enables the Arduino loop watchdog and then stops feeding it:
+
+```cpp
+#include <Arduino.h>
+#include <esp_system.h>
+
+RTC_DATA_ATTR uint32_t boots;
+
+void setup() {
+  Serial.begin(115200);
+  Serial.printf("boot=%u reset=%d\n", ++boots, esp_reset_reason());
+  enableLoopWDT();
+}
+
+void loop() {
+  Serial.println("starving loop watchdog");
+  while (true) {}
+}
+```
+
+Build it with `pio run` in `/tmp/esp32sim-classic-wdt-validation`, then run:
+
+```sh
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-wdt-validation/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-wdt-validation/.pio/build/esp32dev/firmware.elf \
+  --max-seconds 6.2 --no-dump
+```
+
+The relevant output was:
+
+```text
+boot=1 reset=1
+starving loop watchdog
+E (10037) task_wdt: Task watchdog got triggered. The following tasks/users did not reset the watchdog in time:
+E (10037) task_wdt:  - loopTask (CPU 1)
+E (10037) task_wdt: Aborting.
+[emu] chip reset at t=5.024s: cause 0xc (RTC_SW_CPU_RESET)
+Rebooting...
+rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+boot=1 reset=6
+starving loop watchdog
+[emu] stop: Halted; emulated 6.200s (1488000056 cycles)
+```
+
+The first diagnostic implementation rebooted at the same watchdog deadline but reported
+`reset=3` after reboot. The timer reset recreated RTC register storage and erased the
+ESP-IDF task-watchdog hint before `esp_reset_reason()` consumed it. Preserving the RTC
+register storage and slow-clock state across reboot fixed the root cause; the rerun above
+reports `6`, which is `ESP_RST_TASK_WDT`. The ROM's hardware cause remains the expected
+panic path's software CPU reset (`0xc`).
+
+Final checks at `7bcb5a9`:
+
+```text
+cargo test -p esp32       14 passed; 0 failed
+cargo test --workspace    passed; external-firmware tests remained explicitly ignored
+cargo build --release     passed
+tools/wasm-build.sh       passed
+```
+
+The release and WASM builds cover the existing S3, C3 and C6 targets without changing
+their shared timer code. `node tools/check-evidence-privacy.mjs` passed after this edit:
+1,472 tracked evidence files and 15 gzip files checked, with no configured patterns
+found. Manual review found no retained user name, host name, device identifier, raw
+capture or unrelated process data in the timer extension.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
 SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, classic
-LEDC, partial RTC/TIMG watchdog behavior, ECO3 eFuse identity, SHA-256, random input and
-APP CPU control. I2C0 and I2C1 execute classic master command lists against attached board
-devices and deliver their interrupts through DPORT. GPIO0-39 include output/enable aliases,
-pad input, supported pulls, matrix input/output routing and PRO/APP edge and level
-interrupts; GPIO34-39 remain input-only.
+LEDC, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
+eFuse identity, SHA-256, random input and APP CPU control. I2C0 and I2C1 execute classic
+master command lists against attached board devices and deliver their interrupts through
+DPORT. GPIO0-39 include output/enable aliases, pad input, supported pulls, matrix
+input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
 DPORT routes GPIO, UART0-2, LEDC, I2C0/1, TIMG0/1 timer and watchdog, RTC watchdog and
 CPU-to-CPU sources through the per-core maps. Other unmodeled peripheral blocks use the
-existing round-trip
-register RAM: reads start at zero and writes persist, but there is no device behavior or
-interrupt generation.
+existing round-trip register RAM: reads start at zero and writes persist, but there is no
+device behavior or interrupt generation.
 
 Direct IO_MUX function selection bypasses the GPIO matrix. LEDC uses the classic-local
 output hook, although individual PWM edges are not generated. Other direct peripheral pad
-waveforms remain unmodeled. Watchdog interrupt actions are modeled; watchdog reset actions
-are not. External GPIO drive is an absolute host level,
+waveforms remain unmodeled. LACT sleep-time RTC stepping is not modeled. The reused T0/T1
+implementation has the newer chips' 54-bit counter width rather than the classic
+hardware's full 64 bits; short Arduino alarms are covered. A watchdog CPU-reset action
+currently reboots the whole emulated chip while publishing the CPU-reset cause because the
+runner has no per-core reset operation. External GPIO drive is an absolute host level,
 matching the existing script API; there is no separate release-to-pull command.
 
 The boot run first touched these register-RAM stubs:
@@ -646,6 +847,10 @@ target. LX6 has a three-byte maximum instruction length; LX7 PIE can use four by
   Arduino reads the classic `UART_MEM_RX_STATUS` FIFO pointers at offset `0x60`; the
   shared newer-chip UART layout returned storage there. The classic adapter now reports
   pointers from the actual FIFO depth, and the rerun returned exactly `5a` and `0a`.
+- A supplemental `cargo fmt --check -p esp32` exited 1 because it requested unrelated
+  reflow of inherited compact code at `periph.rs` lines 3, 44, 492 and 872 and `soc.rs`
+  line 52. No formatting was applied; `git diff --check` passed. This was not one of the
+  requested correctness gates.
 - Before preserving LX6 F64 user registers, `wur.f64r_lo` at `0x4008f497` entered the
   double-exception vector. Before DPORT CPU-to-CPU interrupts were connected, FreeRTOS
   did not schedule the application task. Before the UART FIFO aliases were mapped, the
