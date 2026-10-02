@@ -96,8 +96,18 @@ One action per line, `<seconds> <cmd> [args]`; buttons/encoder are active low.
 4.0  serial {"action":"set_note","value":"5"}
 4.2  uart0 root              # a line into UART0's receive FIFO (also `uart1`): a login on a Linux console
 4.5  touch 450 30 1        # touch panel press at (450,30); `touch x y 0` releases
+4.6  adc 34 1.650          # apply 1.650 V to an ADC pad
+4.7  touchpad 4 1          # capacitive GPIO4 pad touched; 0 releases
 5.5  stop
 ```
+
+`adc <gpio> <volts>` supplies a constant voltage on ESP32-S3 and classic ESP32.
+`adcwave <gpio> <file> <rate_hz>` supplies waveform samples in volts, separated by
+whitespace or commas, starting at the command time and holding the last sample
+after the file ends. Classic ESP32 clamps sampled voltages to 0..3.3 V and rounds
+to millivolts. `touchpad <gpio> <0|1>` controls classic capacitive pads separately
+from display `touch`. Unsupported pads do not affect conversions. The classic
+report includes enabled DAC output voltages on GPIO25 and GPIO26.
 
 `hw/wsdrive.py [port] [seconds]` drives the same inputs over the UI's WebSocket and reports
 real-time keep-up (push gaps, lag, audio delivered); `hw/wsaudio.py [port] [seconds]` listens to the

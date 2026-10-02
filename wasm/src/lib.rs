@@ -85,7 +85,7 @@ unsafe fn text<'a>(ptr: *const u8, len: usize) -> &'a str {
 
 /// `board` is a CLI board name (atech14, waveshare-cam, waveshare-lcd4b,
 /// waveshare-amoled18-v2, none) for the ESP32-S3,
-/// or `esp32c3` for the RISC-V chip, which is console-only and takes no board. Null on failure.
+/// or `esp32`, `esp32c3` for console-only chips with no board. Null on failure.
 /// Flash and PSRAM are each limited to 32 MiB, matching the browser configuration form.
 ///
 /// # Safety
@@ -107,7 +107,13 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
     } else {
         esp32c6::board::make_board(&board)
     };
-    let m = if board == "esp32c3" || board == "c3" {
+    let m = if board == "esp32" || board == "classic" {
+        let mut m = esp32::machine([0x24, 0x6f, 0x28, 0x00, 0x11, 0x22], flash_bytes);
+        m.bus.set_flash_size(flash_bytes);
+        m.console.mask = 2;
+        prepare(&mut m);
+        MachineKind::Esp32(Box::new(m))
+    } else if board == "esp32c3" || board == "c3" {
         let mut m = esp32c3::machine([0x3c, 0x84, 0x27, 0xb6, 0xa7, 0x1c], flash_bytes);
         m.bus.set_flash_size(flash_bytes);
         m.console.mask = 2;                                  // the ROM mirrors its console to UART0 and USB-Serial/JTAG

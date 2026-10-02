@@ -107,9 +107,15 @@ pub trait SocBus: Bus {
     /// Bytes from the host into UART `n`'s receive FIFO (a terminal on the chip's UART0 pins).
     fn uart_input(&mut self, n: usize, data: &[u8]);
     fn gpio_set_input(&mut self, pin: u8, level: bool);
+    /// Drive an analog pad (script `adc` / `adcwave`); chips without an ADC model ignore it.
+    fn analog_set(&mut self, _pin: u8, _src: esp_periph::AnalogSource) {}
+    /// Touch or release a capacitive GPIO pad, separate from the board's touch panel.
+    fn set_touch_input(&mut self, _pin: u8, _touched: bool) {}
     /// Deliver host touch at the bus's current time horizon.
     fn touch_input(&mut self, x: u16, y: u16, down: bool) { self.board().touch(x, y, down); }
     fn gpio_input(&self) -> u64;
+    /// Averaged PWM at a GPIO-matrix output: frequency in Hz and high-time fraction scaled to 0..65535.
+    fn pwm_output(&self, _pin: u32) -> Option<(f64, u32)> { None }
     /// Start/stop recording GPIO edges (outputs as they reach the board, inputs as they are set).
     fn observe_gpio(&mut self, on: bool);
     /// (cycle, pin, level) edges recorded since the last call.

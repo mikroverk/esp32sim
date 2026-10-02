@@ -1,0 +1,267 @@
+{
+  "experiment": "EX199",
+  "base": "4ff7f45",
+  "implementation": "cf257f61b017e056309d06d2ef9ebdc26bc5d34e",
+  "scope": "Classic crypto functional correctness, not execution speed or silicon timing. No shared-code or other-chip change.",
+  "environment": {
+    "host": "Darwin arm64",
+    "rust": "1.96.0",
+    "cargo": "1.96.0",
+    "python": "3.14.7",
+    "platformio": "6.1.19",
+    "platform": "55.3.38+sha.fbdfc29",
+    "arduino": "3.3.8",
+    "arduino_libraries": "5.5.4+sha.735507283d",
+    "xtensa_toolchain": "14.2.0+20260121",
+    "esptool": "5.2.0",
+    "board": "esp32dev",
+    "hardware_aes": 1,
+    "hardware_sha": 1,
+    "hardware_mpi": 1
+  },
+  "input_sha256": {
+    "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31",
+    "platformio.ini": "b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500",
+    "crypto-validation.cpp": "8f88928599c493285b3d2b2d569cd3df95bada8f59c6dbb9c78cc27723b07270",
+    "firmware.elf": "c5f2540580189e8c89f0f6ee43649532b177d4e1e51f147f7d30dbc1e67777f7",
+    "firmware.factory.bin": "bd21a496d0bd2652212f0c2964f9830587cb7b8c24c82961ec1566212a650145",
+    "selected sdkconfig.h": "135c91420e58e7f11049c992a30df1e7c8ab0d7d7bab60c839e420cc7acd0b0f",
+    "esp32/src/crypto.rs": "56020434a161de2bc462c2747c9ef18caa9329900b44f53b5ad7aa2c171814ec",
+    "target/release/esp32sim": "db37dd0dcdda1d7f74e9593eb19da219735f1f8103fe6235ad898af9de0c61b6",
+    "web/wasm/esp32sim.wasm": "7d8f36e91b78bcd515ee170721dac5710ff0ef1ef1be6332ac0769f0e2bde263",
+    "crypto-montgomery-check.py": "db5fadb2055b2d4dd2ce2324ba39405a20abe8cbbbf4a4ad8258de9a45c739cd"
+  },
+  "runs": [
+    {
+      "source": "uncommitted on 4ff7f45; production behavior equivalent to cf257f6, before test-only valid-MODEXP setup and explanatory comment",
+      "command": "target/release/esp32sim --chip esp32 --boot rom --rom \"$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf\" --flash-image /tmp/esp32sim-classic-crypto-validation/.pio/build/esp32dev/firmware.factory.bin --elf /tmp/esp32sim-classic-crypto-validation/.pio/build/esp32dev/firmware.elf --max-seconds 0.8 --no-reboot --no-dump --debug aes,sha,rsa",
+      "conditions": "Initial functional check overlapped workspace tests. No speed conclusion.",
+      "log": "/tmp/esp32-classic-crypto-run.log",
+      "sanitized_log_sha256": "b0a3d084500dd19658d9bd949278aef3f529a711b1c9554c0c782278636a6ddb",
+      "serial": [
+        "CRYPTO_BEGIN hardware_aes=1 hardware_sha=1 hardware_mpi=1",
+        "SHA1_ABC PASS",
+        "SHA1_MULTI PASS",
+        "SHA256_ABC PASS",
+        "SHA256_MULTI PASS",
+        "SHA384_ABC PASS",
+        "SHA384_MULTI PASS",
+        "SHA512_ABC PASS",
+        "SHA512_MULTI PASS",
+        "HMAC_SHA1 PASS",
+        "AES128_ECB_ENCRYPT PASS",
+        "AES128_ECB_DECRYPT PASS",
+        "AES192_ECB_ENCRYPT PASS",
+        "AES192_ECB_DECRYPT PASS",
+        "AES256_ECB_ENCRYPT PASS",
+        "AES256_ECB_DECRYPT PASS",
+        "AES128_CBC_ENCRYPT PASS",
+        "AES128_CBC_DECRYPT PASS",
+        "AES256_CBC_ENCRYPT PASS",
+        "AES256_CBC_DECRYPT PASS",
+        "MPI_EXP_MOD_2048 PASS",
+        "MPI_MULT_1024 PASS",
+        "MPI_MULT_2304_MOD_FALLBACK PASS",
+        "CRYPTO_DONE passed=22 failed=0"
+      ],
+      "stop": "Halted",
+      "core_instructions": [
+        5781519,
+        2628068
+      ],
+      "wall_seconds_diagnostic_only": 3.2,
+      "reported_minsn_per_second_diagnostic_only": 2.6,
+      "modeled_seconds": 0.8,
+      "cycles": 192000000,
+      "exceptions": 10435,
+      "interrupts": 1669,
+      "aes_blocks_by_mode": {
+        "0": 5,
+        "4": 5,
+        "1": 1,
+        "5": 1,
+        "2": 5,
+        "6": 5
+      },
+      "sha_blocks_by_algorithm": {
+        "256": 4921,
+        "1": 9,
+        "384": 3,
+        "512": 3
+      },
+      "rsa_commands_by_kind_and_words": {
+        "multiply words=32": 1,
+        "montgomery words=80": 4,
+        "montgomery words=64": 21,
+        "multiply words=64": 1
+      }
+    },
+    {
+      "source": "cf257f61b017e056309d06d2ef9ebdc26bc5d34e",
+      "command": "target/release/esp32sim --chip esp32 --boot rom --rom \"$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf\" --flash-image /tmp/esp32sim-classic-crypto-validation/.pio/build/esp32dev/firmware.factory.bin --elf /tmp/esp32sim-classic-crypto-validation/.pio/build/esp32dev/firmware.elf --max-seconds 0.8 --no-reboot --no-dump --debug aes,sha,rsa",
+      "conditions": "Rebuilt from committed implementation; debug logging enabled. No speed conclusion.",
+      "log": "/tmp/esp32-classic-crypto-final.log",
+      "sanitized_log_sha256": "851b08c25f7339d4ac69e8ae13568ef06571245d2faec0734022a70cce3683d5",
+      "serial": [
+        "CRYPTO_BEGIN hardware_aes=1 hardware_sha=1 hardware_mpi=1",
+        "SHA1_ABC PASS",
+        "SHA1_MULTI PASS",
+        "SHA256_ABC PASS",
+        "SHA256_MULTI PASS",
+        "SHA384_ABC PASS",
+        "SHA384_MULTI PASS",
+        "SHA512_ABC PASS",
+        "SHA512_MULTI PASS",
+        "HMAC_SHA1 PASS",
+        "AES128_ECB_ENCRYPT PASS",
+        "AES128_ECB_DECRYPT PASS",
+        "AES192_ECB_ENCRYPT PASS",
+        "AES192_ECB_DECRYPT PASS",
+        "AES256_ECB_ENCRYPT PASS",
+        "AES256_ECB_DECRYPT PASS",
+        "AES128_CBC_ENCRYPT PASS",
+        "AES128_CBC_DECRYPT PASS",
+        "AES256_CBC_ENCRYPT PASS",
+        "AES256_CBC_DECRYPT PASS",
+        "MPI_EXP_MOD_2048 PASS",
+        "MPI_MULT_1024 PASS",
+        "MPI_MULT_2304_MOD_FALLBACK PASS",
+        "CRYPTO_DONE passed=22 failed=0"
+      ],
+      "stop": "Halted",
+      "core_instructions": [
+        5781519,
+        2628068
+      ],
+      "wall_seconds_diagnostic_only": 2.2,
+      "reported_minsn_per_second_diagnostic_only": 3.8,
+      "modeled_seconds": 0.8,
+      "cycles": 192000000,
+      "exceptions": 10435,
+      "interrupts": 1669,
+      "aes_blocks_by_mode": {
+        "0": 5,
+        "4": 5,
+        "1": 1,
+        "5": 1,
+        "2": 5,
+        "6": 5
+      },
+      "sha_blocks_by_algorithm": {
+        "256": 4921,
+        "1": 9,
+        "384": 3,
+        "512": 3
+      },
+      "rsa_commands_by_kind_and_words": {
+        "multiply words=32": 1,
+        "montgomery words=80": 4,
+        "montgomery words=64": 21,
+        "multiply words=64": 1
+      }
+    }
+  ],
+  "checks": {
+    "cargo build --release": "passed on committed implementation",
+    "cargo test -p esp32": "35 passed, 0 failed, 0 ignored; rerun after test setup correction",
+    "cargo test --workspace": "498 passed, 0 failed, 22 existing ignored; before test-only MODEXP setup correction",
+    "tools/wasm-build.sh": "passed after test-only correction",
+    "python3 docs/evidence/classic-esp32-spike-2026-10-02/crypto-montgomery-check.py": "48 passed; Random(199), all 512..4096-bit modes, full-width and 67-bit moduli",
+    "node tools/check-evidence-privacy.mjs": "passed: 1475 tracked evidence files, including 15 gzip files, no configured privacy patterns; manual review passed",
+    "git diff --check": "passed"
+  },
+  "limitations": [
+    "Operations complete synchronously; hardware busy latency, contention and DMA are not modeled. Classic IDF uses CPU AES/SHA blocks, no AES DMA.",
+    "Direct MODEXP computes exact exponentiation assuming valid R squared and M prime; malformed preprocessing is not reproduced.",
+    "Register storage remains writable under asserted reset, but commands are gated.",
+    "RSA interrupts tested through DPORT at register level; selected Arduino MPI driver polls completion.",
+    "No WPA2 association, complete TLS handshake or RSA sign/verify run; public 2048-bit MPI exp_mod is the requested alternative."
+  ],
+  "diagnostics": [
+    {
+      "command": "pio run --project-dir /tmp/esp32sim-classic-crypto-validation",
+      "error": "PermissionError: [Errno 1] Operation not permitted: '/Users/alice/.platformio/platforms.lock'",
+      "resolution": "One authorized retry with installed package-cache access succeeded; sketch unchanged."
+    },
+    {
+      "command": "cargo test -p esp32 crypto::tests -- --nocapture",
+      "error": "E0432 unresolved import crate::crypto::ClassicRsa at periph.rs:3:37; E0599 no method named sync_crypto at periph.rs:622:11 and 680:18",
+      "resolution": "RSA implementation and sync wiring were still being appended. Standalone AES/SHA checks passed; integrated tests passed after completion. No original log retained."
+    },
+    {
+      "command": "git add esp32/src/crypto.rs esp32/src/lib.rs esp32/src/periph.rs",
+      "error": "fatal: Unable to create '/private/tmp/esp32sim-review/.git/worktrees/esp32sim-classic-crypto/index.lock': Operation not permitted",
+      "resolution": "One authorized Git-metadata retry committed locally; no other working tree edited."
+    },
+    {
+      "action": "Supplemental official IDF source browsing",
+      "error": "Cache miss for v5.5.4 MPI/SHA pages and raw retry",
+      "resolution": "Used installed IDF sources and headers; official capabilities/AES pages and TRM readable."
+    }
+  ],
+  "curation": {
+    "policy": "No raw logs, generated Rust vectors, binary firmware or build trees committed. Personal home paths and login labels normalized in temporary logs. Exact numeric output retained. Montgomery generator uses discovered repository path and temporary output instead of fixed absolute paths.",
+    "temporary_log_hash_pairs": [
+      {
+        "file": "/tmp/esp32-classic-crypto-build.log",
+        "original_sha256": "dfef7ea00289716f540d01054eb3752f00e43bc68aad51046531e1dccca55118",
+        "sanitized_sha256": "dfef7ea00289716f540d01054eb3752f00e43bc68aad51046531e1dccca55118",
+        "bytes": 296
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-final.log",
+        "original_sha256": "2632e1fe51a395039c00653fd94e78923c5f0c2083adc0a058d94e1f7d288240",
+        "sanitized_sha256": "851b08c25f7339d4ac69e8ae13568ef06571245d2faec0734022a70cce3683d5",
+        "bytes": 244406
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-montgomery.log",
+        "original_sha256": "8d4f6ef653b2f2c05e0e14acfdfa6ff0f9ac0895bbbda48a91cc058794bac998",
+        "sanitized_sha256": "8d4f6ef653b2f2c05e0e14acfdfa6ff0f9ac0895bbbda48a91cc058794bac998",
+        "bytes": 88
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-privacy-pre.log",
+        "original_sha256": "75a1d8fc5d937cf3bb2d8f340d1d4d3200b838847d34733acf469c44f6313563",
+        "sanitized_sha256": "75a1d8fc5d937cf3bb2d8f340d1d4d3200b838847d34733acf469c44f6313563",
+        "bytes": 130
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-run.log",
+        "original_sha256": "3f3c618ec1a67d8831526b86c0f2847a4180d87f06167c953e8f78c06a4fdf2e",
+        "sanitized_sha256": "b0a3d084500dd19658d9bd949278aef3f529a711b1c9554c0c782278636a6ddb",
+        "bytes": 244406
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-unit.log",
+        "original_sha256": "d9d831ca2577539223134c3b1763c34d1272245c1bd43f4561636c30ca5cdd5b",
+        "sanitized_sha256": "d9d831ca2577539223134c3b1763c34d1272245c1bd43f4561636c30ca5cdd5b",
+        "bytes": 3113
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-wasm.log",
+        "original_sha256": "1d6f50a5bea086d2617162c4938cd8af33bd61ea14993f128f5eba6a39583cfb",
+        "sanitized_sha256": "10c888cd1d8c2e59cd9a8b1b578a056b78e1370fa5e85dde8d29abf4b069cabf",
+        "bytes": 990
+      },
+      {
+        "file": "/tmp/esp32-classic-crypto-workspace.log",
+        "original_sha256": "3c44de68a3467552eebff78686562d268c1f9ee19aebc76f5b6fbe9a675f0340",
+        "sanitized_sha256": "3c44de68a3467552eebff78686562d268c1f9ee19aebc76f5b6fbe9a675f0340",
+        "bytes": 49275
+      },
+      {
+        "file": "/tmp/esp32sim-classic-crypto-validation/build.log",
+        "original_sha256": "1e5f6132d6d95ef6dbbcee387d7831ea0bf747abdca35b12fd1f8d2ca2d77d12",
+        "sanitized_sha256": "5e28222aa38cfa3400117f1458c2113ca82d13369cf43b782a0c5d22d6ed0fa7",
+        "bytes": 4909
+      },
+      {
+        "file": "/tmp/esp32sim-classic-crypto-validation/build-retry.log",
+        "original_sha256": "6454fafd5eada6e09ed8715fe3b7539a649684a938895dbcb21d067a969a508b",
+        "sanitized_sha256": "6454fafd5eada6e09ed8715fe3b7539a649684a938895dbcb21d067a969a508b",
+        "bytes": 8616
+      }
+    ]
+  }
+}

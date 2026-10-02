@@ -14,7 +14,11 @@ mod modeled;
 mod web;
 
 #[derive(Clone, Debug)]
-pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32) }
+pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32), TouchPad(u8, bool), Analog(u8, esp_periph::AnalogSource),
+    /// `waituart0 <timeout_s> <text>`: hold the rest of the script until UART0 prints `text` (or the
+    /// timeout passes), then shift every later action by the time actually waited. Fields: text,
+    /// timeout in cycles, the cycle the script placed it at.
+    WaitUart0(String, u64, u64) }
 
 /// The stop conditions that are not observers.
 pub struct Debug { pub stop_on_unimplemented: bool, pub stop_after_exceptions: u64 }
@@ -33,7 +37,9 @@ pub struct Console {
 }
 
 /// Host actions scheduled at emulated times (`--script`, and the UI's encoder detents).
-pub struct Script { pub events: Vec<(u64, ScriptAction)>, pub pos: usize, pub log: bool, knob_next: u64 }
+pub struct Script { pub events: Vec<(u64, ScriptAction)>, pub pos: usize, pub log: bool, knob_next: u64,
+                   /// UART0 text seen so far (capped) and where the pending wait started looking
+                   uart0_seen: Vec<u8>, wait_mark: Option<usize> }
 
 pub struct Realtime {
     pub enabled: bool,
@@ -145,7 +151,7 @@ impl<S: Soc> Machine<S> {
             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
             observers: Vec::new(), probes: Wants::NONE, prev_irq: vec![0; S::CORES],
             exceptions: 0, interrupts: 0, irq_hist: vec![[0; 32]; S::CORES],
-            script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0 }, max_cycles: u64::MAX,
+            script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0, uart0_seen: Vec::new(), wait_mark: None }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
             web: None, ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
@@ -327,6 +333,10 @@ impl<S: Soc> Machine<S> {
         for (i, d) in streams.into_iter().enumerate() {
             let src = ["usb", "uart0", "uart1", "uart2"][i];
             if i < 2 {
+                if i == 1 && !d.is_empty() {
+                    let seen = &mut self.script.uart0_seen; seen.extend_from_slice(&d);
+                    if seen.len() > 1 << 20 { let cut = seen.len() - (1 << 19); seen.drain(..cut); self.script.wait_mark = self.script.wait_mark.map(|m| m.saturating_sub(cut)); }
+                }
                 let backlog = if i == 0 { &mut self.console.usb } else { &mut self.console.uart0 };
                 backlog.extend_from_slice(&d);
                 if backlog.len() > 65536 { let cut = backlog.len() - 49152; backlog.drain(..cut); }
@@ -977,6 +987,24 @@ impl<S: Soc> Machine<S> {
     fn apply_due_script_events(&mut self) -> bool {
         let mut stopped = false;
         while self.script.pos < self.script.events.len() && self.script.events[self.script.pos].0 <= self.bus.cycles() {
+            if let ScriptAction::WaitUart0(text, timeout, orig) = self.script.events[self.script.pos].1.clone() {
+                self.drain_console();
+                let now = self.bus.cycles();
+                let mark = *self.script.wait_mark.get_or_insert(self.script.uart0_seen.len());
+                let hit = self.script.uart0_seen[mark.min(self.script.uart0_seen.len())..].windows(text.len().max(1)).any(|w| w == text.as_bytes());
+                if !hit && now < orig.saturating_add(timeout) {
+                    self.script.events[self.script.pos].0 = now + S::CPU_HZ / 1000;   // look again in 1 ms, without spinning
+                    break;
+                }
+                let waited = now.saturating_sub(orig);
+                if self.script.log { eprintln!("[script] t={:.3}s wait uart0 {} {:?} after {:.3}s", now as f64 / S::CPU_HZ as f64, if hit { "matched" } else { "timeout" }, text, waited as f64 / S::CPU_HZ as f64); }
+                self.script.wait_mark = None; self.script.pos += 1;
+                for e in self.script.events[self.script.pos..].iter_mut() {
+                    e.0 += waited;
+                    if let ScriptAction::WaitUart0(_, _, o) = &mut e.1 { *o += waited; }
+                }
+                continue;
+            }
             let (t, a) = self.script.events[self.script.pos].clone(); self.script.pos += 1;
             if self.script.log { eprintln!("[script] t={:.3}s {:?}", t as f64 / S::CPU_HZ as f64, a); }
             match a {
@@ -986,6 +1014,9 @@ impl<S: Soc> Machine<S> {
                 ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::Touch(x, y, d) => { self.bus.touch_input(x, y, d); }
                 ScriptAction::Poke(a, v) => { let _ = self.bus.write32_unpriced(a, v); }
+                ScriptAction::TouchPad(pin, touched) => self.bus.set_touch_input(pin, touched),
+                ScriptAction::Analog(pin, src) => self.bus.analog_set(pin, src),
+                ScriptAction::WaitUart0(..) => {}
             }
         }
         stopped
@@ -1070,7 +1101,25 @@ impl<S: Soc> Machine<S> {
                 "gpio" => { let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?; let l = p.next().unwrap_or("1") == "1"; ev.push((c, ScriptAction::Gpio(pn, l))); }
                 "poke" => { let mut p = rest.split_whitespace(); let a = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).map_err(|e| e.to_string())?; let v = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).map_err(|e| e.to_string())?; ev.push((c, ScriptAction::Poke(a, v))); }
                 "touch" => { let mut p = rest.split_whitespace(); let x: u16 = p.next().and_then(|v| v.parse().ok()).unwrap_or(0); let y: u16 = p.next().and_then(|v| v.parse().ok()).unwrap_or(0); let d = p.next().unwrap_or("1") == "1"; ev.push((c, ScriptAction::Touch(x, y, d))); }
+                "touchpad" => {
+                    let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?;
+                    if pn >= 64 { return Err(format!("line {}: GPIO must be below 64", ln + 1)); }
+                    let touched = match p.next() { Some("0") => false, Some("1") => true, _ => return Err(format!("line {}: touchpad needs 0 or 1", ln + 1)) };
+                    if p.next().is_some_and(|v| !v.starts_with('#')) { return Err(format!("line {}: touchpad takes a GPIO and one value", ln + 1)); }
+                    ev.push((c, ScriptAction::TouchPad(pn, touched)));
+                }
                 "serial" => ev.push((c, ScriptAction::Serial(format!("{}\n", rest)))),
+                // adc <gpio> <volts>: constant voltage on an analog pad
+                "adc" => { let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?;
+                           let v: f32 = p.next().and_then(|x| x.parse().ok()).ok_or_else(|| format!("line {}: adc <gpio> <volts>", ln + 1))?;
+                           ev.push((c, ScriptAction::Analog(pn, esp_periph::AnalogSource::Const(v)))); }
+                // adcwave <gpio> <file> <rate_hz>: volts (one per line / comma / whitespace separated) played from this time on
+                "adcwave" => { let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?;
+                               let f = p.next().ok_or_else(|| format!("line {}: adcwave <gpio> <file> <rate_hz>", ln + 1))?;
+                               let rate: f64 = p.next().and_then(|x| x.parse().ok()).ok_or_else(|| format!("line {}: adcwave needs a rate in Hz", ln + 1))?;
+                               let text = std::fs::read_to_string(f).map_err(|e| format!("line {}: {}: {}", ln + 1, f, e))?;
+                               let samples: Vec<f32> = text.split(|ch: char| ch == ',' || ch.is_whitespace()).filter(|s| !s.is_empty()).map(|s| s.parse::<f32>()).collect::<Result<_, _>>().map_err(|e| format!("line {}: {}: {}", ln + 1, f, e))?;
+                               ev.push((c, ScriptAction::Analog(pn, esp_periph::AnalogSource::Wave { samples: std::sync::Arc::new(samples), rate_hz: rate, start_cycles: c }))); }
                 "uart0" | "uart1" => ev.push((c, ScriptAction::Uart(if cmd == "uart0" { 0 } else { 1 }, format!("{}\n", rest)))),
                 "knob" => {
                     let mut p = rest.split_whitespace(); let dir = p.next().unwrap_or("cw"); let n: usize = p.next().map(|x| x.parse().unwrap_or(1)).unwrap_or(1);
@@ -1083,6 +1132,9 @@ impl<S: Soc> Machine<S> {
                     }
                 }
                 "stop" => ev.push((c, ScriptAction::Stop)),
+                "waituart0" => { let mut p = rest.splitn(2, char::is_whitespace); let to: f64 = p.next().and_then(|x| x.parse().ok()).ok_or_else(|| format!("line {}: waituart0 <timeout_s> <text>", ln + 1))?;
+                                 let text = p.next().unwrap_or("").trim().to_string(); if text.is_empty() { return Err(format!("line {}: waituart0 needs text", ln + 1)); }
+                                 ev.push((c, ScriptAction::WaitUart0(text, (to * hz) as u64, c))); }
                 _ => return Err(format!("line {}: unknown command {}", ln + 1, cmd)),
             }
         }
