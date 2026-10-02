@@ -264,6 +264,12 @@ impl SocBus {
         }
     }
 
+    /// Clear both I2C buses, including directly attached devices. Call before
+    /// `attach_board_devices` when replacing a board or rebuilding its device list.
+    pub fn clear_i2c_devices(&mut self) {
+        for bus in &mut self.periph.i2c { bus.clear_devices(); }
+    }
+
     /// Attach fresh peripheral-side devices and restore the levels driven by the persistent board.
     pub fn attach_board_devices(&mut self) {
         for (bus, address, device) in self.board.i2c_devices() {

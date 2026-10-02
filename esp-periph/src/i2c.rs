@@ -48,6 +48,18 @@ impl I2c {
             None => self.devices.push((addr, dev)),
         }
     }
+    /// Remove a device, returning it so the host can move it to another bus or address.
+    /// Forget a selected device: further writes NACK and reads return 0xff until a new address.
+    pub fn detach(&mut self, addr: u8) -> Option<Box<dyn I2cDevice>> {
+        let index = self.devices.iter().position(|(attached, _)| *attached == addr)?;
+        self.cur = self.cur.and_then(|cur| if cur == index { None } else { Some(cur - usize::from(cur > index)) });
+        Some(self.devices.remove(index).1)
+    }
+    /// Remove every device without resetting registers, FIFOs or interrupt status.
+    pub fn clear_devices(&mut self) {
+        self.cur = None;
+        self.devices.clear();
+    }
     pub fn has_device(&self, addr: u8) -> bool { self.devices.iter().any(|(attached, _)| *attached == addr) }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
 

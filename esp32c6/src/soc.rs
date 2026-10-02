@@ -138,6 +138,16 @@ impl esp_soc::SocBus for SocBus {
     fn observe_gpio(&mut self, on: bool) { self.gpio_events = if on { Some(Vec::new()) } else { None }; }
     fn take_gpio_events(&mut self) -> Vec<(u64, u8, bool)> { self.gpio_events.as_mut().map(std::mem::take).unwrap_or_default() }
     fn gpio_input(&self) -> u64 { self.periph.gpio.input }
+    fn gpio_state(&self, pin: u8) -> Option<esp_soc::GpioState> {
+        if pin > 30 { return None; }
+        let mux = self.periph.misc.generic.get(&0x90).map_or(0, |r| r.read(4 + u32::from(pin) * 4));
+        Some(esp_soc::GpioState {
+            output: self.periph.gpio.out & (1u64 << pin) != 0,
+            output_enable: self.periph.gpio.enable & (1u64 << pin) != 0,
+            pull_up: mux & (1 << 8) != 0,
+            pull_down: mux & (1 << 7) != 0,
+        })
+    }
     fn board(&mut self) -> &mut dyn BoardModel { &mut *self.board }
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
     fn audio(&self) -> (&[i16], u32) { (&[], 44100) }
