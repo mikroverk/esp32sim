@@ -210,19 +210,21 @@ fn c6_route_rejects_inversion_invalid_pins_and_disabled_output() {
 
 #[test]
 #[ignore = "requires external Arduino firmware and C6 ROM"]
-fn arduino_pin_transport() {
-    let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD").unwrap());
-    let rom = std::env::var_os("ESP32SIM_ROM").unwrap();
+fn external_arduino_pin_transport() {
+    let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD")
+        .expect("ESP32SIM_TRANSPORT_BUILD must name the PlatformIO build directory containing firmware.factory.bin"));
+    let rom = std::env::var_os("ESP32SIM_ROM").expect("ESP32SIM_ROM must name an ESP32-C6 revision-0 ROM ELF");
     let state = Arc::new(Mutex::new(State::default()));
     let mut m = esp32c6::machine([2, 0, 0, 0, 0, 1], 4 << 20);
     m.bus.board = Box::new(Board(state.clone()));
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).unwrap()).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("ESP32SIM_ROM must name a readable ESP32-C6 revision-0 ROM ELF")).unwrap();
     m.write_flash(
         0,
-        &std::fs::read(build.join("firmware.factory.bin")).unwrap(),
+        &std::fs::read(build.join("firmware.factory.bin"))
+            .expect("ESP32SIM_TRANSPORT_BUILD must contain a readable firmware.factory.bin"),
     )
     .unwrap();
     m.boot_rom();
