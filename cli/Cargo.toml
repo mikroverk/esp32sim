@@ -3,7 +3,7 @@ name = "esp32sim"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Run unmodified ESP32-S3, ESP32-C3 and ESP32-C6 firmware in an instruction-level emulator"
+description = "Run unmodified ESP32, ESP32-S3, ESP32-C3 and ESP32-C6 firmware in an instruction-level emulator"
 
 [lib]
 name = "esp32sim"
@@ -26,5 +26,6 @@ emu-core = { path = "../emu-core" }
 esp-periph = { path = "../esp-periph" }
 esp-soc = { path = "../esp-soc" }
 esp32s3 = { path = "../esp32s3" }
+esp32 = { path = "../esp32" }
 esp32c3 = { path = "../esp32c3" }
 esp32c6 = { path = "../esp32c6" }
