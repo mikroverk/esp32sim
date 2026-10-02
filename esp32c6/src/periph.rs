@@ -10,7 +10,7 @@ use crate::radio::Ieee802154;
 use crate::wifi::{ModemBb, WifiMac};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, RegRam, WriteEffect, NO_SOURCE};
-use esp_periph::{Aes, Efuse, Gdma, Gpio, GpSpi, Rsa, Sha, SpiMem, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
+use esp_periph::{Aes, Efuse, Gdma, Gpio, GpSpi, Ledc, LedcLayout, Mcpwm, Rsa, Sha, SpiMem, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
 use esp_periph::{RST_POWERON, RST_SW_CPU, RST_SW_SYS};
 
 pub const CPU_HZ: u64 = 160_000_000;
@@ -34,6 +34,7 @@ pub mod src {
     pub const TG0_T0: usize = 51; pub const TG0_T1: usize = 52; pub const TG0_WDT: usize = 53;
     pub const TG1_T0: usize = 54; pub const TG1_T1: usize = 55; pub const TG1_WDT: usize = 56;
     pub const SYSTIMER_T0: usize = 57; pub const SYSTIMER_T1: usize = 58; pub const SYSTIMER_T2: usize = 59;
+    pub const MCPWM0: usize = 61;
     pub const DMA_IN_CH0: usize = 66; pub const DMA_OUT_CH0: usize = 69; pub const GPSPI2: usize = 72;
     pub const AES: usize = 73; pub const SHA: usize = 74; pub const RSA: usize = 75; pub const ECC: usize = 76;
     pub const COUNT: usize = 77;
@@ -333,6 +334,8 @@ pub struct Peripherals {
     pub gpio: Gpio,
     pub io_mux: RegRam,
     pub i2c: esp_periph::i2c::I2c,
+    pub ledc: Ledc,
+    pub mcpwm: Mcpwm,
     pub efuse: Efuse,
     pub spi0: SpiMemC6,
     pub spi1: SpiMemC6,
@@ -373,11 +376,13 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x02 "SPI0" (spi0) => [];
     0x03 "SPI1" (spi1) => [];
     0x06 "RMT" (rmt) => [src::RMT];
+    0x07 "LEDC" (ledc) => [src::LEDC];
     0x08 "TIMG0" (timg[0]) => [src::TG0_T0];
     0x09 "TIMG1" (timg[1]) => [src::TG1_T0];
     0x0a "SYSTIMER" (systimer) => [src::SYSTIMER_T0, src::SYSTIMER_T1, src::SYSTIMER_T2];
     0x0f "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x10 "INTMTX" (intmtx) => [];
+    0x14 "MCPWM" (mcpwm) => [src::MCPWM0];
     // three channels; the model numbers its sources out 0..4 then in 0..4
     0x80 "GDMA" (gdma) => [src::DMA_OUT_CH0, src::DMA_OUT_CH0 + 1, src::DMA_OUT_CH0 + 2, NO_SOURCE, NO_SOURCE, src::DMA_IN_CH0, src::DMA_IN_CH0 + 1, src::DMA_IN_CH0 + 2, NO_SOURCE, NO_SOURCE];
     0x81 "SPI2" (spi2) => [src::GPSPI2];
@@ -420,7 +425,7 @@ impl Peripherals {
         Peripherals {
             adc: esp_periph::sar_adc::SarAdc::new(true, CPU_HZ),
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
@@ -470,7 +475,19 @@ impl Peripherals {
         if addr == 0x6000_4004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
             self.i2c.set_pins(self.i2c_pin(46).zip(self.i2c_pin(45)));
         }
+        if addr == PERIPH_BASE + 0x96034 && v & 2 != 0 { self.ledc = Ledc::new(LedcLayout::C6); }
+        if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { self.mcpwm = Mcpwm::new(87); }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        if addr == PERIPH_BASE + 0x96034 || addr == PERIPH_BASE + 0x96038 {
+            let conf = self.pcr.read(0x34); let clock = self.pcr.read(0x38);
+            self.ledc.external_clock_hz = if conf & 3 != 1 || clock & (1 << 22) == 0 { 0 } else { match (clock >> 20) & 3 { 1 => 80_000_000, 2 => 20_000_000, 3 => 40_000_000, _ => 0 } };
+        }
+        if addr == PERIPH_BASE + 0x9609c || addr == PERIPH_BASE + 0x960a0 {
+            let conf = self.pcr.read(0x9c); let clock = self.pcr.read(0xa0);
+            let source = match (clock >> 20) & 3 { 1 => 160_000_000, 2 => 40_000_000, 3 => 20_000_000, _ => 0 };
+            self.mcpwm.source_hz = source / (((clock >> 12) & 0xff) + 1) as u64;
+            self.mcpwm.clock_enabled = conf & 3 == 1 && clock & (1 << 22) != 0 && source != 0;
+        }
     }
 
     /// The CPU-subsystem window (0x20001000): the machine-level PLIC is the interrupt controller;

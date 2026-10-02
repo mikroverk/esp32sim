@@ -1,5 +1,5 @@
-//! ESP32-S3 MCPWM register model for independently routed, up-counting PWM generators.
-use crate::{Device, Gpio, RegRam, WriteEffect};
+//! MCPWM register model for independently routed, up-counting PWM generators.
+use crate::{Device, Gpio, RegRam, WriteEffect, APB_HZ};
 use emu_core::ClockDomain;
 
 pub struct Mcpwm {
@@ -8,15 +8,17 @@ pub struct Mcpwm {
     compare: [[u32;2];3],
     pending: [[bool;2];3],
     phase: [u64;3],
+    clock_remainder: [u64;3],
     raw: u32,
     pub clock_enabled: bool,
+    pub source_hz: u64,
     signal_base: u32,
 }
 impl Mcpwm {
     pub fn new(signal_base: u32) -> Self {
         let mut regs=RegRam::new();regs.write(0x10c,0x55);
         for i in 0..3 {regs.write(4+i*16,255<<8);regs.write(0x4c+i*0x38,32);regs.write(0x58+i*0x38,3<<15);}
-        Self {regs,timers:[255<<8;3],compare:[[0;2];3],pending:[[false;2];3],phase:[0;3],raw:0,clock_enabled:false,signal_base}
+        Self {regs,timers:[255<<8;3],compare:[[0;2];3],pending:[[false;2];3],phase:[0;3],clock_remainder:[0;3],raw:0,clock_enabled:false,source_hz:160_000_000,signal_base}
     }
     fn timer_for(&self, operator: usize) -> usize { ((self.regs.read(0x38) >> (operator*2)) & 3) as usize }
     fn settings(&self, timer: usize) -> Option<(u64,u64)> {
@@ -64,7 +66,7 @@ impl Mcpwm {
             selected?
         }};
         if route&(1<<9)!=0 {high=period-high;}
-        Some((160_000_000.0/divider as f64/period as f64,((high*65535+period/2)/period) as u32))
+        Some((self.source_hz as f64/divider as f64/period as f64,((high*65535+period/2)/period) as u32))
     }
 }
 impl Device for Mcpwm {
@@ -104,17 +106,19 @@ impl Device for Mcpwm {
     fn tick(&mut self,ticks:u64) {
         for timer in 0..3 {
             let Some((divider,period))=self.settings(timer) else {continue;};
-            let old=self.phase[timer];let total=old+ticks*2;let wrap=divider*period;
+            let scaled=self.clock_remainder[timer] as u128+ticks as u128*self.source_hz as u128;
+            self.clock_remainder[timer]=(scaled%APB_HZ as u128) as u64;
+            let old=self.phase[timer] as u128;let total=old+scaled/APB_HZ as u128;let wrap=(divider*period) as u128;
             let full=total>=wrap;
             for operator in 0..3 {
                 if self.timer_for(operator)!=timer {continue;}
                 for cmp in 0..2 {
-                    let target=self.compare[operator][cmp] as u64*divider;
+                    let target=self.compare[operator][cmp] as u128*divider as u128;
                     if (old<target&&total>=target)||full {self.raw|=1<<(15+operator+cmp*3);}
                 }
                 if full {self.latch(operator,3,false);}
             }
-            self.phase[timer]=total%wrap;
+            self.phase[timer]=(total%wrap) as u64;
             if full {
                 self.raw|=(1<<(timer+3))|(1<<(timer+6));
                 let cfg=self.regs.read(4+timer as u32*16);

@@ -140,6 +140,8 @@ pub trait SocBus: Bus {
     /// GPIO latch, enable and IO_MUX pulls. None for an unavailable pin or unsupported chip.
     /// Pulls describe the programmed bits; they do not change the input level.
     fn gpio_state(&self, _pin: u8) -> Option<GpioState> { None }
+    /// Averaged PWM at a GPIO-matrix output: frequency in Hz and high-time fraction scaled to 0..65535.
+    fn pwm_output(&self, _pin: u32) -> Option<(f64, u32)> { None }
     /// Start/stop recording GPIO edges (outputs as they reach the board, inputs as they are set).
     fn observe_gpio(&mut self, on: bool);
     /// (cycle, pin, level) edges recorded since the last call.
