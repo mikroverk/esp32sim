@@ -784,21 +784,184 @@ their shared timer code. `node tools/check-evidence-privacy.mjs` passed after th
 found. Manual review found no retained user name, host name, device identifier, raw
 capture or unrelated process data in the timer extension.
 
+## SPI2/SPI3 and display extension
+
+Revision `773679b` extends EX199 with a wider correctness contract on the same classic
+target, ECO3 ROM and Arduino-ESP32 3.3.8 platform. It models the classic SPI2/HSPI and
+SPI3/VSPI register blocks, CPU FIFO transfers, command/address/data phases, the original
+ESP32 in-controller DMA descriptor links, normal and DMA interrupt sources, CS selection
+and polarity, and the mode control registers used by `spi_master`. Transfers use the
+classic-local GPIO hooks for fixed IO_MUX and GPIO-matrix signals, then enter the shared
+`BoardModel::spi_transfer` and `DcsPanel` path already used by later chips.
+
+Register tests cover CPU TX/RX words, separate transfer lengths, command/address phases,
+DMA readiness and completion, CS selection, retained mode bits, normal and DMA interrupt
+clearing, native TX/RX descriptor walking, and direct IO_MUX and matrix signal routing.
+
+Both temporary projects used board `esp32dev` and this pinned platform:
+
+```ini
+[env:esp32dev]
+platform = https://github.com/pioarduino/platform-espressif32.git#55.03.38-1
+board = esp32dev
+framework = arduino
+monitor_speed = 115200
+```
+
+The loopback source was:
+
+```cpp
+#include <Arduino.h>
+#include <SPI.h>
+
+void setup() {
+  Serial.begin(115200);
+  SPI.begin(18, 19, 23, 5);
+  pinMode(5, OUTPUT);
+  digitalWrite(5, LOW);
+  SPI.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
+  const uint8_t sent[] = {0x00, 0x5a, 0xa5, 0xff};
+  uint8_t received[sizeof(sent)];
+  for (size_t i = 0; i < sizeof(sent); ++i) received[i] = SPI.transfer(sent[i]);
+  SPI.endTransaction();
+  digitalWrite(5, HIGH);
+  Serial.printf("SPI_LOOPBACK %02x %02x %02x %02x %s\n",
+                received[0], received[1], received[2], received[3],
+                memcmp(sent, received, sizeof(sent)) == 0 ? "PASS" : "FAIL");
+}
+
+void loop() { delay(1000); }
+```
+
+The display source was:
+
+```cpp
+#include <Arduino.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7789.h>
+#include <SPI.h>
+
+Adafruit_ST7789 tft(&SPI, 5, 16, 17);
+
+void setup() {
+  Serial.begin(115200);
+  SPI.begin(18, 19, 23, 5);
+  tft.init(240, 320);
+  tft.fillScreen(ST77XX_RED);
+  tft.fillRect(20, 30, 80, 60, ST77XX_GREEN);
+  tft.drawPixel(239, 319, ST77XX_BLUE);
+  Serial.println("ST7789_FRAME PASS 240x320");
+}
+
+void loop() { delay(1000); }
+```
+
+The display project additionally selected
+`adafruit/Adafruit ST7735 and ST7789 Library@^1.11.0`. PlatformIO resolved version
+1.11.0 with Adafruit GFX 1.12.6 and Arduino-ESP32 3.3.8. The loopback sketch used the
+unchanged Arduino calls `SPI.begin(18, 19, 23, 5)` and four `SPI.transfer` calls in
+mode 0 at 10 MHz. The display sketch used `Adafruit_ST7789`, initialized a 240x320
+panel, filled it red, drew a green rectangle and set the lower-right pixel blue.
+
+SHA-256 inputs and temporary artifacts:
+
+| Item | SHA-256 |
+| --- | --- |
+| `/Users/alice/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf` | `920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31` |
+| `/tmp/esp32sim-classic-spi-loopback/platformio.ini` | `b86c69259be417474b2dfef705f80db5720beff2f80b471ef5762f2a65651500` |
+| `/tmp/esp32sim-classic-spi-loopback/src/main.cpp` | `d6bb505d789636c200bc32e84f31ebe475f5eb244fa477168ecd68e87072802b` |
+| Loopback `firmware.factory.bin` | `63e6408723742cfb324f66fefbab94613986d30a4a29c18bb75c922e0b4513fb` |
+| Loopback `firmware.elf` | `4bc3230de2dafb5ea7c9f975f3c3579e4a8164fbe8f4d75d980a5aecaf263cee` |
+| `/tmp/esp32sim-classic-spi-display/platformio.ini` | `ca994d4e553ed3dfac7a8f76d3f0a199e03603c230ca582ca31e7164910e6e94` |
+| `/tmp/esp32sim-classic-spi-display/src/main.cpp` | `345ea47b4139c080d8bb865c511478a9e72ba4e0e84692e71fa96013004d1104` |
+| Display `firmware.factory.bin` | `69e373919e1fc2b86f18930288d2c0eb927a00d095e1be21ac94e663da9aa3ea` |
+| Display `firmware.elf` | `4e82e6793ea9c4597db2573a0842886984a8dddcbeddd72089000c762f7c5757` |
+
+Build and run commands were:
+
+```sh
+cd /tmp/esp32sim-classic-spi-loopback
+pio run
+cd /tmp/esp32sim-classic-spi-display
+pio run
+
+# From the repository root:
+cargo build --release
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-spi-loopback/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-spi-loopback/.pio/build/esp32dev/firmware.elf \
+  --board esp32dev-loopback --max-seconds 0.8 --no-reboot --no-dump
+
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-spi-display/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-spi-display/.pio/build/esp32dev/firmware.elf \
+  --board esp32dev-st7789 --max-seconds 1.5 --no-reboot --no-dump
+```
+
+Relevant loopback output:
+
+```text
+SPI_LOOPBACK 00 5a a5 ff PASS
+[emu] stop: Halted; emulated 0.800s (192000000 cycles)
+[emu] spi3: 4 transfers
+[emu] esp32dev SPI loopback: MOSI connected to MISO
+```
+
+Relevant display output and observer report:
+
+```text
+ST7789_FRAME PASS 240x320
+[emu] stop: Halted; emulated 1.500s (360000000 cycles)
+[emu] spi3: 2587 transfers
+[emu] esp32dev ST7789: 240x320, 3 RAMWR, 81601 pixels, on=true bbox=Some((0, 0, 239, 319)); gpio events 94
+```
+
+The model delivers complete transactions rather than individual clock edges. It does not
+model bit-level SPI timing, dual/quad data lanes, DMA contention or malformed descriptor
+recovery beyond a bounded chain walk. The display fixture uses the sketch's manual GPIO5
+CS, while hardware CS selection and polarity are covered at register level. Add those
+details only when a real firmware workload requires them.
+
+The first sandboxed PlatformIO invocation failed with `PermissionError: [Errno 1]
+Operation not permitted: '/Users/alice/.platformio/platforms.lock'`. One rerun with
+access to the installed package cache succeeded; the firmware hashes above identify the
+artifacts actually executed.
+
+The final source tree passed these commands:
+
+```sh
+cargo build --release
+cargo test -p esp32
+cargo test --workspace
+tools/wasm-build.sh
+node tools/check-evidence-privacy.mjs
+```
+
+The ESP32 crate ran 16 tests. The workspace command passed all enabled tests for the
+classic target and the unchanged S3, C3, C6, shared peripheral, shared SoC, CLI and WASM
+crates. Tests that need external firmware remained ignored under their existing rules.
+The privacy checker inspected 1,472 tracked evidence files and found no configured
+patterns. Manual review found no user name, host name, email address, device identifier
+or unrelated command in this extension.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
 SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, classic
-LEDC, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
+LEDC, SPI2/SPI3 with classic SPI DMA, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
 eFuse identity, SHA-256, random input and APP CPU control. I2C0 and I2C1 execute classic
 master command lists against attached board devices and deliver their interrupts through
 DPORT. GPIO0-39 include output/enable aliases, pad input, supported pulls, matrix
 input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
-DPORT routes GPIO, UART0-2, LEDC, I2C0/1, TIMG0/1 timer and watchdog, RTC watchdog and
+DPORT routes GPIO, UART0-2, LEDC, I2C0/1, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
 CPU-to-CPU sources through the per-core maps. Other unmodeled peripheral blocks use the
 existing round-trip register RAM: reads start at zero and writes persist, but there is no
 device behavior or interrupt generation.
 
-Direct IO_MUX function selection bypasses the GPIO matrix. LEDC uses the classic-local
+Direct IO_MUX function selection bypasses the GPIO matrix. SPI2/3 drive their fixed
+clock, data-idle and hardware-CS levels through those pads. LEDC uses the classic-local
 output hook, although individual PWM edges are not generated. Other direct peripheral pad
 waveforms remain unmodeled. LACT sleep-time RTC stepping is not modeled. The reused T0/T1
 implementation has the newer chips' 54-bit counter width rather than the classic
