@@ -214,7 +214,7 @@ impl SocBus {
             mac.tx_done(queue);
             if let Some(ap) = &mut mac.ap {
                 if let Some(data) = ap.on_station_tx(&frame, now_us) {
-                    if let Some(eth) = esp_soc::wifi::data_to_eth(&data) { mac.eth_tx.push(eth); }
+                    if let Some(eth) = esp_soc::wifi::data_to_eth(&data) { if !mac.relay || (eth.len() <= 1518 && mac.eth_tx.len() < 64) { mac.eth_tx.push(eth); } }
                 }
             }
             self.irq_dirty = true;
@@ -234,7 +234,10 @@ impl SocBus {
         let mac = &mut self.periph.wifi_mac;
         let Some(ap) = mac.ap.as_mut() else { return };
         let mut due = ap.step(now_us);
-        for e in std::mem::take(&mut mac.eth_rx) {
+        let eth_in = if mac.relay {
+            if due.is_empty() && !mac.eth_rx.is_empty() { vec![mac.eth_rx.remove(0)] } else { Vec::new() }
+        } else { std::mem::take(&mut mac.eth_rx) };
+        for e in eth_in {
             if let Some(f) = ap.data_from_ds(&e) { due.push(esp_soc::wifi::AirFrame { at_us: now_us, frame: f }); }
         }
         if due.is_empty() { return; }
@@ -284,6 +287,7 @@ impl SocBus {
     fn wifi_net_step(&mut self) {
         let now_us = self.now_us();
         let mac = &mut self.periph.wifi_mac;
+        if mac.relay { return; }
         let Some(net) = mac.net.as_mut() else { return };
         let out = std::mem::take(&mut mac.eth_tx);
         let due = now_us.wrapping_sub(mac.net_polled_us) >= 500;

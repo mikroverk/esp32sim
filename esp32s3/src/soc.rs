@@ -48,6 +48,25 @@ impl Soc for S3 {
 }
 
 impl esp_soc::SocBus for SocBus {
+    fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
+        self.flush_ticks();
+        let mac = &mut self.periph.wifi;
+        if mac.relay != enabled { mac.eth_tx.clear(); mac.eth_rx.clear(); mac.relay = enabled; }
+        Ok(())
+    }
+    fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> {
+        self.flush_ticks();
+        if self.periph.wifi.relay { std::mem::take(&mut self.periph.wifi.eth_tx) } else { Vec::new() }
+    }
+    fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
+        self.flush_ticks();
+        let mac = &mut self.periph.wifi;
+        if !mac.relay || mac.ap.is_none() { return Err("Ethernet relay requires relay mode and a virtual AP".into()); }
+        if !(14..=1518).contains(&frame.len()) { return Err("Ethernet frame must be 14..=1518 bytes without FCS".into()); }
+        if mac.eth_rx.len() >= 64 { return Err("Ethernet receive queue full".into()); }
+        mac.eth_rx.push(frame.to_vec());
+        Ok(())
+    }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> { Some(SocBus::next_deadline(self)) }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
@@ -117,6 +136,7 @@ impl esp_soc::SocBus for SocBus {
         let cause = self.periph.rtc.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
+        p.wifi.ap = old.wifi.ap; p.wifi.net = old.wifi.net; p.wifi.log = old.wifi.log; p.wifi.relay = old.wifi.relay;
         p.efuse = old.efuse;
         p.gpio.strap = old.gpio.strap;
         p.misc.log_unknown = old.misc.log_unknown; p.spi1.log = old.spi1.log;

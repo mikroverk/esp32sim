@@ -225,3 +225,37 @@ The script leaves the Rust-produced WASM unchanged unless `WASM_OPT=1` is set,
 which requests Binaryen `wasm-opt -O3` and requires that tool to be installed.
 The measured configuration used no Binaryen postprocessing. `CARGO_ENCODED_RUSTFLAGS`,
 when set, takes precedence over `RUSTFLAGS` under Cargo's usual rules.
+
+## Host Ethernet relay
+
+S3, C3 and C6 provide an optional Ethernet transport behind their virtual AP.
+Configure the AP with `esp32sim_wifi`, then call `esp32sim_ethernet_relay(e, 1)`
+before boot. Association and WPA2 still run in the emulator; the host supplies
+the network behind the AP, including DHCP. This mode bypasses the built-in
+`VirtualNet`. With relay disabled, the existing virtual subnet remains the default.
+Native Rust hosts use `SocBus::set_ethernet_relay`, `take_ethernet_frames` and
+`receive_ethernet_frame` for the same operations.
+
+| Export | Contract |
+| --- | --- |
+| `esp32sim_ethernet_relay(e, enabled)` | Nonzero selects relay, zero restores the built-in network; returns 0 on success, 1 on error. |
+| `esp32sim_ethernet_take(e)` | Drain TX in FIFO order; returns the number of frames in the new batch. |
+| `esp32sim_ethernet_ptr(e, index)` | Pointer to a drained frame; null for an invalid index. |
+| `esp32sim_ethernet_len(e, index)` | Frame length; zero for an invalid index. |
+| `esp32sim_ethernet_receive(e, ptr, len)` | Copy an inbound frame; returns 0 if queued, 1 if rejected. Requires an AP and relay mode. |
+
+Frames contain Ethernet headers and payloads without FCS, from 14 through 1518
+bytes. Each direction holds at most 64 queued frames in relay mode. Excess TX
+frames are dropped; a full RX queue rejects injection. Delivery can drop frames
+when the guest has no free receive descriptor. Drain after each run slice and
+copy bytes before the next `ethernet_take`, which replaces the entire batch.
+Recreate JavaScript memory views after calls that may grow WASM memory.
+
+Changing modes clears pending Ethernet queues; selecting the same mode leaves
+them intact. Configure transport before starting guest connections. Switching
+modes does not migrate DHCP leases or TCP connections. Chip reset clears pending
+frames but preserves the AP, network object and relay selection. A drained WASM
+batch remains readable until the next `ethernet_take` or emulator deletion.
+
+The [Arduino relay check](evidence/ethernet-c3-2026-10-02/relay.mjs) shows the ABI
+with a host DHCP responder.

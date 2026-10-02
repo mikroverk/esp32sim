@@ -83,7 +83,7 @@ impl Device for ModemBb {
 ///
 /// The access point and the network behind it are the chip-independent ones from `esp-soc`; the
 /// bus moves frames between them and the guest's descriptors (`bus.rs`).
-pub struct WifiMac {
+pub struct WifiMac { pub relay: bool,
     ram: RegRam,
     pub log: bool,
     pub events: u32,
@@ -118,7 +118,7 @@ const SRAM_HIGH: u32 = 0x4080_0000;
 
 impl WifiMac {
     pub fn new() -> Self {
-        WifiMac { ram: RegRam::new(), log: false, events: 0, rx_base: 0, rx_next: 0, rx_last: 0, rx_frames: 0, rx_dropped: 0,
+        WifiMac { relay: false, ram: RegRam::new(), log: false, events: 0, rx_base: 0, rx_next: 0, rx_last: 0, rx_frames: 0, rx_dropped: 0,
                   txq_complete: 0, tx_pending: Vec::new(), tx_frames: 0, ap: None, net: None, eth_tx: Vec::new(), eth_rx: Vec::new(),
                   last_rx_us: 0, last_rx_desc: 0, net_polled_us: 0 }
     }
