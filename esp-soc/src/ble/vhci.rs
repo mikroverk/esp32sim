@@ -41,6 +41,7 @@ enum Hook {
     PowerSet,
 }
 
+#[derive(Default)]
 pub struct Ble {
     pub controller: crate::ble::Controller,
     pub hooks: Vec<u32>,
@@ -56,27 +57,6 @@ pub struct Ble {
     yield_to_host: bool,
     pub task_created: bool,
     pub original_flash: Option<(usize, Vec<u8>)>,
-}
-
-impl Default for Ble {
-    fn default() -> Self {
-        Self {
-            controller: crate::ble::Controller::new(),
-            hooks: Vec::new(),
-            kinds: HashMap::new(),
-            entry: 0,
-            init: 0,
-            create: 0,
-            delay: 0,
-            buffer: 0,
-            status: 0,
-            callbacks: [0; 2],
-            send_ready: false,
-            yield_to_host: false,
-            task_created: false,
-            original_flash: None,
-        }
-    }
 }
 
 impl Ble {
