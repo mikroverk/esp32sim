@@ -1191,12 +1191,106 @@ and command (`--wifi ssid=esp32sim,psk=classic-wifi-pass --net nat`) completes t
 handshake and connects: `WIFI_WPA2_STATUS 3 millis=1839 ip=10.0.2.15`. The SHA-1 blocker above
 is resolved by that extension, not by any Wi-Fi change.
 
+## ADC1/ADC2, DAC and touch extension
+
+Revision `c6ed024` extends EX199 on the same ECO3 ROM and unchanged Arduino-ESP32
+3.3.8 platform. The new correctness contract covers both SAR ADCs, calibration, both
+DACs and ten capacitive touch pads. This is functional evidence, not timing or speed
+measurement. [The ADC receipt](adc-validation.md) preserves both sketches, exact inputs,
+commands, output checks, hashes, source references and the initial failed run.
+
+`analogRead` uses `adc_oneshot_read`; continuous ADC is not needed. The classic-local
+`esp32/src/adc.rs` models SENS at `0x3ff48800` and RTC_IO at `0x3ff48400`, one-shot
+START/DONE/data, channel selection, 9-12 bit width, attenuation and inversion. ADC1
+channels map to GPIO36, 37, 38, 39, 32, 33, 34, 35; ADC2 maps to GPIO4, 0, 2, 15, 13,
+12, 14, 27, 25, 26. DAC codes and power controls expose GPIO25/26 voltages in the CLI
+report. Touch covers software-triggered scans, timer-mode polling and the classic T8/T9
+result swap. IDF provides the touch software filter.
+
+The initial model wrongly required RTC GPIO mux selection for analog input. The first
+firmware run returned raw ADC and touch zeros and no DAC output. IDF 5.5's
+`gpio_config_as_analog` actually calls `rtc_gpio_deinit`, leaving digital and RTC input,
+output and pulls disabled. One correction removed that gate: analog converters connect
+directly to their physical pads. RTC mux selection still disconnects digital GPIO and
+its edge detection. The unchanged images then passed. Register tests cover both mux
+states, conversion control, attenuation/width/inversion, DAC power/DC gating, touch
+channel selection, and host-input persistence across reboot.
+
+Arduino's millivolt API leaves `default_vref` unset, so blank calibration eFuses would
+fail initialization. The model supplies the documented nominal 1100 mV Vref through
+nonzero sign-magnitude encoding `0x10` at eFuse block 0 word 4 bits 12:8. No two-point
+values are claimed. At default 11 dB attenuation, ADC1 uses IDF's nominal line fit:
+`a = floor(1100 * 196602 / 4096) = 52798`, offset 142 mV. The model computes
+`raw = clamp(round((mV - 142) * 65536 / a), 0, 4095)` with subtraction floored at zero.
+At 1650 mV this gives **1872**, which IDF calibrates to **1650 mV**. ADC2 uses slope
+52950 and offset 128, giving **1884** and **1650 mV**. DAC voltage is
+`round(code * 3300 / 255)`, so code 128 reports **1656 mV**.
+
+This port of `6c855cc` and its receipt `1fd9c06` uses PR #165's host API from
+`0ef8390`, preserved unchanged in history. `adc` and `adcwave` both dispatch through
+`SocBus::analog_set` and `AnalogInputs`; the classic ADC samples at the current bus
+cycle, clamps to 0..3.3 V and rounds to millivolts. No shared analog API extension
+or S3 behavior change was needed. The original separate ADC action, setter and
+parser are absent. `touchpad <gpio> <0|1>` and its default bus method remain.
+See the receipt's port revalidation section for new results and retained history.
+
+The main script `/tmp/esp32-classic-adc-input.txt` was:
+
+```text
+0 adc 34 1.650
+0 adc 27 1.650
+0.30 adc 34 0.800
+0.40 touchpad 4 1
+0.80 touchpad 4 0
+```
+
+Run the unchanged sketch from the linked receipt:
+
+```sh
+pio run -d /tmp/esp32sim-classic-adc-pio
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-adc-pio/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-adc-pio/.pio/build/esp32dev/firmware.elf \
+  --board none --script /tmp/esp32-classic-adc-input.txt \
+  --max-seconds 1.2 --no-reboot --no-dump
+```
+
+Relevant serial output and observer result:
+
+```text
+DAC pin=25 code=128 written=1
+ADC sample=0 millis=3 pin34_raw=1872 pin34_mv=1650 pin27_raw=1884 pin27_mv=1650
+TOUCH sample=0 millis=6 pin=4 value=1000
+ADC sample=3 millis=305 pin34_raw=817 pin34_mv=800 pin27_raw=1884 pin27_mv=1650
+TOUCH sample=4 millis=405 pin=4 value=475
+TOUCH sample=5 millis=505 pin=4 value=301
+TOUCH sample=8 millis=805 pin=4 value=826
+TOUCH sample=9 millis=905 pin=4 value=1000
+[dac] GPIO25: 1656 mV
+```
+
+The main run completed 1.2 modeled seconds, 288,000,000 cycles. A separate two-second
+sketch checked all 18 ADC pads with distinct voltages, every 9-12 bit/attenuation
+combination, all ten touch pads with alternating contact states, and DAC2 code 64 at
+828 mV. All outputs matched. The touch model supplies raw 1000/300; IDF's filter
+settles at 301 after a press and returns to 1000 after release.
+
+Gates passed: `cargo build --release`, `cargo test -p esp32 -p esp32sim`,
+`cargo test --workspace`, `tools/wasm-build.sh`, `node tools/check-evidence-privacy.mjs`
+and `git diff --check`. The port workspace passed 524 tests with 22 ignored and
+zero failures. Existing S3/C3/C6 suites remain green. Limits are immediate
+ADC conversion, a linear transfer without the 11 dB nonlinear LUT above raw 2880,
+fixed touch counts, no touch threshold interrupt/wakeup, no ADC continuous/DMA/ULP or
+Wi-Fi arbitration, and no electrical contention/noise or variable DAC supply model.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
 SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, classic
 LEDC, RMT TX, SPI2/SPI3 with classic SPI DMA, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
-eFuse identity, AES, SHA-1/256/384/512, RSA/MPI, random input and APP CPU control. I2C0 and I2C1 execute classic
+eFuse identity, AES, SHA-1/256/384/512, RSA/MPI, random input, ADC1/ADC2 one-shot conversions fed by host analog sources, DAC1/DAC2,
+touch pads T0-T9 and APP CPU control. I2C0 and I2C1 execute classic
 master command lists against attached board devices and deliver their interrupts through
 DPORT. GPIO0-39 include output/enable aliases, pad input, supported pulls, matrix
 input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
