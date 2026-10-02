@@ -1014,16 +1014,123 @@ No analog waveform, oscillator drift or hardware timing claim is made. Manual re
 retained no user/host identifiers, private captures or unrelated process data; raw logs
 remain outside Git and home paths in the receipt use `$HOME`.
 
+## AES, SHA and RSA extension
+
+Revision `cf257f6` extends EX199 on base `4ff7f45` with classic crypto registers and
+public mbedTLS known-answer checks. It uses the same ECO3 ROM, board `esp32dev` and
+Arduino-ESP32 3.3.8. This is functional evidence, with no speed or silicon-timing claim.
+
+`esp32/src/crypto.rs` extends the existing `ClassicSha` and adds AES and RSA. AES
+supports 128/192/256-bit keys, both directions and all six endian controls. SHA
+supports START/CONTINUE/LOAD/BUSY for SHA-1/256/384/512, including separate SHA-1 and
+SHA-256 state and the shared SHA-384/512 engine. RSA uses the classic M/Z/Y/X blocks,
+M′, 512–4096-bit Montgomery multiply and exponentiation, and 512–2048-bit plain
+multiplication. Completion is `0x814`; `0x818` reports initialized memory, not the
+S3 interrupt/idle layout. DPORT source 51 reaches both CPU maps. Clock bits, the
+secure-boot/digital-signature reset dependencies and RSA power-down are connected.
+
+The requested S3 arithmetic was already moved to `esp-periph`; S3 re-exports it.
+Reusing `esp_periph::Sha` and its AES/bignum functions required no new dependency,
+shared-code change or other-chip refactor. The installed IDF 5.5.4
+[capabilities](https://github.com/espressif/esp-idf/blob/v5.5.4/components/soc/esp32/include/soc/soc_caps.h)
+and [AES port](https://github.com/espressif/esp-idf/blob/v5.5.4/components/mbedtls/port/aes/block/esp_aes.c)
+select CPU block transfers, not DMA. The installed classic SHA parallel-engine and
+MPI drivers were also inspected. `ESP_MPI_USE_MONT_EXP` makes public MPI
+exponentiation use repeated Montgomery MULT commands, which consume M′ and the
+previous Z value. A direct ordinary modular multiply would give incorrect results.
+
+The unchanged [validation sketch](crypto-validation.cpp) uses public mbedTLS APIs,
+without direct registers, simulator hooks or framework patches. Its full expected
+outputs were independently checked with Python hashlib/hmac/integer arithmetic and
+OpenSSL. Inputs cover `abc`, the 200-byte sequence `00..c7`, RFC 2202 HMAC-SHA1,
+FIPS-197 ECB and four-block NIST SP 800-38A CBC. MPI checks a 2048-bit modulus with
+exponent 65537, 1024-bit operands and the driver's >2048-bit-factor multiply fallback.
+
+Build outside the repository using the pinned `platformio.ini` above:
+
+```sh
+mkdir -p /tmp/esp32sim-classic-crypto-validation/src
+cp docs/evidence/classic-esp32-spike-2026-10-02/crypto-validation.cpp \
+  /tmp/esp32sim-classic-crypto-validation/src/main.cpp
+# Put the esp32dev platformio.ini shown above in this temporary project.
+pio run --project-dir /tmp/esp32sim-classic-crypto-validation
+cargo build --release
+target/release/esp32sim --chip esp32 --boot rom \
+  --rom "$HOME/.platformio/packages/tool-esp-rom-elfs/esp32_rev300_rom.elf" \
+  --flash-image /tmp/esp32sim-classic-crypto-validation/.pio/build/esp32dev/firmware.factory.bin \
+  --elf /tmp/esp32sim-classic-crypto-validation/.pio/build/esp32dev/firmware.elf \
+  --max-seconds 0.8 --no-reboot --no-dump --debug aes,sha,rsa
+```
+
+PlatformIO resolved platform `55.3.38+sha.fbdfc29`, Arduino `3.3.8`, libraries
+`5.5.4+sha.735507283d` and Xtensa compiler `14.2.0+20260121`. All three
+`CONFIG_MBEDTLS_HARDWARE_AES/SHA/MPI` options were 1 in the selected `dio_qspi`
+sdkconfig. The serial transcript was:
+
+```text
+CRYPTO_BEGIN hardware_aes=1 hardware_sha=1 hardware_mpi=1
+SHA1_ABC PASS
+SHA1_MULTI PASS
+SHA256_ABC PASS
+SHA256_MULTI PASS
+SHA384_ABC PASS
+SHA384_MULTI PASS
+SHA512_ABC PASS
+SHA512_MULTI PASS
+HMAC_SHA1 PASS
+AES128_ECB_ENCRYPT PASS
+AES128_ECB_DECRYPT PASS
+AES192_ECB_ENCRYPT PASS
+AES192_ECB_DECRYPT PASS
+AES256_ECB_ENCRYPT PASS
+AES256_ECB_DECRYPT PASS
+AES128_CBC_ENCRYPT PASS
+AES128_CBC_DECRYPT PASS
+AES256_CBC_ENCRYPT PASS
+AES256_CBC_DECRYPT PASS
+MPI_EXP_MOD_2048 PASS
+MPI_MULT_1024 PASS
+MPI_MULT_2304_MOD_FALLBACK PASS
+CRYPTO_DONE passed=22 failed=0
+```
+
+Debug logs prove 22 AES blocks, 9 SHA-1 blocks, 4,921 SHA-256 blocks including
+4,916 boot blocks, 3 SHA-384 blocks, 3 SHA-512 blocks, 25 RSA Montgomery steps and
+2 plain multiplies. The run halted at 192,000,000 cycles, 0.8 modeled seconds.
+[The compact receipt](crypto-results.json) retains hashes, counts, exact work,
+tool versions, both successful runs and diagnostic failures.
+
+Validation passed: `cargo build --release`, `cargo test -p esp32` with 35 tests,
+`cargo test --workspace` with 498 passed and 22 existing ignored tests,
+`tools/wasm-build.sh`, `node tools/check-evidence-privacy.mjs`, and `git diff --check`.
+Register tests cover all algorithms, multiple blocks, AES endian modes, RSA sizes,
+carry propagation, command/status/clear semantics, resets and DPORT delivery.
+After `cargo test -p esp32`, running
+`python3 docs/evidence/classic-esp32-spike-2026-10-02/crypto-montgomery-check.py`
+also passed 48 seeded cases against independent Python modular inverses.
+
+Operations complete synchronously; busy duration and contention are not modeled.
+Direct MODEXP assumes valid R²/M′ preprocessing. Invalid preprocessing and writes
+while reset is asserted are not silicon-accurate. Public mbedTLS uses the tested
+MULT path. WPA2 association and full TLS handshakes are outside this lane's checks.
+
+The initial PlatformIO cache-lock permission failure succeeded on one authorized
+retry. An intermediate compile failed because RSA/sync wiring was not yet appended;
+the completed model passed the gates above. Raw logs and firmware remain outside
+Git. Retained evidence omits personal paths and unrelated process/session data;
+log hash pairs record path normalization without changing measured values. Manual
+review and the privacy checker found no retained personal information.
+
 ## Modeled behavior and known gaps
 
 The target models the classic memory/cache windows, both MMU tables, mask ROM and SRAM,
 SPI0/1 flash commands, three UARTs and their FIFO aliases, boot strap `0x13`, classic
 LEDC, RMT TX, SPI2/SPI3 with classic SPI DMA, TIMG0/1 general timers and main watchdogs, TIMG0 LACT, RTC watchdog behavior, ECO3
-eFuse identity, SHA-256, random input and APP CPU control. I2C0 and I2C1 execute classic
+eFuse identity, AES, SHA-1/256/384/512, RSA/MPI, random input and APP CPU control. I2C0 and I2C1 execute classic
 master command lists against attached board devices and deliver their interrupts through
 DPORT. GPIO0-39 include output/enable aliases, pad input, supported pulls, matrix
 input/output routing and PRO/APP edge and level interrupts; GPIO34-39 remain input-only.
-DPORT routes GPIO, UART0-2, LEDC, RMT, I2C0/1, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
+DPORT routes GPIO, UART0-2, LEDC, RMT, I2C0/1, RSA, SPI2/3 and their DMA, TIMG0/1 timer and watchdog, RTC watchdog and
 CPU-to-CPU sources through the per-core maps. Other unmodeled peripheral blocks use the
 existing round-trip register RAM: reads start at zero and writes persist, but there is no
 device behavior or interrupt generation.
