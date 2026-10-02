@@ -1,0 +1,66 @@
+{
+  "implementation_revision": "7ce98837b93a90444d3da93c52352b9b664238c2",
+  "base_revision": "0334d422468aa74442ba506bacb4a62f1b66b327",
+  "platform": {
+    "os": "Darwin",
+    "arch": "arm64",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "1.96.0 (30a34c682 2026-05-25)",
+    "platformio": "6.1.19",
+    "arduino": "3.3.8",
+    "idf_libraries": "5.5.4+sha.735507283d"
+  },
+  "checks": [
+    {
+      "command": "cargo build --release",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "exit_code": 0,
+      "passed": 467,
+      "failed": 0,
+      "ignored": 25
+    },
+    {
+      "command": "tools/wasm-build.sh",
+      "exit_code": 0
+    },
+    {
+      "command": "ADC_FIRMWARE_DIR=/tmp/esp32sim-up-adc-arduino/.pio/build ADC_ROM_DIR=$HOME/.platformio/packages/tool-esp-rom-elfs cargo test --release -p esp32sim --test adc -- --include-ignored --nocapture --test-threads=1",
+      "exit_code": 0,
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "attempt": 1,
+      "exit_code": 1,
+      "error": "checks.json: personal home-directory label",
+      "cause": "A normalized /Users/alice label ended in a period; the pattern requires a delimiter. Reworded to use backticks."
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "attempt": 2,
+      "exit_code": 0,
+      "tracked_files": 1479,
+      "gzip_files": 15
+    }
+  ],
+  "artifacts": {
+    "target/release/esp32sim": {
+      "sha256": "9169bb6dcec2ad6c7dbc849a76b331aa69c1d5929822e25d3c12ad9349356ebd",
+      "bytes": 2258104
+    },
+    "web/wasm/esp32sim.wasm": {
+      "sha256": "dedfae77549971fb7ed51c6cf73b85d9830c09dcaaa6455bbd677a4beefed64b",
+      "bytes": 2162293
+    }
+  },
+  "privacy": "Curated serial lines only; no raw build or boot logs retained. Personal home path in the PlatformIO failure excerpt normalized to `/Users/alice`."
+}
