@@ -8,7 +8,7 @@ esp32sim --flash-image flash.bin --boot rom ...
 One binary for every chip; `esp32sim-c3` is `esp32sim --chip c3` and `esp32sim-c6` is
 `esp32sim --chip c6`. The RISC-V chips' defaults differ where the chip does (`--boot rom`,
 `--console uart0`, `--flash-mb 4`) and they refuse the flags their chip has nothing behind: the C3
-board, WiFi, camera, PSRAM and register presets; the C6, which has a board and WiFi, only camera,
+board, camera, PSRAM and register presets; the C6, which has a board and WiFi, only camera,
 PSRAM and register presets.
 
 ## Images and boot
@@ -28,7 +28,7 @@ PSRAM and register presets.
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
 | `--stub SYMBOL[=value]` (repeatable) | return `value` (default 0) immediately when execution reaches the function's entry; numeric function addresses require a `0x` prefix; accepts decimal, `0x` hex, `true` (1) or `false` (0); rejects invalid values |
-| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on the S3 (docs/wifi-plan.md) and on the C6 (docs/wifi-c6-plan.md) |
+| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3 and C6 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md) |
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |

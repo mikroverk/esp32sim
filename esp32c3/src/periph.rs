@@ -137,6 +137,9 @@ pub use esp_periph::Rng;
 
 pub struct Peripherals {
     pub adc: esp_periph::sar_adc::SarAdc,
+    pub wifi: crate::wifi::WifiMac,
+    pub fe_iq: crate::wifi::FeIq,
+    pub i2c_mst: crate::wifi::I2cMst,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
     pub systimer: Systimer,
@@ -169,6 +172,11 @@ pub struct Peripherals {
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
     0x40 "APB_SARADC" (adc) => [];
+    0x06 "FE_IQ" (fe_iq) @ 0x140..=0x177 => [];
+    0x33 "WIFI_MAC" (wifi) => [0];
+    0x34 "WIFI_MAC2" (wifi) delta 0x1000 => [];
+    0x35 "WDEV" (wifi) delta 0x2000 => [];
+    0x0e "I2C_MST" (i2c_mst) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x10 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI1" (spi1) => [];
@@ -204,6 +212,7 @@ impl DeviceSet for Peripherals {
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
         if block == 0x40 { self.adc.now_cycles = self.clock.cycles(); }
+        if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
     }
 }
@@ -213,6 +222,7 @@ impl Peripherals {
         Peripherals {
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
+            wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
@@ -253,13 +263,17 @@ impl Peripherals {
         esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
     }
 
-    pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
+    pub fn read32(&mut self, addr: u32) -> u32 {
+        if addr & !0xfff == PERIPH_BASE + 0x3f000 { return crate::gdma::read(&self.gdma, addr & 0xfff); }
+        mmio::read32(self, addr)
+    }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
         if addr == 0x6001_3004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
             let pins = self.i2c_pin(54).zip(self.i2c_pin(53));
             self.i2c.set_pins(pins);
         }
+        if addr & !0xfff == PERIPH_BASE + 0x3f000 { crate::gdma::write(&mut self.gdma, addr & 0xfff, v); return; }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
             self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
