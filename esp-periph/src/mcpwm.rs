@@ -71,7 +71,7 @@ impl Mcpwm {
 }
 impl Device for Mcpwm {
     fn read(&mut self, off:u32)->u32 {
-        if (0x10..=0x30).contains(&off)&&off%16==0 {
+        if (0x10..=0x30).contains(&off)&&off.is_multiple_of(16) {
             let timer=((off-0x10)/16) as usize;
             return self.settings(timer).map_or(0,|(divider,_)|(self.phase[timer]/divider) as u32);
         }
