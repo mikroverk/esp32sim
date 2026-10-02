@@ -75,7 +75,7 @@ impl<B: Bus> Bus for RecordingBus<'_, B> {
 impl<S: Soc> Machine<S> {
     pub(super) fn run_approximate_jit_frontiers(&mut self, max_insns: u64) -> Stop {
         let (cpi, quantum) = self.approximate_jit_timing.unwrap();
-        self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
+        self.stub_bloom = self.stubs.keys().chain(S::function_hooks(&self.bus)).fold(0, |m, &pc| m | pc_bit(pc));
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for core in &mut self.cores {
             core.set_boundaries(self.stub_bloom | self.probe_bloom);
@@ -153,7 +153,7 @@ impl<S: Soc> Machine<S> {
 
     pub(super) fn run_modeled(&mut self, max_insns: u64) -> Stop {
         if let Some(stop) = &self.model_stop { return stop.clone(); }
-        self.stub_bloom = self.stubs.keys().fold(0, |mask, &pc| mask | pc_bit(pc));
+        self.stub_bloom = self.stubs.keys().chain(S::function_hooks(&self.bus)).fold(0, |mask, &pc| mask | pc_bit(pc));
         self.probe_bloom = self.fn_probes.keys().fold(0, |mask, &pc| mask | pc_bit(pc));
         for core in &mut self.cores { core.set_boundaries(self.stub_bloom | self.probe_bloom); core.flush_caches(); }
         for observer in &mut self.observers { observer.on_modeled_run(); }
@@ -297,7 +297,7 @@ impl<S: Soc> Machine<S> {
                 eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, args, ret);
             }
         }
-        if self.stub_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() && self.stubs.contains_key(&pc) {
+        if self.stub_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() && (self.stubs.contains_key(&pc) || S::function_hooks(&self.bus).contains(&pc)) {
             return Err(Stop::CostModel { core, pc, reason: "function stubs are unsupported by modeled execution".into() });
         }
         {

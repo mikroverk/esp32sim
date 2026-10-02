@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
+    assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
+    assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);
+    let symbols = std::collections::HashMap::new();
+    assert!(esp32s3::machine([0; 6]).bus.enable_ble(&symbols).is_err());
+    assert!(esp32c3::machine([0; 6], 4 << 20).bus.enable_ble(&symbols).is_err());
+    assert!(esp32c6::machine([0; 6], 4 << 20).bus.enable_ble(&symbols).unwrap_err().contains("unsupported"));
+}
+
+
+#[test]
 fn function_trace_patterns_share_prefix_and_exact_matching() {
     let mut m = esp32c6::machine([0; 6], 4 << 20);
     m.symbols.extend([(1, "foo".into()), (2, "foobar".into()), (3, "other".into())]);
