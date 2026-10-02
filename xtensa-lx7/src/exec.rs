@@ -174,7 +174,7 @@ impl Cpu {
         Some(match n {
             0 | 1 => self.accx[n as usize], 2..=6 => self.qacc_h[(n - 2) as usize], 7..=11 => self.qacc_l[(n - 7) as usize], 12 => self.gpio_out,
             13 => self.sar_byte, 14 => self.fft_bit_width, 15..=18 => self.ua_state[(n - 15) as usize],
-            231 => self.threadptr, 232 => self.fcr, 233 => self.fsr,
+            231 => self.threadptr, 232 => self.fcr, 233 => self.fsr, 234..=236 => self.f64[(n - 234) as usize],
             _ => return None,
         })
     }
@@ -183,9 +183,24 @@ impl Cpu {
             0 | 1 => self.accx[n as usize] = v, 2..=6 => self.qacc_h[(n - 2) as usize] = v, 7..=11 => self.qacc_l[(n - 7) as usize] = v, 12 => self.gpio_out = v,
             13 => self.sar_byte = v, 14 => self.fft_bit_width = v, 15..=18 => self.ua_state[(n - 15) as usize] = v,
             231 => self.threadptr = v, 232 => self.fcr = v & 0x7f, 233 => self.fsr = v & 0xfff80,
+            234..=236 => self.f64[(n - 234) as usize] = v,
             _ => return None,
         }
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cpu;
+
+    #[test]
+    fn lx6_dfp_context_registers_round_trip() {
+        let mut cpu = Cpu::default();
+        for (register, value) in (234..=236).zip([0x1234, 0x5678, 0x9abc]) {
+            assert_eq!(cpu.write_ur(register, value), Some(()));
+            assert_eq!(cpu.read_ur(register), Some(value));
+        }
     }
 }
 

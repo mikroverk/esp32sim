@@ -2,8 +2,8 @@
 //! predates the S3/C3 layout.
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
-    device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, SpiMem, TimerGroup,
-    Uart, UartLayout, WriteEffect,
+    device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, Sha, SpiMem,
+    TimerGroup, Uart, UartLayout, WriteEffect,
 };
 
 pub const CPU_HZ: u64 = 240_000_000;
@@ -22,6 +22,19 @@ impl Dport {
             ram,
             map: [[6; 69]; 2],
         }
+    }
+    pub fn core1_control(&self) -> (bool, bool, bool) {
+        (self.ram.read(0x30) & 1 != 0, self.ram.read(0x2c) & 1 != 0, self.ram.read(0x34) & 1 != 0)
+    }
+    pub fn cpu_lines(&self, core: usize) -> u32 {
+        let mut lines = 0;
+        for (source, off) in [(24, 0xdc), (25, 0xe0), (26, 0xe4), (27, 0xe8)] {
+            if self.ram.read(off) & 1 != 0 {
+                let line = self.map[core][source];
+                if line < 32 { lines |= 1 << line; }
+            }
+        }
+        lines
     }
 }
 impl Device for Dport {
@@ -122,6 +135,7 @@ impl ClassicRtc {
         match off {
             0x34 => 0x38,
             0x8c..=0xa4 => off + 0xc,
+            0xb0..=0xbc => off + 0x10,
             _ => off,
         }
     }
@@ -174,6 +188,42 @@ impl Device for ClassicEfuse {
     }
 }
 
+pub struct ClassicSha {
+    core: Sha,
+    text: [u32; 32],
+}
+impl ClassicSha {
+    fn new() -> Self {
+        Self { core: Sha::new(), text: [0; 32] }
+    }
+    fn run_sha256(&mut self, first: bool) {
+        self.core.mode = 2;
+        for i in 0..16 {
+            self.core.m[i] = self.text[i].swap_bytes();
+        }
+        self.core.write(if first { 0x10 } else { 0x14 }, 1);
+    }
+}
+impl Device for ClassicSha {
+    fn read(&mut self, off: u32) -> u32 {
+        match off {
+            0x00..=0x7c => self.text[(off / 4) as usize],
+            0x8c | 0x9c | 0xac | 0xbc => 0,
+            _ => 0,
+        }
+    }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        match off {
+            0x00..=0x7c => self.text[(off / 4) as usize] = v,
+            0x90 => self.run_sha256(true),
+            0x94 => self.run_sha256(false),
+            0x98 => self.text[..8].copy_from_slice(&self.core.h[..8]),
+            _ => {}
+        }
+        WriteEffect::NONE
+    }
+}
+
 pub struct Peripherals {
     pub dport: Dport,
     pub uart: [Uart; 3],
@@ -182,6 +232,7 @@ pub struct Peripherals {
     pub gpio: ClassicGpio,
     pub rtc: ClassicRtc,
     pub efuse: ClassicEfuse,
+    pub sha: ClassicSha,
     pub timg: [TimerGroup; 2],
     pub misc: Misc,
     pub spi_exec: bool,
@@ -190,6 +241,7 @@ pub struct Peripherals {
 
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (ClockDomain::RtcSlow, 1600)];
     0x00 "DPORT" (dport) => [];
+    0x03 "SHA" (sha) => [];
     0x40 "UART0" (uart[0]) => [];
     0x42 "SPI1" (spi1) => [];
     0x43 "SPI0" (spi0) => [];
@@ -232,6 +284,7 @@ impl Peripherals {
             gpio: ClassicGpio(gpio),
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
+            sha: ClassicSha::new(),
             timg: [TimerGroup::new(), TimerGroup::new()],
             misc: Misc::new(),
             spi_exec: false,
@@ -240,6 +293,7 @@ impl Peripherals {
     }
     pub fn block_name(block: u32) -> &'static str {
         match block {
+            0x03 => "SHA",
             0x00..=0x13 => "DPORT",
             0x40 => "UART0",
             0x42 => "SPI1",
@@ -289,5 +343,43 @@ mod tests {
         p.write32(0x3ff4_4024, 1 << 2);
         p.write32(0x3ff4_4008, 1 << 2);
         assert_eq!(p.read32(0x3ff4_403c) & (1 << 2), 1 << 2);
+    }
+
+    #[test]
+    fn app_cpu_follows_dport_control_bits() {
+        let mut dport = Dport::new();
+        assert_eq!(dport.core1_control(), (false, true, false));
+        dport.write(0x30, 1);
+        dport.write(0x2c, 0);
+        assert_eq!(dport.core1_control(), (true, false, false));
+    }
+
+    #[test]
+    fn dport_routes_cross_core_interrupts() {
+        let mut dport = Dport::new();
+        dport.write(0x104 + 24 * 4, 7);
+        dport.write(0xdc, 1);
+        assert_eq!(dport.cpu_lines(0), 1 << 7);
+        dport.write(0xdc, 0);
+        assert_eq!(dport.cpu_lines(0), 0);
+    }
+
+    #[test]
+    fn classic_sha256_layout_hashes_one_block() {
+        let mut sha = ClassicSha::new();
+        let mut block = [0u8; 64];
+        block[..3].copy_from_slice(b"abc");
+        block[3] = 0x80;
+        block[63] = 24;
+        for (i, word) in block.chunks_exact(4).enumerate() {
+            sha.write((i * 4) as u32, u32::from_be_bytes(word.try_into().unwrap()));
+        }
+        sha.write(0x90, 1);
+        sha.write(0x98, 1);
+        let got: Vec<u8> = (0..8).flat_map(|i| sha.read(i * 4).to_be_bytes()).collect();
+        assert_eq!(got, [0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+                         0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+                         0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+                         0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad]);
     }
 }

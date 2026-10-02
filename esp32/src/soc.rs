@@ -42,14 +42,17 @@ impl Soc for Esp32 {
         c.vecbase = 0x4000_0000;
         c.set_ar(1, 0x3ffe_0000);
     }
-    fn irqs(_bus: &SocBus, out: &mut [u32]) {
-        out.fill(0);
+    fn irqs(bus: &SocBus, out: &mut [u32]) {
+        for (core, lines) in out.iter_mut().enumerate() {
+            *lines = bus.periph.dport.cpu_lines(core);
+        }
     }
-    fn core_state(_bus: &SocBus, core: usize) -> CoreState {
+    fn core_state(bus: &SocBus, core: usize) -> CoreState {
         if core == 0 {
             CoreState::Running
         } else {
-            CoreState::Held
+            let (clock, reset, stall) = bus.periph.dport.core1_control();
+            if reset { CoreState::Reset } else if clock && !stall { CoreState::Running } else { CoreState::Held }
         }
     }
 }

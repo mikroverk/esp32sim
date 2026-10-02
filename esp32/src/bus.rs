@@ -1,5 +1,6 @@
 //! Classic ESP32 memory map and flash-cache MMUs.
 use crate::periph::{Peripherals, PERIPH_BASE, PERIPH_END};
+use esp_periph::{Device, RegRam, Rng};
 use xtensa_lx7::bus::{Bus, Fault};
 
 pub const DRAM_LOW: u32 = 0x3ffa_e000;
@@ -23,6 +24,8 @@ const MMU_PRO: u32 = 0x3ff1_0000;
 const MMU_APP: u32 = 0x3ff1_2000;
 const MMU_INVALID: u32 = 1 << 8;
 const PAGE: usize = 0x1_0000;
+const WDEV_RND: u32 = 0x6003_5144;
+const UART_FIFO_AHB: [u32; 3] = [0x6000_0000, 0x6001_0000, 0x6002_e000];
 
 pub struct SocBus {
     pub dram: Vec<u8>,
@@ -33,6 +36,8 @@ pub struct SocBus {
     pub rtc_fast: Vec<u8>,
     pub rtc_slow: Vec<u8>,
     pub flash: Vec<u8>,
+    pub ana: RegRam,
+    pub rng: Rng,
     pub mmu: [[u32; 2048]; 2],
     pub periph: Peripherals,
     pub board: esp_soc::Board,
@@ -55,6 +60,8 @@ impl SocBus {
             rtc_fast: vec![0; 0x2000],
             rtc_slow: vec![0; 0x2000],
             flash: vec![0xff; flash_size],
+            ana: RegRam::new(),
+            rng: Rng::new(),
             mmu: [[MMU_INVALID; 2048]; 2],
             periph: Peripherals::new(mac),
             board: Box::new(esp_soc::NoBoard),
@@ -112,6 +119,9 @@ impl SocBus {
     }
     fn is_periph(addr: u32) -> bool {
         (PERIPH_BASE..PERIPH_END).contains(&addr)
+            || (0x6000_e000..0x6000_f000).contains(&addr)
+            || (addr & !3) == WDEV_RND
+            || UART_FIFO_AHB.contains(&(addr & !3))
     }
     fn mmu_slot(addr: u32) -> Option<(usize, usize)> {
         for (cpu, base) in [(0, MMU_PRO), (1, MMU_APP)] {
@@ -125,7 +135,17 @@ impl SocBus {
         if let Some((cpu, n)) = Self::mmu_slot(addr) {
             return self.mmu[cpu][n];
         }
-        let w = self.periph.read32(addr & !3);
+        let a = addr & !3;
+        let w = if a == WDEV_RND {
+            self.rng.now = self.cycles as u32;
+            self.rng.read(0)
+        } else if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
+            self.periph.uart[n].read(0)
+        } else if (0x6000_e000..0x6000_f000).contains(&a) {
+            self.ana.read(a - 0x6000_e000)
+        } else {
+            self.periph.read32(a)
+        };
         match size {
             1 => (w >> ((addr & 3) * 8)) & 0xff,
             2 => (w >> ((addr & 2) * 8)) & 0xffff,
@@ -139,6 +159,29 @@ impl SocBus {
             return;
         }
         let a = addr & !3;
+        if a == WDEV_RND {
+            return;
+        }
+        if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
+            self.periph.uart[n].write(0, value);
+            return;
+        }
+        if (0x6000_e000..0x6000_f000).contains(&a) {
+            let old = self.ana.read(a - 0x6000_e000);
+            let v = match size {
+                4 => value,
+                1 => {
+                    let sh = (addr & 3) * 8;
+                    (old & !(0xff << sh)) | ((value & 0xff) << sh)
+                }
+                _ => {
+                    let sh = (addr & 2) * 8;
+                    (old & !(0xffff << sh)) | ((value & 0xffff) << sh)
+                }
+            };
+            self.ana.write(a - 0x6000_e000, v);
+            return;
+        }
         let v = match size {
             4 => value,
             1 => {
@@ -333,5 +376,19 @@ mod tests {
         assert_eq!(b.read8(DBUS_LOW + 0x2345), Ok(0x5a));
         assert_eq!(b.read8(0x4000_0000 + 0x2345), Ok(b.irom[0x2345])); // mask ROM wins below app IROM
         assert_eq!(b.read8(IBUS_LOW + 0x2345), Ok(0x5a));
+    }
+
+    #[test]
+    fn analog_config_register_is_read_write() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        b.write32(0x6000_e044, 0x1234).unwrap();
+        assert_eq!(b.read32(0x6000_e044), Ok(0x1234));
+    }
+
+    #[test]
+    fn uart_ahb_alias_reaches_fifo() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        b.write32(UART_FIFO_AHB[0], b'X' as u32).unwrap();
+        assert_eq!(b.periph.uart[0].tx_out, b"X");
     }
 }
