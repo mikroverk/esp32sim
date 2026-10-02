@@ -1,0 +1,89 @@
+{
+  "base": "dddb128",
+  "shared_controller_source": "0755b8bd4739d6d89ea0de4c97cd04cfd6bd5058",
+  "prototype_evidence": "a79fa7a146c6bf8400d84eb5d7a04bcc1b7ae62a",
+  "fork_reference": "221080f",
+  "arduino": "3.3.8",
+  "idf_libraries": "5.5.4+sha.735507283d",
+  "platform": "https://github.com/pioarduino/platform-espressif32.git#55.03.38-1",
+  "host": {
+    "os": "macOS 26.6.2",
+    "arch": "arm64",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "conditions": "Single sequential native runs, default JIT, uncontrolled host load. Functional timings, not a speed comparison or calibrated radio timing."
+  },
+  "sdkconfig": {
+    "s3": {
+      "sha256": "54fbe7c484eb272b3f8b6ec2a6dfa0af869d53c5280c1b746ad4fbb975e5c5f6",
+      "nimble": true,
+      "legacy_vhci": true,
+      "board": "esp32-s3-devkitc-1"
+    },
+    "c3": {
+      "sha256": "cca3bfe966f791e39a3697122a922592cd13d2c5b39927d438a9845781f9db6a",
+      "nimble": true,
+      "legacy_vhci": true,
+      "board": "esp32-c3-devkitm-1"
+    },
+    "c6": {
+      "sha256": "3768f4bd6c9e7bec70cc9a0fe886bd5a4f09c35ae1f402031537cd22e177344a",
+      "nimble": true,
+      "legacy_vhci": false,
+      "board": "esp32-c6-devkitc-1"
+    }
+  },
+  "examples": {
+    "Server": {
+      "source_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+      "unchanged": true
+    },
+    "Notify": {
+      "source_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+      "unchanged": true
+    },
+    "Write": {
+      "source_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+      "unchanged": true
+    },
+    "Scan": {
+      "source_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+      "unchanged": true
+    }
+  },
+  "c6": {
+    "build": "pio run -d /tmp/up-ble-firmware/c6/Server",
+    "build_passed": true,
+    "elf_sha256": "dcd8070184d64a871b60ff23ebc682cbee8235ef81f40d8092656d8ff65f4c18",
+    "factory_sha256": "98e91803bb0f5566fa0247f5d597b2dd5eca137fc3dc0705b8baaf11e1c74efd",
+    "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "run_exit_code": 2,
+    "run_error": "--ble: BLE is unsupported on this chip",
+    "controller_bss_start": "0x40818a4c",
+    "controller_bss_end": "0x40818b90",
+    "controller_bss_bytes": 324,
+    "symbols": {
+      "ble_transport_to_ll_cmd_impl": "0x42030192",
+      "ble_transport_to_ll_acl_impl": "0x42030198",
+      "ble_transport_ll_init": "0x4203019e",
+      "ble_transport_alloc_cmd": "0x420301aa",
+      "ble_transport_free": "0x420301b0",
+      "ble_transport_to_hs_evt_impl": "0x420236a8",
+      "ble_transport_to_hs_acl_impl": "0x420236ae"
+    },
+    "transport_findings": [
+      "ble_transport_to_ll_cmd_impl tail-calls hci_transport_host_cmd_tx with a1=0.",
+      "ble_transport_to_ll_acl_impl tail-calls hci_transport_host_acl_tx with a1=0.",
+      "ble_transport_ll_init registers ble_transport_host_recv_cb using hci_transport_host_callback_register.",
+      "Host receive dispatches type 2 to ble_transport_to_hs_acl_impl, other types to ble_transport_to_hs_evt_impl.",
+      "ble_transport_alloc_cmd calls r_ble_hci_trans_buf_alloc(3); ble_transport_free tail-calls r_ble_hci_trans_buf_free."
+    ],
+    "remaining_work": "Guest-side controller buffer pool/NPL setup, event allocation/free, chained os_mbuf ownership and callback bridge. No native adapter was implemented or claimed. Notify/Write/Scan were not built or run for C6."
+  },
+  "privacy": "Only task commands, synthetic BLE fixtures, hashes, selected outcomes and aggregate configuration retained. Home paths normalized to /Users/alice before retention; raw originals not committed. Log hashes distinguish original in-memory output from normalized output; timings and protocol bytes unchanged.",
+  "implementation_commit": "b8c5295535348f2fbafdde9e7389052994af5caa",
+  "cleanup": {
+    "removed_build_directories": 9,
+    "bytes_before_removal": 397799447,
+    "scope": "Only /tmp/up-ble-firmware/*/*/.pio created for this task; all recorded ELF/factory hashes predate removal."
+  }
+}
