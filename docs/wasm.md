@@ -246,7 +246,7 @@ Native Rust hosts use `SocBus::set_ethernet_relay`, `take_ethernet_frames` and
 
 Frames contain Ethernet headers and payloads without FCS, from 14 through 1518
 bytes. Each direction holds at most 64 queued frames in relay mode. Excess TX
-frames are dropped; a full RX queue rejects injection. Delivery can drop frames
+frames are dropped and counted in the MAC model's `tx_dropped`; a full RX queue rejects injection. Delivery can drop frames
 when the guest has no free receive descriptor. Drain after each run slice and
 copy bytes before the next `ethernet_take`, which replaces the entire batch.
 Recreate JavaScript memory views after calls that may grow WASM memory.

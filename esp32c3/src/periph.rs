@@ -2,12 +2,12 @@
 //!
 //! The C3 and the S3 share most of their peripheral IP — UART, USB-Serial/JTAG, systimer, timer
 //! groups, GPIO, the SPI flash controller, GDMA, SHA/AES/RSA are the same blocks with the same
-//! register layouts — so the models come from `esp-periph` and only the address map, the cache
-//! controller and the interrupt controller are written here.
+//! register layouts apart from C3 GDMA. The models come from `esp-periph`; the C3 GDMA adapter,
+//! address map, cache controller and interrupt controller live here.
 
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect, NO_SOURCE};
-use esp_periph::{Aes, Efuse, Gdma, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
+use esp_periph::{Aes, Efuse, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
 
 pub const CPU_HZ: u64 = 160_000_000;
 pub const PERIPH_BASE: u32 = 0x6000_0000;
@@ -150,7 +150,7 @@ pub struct Peripherals {
     pub intc: Intc,
     pub spi0: SpiMem,
     pub spi1: SpiMem,
-    pub gdma: Gdma,
+    pub gdma: crate::gdma::Gdma,
     pub sha: Sha,
     pub aes: Aes,
     pub rsa: Rsa,
@@ -199,6 +199,7 @@ impl DeviceSet for Peripherals {
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
         if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
+        if block == 0x06 { self.fe_iq.now_cycles = self.clock.cycles(); }
         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
     }
 }
@@ -212,7 +213,7 @@ impl Peripherals {
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
-            gdma: Gdma::new(),
+            gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
             last_status: [0; 4],
@@ -234,12 +235,10 @@ impl Peripherals {
     }
 
     pub fn read32(&mut self, addr: u32) -> u32 {
-        if addr & !0xfff == PERIPH_BASE + 0x3f000 { return crate::gdma::read(&self.gdma, addr & 0xfff); }
         mmio::read32(self, addr)
     }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
-        if addr & !0xfff == PERIPH_BASE + 0x3f000 { crate::gdma::write(&mut self.gdma, addr & 0xfff, v); return; }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
     }
 

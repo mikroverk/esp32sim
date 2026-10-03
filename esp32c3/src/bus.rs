@@ -146,11 +146,11 @@ impl SocBus {
     }
 
     fn aes_dma_step(&mut self) {
-        let (out_ch, in_ch) = { let g = &self.periph.gdma; (g.out_channel_for(6), g.in_channel_for(6)) };
+        let (out_ch, in_ch) = { let g = &self.periph.gdma.state; (g.out_channel_for(6), g.in_channel_for(6)) };
         if let (Some(out_ch), Some(in_ch)) = (out_ch, in_ch) {
             self.periph.aes.dma_pending = false;
             let mut input = Vec::new();
-            let (mut desc, mut last) = (self.periph.gdma.out[out_ch].desc, 0);
+            let (mut desc, mut last) = (self.periph.gdma.state.out[out_ch].desc, 0);
             for _ in 0..4096 {
                 if desc == 0 { break; }
                 let d = esp_periph::read_desc(&|a| self.sram32(a), desc);
@@ -160,12 +160,12 @@ impl SocBus {
                 if d.eof { break; }
                 desc = d.next;
             }
-            let c = &mut self.periph.gdma.out[out_ch];
+            let c = &mut self.periph.gdma.state.out[out_ch];
             c.running = false; c.desc = 0; c.eof_desc = last;
             c.int_raw |= (1 << 0) | (1 << 1) | (1 << 3);                 // OUT_DONE, OUT_EOF, OUT_TOTAL_EOF
 
             let output = self.periph.aes.transform_blocks(&input);
-            let (mut desc, mut pos, mut last) = (self.periph.gdma.inp[in_ch].desc, 0usize, 0);
+            let (mut desc, mut pos, mut last) = (self.periph.gdma.state.inp[in_ch].desc, 0usize, 0);
             for _ in 0..4096 {
                 if desc == 0 || pos >= output.len() { break; }
                 let d = esp_periph::read_desc(&|a| self.sram32(a), desc);
@@ -178,7 +178,7 @@ impl SocBus {
                 last = desc;
                 desc = d.next;
             }
-            let c = &mut self.periph.gdma.inp[in_ch];
+            let c = &mut self.periph.gdma.state.inp[in_ch];
             c.running = false; c.desc = 0; c.eof_desc = last;
             c.int_raw |= (1 << 0) | (1 << 1);                            // IN_DONE, IN_SUC_EOF
         }
@@ -202,7 +202,7 @@ impl SocBus {
             if let Some(ap) = &mut self.periph.wifi.ap {
                 if let Some(data) = ap.on_station_tx(&frame, now_us) {
                     if let Some(eth) = esp_soc::wifi::data_to_eth(&data) {
-                        if !self.periph.wifi.relay || (eth.len() <= 1518 && self.periph.wifi.eth_tx.len() < 64) { self.periph.wifi.eth_tx.push(eth); }
+                        if !self.periph.wifi.relay || (eth.len() <= 1518 && self.periph.wifi.eth_tx.len() < 64) { self.periph.wifi.eth_tx.push(eth); } else { self.periph.wifi.tx_dropped += 1; }
                     }
                 }
             }
@@ -249,7 +249,7 @@ impl SocBus {
         let mut b = Vec::with_capacity(total);
         let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
         // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
-        // requires (silicon: a broadcast beacon reads 0x111b20ad); unicast frames add bit 29.
+        // requires in the C3 blob; inherited from the S3 model, not measured on C3 silicon.
         let fm = if bcast { 1u32 << 28 } else { (1u32 << 28) | (1u32 << 29) };
         let w0: u32 = fm | 0xd8u32;   // rssi -40 dBm, 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
@@ -258,10 +258,10 @@ impl SocBus {
         for w in [w0, 0, w2, now_us as u32, 0, w5, 0, 0, 0, 0, 0, w11] { b.extend_from_slice(&w.to_le_bytes()); }
         b.extend_from_slice(frame); b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
         if !self.sram_store(buf, &b) { self.periph.wifi.rx_dropped += 1; return; }
-        let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (verified on silicon 2026-08-25: dw0=0xc0..)
+        let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (S3-derived, checked with C3 firmware only)
         self.sram_store(desc, &ndw0.to_le_bytes());
         let w = &mut self.periph.wifi;
-        w.rx_last = (desc & 0xf_ffff) | (1 << 24); w.rx_next = next & 0xf_ffff; w.last_rx_desc = desc; w.rx_frames += 1; w.events |= (1 << 14) | (1 << 24);   // RX data (wDev_ProcessFiq tests 0x1004000)   // registers hold masked descriptor addrs; rx_last has a 0x01 prefix (silicon)
+        w.rx_last = (desc & 0xf_ffff) | (1 << 24); w.rx_next = next & 0xf_ffff; w.last_rx_desc = desc; w.rx_frames += 1; w.events |= (1 << 14) | (1 << 24);   // RX data (wDev_ProcessFiq tests 0x1004000)   // registers hold masked descriptor addrs; rx_last uses the S3-derived 0x01 prefix
         if log { let d = esp_soc::wifi::describe(frame); if d.contains("auth")||d.contains("assoc") { eprintln!("[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}", desc, buf, d); } else { eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d); } }
         self.irq_dirty = true;
     }

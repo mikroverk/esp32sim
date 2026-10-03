@@ -35,7 +35,7 @@ run to be reproducible and offline.
 The same `--wifi` and `--net` work on the **ESP32-C6** (`esp32sim-c6`): the access point and the
 network are the same code, the MAC model is the C6's own ([wifi-c6-plan.md](wifi-c6-plan.md)). A C6
 radio run also needs `--stub bb_init=0`, and what has been tried is one station on one open or
-WPA2 network; `examples/c6-wifi-station` has the full command. The C3 has no WiFi model.
+WPA2 network; `examples/c6-wifi-station` has the full command. The C3 also supports `--wifi` with open/WPA2 station mode and the same network backend.
 
 ## What the network gives the firmware
 
