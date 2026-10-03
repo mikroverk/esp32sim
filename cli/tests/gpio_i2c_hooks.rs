@@ -20,15 +20,12 @@ fn snapshot(bus: &mut dyn SocBus, gpio: u32, mux: u32, last: u8, holes: &[u8]) {
                 bus.write32(gpio + bank + if output { 8 } else { 12 }, mask)
                     .unwrap();
                 bus.gpio_set_input(pin, !output);
-                assert_eq!(
-                    bus.gpio_state(pin),
-                    Some(GpioState {
-                        output,
-                        output_enable: enable,
-                        pull_up: pulls & (1 << 8) != 0,
-                        pull_down: pulls & (1 << 7) != 0,
-                    })
-                );
+                let state = bus.gpio_state(pin).unwrap();
+                assert_eq!(state.output, output);
+                assert_eq!(state.output_enable, enable);
+                assert_eq!(state.pull_up, pulls & (1 << 8) != 0);
+                assert_eq!(state.pull_down, pulls & (1 << 7) != 0);
+                assert_eq!(state, GpioState::new(output, enable, pulls & (1 << 8) != 0, pulls & (1 << 7) != 0));
             }
         }
     }
@@ -49,23 +46,21 @@ fn s3_gpio_snapshot() {
 }
 #[test]
 fn c3_gpio_snapshot() {
-    snapshot(
-        &mut esp32c3::machine([0; 6], 4096).bus,
-        0x60004000,
-        0x60009000,
-        21,
-        &[],
-    );
+    let mut m = esp32c3::machine([0; 6], 4096);
+    snapshot(&mut m.bus, 0x60004000, 0x60009000, 21, &[]);
+    assert!(!m.bus.periph.misc.generic.contains_key(&0x09));
+    m.bus.periph.io_mux.write(4, 1 << 8);
+    assert!(m.bus.gpio_state(0).unwrap().pull_up);
+    assert_eq!(m.bus.periph.read32(0x60009000 + 4), 1 << 8);
 }
 #[test]
 fn c6_gpio_snapshot() {
-    snapshot(
-        &mut esp32c6::machine([0; 6], 4096).bus,
-        0x60091000,
-        0x60090000,
-        30,
-        &[],
-    );
+    let mut m = esp32c6::machine([0; 6], 4096);
+    snapshot(&mut m.bus, 0x60091000, 0x60090000, 30, &[]);
+    assert!(!m.bus.periph.misc.generic.contains_key(&0x90));
+    m.bus.periph.io_mux.write(4, 1 << 8);
+    assert!(m.bus.gpio_state(0).unwrap().pull_up);
+    assert_eq!(m.bus.periph.read32(0x60090000 + 4), 1 << 8);
 }
 
 fn device(value: u8) -> Box<dyn I2cDevice> {
@@ -153,7 +148,6 @@ fn board_devices_can_be_removed_or_moved_without_reset() {
 /// Build the sketch in docs/evidence/gpio-i2c-hooks-2026-10-02, then set
 /// HOOKS_ROM and HOOKS_FIRMWARE (the PlatformIO build directory).
 #[test]
-#[ignore = "requires Arduino firmware and the S3 ROM"]
 fn external_arduino_s3_gpio_and_i2c_detach() {
     use std::{env, fs, path::PathBuf};
     let firmware = PathBuf::from(env::var_os("HOOKS_FIRMWARE").expect("set HOOKS_FIRMWARE to the PlatformIO build directory for docs/evidence/gpio-i2c-hooks-2026-10-02"));
@@ -199,15 +193,7 @@ fn external_arduino_s3_gpio_and_i2c_detach() {
             match phase {
                 0..=2 => {
                     let state = m.bus.gpio_state(4).unwrap();
-                    assert_eq!(
-                        state,
-                        GpioState {
-                            output: phase == 2,
-                            output_enable: phase == 2,
-                            pull_up: phase == 0,
-                            pull_down: phase == 1,
-                        }
-                    );
+                    assert_eq!(state, GpioState::new(phase == 2, phase == 2, phase == 0, phase == 1));
                     println!("snapshot {state:?}");
                 }
                 3 => moved = m.bus.periph.i2c[0].detach(0x42),

@@ -195,12 +195,12 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_state(&self, pin: u8) -> Option<esp_soc::GpioState> {
         if pin > 48 || (22..=25).contains(&pin) { return None; }
         let mux = self.periph.io_mux.read(4 + u32::from(pin) * 4);
-        Some(esp_soc::GpioState {
-            output: self.periph.gpio.out & (1u64 << pin) != 0,
-            output_enable: self.periph.gpio.enable & (1u64 << pin) != 0,
-            pull_up: mux & (1 << 8) != 0,
-            pull_down: mux & (1 << 7) != 0,
-        })
+        Some(esp_soc::GpioState::new(
+            self.periph.gpio.out & (1u64 << pin) != 0,
+            self.periph.gpio.enable & (1u64 << pin) != 0,
+            mux & (1 << 8) != 0,
+            mux & (1 << 7) != 0,
+        ))
     }
     fn board(&mut self) -> &mut dyn BoardModel { &mut *self.board }
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
