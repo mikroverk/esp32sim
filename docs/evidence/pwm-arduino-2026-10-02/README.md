@@ -4,7 +4,7 @@ This receipt covers EX204. It validates the same Arduino sketch on ESP32-S3, C3 
 
 ## Provenance and conditions
 
-- Upstream base: `dddb128052d31cd009826299d6359a42d1696426`.
+- Upstream base: `dddb128052dca15250e2169b92ab73c4d87f524c`.
 - Port source: Schematik fork `pr-1` at `221080ffb5ee8c19b8ce8b31d8953a93603b7fda`, merge base `d5446b4`.
 - Executed candidate: `9cc58f1` (the following source-clock test and this receipt do not alter the executed model).
 - PlatformIO Core 6.1.19, pioarduino platform `55.03.38+sha.fbdfc29`, Arduino-ESP32 3.3.8.

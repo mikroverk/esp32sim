@@ -425,7 +425,7 @@ impl Peripherals {
         Peripherals {
             adc: esp_periph::sar_adc::SarAdc::new(true, CPU_HZ),
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87, 8),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
@@ -476,15 +476,15 @@ impl Peripherals {
             self.i2c.set_pins(self.i2c_pin(46).zip(self.i2c_pin(45)));
         }
         if addr == PERIPH_BASE + 0x96034 && v & 2 != 0 { self.ledc = Ledc::new(LedcLayout::C6); }
-        if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { self.mcpwm = Mcpwm::new(87); }
+        if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { self.mcpwm = Mcpwm::new(87, 8); }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if addr == PERIPH_BASE + 0x96034 || addr == PERIPH_BASE + 0x96038 {
             let conf = self.pcr.read(0x34); let clock = self.pcr.read(0x38);
-            self.ledc.external_clock_hz = if conf & 3 != 1 || clock & (1 << 22) == 0 { 0 } else { match (clock >> 20) & 3 { 1 => 80_000_000, 2 => 20_000_000, 3 => 40_000_000, _ => 0 } };
+            self.ledc.external_clock_hz = if conf & 3 != 1 || clock & (1 << 22) == 0 { 0 } else { match (clock >> 20) & 3 { 1 => 80_000_000, 2 => 17_500_000, 3 => 40_000_000, _ => 0 } };
         }
         if addr == PERIPH_BASE + 0x9609c || addr == PERIPH_BASE + 0x960a0 {
             let conf = self.pcr.read(0x9c); let clock = self.pcr.read(0xa0);
-            let source = match (clock >> 20) & 3 { 1 => 160_000_000, 2 => 40_000_000, 3 => 20_000_000, _ => 0 };
+            let source = match (clock >> 20) & 3 { 1 => 160_000_000, 2 => 40_000_000, 3 => 17_500_000, _ => 0 };
             self.mcpwm.source_hz = source / (((clock >> 12) & 0xff) + 1) as u64;
             self.mcpwm.clock_enabled = conf & 3 == 1 && clock & (1 << 22) != 0 && source != 0;
         }

@@ -21,3 +21,14 @@ fn invalid_timing_options_exit_as_usage_errors() {
         assert!(!stderr.contains("panicked"), "{stderr}");
     }
 }
+
+#[test]
+fn invalid_pwm_pins_exit_as_usage_errors() {
+    for args in [vec!["--pwm"], vec!["--pwm", "wrong"], vec!["--pwm", "-1"], vec!["--pwm", "256"]] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(!stderr.contains("panicked"));
+        assert!(stderr.contains(if args.len() == 1 { "usage:" } else { "--pwm:" }));
+    }
+}

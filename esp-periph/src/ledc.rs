@@ -13,7 +13,9 @@ pub struct Ledc {
     duty: [u32; 8],
     pending: [bool; 8],
     unsupported_fade: [bool; 8],
-    phase: [u128; 4],
+    // Phase units cancel the divider's factor of 256, so even C6's maximum period fits u64.
+    phase: [u64; 4],
+    active: u8,
     timer_params: [u32; 4],
     raw: u32,
     ena: u32,
@@ -25,7 +27,7 @@ pub struct Ledc {
 impl Ledc {
     pub fn new(layout: LedcLayout) -> Self {
         Self { layout, regs: RegRam::new(), duty: [0; 8], pending: [false; 8],
-            unsupported_fade: [false; 8], phase: [0; 4], timer_params: [0; 4], raw: 0, ena: 0, external_clock_hz: 0, clock_enabled: true }
+            unsupported_fade: [false; 8], phase: [0; 4], active: 0, timer_params: [0; 4], raw: 0, ena: 0, external_clock_hz: 0, clock_enabled: true }
     }
     fn channels(&self) -> usize { if matches!(self.layout, LedcLayout::S3) { 8 } else { 6 } }
     fn shift(&self) -> u32 { u32::from(matches!(self.layout, LedcLayout::C6)) }
@@ -48,11 +50,12 @@ impl Ledc {
     }
     /// The physical high-time fraction, including matrix inversion, normalized to 65535.
     /// No pulse edges are synthesized; callers observe channel configuration separately.
-    pub fn output(&self, gpio: &Gpio, pin: u32) -> Option<(f64, u32)> {
+    pub fn output(&self, gpio: &Gpio, pin: u8) -> Option<(f64, u32)> {
         let matrix = *gpio.func_out_sel.get(pin as usize)?;
         if gpio.enable & (1u64 << pin) == 0 { return None; }
         let base = match self.layout { LedcLayout::S3 => 73, LedcLayout::C3 => 45, LedcLayout::C6 => 0 };
-        let channel = (matrix & 0x1ff).checked_sub(base)? as usize;
+        let bits = if matches!(self.layout, LedcLayout::S3) { 9 } else { 8 };
+        let channel = (matrix & ((1 << bits) - 1)).checked_sub(base)? as usize;
         if channel >= self.channels() || self.unsupported_fade[channel] { return None; }
         let conf = self.regs.read(channel as u32 * 0x14);
         if conf & 4 == 0 { return None; }
@@ -62,7 +65,7 @@ impl Ledc {
         let full = period * 16;
         let high = (self.duty[channel] as u64).min(full);
         let mut duty = ((high * 65535 + full / 2) / full) as u32;
-        if matrix & (1 << 9) != 0 { duty = 65535 - duty; }
+        if matrix & (1 << bits) != 0 { duty = 65535 - duty; }
         Some((hz as f64 * 256.0 / divider as f64 / period as f64, duty))
     }
 }
@@ -72,7 +75,7 @@ impl Device for Ledc {
         if off < self.channels() as u32 * 0x14 && off % 0x14 == 0x10 { return self.duty[(off / 0x14) as usize]; }
         if (0xa4..=0xbc).contains(&off) && off % 8 == 4 {
             let n = ((off - 0xa4) / 8) as usize;
-            return self.timer_settings(n).map_or(0, |(_, div)| (self.phase[n] / (APB_HZ as u128 * div as u128)) as u32);
+            return self.timer_settings(n).map_or(0, |(_, div)| (self.phase[n] / (APB_HZ / 256 * div)) as u32);
         }
         match off { 0xc0 => self.raw, 0xc4 => self.raw & self.ena, 0xc8 => self.ena, 0xcc => 0, _ => self.regs.read(off) }
     }
@@ -102,22 +105,30 @@ impl Device for Ledc {
                 self.regs.write(off, value & !(1 << (25 + self.shift())));
                 if value & (1 << (25 + self.shift())) != 0 { self.timer_params[((off - 0xa0) / 8) as usize] = value; }
                 if value & (1 << (23 + self.shift())) != 0 { self.phase[((off - 0xa0) / 8) as usize] = 0; }
+                let n = ((off - 0xa0) / 8) as usize;
+                self.active = (self.active & !(1 << n)) | (u8::from(self.timer(n).is_some()) << n);
             }
             _ => self.regs.write(off, value),
         }
         WriteEffect::NONE
     }
     fn irq_sources(&self) -> u64 { u64::from(self.raw & self.ena != 0) }
-    fn clock(&self) -> Option<ClockDomain> { Some(ClockDomain::Apb) }
+    fn clock(&self) -> Option<ClockDomain> { if self.active != 0 && self.clock_enabled { Some(ClockDomain::Apb) } else { None } }
     fn tick(&mut self, ticks: u64) {
         let hz = self.source_hz();
         if hz == 0 { return; }
         for n in 0..4 {
             let Some((period, divider)) = self.timer(n) else { continue; };
-            let modulus = APB_HZ as u128 * divider as u128 * period as u128;
-            let phase = self.phase[n] + ticks as u128 * hz as u128 * 256;
-            self.phase[n] = phase % modulus;
-            if phase < modulus { continue; }
+            let modulus = (APB_HZ / 256) * divider * period;
+            let (phase, wrapped) = match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
+                Some(total) => (if total < modulus { total } else { total % modulus }, total >= modulus),
+                None => {
+                    let total = self.phase[n] as u128 + ticks as u128 * hz as u128;
+                    ((total % modulus as u128) as u64, total >= modulus as u128)
+                }
+            };
+            self.phase[n] = phase;
+            if !wrapped { continue; }
             self.raw |= 1 << n;
             for ch in 0..self.channels() {
                 let off = ch as u32 * 0x14;
@@ -145,7 +156,9 @@ mod tests {
             let mut gpio = Gpio::new();
             gpio.enable = (1 << 4) | (1 << 5);
             gpio.func_out_sel[4] = signal;
-            gpio.func_out_sel[5] = signal | (1 << 9);
+            let bits = if matches!(layout, LedcLayout::S3) { 9 } else { 8 };
+            gpio.func_out_sel[4] |= 1 << (bits + 1);
+            gpio.func_out_sel[5] = signal | (1 << bits);
             // XTAL / 1.5 / 256, 25% duty, both pins attached to the same channel.
             let shift = ledc.shift();
             ledc.write(0xa0, 8 | (384 << (4 + shift)));
@@ -197,6 +210,24 @@ mod tests {
         ledc.tick(u64::MAX);
         assert_eq!(ledc.read(0xa4), count);
         assert!(ledc.output(&gpio, 0).is_none());
+    }
+
+    #[test]
+    fn idle_clock_and_large_batches_match_exact_phase() {
+        let mut ledc = Ledc::new(LedcLayout::C6);
+        assert_eq!(ledc.clock(), None);
+        ledc.external_clock_hz = 17_500_000;
+        ledc.write(0xa0, 20 | (0x3ffff << 5) | (1 << 26));
+        assert_eq!(ledc.clock(), Some(ClockDomain::Apb));
+        let modulus = (APB_HZ as u128 / 256) * 0x3ffff * (1 << 20);
+        let mut phase = 0;
+        for ticks in [1, 1000, u32::MAX as u64, u64::MAX, 1] {
+            phase = (phase + ticks as u128 * 17_500_000) % modulus;
+            ledc.tick(ticks);
+            assert_eq!(ledc.phase[0] as u128, phase);
+        }
+        ledc.write(0xa0, 1 << 23);
+        assert_eq!(ledc.clock(), None);
     }
 
     #[test]
