@@ -278,3 +278,9 @@ impl Device for I2cMst {
         WriteEffect::NONE
     }
 }
+
+impl Device for Box<WifiMac> {
+    fn read(&mut self, off: u32) -> u32 { Device::read(&mut **self, off) }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect { Device::write(&mut **self, off, v) }
+    fn debug(&mut self, on: bool) { Device::debug(&mut **self, on); }
+}

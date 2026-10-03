@@ -159,7 +159,7 @@ pub struct Peripherals {
     wifi_irq: bool, // cached source 0; updated with feature work, not polled by each interrupt scan
     clock: ClockTree<4>,
     last_status: [u32; 4],
-    pub wifi: crate::wifi::WifiMac,
+    pub wifi: Box<crate::wifi::WifiMac>,
     pub fe_iq: crate::wifi::FeIq,
     pub i2c_mst: crate::wifi::I2cMst,
 }
