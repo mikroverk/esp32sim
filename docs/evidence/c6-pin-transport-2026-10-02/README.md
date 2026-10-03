@@ -92,7 +92,7 @@ retained instead. No commands pushed or contacted GitHub to change repository st
 
 ## Reproduce
 
-Provide `ESP32SIM_ROM` as the C6 revision-0 ROM ELF, available in PlatformIO's
+Provide `ESP32SIM_ROM_DIR` containing `esp32c6_rev0_rom.elf`, available in PlatformIO's
 `tool-esp-rom-elfs` package. Commands run from the repository root:
 
 ```sh
@@ -102,7 +102,7 @@ cp docs/evidence/c6-pin-transport-2026-10-02/platformio.ini "$c6_dir/"
 cp docs/evidence/c6-pin-transport-2026-10-02/main.cpp "$c6_dir/src/"
 pio run -d "$c6_dir"
 ESP32SIM_TRANSPORT_BUILD="$c6_dir/.pio/build/c6" \
-  cargo test --release -p esp32c6 --test pin_transport arduino_pin_transport -- --ignored --nocapture
+  cargo test --release -p esp32c6 --test pin_transport external_c6_arduino_pin_transport -- --nocapture
 cargo test -p esp32c6 --test pin_transport
 cargo build --release
 cargo test --workspace
@@ -124,3 +124,11 @@ redundant ROM startup output are omitted. No process inventories or private
 captures are retained. These omissions do not change any measured value. ROM
 and firmware binaries are identified by SHA-256 and are not committed. Rebuilding
 can change firmware hashes. The pattern scanner supplements manual review.
+
+## Upstream review checks
+
+[review.json](review.json) records the Rust 1.99.0 checks and the FUN_IE mutation
+result. The test now clears FUN_IE while preserving MCU_SEL. GPIO output delivery
+retains the change buffer. Route decoding uses `esp_soc::pins::ChipPins`.
+The external test has a chip-specific name, requires `ESP32SIM_ROM_DIR`, and is
+excluded by `--skip external_`, with no ignore attribute.
