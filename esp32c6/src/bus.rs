@@ -39,6 +39,7 @@ pub struct SocBus {
     pub periph: Peripherals,
     /// a bare module: nothing on the pins
     pub board: esp_soc::Board,
+    uart_pins: bool,
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     /// a peripheral write may have moved an interrupt line: re-derive before the next instruction
@@ -51,6 +52,7 @@ pub struct SocBus {
 impl SocBus {
     /// Attach controller devices and restore inputs driven by the persistent board.
     pub fn attach_board_devices(&mut self) {
+        self.uart_pins = self.board.uses_uart_pins();
         for (bus, address, device) in self.board.i2c_devices() {
             if bus == 0 { self.periph.i2c.attach(address, device); }
         }
@@ -68,7 +70,7 @@ impl SocBus {
             lp_sram: vec![0; (LP_SRAM_HIGH - LP_SRAM_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [0; MMU_ENTRIES], mmu_index: 0, mmu_power_ctrl: 0,
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard),
+            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), uart_pins: false,
             cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(),
         }
     }
@@ -142,7 +144,7 @@ impl SocBus {
             self.deliver_gpio_output();
         }
         if let Some(port) = match a { 0x60000000 => Some(0), 0x60001000 => Some(1), _ => None } {
-            if self.board.uses_uart_pins() { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
+            if self.uart_pins { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
         }
         // A SPI flash command must complete before the guest reads its result (see the C3 notes:
         // running it at the quantum boundary loses the race and reads back zeros).
@@ -442,7 +444,7 @@ impl SocBus {
             self.periph.gpio.set_input(edge.pin, edge.level);
             self.irq_dirty |= old != self.periph.gpio.input;
         }
-        if self.board.uses_uart_pins() {
+        if self.uart_pins {
             for input in self.board.uart_rx(self.cycles) {
                 self.periph.uart_pin_input(&input);
                 self.irq_dirty = true;

@@ -1,6 +1,8 @@
 # UART devices on a board
 
-Opt in with `BoardModel::uses_uart_pins()`.
+Opt in with `BoardModel::uses_uart_pins()`. After installing or replacing a board,
+call `bus.attach_board_devices()` to refresh the cached capability. The bare-module
+path performs no UART board calls or route decoding.
 `BoardModel::uart_tx(cycle, route, byte)` observes a firmware FIFO write. The route
 contains the port, every non-inverted TX GPIO, the selected RX GPIO, and the
 configured baud. Check `route.transmits_on(device_rx_pin)` and

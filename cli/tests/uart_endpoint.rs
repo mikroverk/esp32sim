@@ -40,6 +40,7 @@ macro_rules! check_chip {
             let mut machine = $machine;
             let state = Rc::new(RefCell::new(State::default()));
             machine.bus.board = Box::new(Endpoint(state.clone()));
+            machine.bus.attach_board_devices();
             let bus = &mut machine.bus;
             for reset in 0..2 {
                 // Serial1 at 9600: XTAL / 2 / (2083 + 5/16).
@@ -247,19 +248,23 @@ fn s3_gpio46_is_a_uart_output() {
 
 #[test]
 fn boards_without_uart_opt_in_keep_console_only() {
-    struct ConsoleOnly;
+    struct ConsoleOnly(Rc<std::cell::Cell<usize>>);
     impl BoardModel for ConsoleOnly {
         fn name(&self) -> &'static str { "console-only" }
+        fn uses_uart_pins(&self) -> bool { self.0.set(self.0.get() + 1); false }
         fn uart_tx(&mut self, _: u64, _: UartRoute, _: u8) { panic!("TX without opt-in"); }
         fn uart_rx(&mut self, _: u64) -> Vec<UartInput> { panic!("RX without opt-in"); }
     }
     macro_rules! check {
         ($machine:expr) => {{
             let mut m = $machine;
-            m.bus.board = Box::new(ConsoleOnly);
+            let queries = Rc::new(std::cell::Cell::new(0));
+            m.bus.board = Box::new(ConsoleOnly(queries.clone()));
+            m.bus.attach_board_devices();
             m.bus.write32(0x6000_0000, 42).unwrap();
             m.bus.tick(256);
             assert_eq!(m.bus.console_take()[1], [42]);
+            assert_eq!(queries.get(), 1, "capability is cached until reattachment");
         }};
     }
     check!(esp32s3::machine([0; 6]));

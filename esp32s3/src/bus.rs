@@ -52,6 +52,7 @@ pub struct SocBus {
     pub mmu: [u32; MMU_ENTRIES],
     pub periph: Peripherals,
     pub board: Board,
+    uart_pins: bool,
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     pub spi2_dma_fault: Option<DmaDescriptorFault>,
@@ -144,7 +145,7 @@ impl SocBus {
         let bus_uninit = SocBus {
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
-            mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
+            mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), uart_pins: false, cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
             spi2_timing: false, spi2_scheduled: None, spi2_pins: None,
             tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
@@ -267,6 +268,7 @@ impl SocBus {
 
     /// Attach fresh peripheral-side devices and restore the levels driven by the persistent board.
     pub fn attach_board_devices(&mut self) {
+        self.uart_pins = self.board.uses_uart_pins();
         for (bus, address, device) in self.board.i2c_devices() {
             self.periph.i2c[bus as usize].attach(address, device);
         }
@@ -490,7 +492,7 @@ impl SocBus {
             self.periph.gpio.changes.clear();
         }
         if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), 0x6002e000 => Some(2), _ => None } {
-            if self.board.uses_uart_pins() { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
+            if self.uart_pins { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
         }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
@@ -826,7 +828,7 @@ impl SocBus {
         // Reads may flush before the periodic backstop. Refresh for either edge
         // of a clocked source, without breaking every block that polls MMIO.
         self.irq_dirty |= self.periph.tick(cycles as u64);
-        if self.board.uses_uart_pins() {
+        if self.uart_pins {
             for input in self.board.uart_rx(self.cycles) {
                 self.periph.uart_pin_input(&input);
                 self.irq_dirty = true;

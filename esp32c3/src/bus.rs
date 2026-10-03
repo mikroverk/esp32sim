@@ -42,6 +42,7 @@ pub struct SocBus {
     pub periph: Peripherals,
     /// a bare module: nothing on the pins
     pub board: esp_soc::Board,
+    uart_pins: bool,
     pub(crate) board_edges: bool,
     pub(crate) pins_active: bool,
     pub cycles: u64,
@@ -62,7 +63,7 @@ impl SocBus {
             rtc_slow: vec![0; (RTC_SLOW_HIGH - RTC_SLOW_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [MMU_INVALID; MMU_ENTRIES],
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), board_edges: false, pins_active: false,
+            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), uart_pins: false, board_edges: false, pins_active: false,
             cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(),
         }
     }
@@ -110,12 +111,12 @@ impl SocBus {
         };
         let drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
-        if a & !0xfff == 0x6001_6000 { self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running(); }
+        if a & !0xfff == 0x6001_6000 { self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running(); }
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
         if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), _ => None } {
-            if self.board.uses_uart_pins() { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
+            if self.uart_pins { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
         }
         // A SPI flash command must complete before the guest can read its result: firmware kicks
         // the command and polls/reads the data registers a few instructions later, well inside one
@@ -129,8 +130,9 @@ impl SocBus {
 
     /// Attach controller 0 devices and reconnect board inputs after a reset.
     pub fn attach_board_devices(&mut self) {
+        self.uart_pins = self.board.uses_uart_pins();
         self.board_edges = self.board.uses_gpio_edges();
-        self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running();
+        self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
         for (bus, address, device) in self.board.i2c_devices() {
             if bus == 0 { self.periph.i2c.attach(address, device); }
         }
@@ -202,7 +204,7 @@ impl SocBus {
             self.board.rmt_frame(pin, &bits);
             self.irq_dirty = true;
         }
-        self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running();
+        self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
         if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
             self.board.advance_to(self.cycles);
             for edge in self.board.take_edges() {
@@ -212,7 +214,7 @@ impl SocBus {
             }
         }
         self.periph.gpio.input_changes.clear();
-        if self.board.uses_uart_pins() {
+        if self.uart_pins {
             for input in self.board.uart_rx(self.cycles) {
                 self.periph.uart_pin_input(&input);
                 self.irq_dirty = true;

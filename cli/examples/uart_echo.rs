@@ -110,16 +110,19 @@ fn main() {
         "s3" => {
             let mut m = esp32s3::machine([0; 6]);
             m.bus.board = board;
+            m.bus.attach_board_devices();
             run(m, build, rom, counts);
         }
         "c3" => {
             let mut m = esp32c3::machine([0; 6], 4 * 1024 * 1024);
             m.bus.board = board;
+            m.bus.attach_board_devices();
             run(m, build, rom, counts);
         }
         "c6" => {
             let mut m = esp32c6::machine([0; 6], 4 * 1024 * 1024);
             m.bus.board = board;
+            m.bus.attach_board_devices();
             run(m, build, rom, counts);
         }
         _ => panic!("expected s3, c3 or c6"),
