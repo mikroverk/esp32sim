@@ -43,7 +43,7 @@ enum Hook {
 
 #[derive(Default)]
 pub struct Ble {
-    pub controller: crate::ble::Controller,
+    pub session: crate::ble::peer::Session,
     pub hooks: Vec<u32>,
     kinds: HashMap<u32, Hook>,
     entry: u32,
@@ -60,22 +60,11 @@ pub struct Ble {
 }
 
 impl Ble {
-    pub fn enable(&mut self, symbols: &HashMap<String, u32>, abi: &Abi) -> Result<(), String> {
-        let get = |name: &str| {
-            symbols
-                .get(name)
-                .copied()
-                .ok_or_else(|| format!("BLE requires ELF symbol {name}"))
-        };
+    pub fn enable(&mut self, symbols: &HashMap<String, u32>, init_size: u32, abi: &Abi) -> Result<(), String> {
+        let get = |name: &str| symbols.get(name).copied().ok_or_else(|| format!("BLE requires ELF symbol {name}"));
         let entry = get("esp_bt_controller_init")?;
         let init = entry.checked_add(3).ok_or("BLE invalid init address")? & !3;
-        let next = symbols
-            .values()
-            .copied()
-            .filter(|&pc| pc > entry)
-            .min()
-            .unwrap_or(init);
-        if next.saturating_sub(init) < INIT + abi.code.len() as u32 {
+        if entry.checked_add(init_size).is_none_or(|end| end.saturating_sub(init) < INIT + abi.code.len() as u32) {
             return Err("BLE controller init has no room for the guest task trampoline".into());
         }
         let buffer = get("_bt_controller_bss_start")?;
@@ -84,9 +73,7 @@ impl Ble {
             || end > abi.ram.end
             || buffer & 3 != 0
             || end.saturating_sub(buffer) < BUFFER_SIZE
-        {
-            return Err("BLE controller BSS is too small or outside DRAM".into());
-        }
+        { return Err("BLE controller BSS is too small or outside DRAM".into()); }
         let mut next = Self {
             entry,
             init,
@@ -101,9 +88,7 @@ impl Ble {
             ("esp_vhci_host_register_callback", Hook::Register),
             ("esp_vhci_host_check_send_available", Hook::Available),
             ("esp_vhci_host_send_packet", Hook::Send),
-        ] {
-            next.kinds.insert(get(name)?, kind);
-        }
+        ] { next.kinds.insert(get(name)?, kind); }
         for (name, kind) in [
             ("esp_bt_controller_get_status", Hook::Status),
             ("esp_bt_controller_rom_mem_release", Hook::Release),
@@ -113,11 +98,7 @@ impl Ble {
             ("esp_bt_mem_release", Hook::Release),
             ("esp_ble_tx_power_get", Hook::PowerGet),
             ("esp_ble_tx_power_set", Hook::PowerSet),
-        ] {
-            if let Some(&address) = symbols.get(name) {
-                next.kinds.insert(address, kind);
-            }
-        }
+        ] { if let Some(&address) = symbols.get(name) { next.kinds.insert(address, kind); } }
         next.kinds.insert(init + POLL, Hook::Poll);
         next.kinds.insert(init + CREATED, Hook::Created);
         next.hooks = next.kinds.keys().copied().collect();
@@ -126,7 +107,7 @@ impl Ble {
     }
 
     pub fn reset(&mut self) {
-        self.controller = crate::ble::Controller::new();
+        self.session.reset();
         self.status = 0;
         self.callbacks = [0; 2];
         self.send_ready = false;
@@ -135,18 +116,15 @@ impl Ble {
     }
 
     pub fn command(&mut self, command: &str, cycles: u64, hz: u64) -> Result<(), String> {
-        if self.hooks.is_empty() {
-            return Err("BLE requires --ble and the application ELF".into());
-        }
-        let result = self.controller.command(command);
+        if self.hooks.is_empty() { return Err("BLE requires --ble and the application ELF".into()); }
+        self.session.advance_to(cycles);
+        let result = self.session.command(command);
         self.log(cycles, hz);
         result
     }
 
     fn log(&mut self, cycles: u64, hz: u64) {
-        for line in self.controller.drain_log() {
-            eprintln!("[ble] t={:.6}s {line}", cycles as f64 / hz as f64);
-        }
+        for line in self.session.drain_log() { eprintln!("[ble] t={:.6}s {line}", cycles as f64 / hz as f64); }
     }
 }
 
@@ -154,19 +132,8 @@ pub fn install<B: VhciBus>(bus: &mut B) -> Result<(), String> {
     let abi = B::abi();
     let b = bus.ble();
     let (entry, init, buffer) = (b.entry, b.init, b.buffer);
-    let literals = [
-        b.create,
-        init + TASK,
-        buffer + 4,
-        b.delay,
-        init + POLL,
-        init + CREATED,
-        buffer,
-        4096,
-    ];
-    if !bus.valid_callback(entry) {
-        return Err("BLE controller init does not match the guest calling convention".into());
-    }
+    let literals = [b.create, init + TASK, buffer + 4, b.delay, init + POLL, init + CREATED, buffer, 4096];
+    if !bus.valid_callback(entry) { return Err("BLE controller init does not match the guest calling convention".into()); }
     if let Some(offset) = bus.flash_offset(init + 4) {
         let len = INIT as usize + abi.code.len() - 4;
         if bus.flash_offset(init + 4 + len as u32 - 1) != Some(offset + len - 1) {
@@ -180,23 +147,19 @@ pub fn install<B: VhciBus>(bus: &mut B) -> Result<(), String> {
             bus.ble().original_flash = Some((offset, original));
         }
     }
-    for (i, value) in literals.into_iter().enumerate() {
-        bus.load_bytes(init + 4 + i as u32 * 4, &value.to_le_bytes())?;
-    }
+    for (i, value) in literals.into_iter().enumerate() { bus.load_bytes(init + 4 + i as u32 * 4, &value.to_le_bytes())?; }
     bus.load_bytes(init + INIT, abi.code)?;
     bus.load_bytes(buffer + 4, b"vhci\0")?;
     Ok(())
 }
 
-pub fn intercept<C: Core, B: VhciBus>(
-    cpu: &mut C,
-    bus: &mut B,
-    redirect: impl FnOnce(&mut C, u32),
-) -> bool {
+pub fn intercept<C: Core, B: VhciBus>(cpu: &mut C, bus: &mut B, redirect: impl FnOnce(&mut C, u32)) -> bool {
     let abi = B::abi();
     let Some(&hook) = bus.ble().kinds.get(&cpu.pc()) else {
         return false;
     };
+    let cycles = bus.cycles();
+    bus.ble().session.advance_to(cycles);
     let arg = cpu.arg(bus, 0);
     let mut result = 0;
     match hook {
@@ -235,16 +198,12 @@ pub fn intercept<C: Core, B: VhciBus>(
                 result = INVALID_STATE;
             } else if arg != 1 && arg != 3 {
                 result = INVALID_ARG;
-            } else {
-                bus.ble().status = 2;
-            }
+            } else { bus.ble().status = 2; }
         }
         Hook::Disable => {
             if bus.ble().status != 2 {
                 result = INVALID_STATE;
-            } else {
-                bus.ble().status = 1;
-            }
+            } else { bus.ble().status = 1; }
         }
         Hook::Deinit => {
             if bus.ble().status != 1 {
@@ -254,32 +213,24 @@ pub fn intercept<C: Core, B: VhciBus>(
                 bus.ble().callbacks = [0; 2];
                 bus.ble().send_ready = false;
                 bus.ble().yield_to_host = false;
-                // ponytail: keep one task per boot; delete it when memory release is modeled.
-                bus.ble().controller = crate::ble::Controller::new();
+                // keep one task per boot; delete it when memory release is modeled.
+                bus.ble().session.reset();
             }
         }
         Hook::Status => result = bus.ble().status,
         // The injected task and packet buffer occupy controller memory for this boot.
-        Hook::Release => {
-            if bus.ble().status != 0 {
-                result = INVALID_STATE;
-            }
-        }
+        Hook::Release => { if bus.ble().status != 0 { result = INVALID_STATE; } }
         Hook::Register => {
             if arg == 0 || arg > u32::MAX - 7 {
                 result = INVALID_ARG;
-            } else if let (Ok(send), Ok(recv)) =
-                (bus.read32_unpriced(arg), bus.read32_unpriced(arg + 4))
-            {
+            } else if let (Ok(send), Ok(recv)) = (bus.read32_unpriced(arg), bus.read32_unpriced(arg + 4)) {
                 if !bus.valid_callback(send) || !bus.valid_callback(recv) {
                     result = INVALID_ARG;
                 } else {
                     bus.ble().callbacks = [send, recv];
                     bus.ble().send_ready = true;
                 }
-            } else {
-                result = INVALID_ARG;
-            }
+            } else { result = INVALID_ARG; }
         }
         Hook::Available => result = u32::from(bus.ble().status == 2),
         Hook::Send => {
@@ -288,20 +239,14 @@ pub fn intercept<C: Core, B: VhciBus>(
                 || len == 0
                 || len > (BUFFER_SIZE - 16) as usize
                 || arg < abi.ram.start
-                || arg
-                    .checked_add(len as u32)
-                    .is_none_or(|end| end > abi.ram.end)
+                || arg.checked_add(len as u32).is_none_or(|end| end > abi.ram.end)
             {
                 eprintln!("[ble] rejected invalid VHCI packet pointer, length or controller state");
             } else {
-                let packet: Result<Vec<u8>, _> = (0..len)
-                    .map(|i| bus.read8_unpriced(arg + i as u32))
-                    .collect();
+                let packet: Result<Vec<u8>, _> = (0..len).map(|i| bus.read8_unpriced(arg + i as u32)).collect();
                 if let Ok(packet) = packet {
-                    if bus.ble_debug() {
-                        eprintln!("[ble] tx {:02x?}", packet);
-                    }
-                    bus.ble().controller.send(&packet);
+                    if bus.ble_debug() { eprintln!("[ble] tx {:02x?}", packet); }
+                    bus.ble().session.send(&packet);
                     bus.ble().send_ready = true;
                     let cycles = bus.cycles();
                     bus.ble().log(cycles, abi.hz);
@@ -316,22 +261,16 @@ pub fn intercept<C: Core, B: VhciBus>(
                 return true;
             }
             if bus.ble().status == 2 && bus.ble().callbacks[1] != 0 {
-                if let Some(packet) = bus.ble().controller.pop_packet() {
+                if let Some(packet) = bus.ble().session.pop_packet() {
                     let buffer = bus.ble().buffer;
                     if packet.len() <= (BUFFER_SIZE - 16) as usize
-                        && bus
-                            .load_bytes(buffer, &(packet.len() as u32).to_le_bytes())
-                            .is_ok()
+                        && bus.load_bytes(buffer, &(packet.len() as u32).to_le_bytes()).is_ok()
                         && bus.load_bytes(buffer + 16, &packet).is_ok()
                     {
-                        if bus.ble_debug() {
-                            eprintln!("[ble] rx {:02x?}", packet);
-                        }
+                        if bus.ble_debug() { eprintln!("[ble] rx {:02x?}", packet); }
                         bus.ble().yield_to_host = true;
                         result = bus.ble().callbacks[1];
-                    } else {
-                        eprintln!("[ble] rejected oversized or unmapped controller packet");
-                    }
+                    } else { eprintln!("[ble] rejected oversized or unmapped controller packet"); }
                 } else if bus.ble().send_ready {
                     bus.ble().send_ready = false;
                     result = bus.ble().callbacks[0];

@@ -1086,7 +1086,11 @@ impl<S: Soc> Machine<S> {
                         tc += step * 4;
                     }
                 }
-                "ble" => ev.push((c, ScriptAction::Ble(rest.to_string()))),
+                "ble" => {
+                    rest.parse::<crate::ble::peer::Command>().map_err(|e| format!("line {}: {e}", ln + 1))?;
+                    if !self.bus.ble_enabled() { return Err(format!("line {}: BLE requires --ble and the application ELF", ln + 1)); }
+                    ev.push((c, ScriptAction::Ble(rest.to_string())));
+                },
                 "stop" => ev.push((c, ScriptAction::Stop)),
                 _ => return Err(format!("line {}: unknown command {}", ln + 1, cmd)),
             }

@@ -24,9 +24,10 @@ task:
 free_cmd:
  addi sp,sp,-16
  sw ra,12(sp)
- # Host sets t0 to free before entering this wrapper.
+ # Host sets t0 to the matching free function and a1 to the transport status.
+ sw a1,8(sp)
  jalr ra,t0,0
- li a0,0
+ lw a0,8(sp)
  lw ra,12(sp)
  addi sp,sp,16
  ret

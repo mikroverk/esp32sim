@@ -50,7 +50,8 @@ impl Soc for S3 {
 }
 
 impl esp_soc::SocBus for SocBus {
-    fn enable_ble(&mut self, symbols: &std::collections::HashMap<String, u32>) -> Result<(), String> { self.ble.enable(symbols, &<Self as esp_soc::ble::vhci::VhciBus>::abi()) }
+    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> { self.ble.enable(&elf.by_name, elf.symbol_sizes.get("esp_bt_controller_init").copied().unwrap_or(0), &<Self as esp_soc::ble::vhci::VhciBus>::abi()) }
+    fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> { Some(SocBus::next_deadline(self)) }

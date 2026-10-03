@@ -4,7 +4,7 @@ use super::*;
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);
-    let symbols = std::collections::HashMap::new();
+    let symbols = esp_soc::elf::Elf::default();
     assert!(esp32s3::machine([0; 6]).bus.enable_ble(&symbols).is_err());
     assert!(esp32c3::machine([0; 6], 4 << 20).bus.enable_ble(&symbols).is_err());
     assert!(esp32c6::machine([0; 6], 4 << 20).bus.enable_ble(&symbols).is_err());
@@ -120,5 +120,16 @@ fn timing_cycle_values_report_usage_errors() {
         }
         assert_eq!(timing_cycles("0", name), Ok(0));
         assert_eq!(timing_cycles("4294967295", name), Ok(u32::MAX));
+    }
+}
+
+#[test]
+fn ble_scripts_validate_commands_and_require_enable_at_parse_time() {
+    let mut m = esp32c3::machine([0; 6], 4 << 20);
+    assert!(m.load_script("0 ble connect").unwrap_err().contains("--ble"));
+    for command in ["conect", "read", "read 0", "read 65536", "write 3 zz", "write 3 f", "discover extra"] {
+        let error = m.load_script(&format!("0 ble {command}")).unwrap_err();
+        assert!(error.contains("line 1"));
+        assert!(!error.contains("--ble"), "syntax must be checked independently of enable state");
     }
 }
