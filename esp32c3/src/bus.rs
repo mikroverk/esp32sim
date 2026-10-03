@@ -353,6 +353,7 @@ impl SocBus {
         if self.periph.work_pending { self.pending_work(cycles); } else { self.periph.tick(cycles as u64); }
     }
 
+    #[inline(never)]
     fn pending_work(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
         self.periph.tick(cycles as u64);
