@@ -117,7 +117,7 @@ impl SocBus {
         // read returns zeros — which is exactly how `E memspi: no response` showed up on a
         // non-power-on boot while a power-on boot happened to survive it.
         if self.periph.spi_exec { self.run_spi(); }
-        self.deliver_spi2_transfer();
+        if a == 0x6002_4000 && self.periph.spi2.has_pending_transfer() { self.deliver_spi2_transfer(); }
         self.irq_dirty = true;
     }
 
@@ -131,11 +131,12 @@ impl SocBus {
     }
 
     fn deliver_gpio_output(&mut self) {
-        let changes = std::mem::take(&mut self.periph.gpio.changes);
+        let changes = &self.periph.gpio.changes;
         if let Some(events) = &mut self.gpio_events {
             events.extend(changes.iter().map(|&(pin, level)| (self.cycles, pin, level)));
         }
-        self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.enable, self.periph.gpio.out);
+        self.board.gpio_output_at(self.cycles, changes, self.periph.gpio.enable, self.periph.gpio.out);
+        self.periph.gpio.changes.clear();
     }
 
     fn deliver_spi2_transfer(&mut self) {
@@ -181,17 +182,18 @@ impl SocBus {
         if self.periph.spi_exec { self.run_spi(); }
         self.periph.tick(cycles as u64);
         if !self.periph.gpio.changes.is_empty() { self.deliver_gpio_output(); }
-        self.deliver_spi2_transfer();
         for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
             let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
             self.board.rmt_frame(pin, &bits);
             self.irq_dirty = true;
         }
-        self.board.advance_to(self.cycles);
-        for edge in self.board.take_edges() {
-            self.periph.gpio.set_input(edge.pin, edge.level);
-            if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
-            self.irq_dirty = true;
+        if self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
+            self.board.advance_to(self.cycles);
+            for edge in self.board.take_edges() {
+                self.periph.gpio.set_input(edge.pin, edge.level);
+                if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
+                self.irq_dirty = true;
+            }
         }
         self.periph.gpio.input_changes.clear();
     }

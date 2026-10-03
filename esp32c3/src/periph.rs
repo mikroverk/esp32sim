@@ -172,9 +172,10 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x03 "SPI0" (spi0) => [];
     0x04 "GPIO" (gpio) => [src::GPIO];
     0x09 "IO_MUX" (io_mux) => [];
-    0x13 "I2C0" (i2c) => [src::I2C_EXT0];
-    0x16 "RMT" (rmt) => [src::RMT];
-    0x24 "SPI2" (spi2) => [src::SPI2];
+    // These three devices are serviced below only when active.
+    0x13 "I2C0" alias (i2c) => [src::I2C_EXT0];
+    0x16 "RMT" alias (rmt) => [src::RMT];
+    0x24 "SPI2" alias (spi2) => [src::SPI2];
     // the efuse controller shares the RTC block on the C3, at +0x800
     0x08 "EFUSE" (efuse) delta -0x800 @ 0x800..=0xfff => [];
     0x08 "RTCCNTL" (rtc) => [];
@@ -245,12 +246,26 @@ impl Peripherals {
 
     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
-    pub fn tick(&mut self, cycles: u64) { Dispatch::tick(self, cycles); }
+    pub fn tick(&mut self, cycles: u64) {
+        Dispatch::tick(self, cycles);
+        if self.rmt.rmt.ch.iter().any(|c| c.running) { self.rmt.rmt.tick(cycles); }
+    }
 
-    pub fn cycles_until_timer(&self) -> u32 { Dispatch::cycles_until_deadline(self) }
+    pub fn cycles_until_timer(&self) -> u32 {
+        let timer = Dispatch::cycles_until_deadline(self);
+        if self.rmt.rmt.ch.iter().any(|c| c.running) { timer.min(31) } else { timer }
+    }
 
     /// Which interrupt sources are asserted right now.
-    pub fn source_status(&self) -> [u32; 4] { Dispatch::source_status(self) }
+    pub fn source_status(&self) -> [u32; 4] {
+        let mut st = Dispatch::source_status(self);
+        if self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0 {
+            if self.i2c.irq() { st[0] |= 1 << src::I2C_EXT0; }
+            if self.spi2.irq() { st[0] |= 1 << src::SPI2; }
+            if self.rmt.rmt.irq() { st[0] |= 1 << src::RMT; }
+        }
+        st
+    }
 
     /// Refresh the interrupt matrix; returns true if any source changed.
     pub fn refresh_lines(&mut self) -> bool {

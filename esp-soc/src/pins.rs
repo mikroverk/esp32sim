@@ -9,6 +9,7 @@ pub struct ChipPins {
     pub output_mask: u32,
 }
 impl ChipPins {
+    pub const C3: Self = Self { valid: (1 << 22) - 1, input_select: 0x40, output_mask: 0x1ff };
     pub const C6: Self = Self { valid: (1 << 31) - 1, input_select: 0x80, output_mask: 0x1ff };
     pub const S3: Self = Self { valid: ((1u64 << 49) - 1) & !(15 << 22), input_select: 0x80, output_mask: 0x3ff };
     pub fn routes<'a>(&'a self, gpio: &'a Gpio, mux: &'a RegRam) -> PinRoutes<'a> { PinRoutes { chip: self, gpio, mux } }

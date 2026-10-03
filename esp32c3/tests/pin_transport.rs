@@ -64,7 +64,7 @@ fn i2c_matches_pins_and_preserves_replacement_and_fixed_devices() {
     route(bus, 4, 5);
     assert!(!read_i2c(bus).0);
     route(bus, 8, 9);
-    bus.write32(0x6000_9024, 0).unwrap(); // disable SDA IO_MUX input
+    bus.write32(0x6000_9024, 1 << 12).unwrap(); // disable SDA IO_MUX input
     assert!(!read_i2c(bus).0);
     route(bus, 8, 9);
     bus.periph
@@ -228,18 +228,17 @@ fn output_cycles_include_low_release_and_input_edges_keep_their_timestamp() {
 /// Build docs/evidence/c3-peripherals-2026-10-02/main.cpp with the adjacent
 /// PlatformIO configuration, then supply its build directory and a ROM ELF.
 #[test]
-#[ignore = "requires ESP32SIM_TRANSPORT_BUILD and ESP32SIM_ROM"]
-fn external_arduino_pin_transport() {
+fn external_c3_arduino_pin_transport() {
     let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD")
         .expect("ESP32SIM_TRANSPORT_BUILD must name the PlatformIO build directory containing firmware.factory.bin"));
-    let rom = std::env::var_os("ESP32SIM_ROM").expect("ESP32SIM_ROM must name an ESP32-C3 revision-3 ROM ELF");
+    let rom = std::path::PathBuf::from(std::env::var_os("ESP32SIM_ROM_DIR").expect("ESP32SIM_ROM_DIR must contain esp32c3_rev3_rom.elf")).join("esp32c3_rev3_rom.elf");
     let state = Arc::new(Mutex::new(State::default()));
     let mut m = esp32c3::machine([2, 0, 0, 0, 0, 1], 4 * 1024 * 1024);
     m.bus.board = Box::new(Board(state.clone()));
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).expect("ESP32SIM_ROM must name a readable ESP32-C3 revision-3 ROM ELF")).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("ESP32SIM_ROM_DIR must contain a readable esp32c3_rev3_rom.elf")).unwrap();
     m.write_flash(
         0,
         &std::fs::read(build.join("firmware.factory.bin"))
@@ -377,4 +376,43 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
         state.lock().unwrap().frames,
         [(5, vec![[0x12, 0x34, 0x56]]), (6, vec![[0x12, 0x34, 0x56]])]
     );
+}
+
+#[test]
+fn reset_gpio_select_drives_software_cs_and_keeps_the_change_buffer() {
+    let mut m = esp32c3::machine([0; 6], 4 << 20);
+    for pin in 0..22 { assert_eq!(m.bus.read32(0x6000_4554 + pin * 4).unwrap(), 128); }
+    let state = Arc::new(Mutex::new(State::default()));
+    m.bus.board = Box::new(Board(state.clone()));
+    for (pin, sig) in [(6, 63), (7, 65)] {
+        m.bus.write32(0x6000_9004 + pin * 4, 1 << 12).unwrap();
+        m.bus.write32(0x6000_4554 + pin * 4, sig).unwrap();
+    }
+    m.bus.write32(0x6000_902c, 1 << 12).unwrap();
+    m.bus.write32(0x6000_900c, 1 << 12 | 1 << 9).unwrap();
+    m.bus.write32(0x6000_4254, 0x40 | 2).unwrap();
+    m.bus.write32(0x6000_4024, 1 << 10).unwrap();
+    m.bus.write32(0x6002_4020, 0x3f).unwrap();
+    assert_eq!(spi(&mut m.bus), 0xa5);
+    m.bus.write32(0x6000_4008, 1 << 10).unwrap();
+    let capacity = m.bus.periph.gpio.changes.capacity();
+    assert!(capacity > 0);
+    m.bus.write32(0x6000_400c, 1 << 10).unwrap();
+    assert_eq!(m.bus.periph.gpio.changes.capacity(), capacity);
+    assert!(m.bus.periph.gpio.changes.is_empty());
+}
+
+#[test]
+fn idle_board_does_not_receive_clock_callbacks() {
+    struct Idle;
+    impl BoardModel for Idle {
+        fn name(&self) -> &'static str { "idle" }
+        fn advance_to(&mut self, _: u64) { panic!("idle board advanced"); }
+        fn take_edges(&mut self) -> Vec<BoardEdge> { panic!("idle board polled"); }
+    }
+    let mut m = esp32c3::machine([0; 6], 4 << 20);
+    m.bus.board = Box::new(Idle);
+    m.bus.tick(64);
+    assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
+    assert!(m.bus.periph.rmt.rmt.done.is_empty());
 }
