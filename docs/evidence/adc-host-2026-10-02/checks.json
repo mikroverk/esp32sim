@@ -1,66 +1,221 @@
 {
-  "implementation_revision": "7ce98837b93a90444d3da93c52352b9b664238c2",
+  "implementation_revision": "4456527b5078ba58f1427039333273deb6cf28aa",
+  "published_revision": "4da513e19480f27c2e61af0b831c11f556f827ac",
   "base_revision": "0334d422468aa74442ba506bacb4a62f1b66b327",
   "platform": {
     "os": "Darwin",
     "arch": "arm64",
-    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
-    "cargo": "1.96.0 (30a34c682 2026-05-25)",
-    "platformio": "6.1.19",
-    "arduino": "3.3.8",
-    "idf_libraries": "5.5.4+sha.735507283d"
+    "rustc": "1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "1.99.0 (5f94df478 2026-08-27)"
   },
   "checks": [
     {
-      "command": "cargo build --release",
+      "name": "native_clippy",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
       "exit_code": 0
     },
     {
-      "command": "cargo test --workspace",
-      "exit_code": 0,
-      "passed": 467,
-      "failed": 0,
-      "ignored": 25
-    },
-    {
-      "command": "tools/wasm-build.sh",
+      "name": "wasm_clippy",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
       "exit_code": 0
     },
     {
-      "command": "ADC_FIRMWARE_DIR=/tmp/esp32sim-up-adc-arduino/.pio/build ADC_ROM_DIR=$HOME/.platformio/packages/tool-esp-rom-elfs cargo test --release -p esp32sim --test adc -- --include-ignored --nocapture --test-threads=1",
+      "name": "workspace",
+      "command": "ESP32SIM_ROM_DIR=\"$ROM_DIR\" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
       "exit_code": 0,
-      "passed": 6,
+      "passed": 477,
       "failed": 0,
       "ignored": 0
     },
     {
-      "command": "git diff --check",
+      "name": "adc",
+      "command": "ADC_FIRMWARE_DIR=/tmp/esp32sim-up-adc-arduino/.pio/build ADC_ROM_DIR=\"$ROM_DIR\" cargo +1.99.0 test --release -p esp32sim --test adc -- --include-ignored --nocapture --test-threads=1",
+      "exit_code": 0,
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "work": [
+        {
+          "chip": "c3",
+          "insns": 7000000,
+          "cycles": 7000000
+        },
+        {
+          "chip": "c6",
+          "insns": 8000000,
+          "cycles": 8000000
+        },
+        {
+          "chip": "s3",
+          "insns": 4407874,
+          "cycles": 8000000
+        }
+      ],
+      "reading_pairs": 16,
+      "conversions": 32
+    },
+    {
+      "name": "wasm",
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
       "exit_code": 0
     },
     {
+      "name": "privacy",
       "command": "node tools/check-evidence-privacy.mjs",
-      "attempt": 1,
-      "exit_code": 1,
-      "error": "checks.json: personal home-directory label",
-      "cause": "A normalized /Users/alice label ended in a period; the pattern requires a delimiter. Reworded to use backticks."
+      "exit_code": 0
     },
     {
-      "command": "node tools/check-evidence-privacy.mjs",
-      "attempt": 2,
-      "exit_code": 0,
-      "tracked_files": 1479,
-      "gzip_files": 15
+      "name": "scale_mutation",
+      "command": "cargo +1.99.0 test -p esp-periph --lib s3_adc1_preserves_all_12_bit_idf44_values",
+      "mutation": "Replace S3 ADC1 million-scale uint32 calculation with IDF 5.5 65536-scale calculation",
+      "exit_code": 101,
+      "result": "Regression test failed as expected; mutation restored before final checks."
     }
   ],
-  "artifacts": {
-    "target/release/esp32sim": {
-      "sha256": "9169bb6dcec2ad6c7dbc849a76b331aa69c1d5929822e25d3c12ad9349356ebd",
-      "bytes": 2258104
+  "inputs": {
+    "firmware/s3/bootloader.bin": {
+      "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432",
+      "bytes": 19984
     },
-    "web/wasm/esp32sim.wasm": {
-      "sha256": "dedfae77549971fb7ed51c6cf73b85d9830c09dcaaa6455bbd677a4beefed64b",
-      "bytes": 2162293
+    "firmware/s3/partitions.bin": {
+      "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+      "bytes": 3072
+    },
+    "firmware/s3/firmware.bin": {
+      "sha256": "68d28ae924f0d989453530682c2478f63a1f42bcaff0e95598ff886c214534a9",
+      "bytes": 310112
+    },
+    "firmware/s3/firmware.elf": {
+      "sha256": "3a23275233462b0b03bafa9892aada075c11368a516c19ee37f1c10cbae81b28",
+      "bytes": 6572408
+    },
+    "rom/esp32s3_rev0_rom.elf": {
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "bytes": 949552
+    },
+    "firmware/c3/bootloader.bin": {
+      "sha256": "da409642ea1619c16b4ef485219a91c3c2ae873ce3bae37330c24100bd747439",
+      "bytes": 19520
+    },
+    "firmware/c3/partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "firmware/c3/firmware.bin": {
+      "sha256": "7b12fde6d23fc710ecaa97067d3d1eb8fdfb27d083cae6075d20de8cb09ba749",
+      "bytes": 300560
+    },
+    "firmware/c3/firmware.elf": {
+      "sha256": "f3f26befa405789998cb28ba74775430b5ebddbe9e97192c1f15917c5f592728",
+      "bytes": 6408888
+    },
+    "rom/esp32c3_rev3_rom.elf": {
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "bytes": 556332
+    },
+    "firmware/c6/bootloader.bin": {
+      "sha256": "022390206caedbc5f780cd955b31e1dd1219091f374e420cd0531b2f5b5b5037",
+      "bytes": 20976
+    },
+    "firmware/c6/partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "firmware/c6/firmware.bin": {
+      "sha256": "da7c4b6b4ee62d573f434859e5d225f4a1cdb092aff101080644fcb777c2d9f6",
+      "bytes": 344912
+    },
+    "firmware/c6/firmware.elf": {
+      "sha256": "fe3117ce1fdb59d4c6a4c1f68733729cfd3b2dadc797b6a8b0d4b10a1b154535",
+      "bytes": 6416752
+    },
+    "rom/esp32c6_rev0_rom.elf": {
+      "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "bytes": 489768
     }
   },
-  "privacy": "Curated serial lines only; no raw build or boot logs retained. Personal home path in the PlatformIO failure excerpt normalized to `/Users/alice`."
+  "artifacts": {
+    "target/release/esp32sim": {
+      "sha256": "7361eacd9e91c84f41c7295646d35210d159cdfccdde9e1e4f21dab1d0713549",
+      "bytes": 2128472
+    },
+    "web/wasm/esp32sim.wasm": {
+      "sha256": "73305337fd480b1d27c45dc5844e2f07414a3924e04cb3379eac24c3835c8757",
+      "bytes": 2284412
+    }
+  },
+  "historical_checks_sha256": "8f7c2abe601a292f903c8d01739c59cd1180fcff7c5c69b56e0f3bc87fcfcfc8",
+  "historical_run": {
+    "implementation_revision": "7ce98837b93a90444d3da93c52352b9b664238c2",
+    "base_revision": "0334d422468aa74442ba506bacb4a62f1b66b327",
+    "platform": {
+      "os": "Darwin",
+      "arch": "arm64",
+      "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+      "cargo": "1.96.0 (30a34c682 2026-05-25)",
+      "platformio": "6.1.19",
+      "arduino": "3.3.8",
+      "idf_libraries": "5.5.4+sha.735507283d"
+    },
+    "checks": [
+      {
+        "command": "cargo build --release",
+        "exit_code": 0
+      },
+      {
+        "command": "cargo test --workspace",
+        "exit_code": 0,
+        "passed": 467,
+        "failed": 0,
+        "ignored": 25
+      },
+      {
+        "command": "tools/wasm-build.sh",
+        "exit_code": 0
+      },
+      {
+        "command": "ADC_FIRMWARE_DIR=/tmp/esp32sim-up-adc-arduino/.pio/build ADC_ROM_DIR=$HOME/.platformio/packages/tool-esp-rom-elfs cargo test --release -p esp32sim --test adc -- --include-ignored --nocapture --test-threads=1",
+        "exit_code": 0,
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "command": "git diff --check",
+        "exit_code": 0
+      },
+      {
+        "command": "node tools/check-evidence-privacy.mjs",
+        "attempt": 1,
+        "exit_code": 1,
+        "error": "checks.json: personal home-directory label",
+        "cause": "A normalized /Users/alice label ended in a period; the pattern requires a delimiter. Reworded to use backticks."
+      },
+      {
+        "command": "node tools/check-evidence-privacy.mjs",
+        "attempt": 2,
+        "exit_code": 0,
+        "tracked_files": 1479,
+        "gzip_files": 15
+      }
+    ],
+    "artifacts": {
+      "target/release/esp32sim": {
+        "sha256": "9169bb6dcec2ad6c7dbc849a76b331aa69c1d5929822e25d3c12ad9349356ebd",
+        "bytes": 2258104
+      },
+      "web/wasm/esp32sim.wasm": {
+        "sha256": "dedfae77549971fb7ed51c6cf73b85d9830c09dcaaa6455bbd677a4beefed64b",
+        "bytes": 2162293
+      }
+    },
+    "privacy": "Curated serial lines only; no raw build or boot logs retained. Personal home path in the PlatformIO failure excerpt normalized to `/Users/alice`."
+  },
+  "privacy": "Retained only aggregate check outcomes, public input hashes and ADC output. Raw logs remain in /tmp; no personal paths or boot banners copied. Historical results and artifact hashes are unchanged.",
+  "baseline_forward_fnv1a_u64": [
+    "8d1925107b2b6226",
+    "4a688a8ccb028764",
+    "dbd6af723f3116ad",
+    "169fa60ebe565fba"
+  ]
 }

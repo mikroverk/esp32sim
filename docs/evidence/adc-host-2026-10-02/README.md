@@ -4,7 +4,7 @@ The S3 ADC1 path from PR #165 now accepts raw counts and reports completed conve
 The same host contract covers S3 ADC2, C3 ADC1/ADC2, and C6 ADC1. Existing voltage
 sources and S3 ADC1 transfer behavior remain compatible.
 
-Implementation revision: `7ce98837b93a90444d3da93c52352b9b664238c2`.
+Original implementation revision: `7ce98837b93a90444d3da93c52352b9b664238c2`.
 Base: `0334d422468aa74442ba506bacb4a62f1b66b327`, PR #165, unchanged.
 No dependency on classic ESP32 PR #168 or the fork is introduced.
 
@@ -13,7 +13,7 @@ adds a different correctness contract from #165: raw input, per-pin generations,
 S3 ADC2, and C3/C6 one-shot controllers. This is not a speed or hardware-timing
 experiment. EX199–EX204 remain reserved for other open work.
 
-## Results
+## Original results, 2026-10-02
 
 All four firmware paths passed. Each table cell contains raw count / calibrated mV.
 Each phase runs `analogRead` followed by `analogReadMilliVolts`, so each pin's
@@ -39,9 +39,37 @@ three external-firmware checks. The separate release ADC run passed all six test
 including those three firmware checks. Release and WASM builds passed. See
 [checks and artifact hashes](checks.json) and [input hashes](inputs.json).
 
+## Review follow-up, 2026-10-03
+
+Revision `4456527b5078ba58f1427039333273deb6cf28aa` adds `Calibration::S3Adc1`
+to `sar_adc`, sharing the polynomial evaluator and inverse while retaining IDF 4.4's
+million-scale uint32 calculation. This keeps EX207's contract and workload; the new
+checks cover the calibration move and the C3 rev3 ROM correction. The original
+results above and their artifact hashes remain in `checks.json` under `historical_run`.
+Current input and executable hashes are recorded separately in that file.
+
+Rust and Cargo 1.99.0 pass both required Clippy commands and the release workspace
+suite: 477 passed, zero failed, zero ignored, with `external_` tests excluded.
+The committed console, audio and instruction-count goldens passed without changes.
+The separate ADC suite passed all six tests after rebuilding the unchanged Arduino
+3.3.8 sketch. All 16 raw/mV pairs and 32 conversions match the original table,
+now using `esp32c3_rev3_rom.elf` for C3. Rebuilt input hashes and instruction/cycle
+counts in `checks.json` describe this run; original work counts remain historical.
+
+The S3 ADC1 regression fingerprints cover all 4096 raw values at all four
+attenuations. Compiling the unchanged evaluator from #165 reproduced all four
+fingerprints. Substituting IDF 5.5's 65536-scale calculation made that test fail;
+the mutation was restored before the final checks. The existing host-contract
+tests still cover S3 ADC2 dispatch, reboot carry-over and C3/C6 START edges.
+
+The WASM build and all eight requested Node demo checks passed. Both automated
+privacy checking and manual review passed. No JIT source changed and no new
+speed or timing claim is made. See `checks.json` for commands and results.
+
 ## Reproduction
 
-Use the committed sketch unchanged. Build outside the repository:
+Use the committed sketch unchanged. Set `ROM_DIR` to the absolute directory containing
+the S3 rev0, C3 rev3 and C6 rev0 ROM ELFs. Build outside the repository:
 
 ```sh
 work=/tmp/esp32sim-up-adc-arduino
@@ -50,11 +78,11 @@ cp docs/evidence/adc-host-2026-10-02/platformio.ini "$work/platformio.ini"
 cp docs/evidence/adc-host-2026-10-02/main.cpp "$work/src/main.cpp"
 PLATFORMIO_CORE_DIR=/tmp/esp32sim-up-adc-pio-core pio run -d "$work"
 ADC_FIRMWARE_DIR="$work/.pio/build" \
-ADC_ROM_DIR="$HOME/.platformio/packages/tool-esp-rom-elfs" \
-cargo test --release -p esp32sim --test adc -- --include-ignored --nocapture --test-threads=1
-cargo build --release
-cargo test --workspace
-tools/wasm-build.sh
+ADC_ROM_DIR="$ROM_DIR" \
+cargo +1.99.0 test --release -p esp32sim --test adc -- --include-ignored --nocapture --test-threads=1
+cargo +1.99.0 build --release
+ESP32SIM_ROM_DIR="$ROM_DIR" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_
+RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh
 node tools/check-evidence-privacy.mjs
 git diff --check
 ```
@@ -66,7 +94,7 @@ The library harness is necessary to inspect the public host API; no product WASM
 or extra CLI command was added. Voltage-script commands are documented in `docs/cli.md`. Raw injection and conversion
 observations are library APIs and have no CLI equivalent.
 
-Measured environment: Darwin arm64, Rust and Cargo 1.96.0, PlatformIO 6.1.19,
+Original measured environment: Darwin arm64, Rust and Cargo 1.96.0, PlatformIO 6.1.19,
 platform `https://github.com/pioarduino/platform-espressif32.git#55.03.38-1`,
 Arduino 3.3.8, bundled IDF libraries `5.5.4+sha.735507283d`. The isolated PlatformIO
 core reused installed tool/toolchain packages through symlinks and downloaded the
@@ -109,8 +137,9 @@ voltage curve. Raw injection remains available for alternate calibrations.
 One-shot completion is instantaneous, as in #165. No conversion-latency accuracy,
 noise, continuous/DMA acquisition, ADC interrupt delivery, or data inversion is
 claimed. C3 ADC2 was tested through MMIO, not Arduino, whose default IDF configuration
-restricts that unit. No browser runtime or physical-board comparison was run; WASM
-validation here is a successful build. The inverse curves use an exhaustive 4096-count
+restricts that unit. The original run had no browser runtime or physical-board comparison; its WASM
+validation was a successful build. The review follow-up also runs the WASM module in Node,
+not in a browser. The inverse curves use an exhaustive 4096-count
 search, matching #165's approach; there is no throughput claim.
 
 Only curated ADC serial lines, public input hashes, aggregate test outcomes, and
