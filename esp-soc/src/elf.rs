@@ -11,8 +11,11 @@ pub struct Segment {
 
 pub struct Section { pub name: String, pub addr: u32, pub data: Vec<u8>, pub is_bss: bool }
 
+#[derive(Default)]
 pub struct Elf {
     pub entry: u32,
+    /// Symbol extent paired with the first record selected by `by_name`.
+    pub symbol_sizes: std::collections::HashMap<String, u32>,
     pub segments: Vec<Segment>,
     /// allocatable sections (PROGBITS with data, NOBITS as bss) — the ROM ELF keeps
     /// its RAM initialisers here without matching program headers
@@ -50,7 +53,7 @@ fn name(strings: &[u8], off: usize) -> Result<&[u8], String> {
     Ok(&tail[..end])
 }
 
-// Charge before allocating, including both symbol maps. Invalid UTF-8 can expand each
+// Charge before allocating, including all symbol maps. Invalid UTF-8 can expand each
 // input byte to a three-byte replacement character. Charge duplicate records too so
 // overlapping symbol tables cannot repeatedly allocate names outside the work budget.
 fn copy_name(raw: &[u8], copies: usize, remaining: &mut usize) -> Result<String, String> {
@@ -101,6 +104,7 @@ fn parse_with_copy_limit(d: &[u8], mut remaining: usize) -> Result<Elf, String> 
     }
     // symbols
     let mut symbols = BTreeMap::new();
+    let mut symbol_sizes = std::collections::HashMap::new();
     let mut by_name = std::collections::HashMap::new();
     let mut alloc_sections = Vec::new();
     let shstrndx = u16le(d, 50) as usize;
@@ -140,12 +144,28 @@ fn parse_with_copy_limit(d: &[u8], mut remaining: usize) -> Result<Elf, String> 
             let typ = info & 0xf;
             let Ok(raw_name) = name(strings, name_off) else { continue };
             if raw_name.is_empty() { continue; }
-            let name = copy_name(raw_name, if typ == 1 || typ == 2 { 2 } else { 1 }, &mut remaining)?;
+            let name = copy_name(raw_name, if typ == 1 || typ == 2 { 3 } else { 2 }, &mut remaining)?;
+            symbol_sizes.entry(name.clone()).or_insert(u32le(e, 8));
             by_name.entry(name.clone()).or_insert(value);
             if typ == 1 || typ == 2 { symbols.entry(value).or_insert(name); }   // OBJECT / FUNC
         }
     }
-    Ok(Elf { entry, segments, sections: alloc_sections, symbols, by_name })
+    Ok(Elf { symbol_sizes, entry, segments, sections: alloc_sections, symbols, by_name })
+}
+
+
+impl Elf {
+    pub fn idf_version(&self) -> Option<&str> {
+        let addr = *self.by_name.get("esp_app_desc")?;
+        let data = self.sections.iter().filter(|s| !s.is_bss).map(|s| (s.addr, s.data.as_slice()))
+            .chain(self.segments.iter().map(|s| (s.vaddr, s.data.as_slice())))
+            .find_map(|(base, bytes)| addr.checked_sub(base).and_then(|off| bytes.get(off as usize..))
+                .filter(|bytes| bytes.len() >= 144))?;
+        if data[..4] != 0xabcd5432u32.to_le_bytes() { return None; }
+        // esp_app_desc_t: magic, secure version, two reserved words, version/name[32], time/date[16].
+        let version = &data[112..144];
+        std::str::from_utf8(&version[..version.iter().position(|&b| b == 0)?]).ok()
+    }
 }
 
 #[cfg(test)]
@@ -154,27 +174,28 @@ mod tests {
 
     #[test]
     fn repeated_symbol_names_share_the_payload_budget() {
-        // Two FUNC records refer to the same string but different addresses. Both
+        // Two FUNC records refer to the same string but different addresses. All
         // symbol maps own strings; duplicate names must not bypass the budget.
         let mut d = vec![0; 256];
         d[..6].copy_from_slice(b"\x7fELF\x01\x01");
         d[46] = 40; d[48] = 2;
         for (off, value) in [(32, 52u32), (56, 2), (68, 132), (72, 32),
                              (76, 1), (88, 16), (96, 3), (108, 164), (112, 5),
-                             (132, 1), (136, 0x4000), (148, 1), (152, 0x4004)] {
+                             (132, 1), (136, 0x4000), (140, 17), (148, 1), (152, 0x4004), (156, 99)] {
             d[off..off + 4].copy_from_slice(&value.to_le_bytes());
         }
         d[144] = 2; d[160] = 2;
         d[164..169].copy_from_slice(b"\0abc\0");
-        let budget = 2 * (128 + 2 * 3);
+        let budget = 2 * (128 + 3 * 3);
         let elf = parse_with_copy_limit(&d, budget).unwrap();
         assert_eq!(elf.symbols.len(), 2);
         assert_eq!(elf.by_name.len(), 1);
+        assert_eq!(elf.symbol_sizes["abc"], 17);
         assert!(parse_with_copy_limit(&d, budget - 1).is_err());
-        // Lossy UTF-8 expansion must be charged before allocating either copy.
+        // Lossy UTF-8 expansion must be charged before allocating each copy.
         d[165..168].fill(0xff);
         assert!(parse_with_copy_limit(&d, budget).is_err());
-        let elf = parse_with_copy_limit(&d, 2 * (128 + 2 * 9)).unwrap();
+        let elf = parse_with_copy_limit(&d, 2 * (128 + 3 * 9)).unwrap();
         assert_eq!(elf.symbols[&0x4000].len(), 9);
     }
 
@@ -192,4 +213,19 @@ mod tests {
         assert_eq!(e.sections[0].data.len(), 4);
         assert!(parse_with_copy_limit(&d, 7).is_err());
     }
+    #[test]
+    fn idf_version_comes_from_the_app_descriptor() {
+        let mut elf = Elf::default();
+        elf.by_name.insert("esp_app_desc".into(), 0x3c000020);
+        let mut data = vec![0; 256];
+        data[..4].copy_from_slice(&0xabcd5432u32.to_le_bytes());
+        data[112..118].copy_from_slice(b"v5.5.4");
+        elf.sections.push(Section { name: ".flash.appdesc".into(), addr: 0x3c000020, data, is_bss: false });
+        assert_eq!(elf.idf_version(), Some("v5.5.4"));
+        elf.sections[0].data[0] = 0;
+        assert_eq!(elf.idf_version(), None);
+        elf.sections[0].data.truncate(118);
+        assert_eq!(elf.idf_version(), None);
+    }
+
 }

@@ -91,7 +91,8 @@ impl GpioState {
 }
 
 pub trait SocBus: Bus {
-    fn enable_ble(&mut self, _symbols: &std::collections::HashMap<String, u32>) -> Result<(), String> { Err("BLE is unsupported on this chip".into()) }
+    fn enable_ble(&mut self, _elf: &crate::elf::Elf) -> Result<(), String> { Err("BLE is unsupported on this chip".into()) }
+    fn ble_enabled(&self) -> bool { false }
     fn ble_command(&mut self, _command: &str) -> Result<(), String> { Err("BLE is not enabled".into()) }
     fn cycles(&self) -> u64;
     /// CPU cycles from the current device horizon to the next transition that may wake a core.

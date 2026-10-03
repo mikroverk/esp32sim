@@ -1131,7 +1131,11 @@ impl<S: Soc> Machine<S> {
                         tc += step * 4;
                     }
                 }
-                "ble" => ev.push((c, ScriptAction::Ble(rest.to_string()))),
+                "ble" => {
+                    rest.parse::<crate::ble::peer::Command>().map_err(|e| format!("line {}: {e}", ln + 1))?;
+                    if !self.bus.ble_enabled() { return Err(format!("line {}: BLE requires --ble and the application ELF", ln + 1)); }
+                    ev.push((c, ScriptAction::Ble(rest.to_string())));
+                },
                 "stop" => ev.push((c, ScriptAction::Stop)),
                 "waituart0" => { let mut p = rest.splitn(2, char::is_whitespace); let to: f64 = p.next().and_then(|x| x.parse().ok()).ok_or_else(|| format!("line {}: waituart0 <timeout_s> <text>", ln + 1))?;
                                  let text = p.next().unwrap_or("").trim().to_string(); if text.is_empty() { return Err(format!("line {}: waituart0 needs text", ln + 1)); }

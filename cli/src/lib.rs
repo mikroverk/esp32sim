@@ -391,13 +391,14 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
         m.write_flash(off, &data).unwrap_or_else(|e| { eprintln!("--flash-at: {}", e); std::process::exit(2) });
         eprintln!("[emu] flash {:#x}: {} ({} bytes)", off, path, data.len());
     }
-    let mut ble_symbols = std::collections::HashMap::new();
+    let mut ble_elf = esp_soc::elf::Elf::default();
     for p in &o.elfs {
         let data = std::fs::read(p).expect("elf");
         m.add_symbols(&data).expect("elf symbols");
-        if o.ble { ble_symbols.extend(esp_soc::elf::parse(&data).expect("BLE ELF symbols").by_name); }
+        if o.ble { let elf = esp_soc::elf::parse(&data).expect("BLE ELF symbols"); if elf.by_name.contains_key("esp_bt_controller_init") { ble_elf = elf; } }
     }
-    if o.ble { m.bus.enable_ble(&ble_symbols).unwrap_or_else(|e| usage_error(&format!("--ble: {e}"))); }
+    if o.ble { m.bus.enable_ble(&ble_elf).unwrap_or_else(|e| usage_error(&format!("--ble: {e}"))); }
+    if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).expect("script")).expect("script"); }
     if let Some(s) = &o.serial { m.bus.serial_input(s.as_bytes()); }
     for pre in &o.trace_fns {
         let n = m.trace_fns(pre);
@@ -436,7 +437,6 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }
     if let Some(p) = &o.vcd { m.add_observer(Box::new(Vcd::new(p, S::CPU_HZ))); }
-    if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).expect("script")).expect("script"); }
     if let Some(sec) = o.max_seconds { m.max_cycles = (sec * S::CPU_HZ as f64) as u64; }
     boot
 }

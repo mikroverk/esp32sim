@@ -132,6 +132,13 @@ An emulator-created FreeRTOS task delivers controller packets through guest
 callbacks. S3 uses the windowed Xtensa ABI; C3 uses RV32IMC. Unstripped controller,
 VHCI, task and BSS symbols are required on S3/C3. C6 requires native transport,
 NPL and mbuf allocator symbols; its board image needs `--flash-mb 8`.
+C6 is **ESP-IDF 5.5.x only**. Enable reads `esp_app_desc.idf_ver` from the application
+ELF and refuses missing, malformed or other versions before installing hooks.
+Its native transport uses that version's `os_mbuf` layout and NPL initialization.
+S3/C3 accept builds exposing the required VHCI/lifecycle symbols, controller BSS
+and function sizes; there is no IDF version gate. Arduino 3.3.8 with IDF 5.5.4 is
+validated. IDF 4.4 Bluedroid is unsupported and fails with a missing-symbol error.
+Other IDF releases have not been validated.
 
 `[ble]` output reports advertising data and discovered GATT handles. Script commands
 use seconds like the other script actions. For example:
@@ -144,8 +151,10 @@ use seconds like the other script actions. For example:
 ```
 
 Use handles reported by discovery. `ble subscribe CCC_HANDLE` writes notification
-enable to a discovered client configuration descriptor. One ATT request may be
-outstanding; writes are limited to 20 bytes. A scanning guest sees a virtual
+enable to a discovered client configuration descriptor. Commands are validated when
+the script is loaded and require `--ble`. `connect` waits for guest advertising;
+ATT commands wait for the connection and run in order, with one request outstanding.
+Writes are limited to 20 bytes. A scanning guest sees a virtual
 peripheral named `esp32sim` advertising the Battery Service.
 
 This models one unencrypted LE link, legacy advertisements and ATT MTU 23.
