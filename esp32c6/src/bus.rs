@@ -381,9 +381,10 @@ impl SocBus {
     }
 
     fn deliver_gpio_output(&mut self) {
-        let ch = std::mem::take(&mut self.periph.gpio.changes);
-        if let Some(ev) = &mut self.gpio_events { for &(pin, level) in &ch { ev.push((self.cycles, pin, level)); } }
-        self.board.gpio_output_at(self.cycles, &ch, self.periph.gpio.enable, self.periph.gpio.out);
+        let ch = &self.periph.gpio.changes;
+        if let Some(ev) = &mut self.gpio_events { for &(pin, level) in ch { ev.push((self.cycles, pin, level)); } }
+        self.board.gpio_output_at(self.cycles, ch, self.periph.gpio.enable, self.periph.gpio.out);
+        self.periph.gpio.changes.clear();
     }
 
     /// GPIO edges precede SPI transfers and completed RMT frames.

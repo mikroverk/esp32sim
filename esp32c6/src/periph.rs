@@ -362,6 +362,7 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
+    pub io_mux: RegRam,
     pub i2c: esp_periph::i2c::I2c,
     pub efuse: Efuse,
     pub spi0: SpiMemC6,
@@ -413,6 +414,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x88 "AES" (aes) => [src::AES];
     0x89 "SHA" (sha) => [];
     0x8a "RSA" (rsa) => [src::RSA];
+    0x90 "IO_MUX" (io_mux) => [];
     0x91 "GPIO" (gpio) => [src::GPIO];
     0x96 "PCR" (pcr) => [];
     0xa0 "MODEM_BB" (modem_bb) => [];
@@ -446,7 +448,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), i2c: esp_periph::i2c::I2c::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
@@ -478,16 +480,7 @@ impl Peripherals {
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
     fn i2c_pin(&self, signal: usize) -> Option<u8> {
-        let sel = self.gpio.func_in_sel[signal];
-        let pin = (sel & 63) as usize;
-        if pin >= 31 { return None; }
-        let mux = self.misc.generic.get(&0x90).map_or(0, |r| r.read(4 + 4 * pin as u32));
-        let out = self.gpio.func_out_sel[pin];
-        (sel & 0xc0 == 0x80
-            && mux & (7 << 12 | 1 << 9) == (1 << 12 | 1 << 9)
-            && out & (0xff | 1 << 8 | 1 << 10) == signal as u32
-            && (out & (1 << 9) == 0 || self.gpio.enable & (1 << pin) != 0))
-            .then_some(pin as u8)
+        esp_soc::pins::ChipPins::C6.routes(&self.gpio, &self.io_mux).i2c_pin(signal)
     }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
