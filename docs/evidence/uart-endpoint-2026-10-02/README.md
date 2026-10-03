@@ -84,3 +84,36 @@ UART inherits typed IO_MUX from the pin-transport stack and uses its shared rout
 The shared [EX205 CPU receipt](../c3-peripherals-2026-10-02/cpu-rmt-final.json) measures three 30-emulated-second c3-hello runs per arm. Main CPU seconds: 2.606990, 2.624362, 2.614370; published UART: 2.708919, 2.738410, 2.696680; corrected C3 stack: 2.753298, 2.773484, 2.772790; UART on corrected stack: 2.803772, 2.748303, 2.773400. UART adds 0.02% to the corrected stack median (2.773400 versus 2.772790 s), within observed noise. The full stack remains 6.1% above main. Every sample executes 4.8 billion instructions/cycles, zero exceptions and identical console bytes. Background load is uncontrolled; these native CPU samples make no browser or hardware timing claim. This revises EX203's register correctness and idle delivery mechanism, retaining historical acceptance measurements above.
 
 The deleted patch's historical hash and original/sanitized receipt hashes are preserved in `redactions.json`; the current hashes include this review update.
+
+## Scoped idle participation follow-up
+
+The lower C3 stack retains tick return 1 and its existing per-round interrupt
+scans. UART joins the cached optional pin-service flag; UART-only boards still
+receive input, covered by the C3 round-trip test with GPIO edges disabled. The
+mutation that removes UART from that flag fails this test. Its initial TX-only
+selector did not exercise RX and was corrected before the recorded mutation run.
+[scope-mutations.json](scope-mutations.json) records the failure.
+
+Two fixed seven-round batches per comparison, after one warmup per arm, use
+c3-hello for 30 emulated seconds and getrusage user + system CPU time. Pooled
+medians are main 2.427469 s and UART 2.439019 s,
++0.48%. In the separate direct comparison, C3 is
+2.465262 s and UART 2.455657 s, -0.39%.
+Both pairs have overlapping ranges. Every run has 4.8 billion instructions/cycles,
+zero exceptions, 3028 interrupts and identical console output. All matching
+completed batches are retained. Individual UART/C3 batches were -0.92% and
++0.96%; the pooled figure meets the bound, with visible between-batch variation.
+
+The published UART head `094fdce` measured 2.503144 s against main 2.405076 s
+in the earlier seven-round five-arm reference preserved under EX205. Final
+acceptance uses two arms, as requested. [scope-cpu.json](scope-cpu.json) records
+every sample, source/input/binary hash, load reading, the separate build
+directories and limits. Load stays below 3 for each accepted run. These are
+local CPU results, not browser or hardware timing and not a universal zero-cost
+guarantee.
+
+[scope-review.json](scope-review.json) records both Rust 1.99.0 Clippy checks,
+505 passing workspace tests, the WASM build and all eight demos. Goldens are
+unchanged. The final documentation-only rebase has identical non-documentation
+files to the measured and checked revision; the receipt supplies the reachable
+reproduction revision. No new external firmware/hardware acceptance is claimed.
