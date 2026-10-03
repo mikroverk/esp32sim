@@ -283,6 +283,7 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
         if o.net == "nat" || o.net == "user" { net.nat = Some(esp_soc::nat::Nat::new(m.bus.debug.has("net"))); }
         eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
         m.bus.periph.wifi.net = Some(net);
+        m.bus.periph.refresh_work();
     }
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }

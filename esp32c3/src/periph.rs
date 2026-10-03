@@ -160,6 +160,7 @@ pub struct Peripherals {
     /// register RAM behind unmodelled blocks, first-touch logging, pc attribution
     pub misc: Misc,
     pub spi_exec: bool,
+    pub work_pending: bool,
     clock: ClockTree<4>,
     last_status: [u32; 4],
     pin_irqs_enabled: bool,
@@ -231,7 +232,7 @@ impl Peripherals {
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
             gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+            misc: Misc::new(), spi_exec: false, work_pending: false, clock: Self::new_clock(),
             last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
@@ -277,14 +278,18 @@ impl Peripherals {
         if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
             self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
         }
+        self.refresh_work();
+    }
+
+    /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
+    pub fn refresh_work(&mut self) {
+        self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.ap.is_some();
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
     #[inline(always)]
-    pub fn tick(&mut self, cycles: u64) {
-        Dispatch::tick(self, cycles);
-    }
+    pub fn tick(&mut self, cycles: u64) -> bool { Dispatch::tick(self, cycles) }
 
     #[inline(always)]
     pub fn cycles_until_timer(&self) -> u32 {
