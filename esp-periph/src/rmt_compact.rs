@@ -65,7 +65,7 @@ impl Device for RmtCompact {
         true
     }
     fn next_deadline(&self) -> Option<u64> {
-        Some(if self.rmt.ch.iter().any(|c| c.running) {
+        Some(if self.rmt.is_running() {
             32
         } else {
             u64::MAX

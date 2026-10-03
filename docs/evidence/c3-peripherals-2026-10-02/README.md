@@ -98,7 +98,7 @@ are retained in the JSON receipt with personal home paths normalized.
 
 ## Reproduce
 
-Supply `ESP32SIM_ROM` with a C3 revision-3 ROM ELF. PlatformIO's
+Supply `ESP32SIM_ROM_DIR` containing `esp32c3_rev3_rom.elf`. PlatformIO's
 `tool-esp-rom-elfs` package provides `esp32c3_rev3_rom.elf`; its measured hash is
 in the receipt. From the repository root:
 
@@ -109,7 +109,7 @@ cp docs/evidence/c3-peripherals-2026-10-02/platformio.ini "$firmware_dir/"
 cp docs/evidence/c3-peripherals-2026-10-02/main.cpp "$firmware_dir/src/"
 pio run -d "$firmware_dir"
 ESP32SIM_TRANSPORT_BUILD="$firmware_dir/.pio/build/c3" \
-  cargo test --release -p esp32c3 --test pin_transport arduino_pin_transport -- --ignored --nocapture
+  cargo test --release -p esp32c3 --test pin_transport external_c3_arduino_pin_transport -- --nocapture
 cargo test -p esp32c3 --test pin_transport
 cargo build --release
 cargo test --workspace

@@ -248,12 +248,12 @@ impl Peripherals {
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
     pub fn tick(&mut self, cycles: u64) {
         Dispatch::tick(self, cycles);
-        if self.rmt.rmt.ch.iter().any(|c| c.running) { self.rmt.rmt.tick(cycles); }
+        if self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); }
     }
 
     pub fn cycles_until_timer(&self) -> u32 {
         let timer = Dispatch::cycles_until_deadline(self);
-        if self.rmt.rmt.ch.iter().any(|c| c.running) { timer.min(31) } else { timer }
+        if self.rmt.rmt.is_running() { timer.min(31) } else { timer }
     }
 
     /// Which interrupt sources are asserted right now.

@@ -183,11 +183,12 @@ impl SocBus {
     fn devices(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
         self.periph.tick(cycles as u64);
-        if !self.periph.gpio.changes.is_empty() { self.deliver_gpio_output(); }
-        for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
-            let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
-            self.board.rmt_frame(pin, &bits);
-            self.irq_dirty = true;
+        if !self.periph.rmt.rmt.done.is_empty() {
+            for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
+                let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
+                self.board.rmt_frame(pin, &bits);
+                self.irq_dirty = true;
+            }
         }
         if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
             self.board.advance_to(self.cycles);
@@ -197,7 +198,7 @@ impl SocBus {
                 self.irq_dirty = true;
             }
         }
-        self.periph.gpio.input_changes.clear();
+        if !self.periph.gpio.input_changes.is_empty() { self.periph.gpio.input_changes.clear(); }
     }
 }
 
