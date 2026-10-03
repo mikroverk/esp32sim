@@ -159,6 +159,7 @@ pub struct Peripherals {
     pub misc: Misc,
     pub spi_exec: bool,
     pub work_pending: bool,
+    wifi_irq: u32, // cached source 0; updated with feature work, not polled by each interrupt scan
     clock: ClockTree<4>,
     last_status: [u32; 4],
 }
@@ -166,7 +167,7 @@ pub struct Peripherals {
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
     0x06 "FE_IQ" (fe_iq) @ 0x140..=0x177 => [];
-    0x33 "WIFI_MAC" (wifi) => [0];
+    0x33 "WIFI_MAC" (wifi) => [];
     0x34 "WIFI_MAC2" (wifi) delta 0x1000 => [];
     0x35 "WDEV" (wifi) delta 0x2000 => [];
     0x0e "I2C_MST" (i2c_mst) => [];
@@ -216,7 +217,7 @@ impl Peripherals {
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
             gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, work_pending: false, clock: Self::new_clock(),
+            misc: Misc::new(), spi_exec: false, work_pending: false, wifi_irq: 0, clock: Self::new_clock(),
             last_status: [0; 4],
         }
     }
@@ -246,17 +247,20 @@ impl Peripherals {
 
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
+        self.wifi_irq = self.wifi.irq() as u32;
         self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.ap.is_some();
     }
 
     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
-    pub fn tick(&mut self, cycles: u64) -> bool { Dispatch::tick(self, cycles) }
+    pub fn tick(&mut self, cycles: u64) { Dispatch::tick(self, cycles); }
 
     pub fn cycles_until_timer(&self) -> u32 { Dispatch::cycles_until_deadline(self) }
 
     /// Which interrupt sources are asserted right now.
-    pub fn source_status(&self) -> [u32; 4] { Dispatch::source_status(self) }
+    pub fn source_status(&self) -> [u32; 4] {
+        let mut st = Dispatch::source_status(self); st[0] |= self.wifi_irq; st
+    }
 
     /// Refresh the interrupt matrix; returns true if any source changed.
     pub fn refresh_lines(&mut self) -> bool {
