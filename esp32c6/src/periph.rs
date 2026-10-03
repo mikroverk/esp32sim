@@ -403,13 +403,13 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x02 "SPI0" (spi0) => [];
     0x03 "SPI1" (spi1) => [];
     0x06 "RMT" (rmt) => [src::RMT];
-    0x07 "LEDC" (ledc) => [src::LEDC];
+    0x07 "LEDC" optional (ledc) => [src::LEDC];
     0x08 "TIMG0" (timg[0]) => [src::TG0_T0];
     0x09 "TIMG1" (timg[1]) => [src::TG1_T0];
     0x0a "SYSTIMER" (systimer) => [src::SYSTIMER_T0, src::SYSTIMER_T1, src::SYSTIMER_T2];
     0x0f "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x10 "INTMTX" (intmtx) => [];
-    0x14 "MCPWM" (mcpwm) => [src::MCPWM0];
+    0x14 "MCPWM" optional (mcpwm) => [src::MCPWM0];
     // three channels; the model numbers its sources out 0..4 then in 0..4
     0x80 "GDMA" (gdma) => [src::DMA_OUT_CH0, src::DMA_OUT_CH0 + 1, src::DMA_OUT_CH0 + 2, NO_SOURCE, NO_SOURCE, src::DMA_IN_CH0, src::DMA_IN_CH0 + 1, src::DMA_IN_CH0 + 2, NO_SOURCE, NO_SOURCE];
     0x81 "SPI2" (spi2) => [src::GPSPI2];
@@ -487,12 +487,14 @@ impl Peripherals {
         if addr == PERIPH_BASE + 0x96034 || addr == PERIPH_BASE + 0x96038 {
             let conf = self.pcr.read(0x34); let clock = self.pcr.read(0x38);
             self.ledc.external_clock_hz = if conf & 3 != 1 || clock & (1 << 22) == 0 { 0 } else { match (clock >> 20) & 3 { 1 => 80_000_000, 2 => 17_500_000, 3 => 40_000_000, _ => 0 } };
+            self.refresh_optional(0x07);
         }
         if addr == PERIPH_BASE + 0x9609c || addr == PERIPH_BASE + 0x960a0 {
             let conf = self.pcr.read(0x9c); let clock = self.pcr.read(0xa0);
             let source = match (clock >> 20) & 3 { 1 => 160_000_000, 2 => 40_000_000, 3 => 17_500_000, _ => 0 };
             self.mcpwm.source_hz = source / (((clock >> 12) & 0xff) + 1) as u64;
             self.mcpwm.clock_enabled = conf & 3 == 1 && clock & (1 << 22) != 0 && source != 0;
+            self.refresh_optional(0x14);
         }
     }
 

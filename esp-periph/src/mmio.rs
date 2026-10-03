@@ -23,12 +23,15 @@ pub trait DeviceSet: Sized + 'static {
 
 /// What `device_set!` generates from the table.
 pub trait Dispatch {
+    /// Refresh a configured optional device after a register or external clock change.
+    fn refresh_optional(&mut self, block: u32);
+    fn tick_optional(&mut self, deltas: &[(emu_core::ClockDomain, u64)]) -> bool;
     fn dispatch_read(&mut self, block: u32, off: u32) -> Option<u32>;
     fn dispatch_write(&mut self, block: u32, off: u32, v: u32) -> Option<WriteEffect>;
     /// Which chip interrupt sources are asserted right now, one bit per source number.
     fn source_status(&self) -> [u32; 4];
     /// Advance device time by `cycles` CPU cycles: every clocked device receives the ticks its
-    /// domain gained, domains in the clock table's order, devices in the device table's order.
+    /// domain gained. Static devices follow table order; configured optional devices follow afterward.
     /// Advance clocked devices and report whether any device interrupt source changed.
     fn tick(&mut self, cycles: u64) -> bool;
     /// CPU cycles until the earliest timer deadline (conservative by one device tick), or
@@ -44,6 +47,8 @@ pub trait Dispatch {
 /// first-touch logging, pc attribution.
 pub struct Misc {
     pub generic: HashMap<u32, RegRam>,
+    pub active_optional: Vec<u32>,
+    pub optional_sources: [u32; 4],
     seen: HashSet<(u32, bool)>,
     pub log_unknown: bool,
     pub log_all: bool,
@@ -53,7 +58,7 @@ pub struct Misc {
     pub mmio_log: Option<Vec<(u32, u32, u32, bool)>>,
 }
 impl Misc {
-    pub fn new() -> Misc { Misc { generic: HashMap::new(), seen: HashSet::new(), log_unknown: false, log_all: false, cur_pc: 0, mmio_log: None } }
+    pub fn new() -> Misc { Misc { generic: HashMap::new(), active_optional: Vec::new(), optional_sources: [0; 4], seen: HashSet::new(), log_unknown: false, log_all: false, cur_pc: 0, mmio_log: None } }
 }
 impl Default for Misc { fn default() -> Self { Self::new() } }
 
@@ -105,6 +110,8 @@ pub fn write32<P: DeviceSet + Dispatch>(p: &mut P, addr: u32, v: u32) -> WriteEf
 /// `clock` names the `ClockTree` field and the divider table (CPU cycles per tick per domain).
 /// Entries are tried in order, so a range-limited entry goes before the full-block one behind it.
 /// An `alias` entry only dispatches: its device already ticks and reports sources once.
+/// An `optional` entry joins tick delivery only while configured. Its interrupt bits are
+/// cached on writes and ticks; unused devices are absent from the per-round source scan.
 #[macro_export]
 macro_rules! device_set {
     ($P:ident; clock: ($clk:ident) $cpu_hz:expr, [$(($dom:expr, $div:expr)),* $(,)?];
@@ -124,16 +131,44 @@ macro_rules! device_set {
             #[inline]
             fn dispatch_write(&mut self, block: u32, off: u32, v: u32) -> Option<$crate::WriteEffect> {
                 match block {
-                    $( $block $(if ($lo..=$hi).contains(&off))? => Some($crate::Device::write(&mut self.$($f)+, off $(.wrapping_add(($d as i32) as u32))?, v)), )*
+                    $( $block $(if ($lo..=$hi).contains(&off))? => {
+                        let effect = $crate::Device::write(&mut self.$($f)+, off $(.wrapping_add(($d as i32) as u32))?, v);
+                        if false $(|| stringify!($alias) == "optional")? { self.refresh_optional(block); }
+                        Some(effect)
+                    }, )*
                     _ => None,
+                }
+            }
+            fn refresh_optional(&mut self, block: u32) {
+                match block {
+                    $( $block if false $(|| stringify!($alias) == "optional")? => {
+                        let active = $crate::Device::clock(&self.$($f)+).is_some();
+                        let bits = $crate::Device::irq_sources(&self.$($f)+);
+                        let misc = $crate::DeviceSet::misc_mut(self);
+                        let present = misc.active_optional.iter().position(|&b| b == block);
+                        match (active, present) {
+                            (true, None) => misc.active_optional.push(block),
+                            (false, Some(i)) => { misc.active_optional.remove(i); }
+                            _ => {}
+                        }
+                        let mut b = 0u32;
+                        $( if $src != $crate::NO_SOURCE {
+                            misc.optional_sources[$src / 32] &= !(1 << ($src % 32));
+                            if bits & (1u64 << b) != 0 { misc.optional_sources[$src / 32] |= 1 << ($src % 32); }
+                        } b += 1; )* let _ = (b, bits);
+                    }, )*
+                    _ => {}
                 }
             }
             #[inline]
             fn source_status(&self) -> [u32; 4] {
                 let mut st = [0u32; 4];
-                $( if !(false $(|| stringify!($alias) == "alias")?) {
+                $( if !(false $(|| matches!(stringify!($alias), "alias" | "optional"))?) {
                     let bits = $crate::Device::irq_sources(&self.$($f)+);
                     if bits != 0 { let mut b = 0u32; $( if $src != $crate::NO_SOURCE && bits & (1u64 << b) != 0 { st[$src / 32] |= 1 << ($src % 32); } b += 1; )* let _ = b; }
+                } )*
+                $( if false $(|| stringify!($alias) == "optional")? {
+                    $( if $src != $crate::NO_SOURCE { st[$src / 32] |= $crate::DeviceSet::misc(self).optional_sources[$src / 32] & (1 << ($src % 32)); } )*
                 } )*
                 st
             }
@@ -143,13 +178,37 @@ macro_rules! device_set {
                 let mut deltas = [($crate::__ClockDomain::Cpu, 0u64); 8]; let mut n = 0usize;
                 self.$clk.advance(&Self::CLOCKS, cycles, |d, t| { if n < 8 { deltas[n] = (d, t); n += 1; } });
                 for &(d, t) in &deltas[..n] {
-                    $( if !(false $(|| stringify!($alias) == "alias")?) && $crate::Device::clock(&self.$($f)+) == Some(d) {
+                    $( if !(false $(|| matches!(stringify!($alias), "alias" | "optional"))?) && $crate::Device::clock(&self.$($f)+) == Some(d) {
                         // Only clocked devices can change here. Do not scan unclocked
                         // GPIO/GDMA sources on every short MMIO-driven time flush.
                         let before = $crate::Device::irq_sources(&self.$($f)+);
                         $crate::Device::tick(&mut self.$($f)+, t);
                         irq_changed |= before != $crate::Device::irq_sources(&self.$($f)+);
                     } )*
+                }
+                if !$crate::DeviceSet::misc(self).active_optional.is_empty() { irq_changed |= self.tick_optional(&deltas[..n]); }
+                irq_changed
+            }
+            #[inline(never)]
+            fn tick_optional(&mut self, deltas: &[($crate::__ClockDomain, u64)]) -> bool {
+                let mut irq_changed = false;
+                let mut i = 0;
+                while i < $crate::DeviceSet::misc(self).active_optional.len() {
+                    let block = $crate::DeviceSet::misc(self).active_optional[i];
+                    match block {
+                        $( $block if false $(|| stringify!($alias) == "optional")? => {
+                            let clock = $crate::Device::clock(&self.$($f)+);
+                            let before = $crate::Device::irq_sources(&self.$($f)+);
+                            for &(d, t) in deltas {
+                                if clock == Some(d) { $crate::Device::tick(&mut self.$($f)+, t); }
+                            }
+                            irq_changed |= before != $crate::Device::irq_sources(&self.$($f)+);
+                        }, )*
+                        _ => unreachable!(),
+                    }
+                    let len = $crate::DeviceSet::misc(self).active_optional.len();
+                    self.refresh_optional(block);
+                    if $crate::DeviceSet::misc(self).active_optional.len() == len { i += 1; }
                 }
                 irq_changed
             }

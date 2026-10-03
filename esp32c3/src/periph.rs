@@ -167,7 +167,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x02 "SPI1" (spi1) => [];
     0x03 "SPI0" (spi0) => [];
     0x04 "GPIO" (gpio) => [src::GPIO];
-    0x19 "LEDC" (ledc) => [src::LEDC];
+    0x19 "LEDC" optional (ledc) => [src::LEDC];
     // the efuse controller shares the RTC block on the C3, at +0x800
     0x08 "EFUSE" (efuse) delta -0x800 @ 0x800..=0xfff => [];
     0x08 "RTCCNTL" (rtc) => [];
@@ -232,6 +232,7 @@ impl Peripherals {
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if addr == PERIPH_BASE + 0xc0010 || addr == PERIPH_BASE + 0xc0018 {
             self.ledc.clock_enabled = self.system.read(0x10) & (1 << 11) != 0 && self.system.read(0x18) & (1 << 11) == 0;
+            self.refresh_optional(0x19);
         }
     }
 

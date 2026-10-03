@@ -303,3 +303,56 @@ fn rng_sequence_from_the_default_seed_plus_the_cycle_count() {
     assert_eq!(Device::read(&mut Rng::with_seed(0x2545_f491), 0), 0xe124_b63a, "with_seed(DEFAULT_SEED) is new()");
     assert_eq!(Device::read(&mut Rng::default(), 0), 0xe124_b63a);
 }
+
+#[derive(Default)]
+struct OptionalProbe { active: bool, stop: bool, irq: u64, polls: std::cell::Cell<u32>, ticks: u64 }
+impl Device for OptionalProbe {
+    fn read(&mut self, _off: u32) -> u32 { 0 }
+    fn write(&mut self, _off: u32, v: u32) -> WriteEffect {
+        self.active = v & 1 != 0; self.stop = v & 2 != 0; self.irq = 0; WriteEffect::NONE
+    }
+    fn clock(&self) -> Option<ClockDomain> {
+        self.polls.set(self.polls.get() + 1);
+        if self.active { Some(ClockDomain::Apb) } else { None }
+    }
+    fn irq_sources(&self) -> u64 { self.polls.set(self.polls.get() + 1); self.irq }
+    fn tick(&mut self, ticks: u64) { self.ticks += ticks; self.irq = 1; if self.stop { self.active = false; } }
+}
+struct OptionalChip { pwm: OptionalProbe, misc: Misc, clock: ClockTree<1> }
+device_set! { OptionalChip; clock: (clock) 240_000_000, [(ClockDomain::Apb, 3)];
+    0x01 "PWM" optional (pwm) => [40];
+}
+impl DeviceSet for OptionalChip {
+    const BASE: u32 = BASE;
+    fn block_name(_block: u32) -> &'static str { "PWM" }
+    fn misc(&self) -> &Misc { &self.misc }
+    fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
+}
+
+#[test]
+fn optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs() {
+    let mut c = OptionalChip { pwm: OptionalProbe::default(), misc: Misc::new(), clock: OptionalChip::new_clock() };
+    for _ in 0..10 {
+        assert!(!Dispatch::tick(&mut c, 15));
+        assert_eq!(c.source_status(), [0; 4]);
+        assert_eq!(c.cycles_until_deadline(), u32::MAX);
+    }
+    assert_eq!(c.pwm.polls.get(), 0);
+    assert_eq!(c.pwm.ticks, 0);
+    mmio::write32(&mut c, BASE + 0x1000, 1);
+    assert_eq!(c.misc.active_optional, [1]);
+    assert!(Dispatch::tick(&mut c, 15));
+    assert_eq!(c.pwm.ticks, 5);
+    assert_eq!(c.source_status(), [0, 1 << 8, 0, 0]);
+    mmio::write32(&mut c, BASE + 0x1000, 3);
+    assert_eq!(c.misc.active_optional, [1], "no duplicate registration");
+    assert_eq!(c.source_status(), [0; 4], "write cleared the cached interrupt");
+    assert!(Dispatch::tick(&mut c, 15));
+    assert!(c.misc.active_optional.is_empty(), "one-shot stopped");
+    let polls = c.pwm.polls.get();
+    assert!(!Dispatch::tick(&mut c, 15));
+    assert_eq!(c.source_status(), [0, 1 << 8, 0, 0], "stopping preserves an asserted interrupt");
+    assert_eq!(c.pwm.polls.get(), polls, "stopped device is not polled");
+    mmio::write32(&mut c, BASE + 0x1000, 0);
+    assert_eq!(c.source_status(), [0; 4]);
+}

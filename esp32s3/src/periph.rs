@@ -431,9 +431,9 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), 
     0x23 "SYSTIMER" (systimer) => [SRC_SYSTIMER_T0, SRC_SYSTIMER_T1, SRC_SYSTIMER_T2];
     0x1f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1];
     0x20 "TIMG1" (timg[1]) => [SRC_TG1_T0, SRC_TG1_T1];
-    0x19 "LEDC" (ledc) => [SRC_LEDC];
-    0x1e "MCPWM0" (mcpwm[0]) => [SRC_PWM0];
-    0x2c "MCPWM1" (mcpwm[1]) => [SRC_PWM1];
+    0x19 "LEDC" optional (ledc) => [SRC_LEDC];
+    0x1e "MCPWM0" optional (mcpwm[0]) => [SRC_PWM0];
+    0x2c "MCPWM1" optional (mcpwm[1]) => [SRC_PWM1];
     0xc2 "INTERRUPT" (intmatrix) => [];
     0x04 "GPIO" (gpio) => [SRC_GPIO];
     0x08 "RTC" (rtc) => [];
@@ -527,6 +527,7 @@ impl Peripherals {
         if addr == PERIPH_BASE + 0xc0018 || addr == PERIPH_BASE + 0xc0020 {
             for (group, bit) in [17, 20].iter().enumerate() { self.mcpwm[group].clock_enabled = self.system.read(0x18) & (1 << bit) != 0 && self.system.read(0x20) & (1 << bit) == 0; }
             self.ledc.clock_enabled = self.system.read(0x18) & (1 << 11) != 0 && self.system.read(0x20) & (1 << 11) == 0;
+            for block in [0x19, 0x1e, 0x2c] { self.refresh_optional(block); }
         }
     }
 

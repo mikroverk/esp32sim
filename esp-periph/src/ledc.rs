@@ -113,7 +113,7 @@ impl Device for Ledc {
         WriteEffect::NONE
     }
     fn irq_sources(&self) -> u64 { u64::from(self.raw & self.ena != 0) }
-    fn clock(&self) -> Option<ClockDomain> { if self.active != 0 && self.clock_enabled { Some(ClockDomain::Apb) } else { None } }
+    fn clock(&self) -> Option<ClockDomain> { if self.active != 0 && self.source_hz() != 0 { Some(ClockDomain::Apb) } else { None } }
     fn tick(&mut self, ticks: u64) {
         let hz = self.source_hz();
         if hz == 0 { return; }
