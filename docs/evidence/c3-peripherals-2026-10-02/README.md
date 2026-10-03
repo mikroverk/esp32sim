@@ -157,3 +157,25 @@ Three c3-hello runs, 30 emulated seconds each, user plus system CPU seconds:
 Every run executed 4,800,000,000 instructions/cycles with zero exceptions and identical console SHA-256. C3 improves 10.0% against its published branch but remains 6.1% above main. UART adds 0.02% to the corrected C3 median. These are local macOS arm64 CPU samples under uncontrolled background load, not browser or hardware timing. No process inventory was retained.
 
 Reproduce with `python3 docs/evidence/c3-peripherals-2026-10-02/bench-idle.py FW main=MAIN_BINARY published-c3=PUBLISHED_C3_BINARY fixed-c3=FIXED_C3_BINARY published-uart=PUBLISHED_UART_BINARY fixed-uart=FIXED_UART_BINARY`. The harness writes logs and the JSON receipt under `/tmp`; supply firmware and binaries explicitly.
+
+## Quiet-machine follow-up (EX205)
+
+This repeats the c3-hello workload with seven interleaved rounds after a warmup, separate build targets and one-minute load below 3 before and after each sample. It supersedes the earlier uncontrolled-load speed conclusion while retaining those samples and rejected patches above.
+
+The profile found interrupt refresh in 4,080 of 7,565 C3 samples. `Bus::tick` returned 1 unconditionally even though the dispatcher already reports IRQ changes. The correction propagates that result, includes RMT transitions, and keeps MMIO/board dirty notifications. SPI commands already finish at MMIO writes, so their scheduler poll is removed. Inactive new interrupt sources are no longer scanned every round. UART shares the existing board-activity check, and its RX loop stays out of line: generated idle-tick stack usage returns from 336 to 240 bytes, matching C3.
+
+| Arm | CPU seconds, user + system | Median seconds |
+|---|---|---|
+| main | 2.441188, 2.439410, 2.489314, 2.400678, 2.410777, 2.447775, 2.454372 | 2.441188 |
+| published-c3 | 2.926025, 2.814050, 2.932286, 2.909935, 2.951779, 2.918322, 2.950065 | 2.926025 |
+| fixed-c3 | 1.172755, 1.157276, 1.164665, 1.167727, 1.184475, 1.217162, 1.224255 | 1.172755 |
+| published-uart | 2.588128, 2.605506, 2.509926, 2.533853, 2.599415, 2.605478, 2.568803 | 2.588128 |
+| fixed-uart | 1.187673, 1.207320, 1.160124, 1.174879, 1.167878, 1.137358, 1.174847 | 1.174847 |
+
+All samples execute 4,800,000,000 instructions/cycles, with zero exceptions and identical console hashes. [quiet-cpu.json](quiet-cpu.json) retains the samples, loads, build/source and firmware hashes, commands and limitations. [quiet-profile.json](quiet-profile.json) keeps aggregate simulator samples only; process IDs, paths, addresses and loaded-image/session metadata were omitted. The raw profile hashes remain for provenance. The earlier UART candidate comparison and the rejected load-gate attempt are retained separately.
+
+[quiet-review.json](quiet-review.json) records the full Rust 1.99.0 and eight-demo checks. Goldens are unchanged. [quiet-mutations.json](quiet-mutations.json) records failures after restoring unconditional refresh, dropping RMT change notification, or excluding UART-only boards from activity; all ten C3 and eight UART control tests pass with source restored. Run `python3 docs/evidence/c3-peripherals-2026-10-02/check-idle-mutations.py` from an idle clean top-of-stack worktree to repeat.
+
+Reproduce timing with `python3 docs/evidence/c3-peripherals-2026-10-02/bench-quiet.py FW main=MAIN_BINARY published-c3=PUBLISHED_C3_BINARY fixed-c3=FIXED_C3_BINARY published-uart=PUBLISHED_UART_BINARY fixed-uart=FIXED_UART_BINARY`. Build each binary in its own target directory. The script polls load before starting each sample and rejects a batch if load reaches 3 during a sample.
+
+Corrected C3 is 51.96% faster than main. UART adds 0.18% over corrected C3, with overlapping ranges. Neither corrected branch overlaps main because both are substantially faster; this exceeds the non-regression bound rather than claiming statistical equality with main.

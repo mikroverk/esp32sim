@@ -1,0 +1,26 @@
+{
+  "status": "Rejected during warmup; load crossed 3, no measured rounds accepted.",
+  "valid_warmups": [
+    {
+      "label": "main",
+      "round": "warmup",
+      "user_s": 2.586357,
+      "system_s": 0.024919999999999998,
+      "wall_s": 2.941508707939647,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.611277,
+      "loadavg": [
+        2.98779296875,
+        5.0166015625,
+        6.88916015625
+      ],
+      "load_before": 2.98779296875
+    }
+  ],
+  "adoption": "Excluded from timing conclusions."
+}

@@ -1,0 +1,31 @@
+{
+  "source_revision": "b3505357b7f9dbcc62e753f812d5ed62b3d06bb2",
+  "mutations": [
+    {
+      "mutation": "unconditional_idle_refresh",
+      "killed": true,
+      "failed_tests": [
+        "test idle_board_does_not_receive_clock_callbacks ... FAILED",
+        "test clock_ticks_request_irq_refresh_only_when_a_source_changes ... FAILED",
+        "test result: FAILED. 8 passed; 2 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "lost_rmt_irq_change",
+      "killed": true,
+      "failed_tests": [
+        "test rmt_channels_deliver_colours_and_raise_c3_interrupts ... FAILED",
+        "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "lost_uart_only_board",
+      "killed": true,
+      "failed_tests": [
+        "test c3 ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+      ]
+    }
+  ],
+  "control": "10 C3 pin tests and 8 UART endpoint tests pass after restoration. The final out-of-line extraction then passes the full workspace/WASM checks."
+}
