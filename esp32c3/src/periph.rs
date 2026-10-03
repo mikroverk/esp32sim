@@ -246,14 +246,9 @@ impl Peripherals {
 
     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
-    pub fn tick(&mut self, cycles: u64) -> bool {
-        let mut changed = Dispatch::tick(self, cycles);
-        if self.rmt.rmt.is_running() {
-            let before = self.rmt.rmt.irq();
-            self.rmt.rmt.tick(cycles);
-            changed |= before != self.rmt.rmt.irq();
-        }
-        changed
+    pub fn tick(&mut self, cycles: u64) {
+        Dispatch::tick(self, cycles);
+        if self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); }
     }
 
     pub fn cycles_until_timer(&self) -> u32 {

@@ -365,7 +365,7 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
             .write32(0x6001_6010 + ch * 4, 1 | 1 << 8 | 1 << 16)
             .unwrap();
         assert!(esp_soc::SocBus::next_deadline(&m.bus).is_some_and(|n| n <= 32));
-        assert_eq!(m.bus.tick(24 * 96 * 2 + 1), 1);
+        m.bus.tick(24 * 96 * 2 + 1);
         assert_ne!(
             m.bus.periph.source_status()[0] & (1 << esp32c3::periph::src::RMT),
             0
@@ -421,7 +421,7 @@ fn idle_board_does_not_receive_clock_callbacks() {
     m.bus.board = Box::new(Idle);
     m.bus.attach_board_devices();
     let _ = esp_soc::SocBus::next_deadline(&m.bus);
-    assert_eq!(m.bus.tick(64), 0);
+    m.bus.tick(64);
     assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
     assert!(m.bus.periph.rmt.rmt.done.is_empty());
 }
@@ -447,18 +447,4 @@ fn pin_interrupts_follow_enable_clear_and_spi_completion() {
         bus.write32(base + clr, bit).unwrap();
         assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
     }
-}
-
-#[test]
-fn clock_ticks_request_irq_refresh_only_when_a_source_changes() {
-    let mut m = esp32c3::machine([0; 6], 4 << 20);
-    for _ in 0..100 { assert_eq!(m.bus.tick(64), 0); }
-    let timer = &mut m.bus.periph.systimer;
-    timer.conf = 1 << 30 | 1 << 24;
-    timer.target[0] = timer.unit[0] + 1;
-    timer.armed[0] = true;
-    timer.int_ena = 1;
-    assert_eq!(m.bus.tick(10), 1);
-    assert_eq!(m.bus.tick(10), 0);
-    assert_ne!(m.bus.periph.source_status()[1] & (1 << 5), 0);
 }
