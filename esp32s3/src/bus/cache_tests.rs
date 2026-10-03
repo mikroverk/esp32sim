@@ -45,7 +45,7 @@ fn demand_ready_can_precede_resource_release() {
 }
 
 #[test]
-fn packed_pie_loads_preserve_external_cache_accounting() {
+fn packed_pie_loads_preserve_cache_accounting() {
     for (psram, flash_ready) in [(false, 96), (true, 96), (false, 128), (true, 128)] {
         let mut bus = SocBus::new(65536, 65536, [0; 6]);
         bus.mmu[0] = if psram { MMU_SPIRAM } else { 0 };

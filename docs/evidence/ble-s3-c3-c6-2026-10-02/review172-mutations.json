@@ -1,0 +1,96 @@
+{
+  "source_revision": "01a1bfc916f31c39dfeb9169605ac828b1a7e5a0",
+  "variants": [
+    {
+      "mutation": "vhci-cap",
+      "file": "esp-soc/src/ble/vhci.rs",
+      "replacement": [
+        "|| len > (BUFFER_SIZE - 16) as usize",
+        "|| false"
+      ],
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "-p",
+        "esp32c3",
+        "--lib",
+        "vhci_send_cap_rejects_readable_oversized_packet"
+      ],
+      "killed": true
+    },
+    {
+      "mutation": "mbuf-segment",
+      "file": "esp32c6/src/ble.rs",
+      "replacement": [
+        "if len > total.saturating_sub(bytes.len() - 1)",
+        "if false"
+      ],
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "-p",
+        "esp32c6",
+        "--lib",
+        "native_mbuf_bounds_precede_data_reads"
+      ],
+      "killed": true
+    },
+    {
+      "mutation": "mbuf-total",
+      "file": "esp32c6/src/ble.rs",
+      "replacement": [
+        "if total > 260",
+        "if false"
+      ],
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "-p",
+        "esp32c6",
+        "--lib",
+        "native_mbuf_bounds_precede_data_reads"
+      ],
+      "killed": true
+    },
+    {
+      "mutation": "step-core",
+      "file": "esp-soc/src/machine.rs",
+      "replacement": [
+        "if S::function_hook(cpu, &mut self.bus) { return None; }",
+        "if false { return None; }"
+      ],
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "-p",
+        "esp32c3",
+        "--lib",
+        "machine_dispatches_chip_hooks_as_function_boundaries"
+      ],
+      "killed": true
+    },
+    {
+      "mutation": "s3-reset",
+      "file": "esp32s3/src/soc.rs",
+      "replacement": [
+        "        self.ble.reset();",
+        "        // mutation: omit BLE reset"
+      ],
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "-p",
+        "esp32s3",
+        "--lib",
+        "reboot_restores_controller_flash_even_after_mmu_mapping_changes"
+      ],
+      "killed": true
+    }
+  ],
+  "restored_source_matches_commit": true
+}

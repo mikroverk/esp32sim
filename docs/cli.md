@@ -28,6 +28,7 @@ PSRAM and register presets.
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
 | `--stub SYMBOL[=value]` (repeatable) | return `value` (default 0) immediately when execution reaches the function's entry; numeric function addresses require a `0x` prefix; accepts decimal, `0x` hex, `true` (1) or `false` (0); rejects invalid values |
+| `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
 | `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on the S3 (docs/wifi-plan.md) and on the C6 (docs/wifi-c6-plan.md) |
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
@@ -102,3 +103,43 @@ One action per line, `<seconds> <cmd> [args]`; buttons/encoder are active low.
 `hw/wsdrive.py [port] [seconds]` drives the same inputs over the UI's WebSocket and reports
 real-time keep-up (push gaps, lag, audio delivered); `hw/wsaudio.py [port] [seconds]` listens to the
 UI's audio stream and reports sample counts/peak (how to check sound without listening).
+
+## Virtual BLE
+
+`--ble --elf firmware.elf` substitutes the controller lifecycle and legacy VHCI
+functions on S3 and C3, or the native NimBLE transport on C6. The guest host and sketch remain unchanged.
+An emulator-created FreeRTOS task delivers controller packets through guest
+callbacks. S3 uses the windowed Xtensa ABI; C3 uses RV32IMC. Unstripped controller,
+VHCI, task and BSS symbols are required on S3/C3. C6 requires native transport,
+NPL and mbuf allocator symbols; its board image needs `--flash-mb 8`.
+C6 is **ESP-IDF 5.5.x only**. Enable reads `esp_app_desc.idf_ver` from the application
+ELF and refuses missing, malformed or other versions before installing hooks.
+Its native transport uses that version's `os_mbuf` layout and NPL initialization.
+S3/C3 accept builds exposing the required VHCI/lifecycle symbols, controller BSS
+and function sizes; there is no IDF version gate. Arduino 3.3.8 with IDF 5.5.4 is
+validated. IDF 4.4 Bluedroid is unsupported and fails with a missing-symbol error.
+Other IDF releases have not been validated.
+
+`[ble]` output reports advertising data and discovered GATT handles. Script commands
+use seconds like the other script actions. For example:
+
+```text
+0.5 ble connect
+0.6 ble discover
+1.0 ble read 0x0010
+1.1 ble write 0x0010 68656c6c6f
+```
+
+Use handles reported by discovery. `ble subscribe CCC_HANDLE` writes notification
+enable to a discovered client configuration descriptor. Commands are validated when
+the script is loaded and require `--ble`. `connect` waits for guest advertising;
+ATT commands wait for the connection and run in order, with one request outstanding.
+Writes are limited to 20 bytes. A scanning guest sees a virtual
+peripheral named `esp32sim` advertising the Battery Service.
+
+This models one unencrypted LE link, legacy advertisements and ATT MTU 23.
+It does not model RF, pairing, physical connection timing or the controller's
+registers. Unsupported HCI commands return Unknown Command. The callback task
+and its storage stay allocated until reboot. C6 initializes the guest NPL support
+and a heap-backed mbuf pool; it uses no controller BSS reservation. Cost-model execution
+does not support function substitutions; reported cycle time is not radio timing.

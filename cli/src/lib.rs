@@ -69,7 +69,7 @@ pub struct Opts {
     pub rom: Option<PathBuf>, pub bootloader: Option<String>, pub ptable: Option<String>, pub app: Option<String>, pub elfs: Vec<String>,
     pub flash_image: Option<String>, pub flash_at: Vec<String>, pub boot: Option<String>, pub flash_mb: Option<usize>, pub psram_mb: Option<usize>,
     pub mac: Option<[u8; 6]>, pub strap: Option<u32>, pub reset_cause: Option<u32>, pub efuse_regs: Option<String>, pub regs_init: Option<String>,
-    pub board: String, pub wifi: Option<String>, pub net: String, pub cam_image: Option<String>, pub cam_fps: f64,
+    pub board: String, pub wifi: Option<String>, pub ble: bool, pub net: String, pub cam_image: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
@@ -113,6 +113,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--spi2-timing" => o.spi2_timing = true,
             "--measured-te" => o.measured_te = true,
             "--wifi" => o.wifi = Some(next()),
+            "--ble" => o.ble = true,
             "--net" => o.net = next(),
             "--cam-image" => o.cam_image = Some(next()),
             "--cam-fps" => o.cam_fps = next().parse().expect("fps"),
@@ -389,7 +390,14 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
         m.write_flash(off, &data).unwrap_or_else(|e| { eprintln!("--flash-at: {}", e); std::process::exit(2) });
         eprintln!("[emu] flash {:#x}: {} ({} bytes)", off, path, data.len());
     }
-    for p in &o.elfs { m.add_symbols(&std::fs::read(p).expect("elf")).expect("elf symbols"); }
+    let mut ble_elf = esp_soc::elf::Elf::default();
+    for p in &o.elfs {
+        let data = std::fs::read(p).expect("elf");
+        m.add_symbols(&data).expect("elf symbols");
+        if o.ble { let elf = esp_soc::elf::parse(&data).expect("BLE ELF symbols"); if elf.by_name.contains_key("esp_bt_controller_init") { ble_elf = elf; } }
+    }
+    if o.ble { m.bus.enable_ble(&ble_elf).unwrap_or_else(|e| usage_error(&format!("--ble: {e}"))); }
+    if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).expect("script")).expect("script"); }
     if let Some(s) = &o.serial { m.bus.serial_input(s.as_bytes()); }
     for pre in &o.trace_fns {
         let n = m.trace_fns(pre);
@@ -428,7 +436,6 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }
     if let Some(p) = &o.vcd { m.add_observer(Box::new(Vcd::new(p, S::CPU_HZ))); }
-    if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).expect("script")).expect("script"); }
     if let Some(sec) = o.max_seconds { m.max_cycles = (sec * S::CPU_HZ as f64) as u64; }
     boot
 }
