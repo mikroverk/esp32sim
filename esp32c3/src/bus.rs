@@ -294,13 +294,13 @@ impl SocBus {
     }
 
     fn devices(&mut self, cycles: u32) {
-        if self.periph.work_pending { self.pending_work(cycles); } else { self.periph.tick(cycles as u64); }
+        if self.periph.work_pending { self.pending_work(); }
+        self.periph.tick(cycles as u64);
     }
 
     #[inline(never)]
-    fn pending_work(&mut self, cycles: u32) {
+    fn pending_work(&mut self) {
         if self.periph.spi_exec { self.run_spi(); }
-        self.periph.tick(cycles as u64);
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
         if self.periph.wifi.ap.is_some() { self.wifi_air_step(); self.wifi_net_step(); }
