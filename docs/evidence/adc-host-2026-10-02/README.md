@@ -6,9 +6,6 @@ sources and S3 ADC1 transfer behavior remain compatible.
 
 Implementation revision: `7ce98837b93a90444d3da93c52352b9b664238c2`.
 Base: `0334d422468aa74442ba506bacb4a62f1b66b327`, PR #165, unchanged.
-Behavior reference: `221080ffccfa829106b398f896653535853c76c8:esp-periph/src/adc.rs`.
-The reference was inspected with `git show` and related diffs against `dddb128`.
-Its audio handling, delayed completion, product ABI, and sentinel conventions were not copied.
 No dependency on classic ESP32 PR #168 or the fork is introduced.
 
 The experiment catalog at the base has no ADC, analog, SAR, or SENS entry. EX207
@@ -62,11 +59,12 @@ node tools/check-evidence-privacy.mjs
 git diff --check
 ```
 
-The fixture harness in `cli/tests/adc.rs` loads each chip's `esp32<chip>_rev0_rom.elf`
+The fixture harness in `cli/tests/adc.rs` loads `esp32s3_rev0_rom.elf`, `esp32c3_rev3_rom.elf`, and `esp32c6_rev0_rom.elf`
 and places `bootloader.bin`, `partitions.bin`, and `firmware.bin` at flash offsets
 0, 0x8000, and 0x10000. It boots through ROM with the default interpreter/JIT selection.
 The library harness is necessary to inspect the public host API; no product WASM ABI
-or extra CLI command was added. The CLI equivalents are documented in `docs/cli.md`.
+or extra CLI command was added. Voltage-script commands are documented in `docs/cli.md`. Raw injection and conversion
+observations are library APIs and have no CLI equivalent.
 
 Measured environment: Darwin arm64, Rust and Cargo 1.96.0, PlatformIO 6.1.19,
 platform `https://github.com/pioarduino/platform-espressif32.git#55.03.38-1`,
