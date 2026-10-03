@@ -17,6 +17,7 @@ impl BoardModel for Endpoint {
     fn name(&self) -> &'static str {
         "uart-test"
     }
+    fn uses_gpio_edges(&self) -> bool { false }
     fn uses_uart_pins(&self) -> bool { true }
     fn uart_tx(&mut self, cycle: u64, route: UartRoute, byte: u8) {
         let mut state = self.0.borrow_mut();
