@@ -1,0 +1,223 @@
+{
+  "experiment": "EX204",
+  "baseline_revision": "d59b5d249a150b5c18360cb758746dd022f7601b",
+  "candidate_revision": "5075cd07429f78d8e6b5cae9f2b1db4d51eb6e37",
+  "environment": {
+    "os": "Darwin 25.6.0 arm64",
+    "rustc": "1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "1.99.0 (5f94df478 2026-08-27)",
+    "node": "v22.23.1"
+  },
+  "build": "cargo +1.99.0 build --release -p esp32sim",
+  "benchmark_argv": [
+    "--chip",
+    "c3",
+    "--rom",
+    "web/wasm/fw/esp32c3_rev3_rom.elf",
+    "--boot",
+    "rom",
+    "--flash-mb",
+    "4",
+    "--bootloader",
+    "web/wasm/fw/public/c3-hello-bootloader.bin",
+    "--ptable",
+    "web/wasm/fw/public/c3-hello-ptable.bin",
+    "--app",
+    "web/wasm/fw/public/c3-hello_world.bin",
+    "--max-seconds",
+    "30",
+    "--no-dump"
+  ],
+  "measurement": "Python resource.getrusage(RUSAGE_CHILDREN) user + system CPU seconds, difference across each subprocess.run; exit code 0; 30 emulated seconds. No CPU affinity or frequency lock. Same host, default release profile. No overlapping checks launched by this task during measurement; other host activity uncontrolled.",
+  "binary_sha256": {
+    "before": "1535687e982f711e962208e3a858b2114426bb904513752e5585f8220fea26c4",
+    "after": "6a606ccffd7f419c67fb9d66e3e72c225a4a08b9b9c49b242c970fc376ca3904"
+  },
+  "input_sha256": {
+    "web/wasm/fw/esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "web/wasm/fw/public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "web/wasm/fw/public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be"
+  },
+  "initial_before": [
+    {
+      "cpu": 2.5875839999999997,
+      "insns": 4800000000
+    },
+    {
+      "cpu": 2.537439,
+      "insns": 4800000000
+    },
+    {
+      "cpu": 2.504536,
+      "insns": 4800000000
+    }
+  ],
+  "initial_after": [
+    {
+      "cpu": 2.640012,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "cpu": 2.65119,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "cpu": 2.73255,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    }
+  ],
+  "interleaved": [
+    {
+      "variant": "before",
+      "cpu": 2.6412910000000003,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "variant": "after",
+      "cpu": 2.6835539999999996,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "variant": "after",
+      "cpu": 2.7096169999999993,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "variant": "before",
+      "cpu": 2.6733199999999995,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "variant": "before",
+      "cpu": 2.633050999999999,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    },
+    {
+      "variant": "after",
+      "cpu": 2.626860000000001,
+      "insns": 4800000000,
+      "console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+    }
+  ],
+  "mutations": [
+    {
+      "name": "c3-reset-bit",
+      "killed": true,
+      "file": "esp32c3/src/periph.rs",
+      "replace": "v & (1 << 11) != 0",
+      "with_text": "v & (1 << 12) != 0",
+      "command": "cargo +1.99.0 test --release -p esp32c3 --test pwm"
+    },
+    {
+      "name": "c3-clock-bit",
+      "killed": true,
+      "file": "esp32c3/src/periph.rs",
+      "replace": "self.system.read(0x10) & (1 << 11)",
+      "with_text": "self.system.read(0x10) & (1 << 12)",
+      "command": "cargo +1.99.0 test --release -p esp32c3 --test pwm"
+    },
+    {
+      "name": "s3-ledc-block",
+      "killed": true,
+      "file": "esp32s3/src/periph.rs",
+      "replace": "0x19 \"LEDC\"",
+      "with_text": "0x18 \"LEDC\"",
+      "command": "cargo +1.99.0 test --release -p esp32s3 --test pwm"
+    },
+    {
+      "name": "s3-mcpwm1-block",
+      "killed": true,
+      "file": "esp32s3/src/periph.rs",
+      "replace": "0x2c \"MCPWM1\"",
+      "with_text": "0x2d \"MCPWM1\"",
+      "command": "cargo +1.99.0 test --release -p esp32s3 --test pwm"
+    },
+    {
+      "name": "s3-mcpwm1-signal",
+      "killed": true,
+      "file": "esp32s3/src/periph.rs",
+      "replace": "Mcpwm::new(166, 9)",
+      "with_text": "Mcpwm::new(167, 9)",
+      "command": "cargo +1.99.0 test --release -p esp32s3 --test pwm"
+    },
+    {
+      "name": "c6-ledc-pcr-map",
+      "killed": true,
+      "file": "esp32c6/src/periph.rs",
+      "replace": "let clock = self.pcr.read(0x38)",
+      "with_text": "let clock = self.pcr.read(0x3c)",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm"
+    },
+    {
+      "name": "c6-mcpwm-clock-bit",
+      "killed": true,
+      "file": "esp32c6/src/periph.rs",
+      "replace": "self.mcpwm.clock_enabled = conf & 3 == 1 && clock & (1 << 22)",
+      "with_text": "self.mcpwm.clock_enabled = conf & 3 == 1 && clock & (1 << 21)",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm"
+    },
+    {
+      "name": "c6-mcpwm-reset-map",
+      "killed": true,
+      "file": "esp32c6/src/periph.rs",
+      "replace": "addr == PERIPH_BASE + 0x9609c && v & 2",
+      "with_text": "addr == PERIPH_BASE + 0x96098 && v & 2",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm"
+    },
+    {
+      "name": "c6-rc-fast",
+      "killed": true,
+      "file": "esp32c6/src/periph.rs",
+      "replace": "17_500_000",
+      "with_text": "20_000_000",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm"
+    },
+    {
+      "name": "ledc-s3-only-matrix",
+      "killed": true,
+      "file": "esp-periph/src/ledc.rs",
+      "replace": "let bits = if matches!(self.layout, LedcLayout::S3) { 9 } else { 8 };",
+      "with_text": "let bits = 9;",
+      "command": "cargo +1.99.0 test --release -p esp32c3 --test pwm"
+    },
+    {
+      "name": "mcpwm-s3-only-matrix",
+      "killed": true,
+      "file": "esp-periph/src/mcpwm.rs",
+      "replace": "let route = *gpio.func_out_sel.get(pin as usize)?;",
+      "with_text": "let route = *gpio.func_out_sel.get(pin as usize)?; let matrix_bits = 9;",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm",
+      "additional_replacement": [
+        "1 << self.matrix_bits",
+        "1 << matrix_bits"
+      ]
+    },
+    {
+      "name": "mcpwm-dead-time",
+      "killed": true,
+      "file": "esp-periph/src/mcpwm.rs",
+      "replace": "if self.regs.read(base + 0x1c) & (1 << (15 + generator)) == 0 { return None; }",
+      "with_text": "",
+      "command": "cargo +1.99.0 test --release -p esp-periph dead_time_and_extra_generator_actions_have_no_snapshot --lib"
+    },
+    {
+      "name": "mcpwm-extra-actions",
+      "killed": true,
+      "file": "esp-periph/src/mcpwm.rs",
+      "replace": "if action & ((3 << 2) | (15 << 8)) != 0 { return None; }",
+      "with_text": "",
+      "command": "cargo +1.99.0 test --release -p esp-periph dead_time_and_extra_generator_actions_have_no_snapshot --lib"
+    }
+  ],
+  "privacy": "Only relevant software configuration, commands, hashes and numeric results retained. Raw build/test paths and process inventories omitted. No private captures committed.",
+  "baseline_confirmation_console_sha256": "dbe0f29616984936966a482e1f4703e4bd3d6c4f4c41a2f2448981760739ab76"
+}
