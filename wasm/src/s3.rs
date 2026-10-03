@@ -31,6 +31,7 @@ pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize)
     } else if let Some(m) = e.m.c3_mut() {
         m.bus.periph.wifi.ap = Some(esp_soc::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
         m.bus.periph.wifi.net = Some(esp_soc::net::VirtualNet::new(m.bus.debug.has("net")));
+        m.bus.periph.refresh_work();
     } else if let Some(m) = e.m.c6_mut() {                       // the same access point and network, behind the C6's MAC
         m.bus.periph.wifi_mac.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
         m.bus.periph.wifi_mac.net = Some(esp32s3::net::VirtualNet::new(m.bus.debug.has("net")));

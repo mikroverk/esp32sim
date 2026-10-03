@@ -129,3 +129,41 @@ fn iq_completion_is_polled_without_a_clock_or_deadline() {
     p.tick(158); assert_eq!(p.read32(0x60006174), 0);
     p.tick(1); assert_eq!(p.read32(0x60006174), 1 << 16); // 80 APB edges, even with an odd start cycle
 }
+
+#[test]
+fn idle_rounds_skip_feature_work_but_timer_edges_refresh_irqs() {
+    let mut m = esp32c3::machine(STATION, 4 << 20);
+    assert!(!m.bus.periph.work_pending);
+    assert_eq!(m.bus.tick(100), 0);
+    const TIMER: u32 = 0x60023000;
+    m.bus.write32(TIMER, (1 << 30) | (1 << 24)).unwrap();
+    m.bus.write32(TIMER + 0x20, 10).unwrap();
+    m.bus.write32(TIMER + 0x50, 1).unwrap();
+    m.bus.write32(TIMER + 0x64, 1).unwrap();
+    assert!(!m.bus.periph.work_pending);
+    assert_eq!(m.bus.tick(90), 0);
+    assert_eq!(m.bus.tick(10), 1);
+    assert_eq!(m.bus.tick(10), 0, "a held interrupt is not a new edge");
+    assert!(m.bus.periph.systimer.irq(0));
+    m.bus.write32(TIMER + 0x6c, 1).unwrap();
+    assert!(m.bus.irq_dirty, "MMIO still requests an interrupt refresh");
+    assert!(!m.bus.periph.systimer.irq(0));
+    m.bus.write32(0x60033d08, (1 << 31) | 0x90000).unwrap();
+    assert!(m.bus.periph.work_pending);
+    m.bus.tick(160);
+    assert_eq!(m.bus.periph.wifi.tx_frames, 1);
+    assert!(!m.bus.periph.work_pending, "the completed TX leaves no idle work");
+}
+
+#[test]
+fn configured_ap_keeps_work_scheduled_across_reboot() {
+    use esp_soc::SocBus;
+    let mut m = esp32c3::machine(STATION, 4 << 20);
+    m.bus.periph.wifi.ap = Some(esp_soc::wifi::VirtualAp::new(esp_soc::wifi::ApConfig::parse("").unwrap(), false));
+    m.bus.periph.refresh_work();
+    assert!(m.bus.periph.work_pending);
+    m.bus.reboot(STATION);
+    assert!(m.bus.periph.work_pending);
+    m.bus.tick(16_000_000);
+    assert_eq!(m.bus.periph.wifi.ap.as_ref().unwrap().stats.0, 1);
+}

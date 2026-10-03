@@ -158,6 +158,7 @@ pub struct Peripherals {
     /// register RAM behind unmodelled blocks, first-touch logging, pc attribution
     pub misc: Misc,
     pub spi_exec: bool,
+    pub work_pending: bool,
     clock: ClockTree<4>,
     last_status: [u32; 4],
 }
@@ -215,7 +216,7 @@ impl Peripherals {
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
             gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+            misc: Misc::new(), spi_exec: false, work_pending: false, clock: Self::new_clock(),
             last_status: [0; 4],
         }
     }
@@ -240,11 +241,17 @@ impl Peripherals {
 
     pub fn write32(&mut self, addr: u32, v: u32) {
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        self.refresh_work();
+    }
+
+    /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
+    pub fn refresh_work(&mut self) {
+        self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.ap.is_some();
     }
 
     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
-    pub fn tick(&mut self, cycles: u64) { Dispatch::tick(self, cycles); }
+    pub fn tick(&mut self, cycles: u64) -> bool { Dispatch::tick(self, cycles) }
 
     pub fn cycles_until_timer(&self) -> u32 { Dispatch::cycles_until_deadline(self) }
 

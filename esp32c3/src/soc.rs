@@ -33,6 +33,7 @@ impl esp_soc::SocBus for SocBus {
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         let mac = &mut self.periph.wifi;
         if mac.relay != enabled { mac.eth_tx.clear(); mac.eth_rx.clear(); mac.relay = enabled; }
+        self.periph.refresh_work();
         Ok(())
     }
     fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> {
@@ -101,6 +102,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         p.wifi.ap = old.wifi.ap; p.wifi.net = old.wifi.net; p.wifi.log = old.wifi.log; p.wifi.relay = old.wifi.relay;
+        p.refresh_work();
         p.efuse = old.efuse;
         p.misc.log_unknown = old.misc.log_unknown;
         p.usb.connected = old.usb.connected;

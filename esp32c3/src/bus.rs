@@ -120,6 +120,7 @@ impl SocBus {
         let mut no_psram = Vec::new();
         self.periph.spi1.execute(&mut self.flash, &mut no_psram);
         self.periph.spi1.dirty.clear();
+        self.periph.refresh_work();
     }
 
     /// Write straight into flash (image loaders, not the guest).
@@ -292,13 +293,19 @@ impl SocBus {
         Ok(())
     }
 
-    /// Run the SPI1 controller if the guest just kicked it, then advance device time.
-    fn devices(&mut self, cycles: u32) {
+    /// Advance device time; idle rounds use only the existing pending-work check.
+    fn devices(&mut self, cycles: u32) -> bool {
+        let changed = self.periph.tick(cycles as u64);
+        if self.periph.work_pending { self.pending_work(); }
+        changed
+    }
+
+    fn pending_work(&mut self) {
         if self.periph.spi_exec { self.run_spi(); }
-        self.periph.tick(cycles as u64);
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
         if self.periph.wifi.ap.is_some() { self.wifi_air_step(); self.wifi_net_step(); }
+        self.periph.refresh_work();
     }
 }
 
@@ -359,8 +366,7 @@ impl Bus for SocBus {
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
-        self.devices(cycles);
-        1
+        self.devices(cycles) as u32
     }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
