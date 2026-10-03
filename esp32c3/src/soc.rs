@@ -33,7 +33,7 @@ impl esp_soc::SocBus for SocBus {
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
         let timer = match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) };
-        let board = self.board.next_deadline().map(|t| t.saturating_sub(self.cycles).max(1));
+        let board = self.board_edges.then(|| self.board.next_deadline()).flatten().map(|t| t.saturating_sub(self.cycles).max(1));
         match (timer, board) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
     }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }

@@ -146,6 +146,7 @@ fn spi_native_matrix_and_software_chip_select_routes() {
     let mut m = esp32c3::machine([0; 6], 4 * 1024 * 1024);
     let state = Arc::new(Mutex::new(State::default()));
     m.bus.board = Box::new(Board(state.clone()));
+    m.bus.attach_board_devices();
     let bus = &mut m.bus;
     for (pin, sig) in [(6, 63), (7, 65), (10, 68)] {
         bus.write32(0x6000_9004 + 4 * pin, 1 << 12 | 1 << 9)
@@ -198,6 +199,7 @@ fn output_cycles_include_low_release_and_input_edges_keep_their_timestamp() {
     let mut m = esp32c3::machine([0; 6], 4 * 1024 * 1024);
     let state = Arc::new(Mutex::new(State::default()));
     m.bus.board = Box::new(Board(state.clone()));
+    m.bus.attach_board_devices();
     m.bus.gpio_events = Some(Vec::new());
     m.bus.tick(100);
     m.bus.write32(0x6000_4024, 1 << 4).unwrap();
@@ -324,6 +326,7 @@ fn legacy_gpio_callback_still_receives_only_level_changes() {
     let changes = Arc::new(Mutex::new(Vec::new()));
     let mut m = esp32c3::machine([0; 6], 4 * 1024 * 1024);
     m.bus.board = Box::new(Legacy(changes.clone()));
+    m.bus.attach_board_devices();
     m.bus.write32(0x6000_4024, 16).unwrap();
     m.bus.write32(0x6000_4008, 16).unwrap();
     m.bus.write32(0x6000_400c, 16).unwrap();
@@ -336,6 +339,7 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
     let mut m = esp32c3::machine([0; 6], 4 * 1024 * 1024);
     let state = Arc::new(Mutex::new(State::default()));
     m.bus.board = Box::new(Board(state.clone()));
+    m.bus.attach_board_devices();
     for ch in 0..2u32 {
         let pin = 5 + ch;
         m.bus.write32(0x6000_4554 + pin * 4, 51 + ch).unwrap();
@@ -384,6 +388,7 @@ fn reset_gpio_select_drives_software_cs_and_keeps_the_change_buffer() {
     for pin in 0..22 { assert_eq!(m.bus.read32(0x6000_4554 + pin * 4).unwrap(), 128); }
     let state = Arc::new(Mutex::new(State::default()));
     m.bus.board = Box::new(Board(state.clone()));
+    m.bus.attach_board_devices();
     for (pin, sig) in [(6, 63), (7, 65)] {
         m.bus.write32(0x6000_9004 + pin * 4, 1 << 12).unwrap();
         m.bus.write32(0x6000_4554 + pin * 4, sig).unwrap();
@@ -407,11 +412,15 @@ fn idle_board_does_not_receive_clock_callbacks() {
     struct Idle;
     impl BoardModel for Idle {
         fn name(&self) -> &'static str { "idle" }
+        fn uses_gpio_edges(&self) -> bool { false }
+        fn next_deadline(&self) -> Option<u64> { panic!("idle deadline queried"); }
         fn advance_to(&mut self, _: u64) { panic!("idle board advanced"); }
         fn take_edges(&mut self) -> Vec<BoardEdge> { panic!("idle board polled"); }
     }
     let mut m = esp32c3::machine([0; 6], 4 << 20);
     m.bus.board = Box::new(Idle);
+    m.bus.attach_board_devices();
+    let _ = esp_soc::SocBus::next_deadline(&m.bus);
     m.bus.tick(64);
     assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
     assert!(m.bus.periph.rmt.rmt.done.is_empty());

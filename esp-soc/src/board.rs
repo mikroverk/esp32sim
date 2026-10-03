@@ -94,6 +94,8 @@ pub trait BoardModel {
     fn touch_at(&mut self, _cycle: VirtualCycle, x: u16, y: u16, down: bool) { self.touch(x, y, down); }
     /// Current board-driven GPIO input levels, used to reconnect a persistent board after reset.
     fn input_levels(&self) -> Vec<(u8, bool)> { Vec::new() }
+    /// Whether GPIO edge polling is needed. Cached by `attach_board_devices`.
+    fn uses_gpio_edges(&self) -> bool { true }
     /// Earliest autonomous transition strictly after the board's current cycle.
     fn next_deadline(&self) -> Option<VirtualCycle> { None }
     /// Advance monotonically through every board transition due by `cycle`.
@@ -112,4 +114,7 @@ pub type Board = Box<dyn BoardModel>;
 
 /// A bare module: nothing on the pins, console only.
 pub struct NoBoard;
-impl BoardModel for NoBoard { fn name(&self) -> &'static str { "none" } }
+impl BoardModel for NoBoard {
+    fn name(&self) -> &'static str { "none" }
+    fn uses_gpio_edges(&self) -> bool { false }
+}

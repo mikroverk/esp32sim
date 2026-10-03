@@ -42,6 +42,7 @@ pub struct SocBus {
     pub periph: Peripherals,
     /// a bare module: nothing on the pins
     pub board: esp_soc::Board,
+    pub(crate) board_edges: bool,
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     /// a peripheral write may have moved an interrupt line: re-derive before the next instruction
@@ -60,7 +61,7 @@ impl SocBus {
             rtc_slow: vec![0; (RTC_SLOW_HIGH - RTC_SLOW_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [MMU_INVALID; MMU_ENTRIES],
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard),
+            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), board_edges: false,
             cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(),
         }
     }
@@ -123,6 +124,7 @@ impl SocBus {
 
     /// Attach controller 0 devices and reconnect board inputs after a reset.
     pub fn attach_board_devices(&mut self) {
+        self.board_edges = self.board.uses_gpio_edges();
         for (bus, address, device) in self.board.i2c_devices() {
             if bus == 0 { self.periph.i2c.attach(address, device); }
         }
@@ -187,7 +189,7 @@ impl SocBus {
             self.board.rmt_frame(pin, &bits);
             self.irq_dirty = true;
         }
-        if self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
+        if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
             self.board.advance_to(self.cycles);
             for edge in self.board.take_edges() {
                 self.periph.gpio.set_input(edge.pin, edge.level);

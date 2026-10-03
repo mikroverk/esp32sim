@@ -19,6 +19,7 @@ pub trait BoardModel {
     fn touch_at(&mut self, _cycle: VirtualCycle, x: u16, y: u16, down: bool) {
         self.touch(x, y, down);                                // default for untimed boards
     }
+    fn uses_gpio_edges(&self) -> bool                         // false for boards without timed GPIO input
     fn next_deadline(&self) -> Option<VirtualCycle>           // next autonomous board transition
     fn advance_to(&mut self, cycle: VirtualCycle)                    // advance through due transitions
     fn take_edges(&mut self) -> Vec<BoardEdge>                // timestamped GPIO input edges
@@ -37,6 +38,10 @@ pub trait BoardModel {
 contains physical SCLK/MOSI/CS masks and a MISO pin. `I2cDevice::pins` optionally binds
 a device to (SDA, SCL); fixed devices keep their controller-only behavior.
 `esp_soc::pins::ChipPins` decodes GPIO matrix and IO_MUX routes.
+
+After assigning or replacing `bus.board`, call `bus.attach_board_devices()` to
+attach devices and refresh cached board capabilities. `uses_gpio_edges` defaults
+to true; `NoBoard` returns false so C3 skips its deadline and edge callbacks.
 
 The SoC model produces the events; the board interprets them. `make_board(name)` maps the
 `--board` argument to an implementation.
