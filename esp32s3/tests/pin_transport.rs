@@ -61,7 +61,7 @@ fn i2c_matches_pins_and_preserves_replacement_and_fixed_devices() {
         route(bus, 4, 5, controller);
         assert!(!read_i2c(bus, controller).0);
         route(bus, 8, 9, controller);
-        bus.write32(0x6000_9024, 0).unwrap(); // disable SDA IO_MUX input
+        bus.write32(0x6000_9024, 1 << 12).unwrap(); // disable SDA IO_MUX input
         assert!(!read_i2c(bus, controller).0);
         route(bus, 8, 9, controller);
         bus.periph.i2c[controller].attach(0x42, Box::new(Device(Some((8, 9)), 33)));
@@ -216,18 +216,17 @@ fn output_cycles_include_low_release_and_input_edges_keep_their_timestamp() {
 /// Build docs/evidence/s3-pin-transport-2026-10-02/main.cpp with the adjacent
 /// PlatformIO configuration, then supply its build directory and a ROM ELF.
 #[test]
-#[ignore = "requires ESP32SIM_TRANSPORT_BUILD and ESP32SIM_ROM"]
-fn external_arduino_pin_transport() {
+fn external_s3_arduino_pin_transport() {
     let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD")
         .expect("ESP32SIM_TRANSPORT_BUILD must name the PlatformIO build directory containing firmware.factory.bin"));
-    let rom = std::env::var_os("ESP32SIM_ROM").expect("ESP32SIM_ROM must name an ESP32-S3 revision-0 ROM ELF");
+    let rom = std::path::PathBuf::from(std::env::var_os("ESP32SIM_ROM_DIR").expect("ESP32SIM_ROM_DIR must contain esp32s3_rev0_rom.elf")).join("esp32s3_rev0_rom.elf");
     let state = Arc::new(Mutex::new(State::default()));
     let mut m = esp32s3::machine([2, 0, 0, 0, 0, 1]);
     m.bus.board = Box::new(Board(state.clone()));
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).expect("ESP32SIM_ROM must name a readable ESP32-S3 revision-0 ROM ELF")).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("ESP32SIM_ROM_DIR must contain a readable esp32s3_rev0_rom.elf")).unwrap();
     m.write_flash(
         0,
         &std::fs::read(build.join("firmware.factory.bin"))

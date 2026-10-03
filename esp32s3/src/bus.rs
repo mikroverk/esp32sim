@@ -482,11 +482,12 @@ impl SocBus {
         }
         self.periph.write32(a, v);
         if old_gpio_out != self.periph.gpio.out || old_gpio_enable != self.periph.gpio.enable {
-            let changes = std::mem::take(&mut self.periph.gpio.changes);
+            let changes = &self.periph.gpio.changes;
             if let Some(events) = &mut self.gpio_events {
-                for &(pin, level) in &changes { events.push((self.cycles, pin, level)); }
+                for &(pin, level) in changes { events.push((self.cycles, pin, level)); }
             }
-            self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.enable, self.periph.gpio.out);
+            self.board.gpio_output_at(self.cycles, changes, self.periph.gpio.enable, self.periph.gpio.out);
+            self.periph.gpio.changes.clear();
         }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
@@ -858,9 +859,10 @@ impl SocBus {
             }
         }
         if !self.periph.gpio.changes.is_empty() {
-            let ch = std::mem::take(&mut self.periph.gpio.changes);
-            if let Some(ev) = &mut self.gpio_events { for &(pin, level) in &ch { ev.push((self.cycles, pin, level)); } }
-            self.board.gpio_output_at(self.cycles, &ch, self.periph.gpio.enable, self.periph.gpio.out);
+            let ch = &self.periph.gpio.changes;
+            if let Some(ev) = &mut self.gpio_events { for &(pin, level) in ch { ev.push((self.cycles, pin, level)); } }
+            self.board.gpio_output_at(self.cycles, ch, self.periph.gpio.enable, self.periph.gpio.out);
+            self.periph.gpio.changes.clear();
         }
         self.deliver_spi2_transfer();
         if !self.periph.rmt.done.is_empty() {

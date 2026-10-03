@@ -134,13 +134,14 @@ impl SocBus {
         // Chip select and command/data lines are GPIOs. The board must see their preceding edges
         // before it receives the transaction.
         if !self.periph.gpio.changes.is_empty() {
-            let changes = std::mem::take(&mut self.periph.gpio.changes);
+            let changes = &self.periph.gpio.changes;
             if let Some(events) = &mut self.gpio_events {
-                for &(pin, level) in &changes {
+                for &(pin, level) in changes {
                     events.push((self.cycles, pin, level));
                 }
             }
-            self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.enable, self.periph.gpio.out);
+            self.board.gpio_output_at(self.cycles, changes, self.periph.gpio.enable, self.periph.gpio.out);
+            self.periph.gpio.changes.clear();
         }
         let rx = if let Some(pins) = self.spi2_pins.take() {
             self.board.spi_transfer_pins(2, pins, &transfer.tx, transfer.rx_len)
