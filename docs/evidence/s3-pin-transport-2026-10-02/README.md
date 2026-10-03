@@ -93,11 +93,11 @@ cp docs/evidence/s3-pin-transport-2026-10-02/platformio.ini "$transport_dir/"
 cp docs/evidence/s3-pin-transport-2026-10-02/main.cpp "$transport_dir/src/"
 pio run -d "$transport_dir"
 ESP32SIM_TRANSPORT_BUILD="$transport_dir/.pio/build/s3" \
-  cargo test --release -p esp32s3 --test pin_transport external_s3_arduino_pin_transport -- --nocapture
-cargo test -p esp32s3 --test pin_transport
-cargo build --release
-cargo test --workspace
-tools/wasm-build.sh
+  cargo +1.99.0 test --release -p esp32s3 --test pin_transport external_s3_arduino_pin_transport -- --nocapture
+cargo +1.99.0 test -p esp32s3 --test pin_transport -- --skip external_
+cargo +1.99.0 build --release
+cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_
+RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh
 node tools/check-evidence-privacy.mjs
 git diff --check
 ```
