@@ -9,25 +9,27 @@ use std::{cell::RefCell, rc::Rc};
 struct State {
     tx: Vec<(UartRoute, u8)>,
     rx: Vec<UartInput>,
+    tx_cycles: Vec<u64>,
+    rx_cycles: Vec<u64>,
 }
 struct Endpoint(Rc<RefCell<State>>);
 impl BoardModel for Endpoint {
     fn name(&self) -> &'static str {
         "uart-test"
     }
-    fn uart_tx(&mut self, route: UartRoute, byte: u8) {
+    fn uses_uart_pins(&self) -> bool { true }
+    fn uart_tx(&mut self, cycle: u64, route: UartRoute, byte: u8) {
         let mut state = self.0.borrow_mut();
+        state.tx_cycles.push(cycle);
         state.tx.push((route, byte));
         if route.transmits_on(5) && route.matches_baud(9600) {
-            state.rx.push(UartInput {
-                pin: 4,
-                baud: 9600,
-                data: vec![byte],
-            });
+            state.rx.push(UartInput::new(4, 9600, vec![byte]));
         }
     }
-    fn uart_rx(&mut self) -> Vec<UartInput> {
-        std::mem::take(&mut self.0.borrow_mut().rx)
+    fn uart_rx(&mut self, cycle: u64) -> Vec<UartInput> {
+        let mut state = self.0.borrow_mut();
+        state.rx_cycles.push(cycle);
+        std::mem::take(&mut state.rx)
     }
 }
 
@@ -50,6 +52,7 @@ macro_rules! check_chip {
                 bus.write32($gpio + 0x154 + $signal * 4, $input_select | 4).unwrap();
                 bus.write32($uart + 0x24, 1).unwrap();
                 bus.write32($uart + 0xc, 1).unwrap();
+                let cycle = bus.cycles();
                 bus.write32($uart, (b'A' + reset) as u32).unwrap();
                 // Changing pins before the tick must not relabel an earlier byte.
                 bus.write32($gpio + 0x554 + 5 * 4, 0x100).unwrap();
@@ -58,6 +61,8 @@ macro_rules! check_chip {
                 assert!(bus.periph.uart[1].irq());
                 bus.write32($uart + 0x10, u32::MAX).unwrap();
                 assert!(!bus.periph.uart[1].irq());
+                assert_eq!(*state.borrow().tx_cycles.last().unwrap(), cycle);
+                assert_eq!(*state.borrow().rx_cycles.last().unwrap(), bus.cycles());
                 let route = state.borrow().tx.last().unwrap().0;
                 assert_eq!(route.port, 1);
                 assert_eq!(route.rx_pin, Some(4));
@@ -70,6 +75,40 @@ macro_rules! check_chip {
                 assert_eq!(bus.periph.uart_route(1).tx_pins, 0);
             }
             assert_eq!(state.borrow().tx.len(), 2);
+            // Matrix gates must fail independently of output function selection.
+            bus.write32($clock, 3 << 20 | 1 << 12).unwrap();
+            bus.write32($uart + 0x14, 2083 | 5 << 20).unwrap();
+            bus.write32($mux + 4 + 4 * 4, 1 << 12 | 1 << 9).unwrap();
+            bus.write32($gpio + 0x154 + $signal * 4, $input_select | 4).unwrap();
+            assert_eq!(bus.periph.uart_route(1).rx_pin, Some(4));
+            bus.write32($mux + 4 + 4 * 4, 1 << 12).unwrap();
+            assert_eq!(bus.periph.uart_route(1).rx_pin, None);
+            bus.write32($mux + 4 + 5 * 4, 1 << 12).unwrap();
+            let oen = if $signal == 15 { 1 << 10 } else { 1 << 9 };
+            bus.write32($gpio + 0x554 + 5 * 4, $signal | oen).unwrap();
+            bus.write32($gpio + 0x24, 1 << 5).unwrap();
+            assert!(bus.periph.uart_route(1).transmits_on(5));
+            bus.write32($gpio + 0x28, 1 << 5).unwrap();
+            assert!(!bus.periph.uart_route(1).transmits_on(5));
+            // GPIO_ENABLE also gates a matrix route using the peripheral OEN source.
+            bus.write32($gpio + 0x554 + 5 * 4, $signal).unwrap();
+            assert!(!bus.periph.uart_route(1).transmits_on(5));
+            let route = bus.periph.uart_route(1);
+            assert!(route.matches_baud(9600));
+            assert!(route.matches_baud(9800));
+            assert!(!route.matches_baud(10000));
+            bus.write32($mux + 4 + 4 * 4, 1 << 9).unwrap();
+            bus.periph.uart_pin_input(&UartInput::new(4, 10000, vec![42]));
+            assert_ne!(bus.periph.uart[1].int_raw & esp_periph::uart::INT_FRM_ERR, 0);
+            assert_eq!(bus.periph.uart[1].rx_pending(), 0);
+            bus.write32($uart + 0x10, u32::MAX).unwrap();
+            // RC_FAST is 20 MHz on all three chips: 20 MHz / 173.625 = 115190.
+            bus.write32($clock, 2 << 20).unwrap();
+            bus.write32($uart + 0x14, 173 | 10 << 20).unwrap();
+            assert_eq!(bus.periph.uart_route(1).baud, Some(115190));
+            bus.periph.uart_pin_input(&UartInput::new(4, 115200, vec![42]));
+            assert_eq!(bus.periph.uart[1].int_raw & esp_periph::uart::INT_FRM_ERR, 0);
+            assert_eq!(bus.read32($uart).unwrap(), 42);
             // IO_MUX direct routing on UART0, independent of matrix output selection.
             bus.write32($gpio + 0x24, 1u32.wrapping_shl($native_tx))
                 .unwrap();
@@ -95,25 +134,13 @@ macro_rules! check_chip {
             bus.write32($mux + 4 + 4 * 4, 1 << 9).unwrap();
             bus.write32($gpio + 0x154 + $signal * 4, $input_select | 4).unwrap();
             for pin in [7, 255] {
-                bus.periph.uart_pin_input(&UartInput {
-                    pin,
-                    baud: 9600,
-                    data: vec![1],
-                });
+                bus.periph.uart_pin_input(&UartInput::new(pin, 9600, vec![1]));
             }
             assert_eq!(bus.periph.uart[1].int_raw & (1 << 3), 0);
-            bus.periph.uart_pin_input(&UartInput {
-                pin: 4,
-                baud: 9600,
-                data: vec![1],
-            });
+            bus.periph.uart_pin_input(&UartInput::new(4, 9600, vec![1]));
             assert_ne!(bus.periph.uart[1].int_raw & (1 << 3), 0);
             assert_eq!(bus.periph.uart[1].rx_pending(), 0);
-            bus.periph.uart_pin_input(&UartInput {
-                pin: 4,
-                baud: 19200,
-                data: vec![2; 129],
-            });
+            bus.periph.uart_pin_input(&UartInput::new(4, 19200, vec![2; 129]));
             assert_eq!(bus.periph.uart[1].rx_pending(), 128);
             assert_ne!(bus.periph.uart[1].int_raw & (1 << 4), 0);
         }
@@ -184,11 +211,7 @@ fn s3_uart2_receive_has_an_interrupt_source() {
     p.uart[2].write(0xc, 1);
     p.io_mux.write(4 + 4 * 4, 1 << 9);
     p.gpio.func_in_sel[18] = 0x80 | 4;
-    p.uart_pin_input(&UartInput {
-        pin: 4,
-        baud: 9600,
-        data: vec![42],
-    });
+    p.uart_pin_input(&UartInput::new(4, 9600, vec![42]));
     assert_eq!(p.uart[2].read(0), 42);
     assert_ne!(p.source_status()[0] & (1 << 29), 0);
 }
@@ -211,4 +234,35 @@ fn c3_matrix_enable_and_inversion_bits_match_silicon() {
     let inverted = esp_soc::uart::UartPins::C3.route(1, &gpio, &mux, Some(9600));
     assert_eq!(inverted.rx_pin, None);
     assert!(!inverted.transmits_on(5));
+}
+
+#[test]
+fn s3_gpio46_is_a_uart_output() {
+    let mut m = esp32s3::machine([0; 6]);
+    m.bus.write32(0x6000_90bc, 1 << 12).unwrap();
+    m.bus.write32(0x6000_460c, 15).unwrap();
+    m.bus.write32(0x6000_4030, 1 << 14).unwrap();
+    assert!(m.bus.periph.uart_route(1).transmits_on(46));
+}
+
+#[test]
+fn boards_without_uart_opt_in_keep_console_only() {
+    struct ConsoleOnly;
+    impl BoardModel for ConsoleOnly {
+        fn name(&self) -> &'static str { "console-only" }
+        fn uart_tx(&mut self, _: u64, _: UartRoute, _: u8) { panic!("TX without opt-in"); }
+        fn uart_rx(&mut self, _: u64) -> Vec<UartInput> { panic!("RX without opt-in"); }
+    }
+    macro_rules! check {
+        ($machine:expr) => {{
+            let mut m = $machine;
+            m.bus.board = Box::new(ConsoleOnly);
+            m.bus.write32(0x6000_0000, 42).unwrap();
+            m.bus.tick(256);
+            assert_eq!(m.bus.console_take()[1], [42]);
+        }};
+    }
+    check!(esp32s3::machine([0; 6]));
+    check!(esp32c3::machine([0; 6], 4 << 20));
+    check!(esp32c6::machine([0; 6], 4 << 20));
 }

@@ -12,6 +12,9 @@ pub trait BoardModel {
     fn spi_transfer_pins(&mut self, host: u8, pins: SpiPins, tx: &[u8], rx_len: usize) -> Vec<u8>
     fn rmt_frame(&mut self, pin: u8, bits: &[bool]) {}       // a decoded RMT transmission
     fn spi_transfer(&mut self, host: u8, tx: &[u8], rx_len: usize) -> Vec<u8>
+    fn uses_uart_pins(&self) -> bool                         // opt in to UART routes and polling
+    fn uart_tx(&mut self, cycle: VirtualCycle, route: UartRoute, byte: u8) {}
+    fn uart_rx(&mut self, cycle: VirtualCycle) -> Vec<UartInput>
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> // (bus, address, device)
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)>    // for the UI/PNG: w, h, RGB565, change counter
     fn leds(&self) -> Option<(&[[u8; 3]], u64)>               // LED ring/strip colours, change counter

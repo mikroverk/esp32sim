@@ -490,7 +490,7 @@ impl SocBus {
             self.periph.gpio.changes.clear();
         }
         if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), 0x6002e000 => Some(2), _ => None } {
-            self.board.uart_tx(self.periph.uart_route(port), v as u8);
+            if self.board.uses_uart_pins() { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
         }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
@@ -826,9 +826,11 @@ impl SocBus {
         // Reads may flush before the periodic backstop. Refresh for either edge
         // of a clocked source, without breaking every block that polls MMIO.
         self.irq_dirty |= self.periph.tick(cycles as u64);
-        for input in self.board.uart_rx() {
-            self.periph.uart_pin_input(&input);
-            self.irq_dirty = true;
+        if self.board.uses_uart_pins() {
+            for input in self.board.uart_rx(self.cycles) {
+                self.periph.uart_pin_input(&input);
+                self.irq_dirty = true;
+            }
         }
         self.board.advance_to(self.cycles);
         for edge in self.board.take_edges() {

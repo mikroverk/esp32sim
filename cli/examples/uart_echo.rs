@@ -20,7 +20,8 @@ impl BoardModel for Echo {
     fn name(&self) -> &'static str {
         "uart-echo"
     }
-    fn uart_tx(&mut self, route: UartRoute, byte: u8) {
+    fn uses_uart_pins(&self) -> bool { true }
+    fn uart_tx(&mut self, _cycle: u64, route: UartRoute, byte: u8) {
         let mut counts = self.counts.borrow_mut();
         if route.transmits_on(7) && route.matches_baud(9600) {
             counts.wrong_pin += 1;
@@ -33,13 +34,9 @@ impl BoardModel for Echo {
             return;
         }
         counts.received += 1;
-        self.pending.push(UartInput {
-            pin: 4,
-            baud: 9600,
-            data: vec![byte],
-        });
+        self.pending.push(UartInput::new(4, 9600, vec![byte]));
     }
-    fn uart_rx(&mut self) -> Vec<UartInput> {
+    fn uart_rx(&mut self, _cycle: u64) -> Vec<UartInput> {
         std::mem::take(&mut self.pending)
     }
 }

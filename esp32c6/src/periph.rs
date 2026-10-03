@@ -452,13 +452,8 @@ impl Peripherals {
     }
 
     pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
-        if input.data.is_empty() { return; }
-        for port in 0..2 {
-            let route = self.uart_route(port);
-            if route.rx_pin != Some(input.pin) { continue; }
-            if route.matches_baud(input.baud) { self.uart[port].host_input(&input.data); }
-            else { self.uart[port].int_raw |= 1 << 3; }
-        }
+        let routes: [_; 2] = std::array::from_fn(|port| self.uart_route(port));
+        esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
     }
 
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }

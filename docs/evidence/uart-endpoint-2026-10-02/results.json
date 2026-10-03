@@ -1,7 +1,6 @@
 {
   "base_revision": "dddb128052dca15250e2169b92ab73c4d87f524c",
-  "reference_revision": "221080ffccfa829106b398f896653535853c76c8",
-  "final_source": "Initial source at 9142a78a16745985aa188149c07efb1da0ed7c26; source-hashes.json records its production and test files. See followup for current results.",
+  "final_source": "source-hashes.json identifies the initial source; followup-source-hashes.json identifies corrected source.",
   "checks": [
     {
       "command": "cargo build --release",
@@ -92,17 +91,17 @@
     {
       "file": "docs/evidence/uart-endpoint-2026-10-02/arduino-candidate.patch",
       "bytes": 13280,
-      "sha256": "2ab9c95666c062813a21fdd397d5d4d2bedcc04bc9ac53ff36d428781aa700c5"
+      "sha256": "2ab9c95666c062813a21fdd397d5d4d2bedcc04bc9ac53ff36d428781aa700c5",
+      "status": "Removed superseded patch; historical size and hash retained."
     }
   ],
   "limits": [
     "Arduino runs used the preserved candidate, before final pin-mask cleanup, empty-batch guard and S3 UART2 IRQ mapping.",
-    "C3 and S3 Arduino acceptance remains incomplete; one correction attempt was made, then retries stopped.",
+    "Initial C3 and S3 Arduino acceptance was incomplete; the followup record retains the corrected passing results.",
     "No electrical timing or performance claim.",
     "Native firmware artifacts are retained locally under ignored target/uart-evidence; PlatformIO .pio build directory was deleted."
   ],
   "followup": {
-    "parent_revision": "9142a78a16745985aa188149c07efb1da0ed7c26",
     "source": "Containing Git commit; followup-source-hashes.json identifies the measured final source.",
     "experiment": "EX203",
     "baseline": {

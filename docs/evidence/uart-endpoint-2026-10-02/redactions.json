@@ -1,0 +1,25 @@
+{
+  "reason": "Remove session details, inaccessible fork references and superseded patch; preserve numeric results and artifact hashes.",
+  "files": [
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/README.md",
+      "original_sha256": "70ccabf2a2d8b28b57fe3a4772e4beedd31942aac4cfbf4634336bcc8eb7e071",
+      "sanitized_sha256": "4c87ca797f4715f5cca0bd1d3025b3125d17aee54d41764a14dc349cb6ab92d2"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/results.json",
+      "original_sha256": "be50cc36362d8296cf7f590a3535731a7fd862421979c3ab8be6a5de04ce3322",
+      "sanitized_sha256": "a8f82cd63c33b2f0126fa56ea8215b6c73389f6eb32dd5b1596342fd0d7ba6c9"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/arduino-candidate.patch",
+      "original_sha256": "2ab9c95666c062813a21fdd397d5d4d2bedcc04bc9ac53ff36d428781aa700c5",
+      "status": "deleted: superseded candidate"
+    },
+    {
+      "file": "docs/experiments.md",
+      "original_sha256": "57138685fb3feae36db06ff601abfefcb5556c3344b7fc29b5731247b04e5436",
+      "sanitized_sha256": "2249708fc7823b0fd66a34648816e846a32e037a4c04ba5b695acf116f902746"
+    }
+  ]
+}

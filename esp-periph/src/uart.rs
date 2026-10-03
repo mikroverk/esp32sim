@@ -9,6 +9,7 @@ use crate::regram::RegRam;
 const RX_FIFO_SIZE: usize = 128;
 const INT_RXFIFO_FULL: u32 = 1 << 0;
 const INT_TXFIFO_EMPTY: u32 = 1 << 1;
+pub const INT_FRM_ERR: u32 = 1 << 3;
 const INT_RXFIFO_OVF: u32 = 1 << 4;
 /// RXFIFO_TOUT (bit 8 on the S3/C3/C6 maps): silicon raises it once the line has been idle for
 /// rx_tout_thrhd symbols with bytes still in the FIFO. The IDF / Arduino drivers rely on it to
