@@ -1,0 +1,154 @@
+{
+  "source_revision": "edd985d616276fceae1b1b708c5802370079e2d7",
+  "base_revision": "dddb128052dca15250e2169b92ab73c4d87f524c",
+  "behavior_reference": "221080ffccfa829106b398f896653535853c76c8",
+  "environment": {
+    "os": "macOS 26.6.2",
+    "architecture": "arm64",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "platformio": "6.1.19",
+    "platform": "55.3.38+sha.fbdfc29",
+    "arduino": "3.3.8",
+    "idf_libraries": "5.5.4+sha.735507283d",
+    "xtensa_gcc": "14.2.0+20260121"
+  },
+  "inputs": {
+    "bootloader.bin": {
+      "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432",
+      "bytes": 19984
+    },
+    "partitions.bin": {
+      "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+      "bytes": 3072
+    },
+    "firmware.bin": {
+      "sha256": "a085b00dda80d3e337275f3ccec1fce2bd8757a7da7b236524f6131ee95ee133",
+      "bytes": 362816
+    },
+    "firmware.factory.bin": {
+      "sha256": "62eae3988c156a60be7766bf17c3c8337f02508c9dd6f67aea4562796ada32d8",
+      "bytes": 428352
+    },
+    "firmware.elf": {
+      "sha256": "bb2d4baa9b4cf0e4fd77e25344cec542183311b8c8171e8bead4394c0f5f9e52",
+      "bytes": 7216972
+    },
+    "esp32s3_rev0_rom.elf": {
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "bytes": 949552
+    },
+    "main.cpp": {
+      "sha256": "d1a05c76179b45f2f72c8d0c912313983b06868399a74757316f081248e19aeb",
+      "bytes": 1025
+    },
+    "platformio.ini": {
+      "sha256": "fdc3fde30244d21b557221eb3726d40045833aae4050a8a2d7908015277777a5",
+      "bytes": 176
+    }
+  },
+  "privacy": "Only input basenames, hashes, sizes, versions, and test outcomes retained. Raw build logs and redundant ROM boot lines omitted. Home paths in README normalized to /Users/alice/. No private captures committed.",
+  "limitations": [
+    "Native Arduino correctness check only; WASM build checked, browser execution not measured.",
+    "S3 I2C0/I2C1 and SPI2 only.",
+    "Bus-cycle timestamps follow existing scheduler granularity, not hardware calibration.",
+    "Pin-bound I2C wrappers are still attached per controller.",
+    "Single-lane active-low SPI contract; no electrical contention model."
+  ],
+  "checks": [
+    {
+      "command": "cargo build --release",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "exit_code": 0,
+      "passed": 467,
+      "failed": 0,
+      "ignored": 23,
+      "test_suites": 60
+    },
+    {
+      "command": "tools/wasm-build.sh",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test -p esp32s3 --test pin_transport",
+      "exit_code": 0,
+      "passed": 6,
+      "ignored": 1
+    },
+    {
+      "command": "pio run -d \"$transport_dir\"",
+      "exit_code": 0,
+      "attempt": 2
+    },
+    {
+      "command": "ESP32SIM_TRANSPORT_BUILD=\"$transport_dir/.pio/build/s3\" cargo test --release -p esp32s3 --test pin_transport arduino_pin_transport -- --ignored --nocapture",
+      "environment": "ESP32SIM_ROM must name the ROM input",
+      "exit_code": 0
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0,
+      "attempt": 2,
+      "tracked_evidence_files": 1475,
+      "gzip_files": 15,
+      "manual_review": "Reviewed all four new evidence files and the experiment entry."
+    },
+    {
+      "command": "git diff --check; git diff --cached --check; git diff dddb128 --check",
+      "exit_code": 0
+    }
+  ],
+  "arduino": {
+    "serial": [
+      "I2C right=0",
+      "I2C wrong=2",
+      "SPI right=a5 wrong=ff",
+      "PULSE requested_us=100",
+      "TRANSPORT DONE"
+    ],
+    "cycles": 240000000,
+    "instructions": 7288738,
+    "pulse": {
+      "high_cycle": 27709171,
+      "low_cycle": 27733171,
+      "width_cycles": 24000,
+      "width_us": 100.0,
+      "cpu_hz": 240000000,
+      "tolerance_cycles": 64
+    }
+  },
+  "artifacts": {
+    "target/release/esp32sim": {
+      "sha256": "fac5a5884f4ffbfbcfd3e7b50357a005a2aa0a5baed5d2a206b933fa07de2017",
+      "bytes": 2203080
+    },
+    "web/wasm/esp32sim.wasm": {
+      "sha256": "15f68210d4c209d4cb1748f52be6001d04c03bafbd9435750a9ec740b7836dfa",
+      "bytes": 2123189
+    }
+  },
+  "setup_failures": [
+    {
+      "command": "pio run",
+      "error": "PermissionError: [Errno 1] Operation not permitted: '/Users/alice/.platformio/platforms.lock'",
+      "resolution": "One retry with package-cache access passed."
+    },
+    {
+      "command": "cargo test -p esp32s3 --test pin_transport",
+      "error": "error[E0425]: cannot find type Bus in crate esp32s3",
+      "resolution": "Corrected test path to esp32s3::bus::SocBus; retry passed."
+    },
+    {
+      "command": "git add",
+      "error": "Unable to create worktree index.lock: Operation not permitted",
+      "resolution": "One retry with worktree metadata access passed."
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "error": "results.json: personal home-directory label",
+      "resolution": "The normalized home label ended with punctuation that the pattern disallowed. Added a trailing slash; no personal value was present."
+    }
+  ]
+}

@@ -18,6 +18,7 @@ pub mod net;
 pub mod observe;
 pub mod observers;
 pub mod picture;
+pub mod pins;
 pub mod png;
 pub mod soc;
 pub mod web;

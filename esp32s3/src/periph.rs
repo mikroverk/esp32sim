@@ -509,6 +509,14 @@ impl Peripherals {
     }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
+        if matches!(addr, 0x6001_3004 | 0x6002_7004) && v & (1 << 5) != 0 {
+            let bus = usize::from(addr == 0x6002_7004);
+            if self.i2c[bus].has_pinned_devices() {
+                let sda = if bus == 0 { 90 } else { 92 };
+                let pins = self.i2c_pin(sda).zip(self.i2c_pin(sda - 1));
+                self.i2c[bus].set_pins(pins);
+            }
+        }
         let fx = mmio::write32(self, addr, v);
         if fx.contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if fx.contains(WriteEffect::INTMAP) { self.intmatrix_dirty = true; }

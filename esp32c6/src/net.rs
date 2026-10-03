@@ -84,6 +84,7 @@ impl Network {
         let mut m = machine(mac, flash_bytes);
         m.bus.set_flash_size(flash_bytes);
         m.bus.board = board;
+        m.bus.attach_board_devices();
         m.console.capture = true;
         m.console.mask = 2;                              // UART0, where the IDF console goes
         self.nodes.push(Node { m, start_ns, booted: false, halted: false, console: Vec::new(), x, y, tx: 0, rx: 0, rx_dropped: 0 });

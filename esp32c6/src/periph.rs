@@ -362,6 +362,8 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
+    pub io_mux: RegRam,
+    pub i2c: esp_periph::i2c::I2c,
     pub efuse: Efuse,
     pub spi0: SpiMemC6,
     pub spi1: SpiMemC6,
@@ -395,6 +397,7 @@ pub struct Peripherals {
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+    0x04 "I2C0" (i2c) => [src::I2C_EXT0];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x01 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI0" (spi0) => [];
@@ -411,6 +414,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x88 "AES" (aes) => [src::AES];
     0x89 "SHA" (sha) => [];
     0x8a "RSA" (rsa) => [src::RSA];
+    0x90 "IO_MUX" (io_mux) => [];
     0x91 "GPIO" (gpio) => [src::GPIO];
     0x96 "PCR" (pcr) => [];
     0xa0 "MODEM_BB" (modem_bb) => [];
@@ -444,7 +448,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
@@ -475,7 +479,14 @@ impl Peripherals {
 
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
+    fn i2c_pin(&self, signal: usize) -> Option<u8> {
+        esp_soc::pins::ChipPins::C6.routes(&self.gpio, &self.io_mux).i2c_pin(signal)
+    }
+
     pub fn write32(&mut self, addr: u32, v: u32) {
+        if addr == 0x6000_4004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
+            self.i2c.set_pins(self.i2c_pin(46).zip(self.i2c_pin(45)));
+        }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
     }
 
