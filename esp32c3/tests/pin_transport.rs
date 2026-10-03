@@ -425,3 +425,26 @@ fn idle_board_does_not_receive_clock_callbacks() {
     assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
     assert!(m.bus.periph.rmt.rmt.done.is_empty());
 }
+
+#[test]
+fn pin_interrupts_follow_enable_clear_and_spi_completion() {
+    use esp32c3::periph::src;
+    let mut m = esp32c3::machine([0; 6], 4 << 20);
+    let bus = &mut m.bus;
+    bus.periph.i2c.attach(0x42, Box::new(Device(None, 11)));
+    for (base, ena, clr, bit, source) in [
+        (0x6001_3000, 0x28, 0x24, 1 << 7, src::I2C_EXT0),
+        (0x6002_4000, 0x34, 0x38, 1 << 12, src::SPI2),
+    ] {
+        bus.write32(base + ena, bit).unwrap();
+        if source == src::I2C_EXT0 { assert_eq!(read_i2c(bus), (true, 11)); }
+        else { spi(bus); }
+        assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.write32(base + ena, 0).unwrap();
+        assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.write32(base + ena, bit).unwrap();
+        assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.write32(base + clr, bit).unwrap();
+        assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
+    }
+}
