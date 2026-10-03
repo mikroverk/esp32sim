@@ -1,0 +1,30 @@
+{
+  "source": "68eb1a4c973383c66b465fee1202591d851d87ef",
+  "workspace_totals": {
+    "passed": 483,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 14
+  },
+  "native_clippy": "pass",
+  "wasm_clippy_jit_tests": "pass",
+  "wasm_manifests": [
+    "hello",
+    "c3-hello",
+    "c6-hello",
+    "c6-energy-scan",
+    "c6-contiki",
+    "c6-contiki-net",
+    "c6-rpl-net",
+    "panel"
+  ],
+  "external_wifi_station_c3": "pass without golden regeneration",
+  "goldens": "all existing files unchanged",
+  "initial_failures": [
+    "AP reboot test used 1 ms before the first beacon is due at 100 ms; corrected the test interval.",
+    "wasm-build.sh builds under CARGO_TARGET_DIR but copies from target/; reran the unchanged script with its default target directory."
+  ],
+  "instrumentation": "Diagnostic counters are injected only into disposable exports by instrument-c3.py; timing binaries contain no counters.",
+  "read_side_irq": "USB FIFO reads mark irq_dirty because consuming a packet can present the next packet and assert RECV_PKT; dedicated regression test passes."
+}

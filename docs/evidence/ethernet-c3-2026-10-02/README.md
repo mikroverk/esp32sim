@@ -239,3 +239,116 @@ The initial candidate preceded the odd-cycle APB alignment correction; binary
 hashes distinguish it from the final source. Raw logs remain outside Git in
 `/tmp`; retained receipts contain no personal paths, process inventories or host
 identities. No original historical artifact hashes were replaced.
+
+## Quiet-machine idle follow-up
+
+The supplied quiet-machine run establishes the regression the earlier loaded
+batch could not resolve: main 2.430 s, PR #170 2.481 s CPU, +2.1%, with disjoint
+ranges. `idle-supplied.json` retains those two arms, binary hashes and the original
+receipt hash; unrelated PR arms are omitted. The supplied receipt identifies
+main as `ed34b22` but does not record PR #170's exact source revision.
+
+This EX202 retry changes both mechanism and measurement quality. Corrected source
+`68eb1a4` on `98b38861ff30fdea807b63226459d963de8e2816` removes idle DMA/TX/AP polling and
+unconditional interrupt refreshes. It does not change the EX047 quantum, guest
+clock advancement or instruction accounting. `Peripherals::tick` already computes
+whether clocked-device interrupt sources changed; C3 discarded that result and
+returned `1` every round. The scheduler consequently recomputed every interrupt
+source and line, including the added WiFi source, even with nothing attached.
+The fix returns the existing change result. Register writes and asynchronous
+DMA/WiFi completions still request refresh through `irq_dirty`. USB FIFO reads
+request refresh too: consuming a packet can present the next queued packet and
+assert RECV_PKT. `usb_fifo_read_refreshes_the_next_packet_interrupt` covers that
+read-side transition without a clocked interrupt edge masking it.
+
+Pending SPI/DMA/TX/AP work is cached after MMIO, completion or host configuration.
+The scheduler uses the existing SPI-work branch to enter that work only when
+needed. An attached AP remains active across CLI/WASM setup, relay mode changes
+and reboot. Nothing is polled in the feature-work routine on the hello workload.
+FE_IQ remains unclocked and has no deadline.
+
+`idle_rounds_skip_feature_work_but_timer_edges_refresh_irqs` checks idle ticks,
+timer assertion, a held level, MMIO acknowledgement and TX activation/completion.
+`configured_ap_keeps_work_scheduled_across_reboot` checks an AP still emits its
+first beacon after reset. Both Clippy checks passed, all 483 release workspace
+tests passed with zero ignored and 14 external tests filtered, all eight required
+WASM manifests passed, and the real C3 WPA2/DHCP/five-ping golden passed separately.
+Every existing golden is unchanged. `idle-checks.json` retains these results and
+two corrected setup/test failures. No JIT implementation changed.
+
+The instrumented executables are separate from timing executables. To reproduce
+counts, export each source into a disposable directory, run `instrument-c3.py`
+with that directory, then build it in its own target directory and run the same
+30-second c3-hello command. The counters record device ticks, source-status
+refreshes and entries to the pending-work routine. They print only counts,
+without process inventories or private machine data. They are not production
+code and their CPU time is not used as a benchmark result.
+
+The timing recipe adapts the supplied `/tmp/bench-quiet.py`, preserving its exact
+firmware arguments, child user+system measurement, warmup and seven interleaved
+rounds. `quiet-bench.py` gates every run on `uptime` one-minute load below 2.5 and
+rejects a completed batch if any recorded post-run load reaches 3. The source
+exports and target directories for main, published head and the candidate are
+separate. Do not use a shared Cargo target directory to build different arms.
+
+```sh
+CARGO_TARGET_DIR=/tmp/main-target cargo +1.99.0 build --release -p esp32sim --bin esp32sim --manifest-path /path/to/main/Cargo.toml
+CARGO_TARGET_DIR=/tmp/published-target cargo +1.99.0 build --release -p esp32sim --bin esp32sim --manifest-path /path/to/published/Cargo.toml
+CARGO_TARGET_DIR=/tmp/after-target cargo +1.99.0 build --release -p esp32sim --bin esp32sim --manifest-path /path/to/after/Cargo.toml
+python3 docs/evidence/ethernet-c3-2026-10-02/quiet-bench.py /path/to/firmware \
+  published=/tmp/published-target/release/esp32sim \
+  main=/tmp/main-target/release/esp32sim after=/tmp/after-target/release/esp32sim
+```
+
+`idle-pilot.json` retains the first two-arm run, before the new regression tests
+were added. It uses the supplied main executable: medians 2.545357 s main,
+1.153251 s candidate; all recorded loads below 3. The final run rebuilds main
+and adds published head as a third arm. Builds/checks ran before the final
+measurement gate; the runner waits while concurrent machine activity keeps load
+at or above 3. Only aggregate load is retained.
+
+The final diagnostic counters, each run at load below 3, are in
+`idle-profile.json`:
+
+| Source | Device ticks | Interrupt-source scans | Pending-work calls |
+| --- | ---: | ---: | ---: |
+| Main `ed34b22` | 75,011,991 | 75,256,512 | Not present |
+| Reviewed `1ca3ae4` | 75,011,991 | 75,256,512 | Not present; three feature predicates on every tick |
+| Corrected `68eb1a4` | 75,011,991 | 247,518 | 0 |
+
+That is 99.67% fewer interrupt scans with unchanged device ticks. All three
+instrumented runs have identical console hashes, 4,800,000,000 instructions and
+cycles, zero exceptions and 3,028 interrupts. The first diagnostic instrumented
+`WifiMac::irq_sources` instead, counting all three table aliases, including two
+that contribute no source bits; it reported 225,769,536 calls. The final counter
+is at `Peripherals::source_status` so aliases do not inflate the scan count.
+
+`idle-excluded.json` retains the first three-arm timing attempt. Runs started
+below load 3, but some ended above it, so the predeclared post-run check rejected
+the whole batch. The final runner uses a stricter 2.5 start limit to leave
+headroom, while retaining the requested below-3 post-run requirement. Warmups
+remain excluded from medians. No sample was removed based on its CPU time.
+
+Final accepted results are in `idle-final.json`, seven interleaved rounds per arm
+following one excluded warmup each:
+
+| Arm | Source | Median CPU seconds | Range, CPU seconds |
+| --- | --- | ---: | ---: |
+| Published PR head | `6feac19` | 2.618230 | 2.589489–2.812831 |
+| Main | `ed34b22` | 2.538208 | 2.435772–2.563897 |
+| After | `68eb1a4` | 1.120165 | 1.077142–1.141115 |
+
+Published head is +3.15% against main in this batch; after uses **55.87% less CPU
+than main**. After's range is entirely faster than main's, not overlapping. This
+exceeds the requested non-regression ceiling in the faster direction; it is not
+a statistical-equivalence or within-noise claim. Post-run one-minute loads were
+2.3408–2.7324; every start was below 2.5. All 21 measured runs have the same console
+SHA-256, 4,800,000,000 accounted instructions and cycles, zero exceptions, and
+3,028 interrupts. No change to emulated work or goldens was accepted.
+
+The supplied 2.430/2.481 s observation and the earlier loaded, drifting and
+excluded batches remain above and in their receipts. Final medians describe this
+batch on one in-use machine; they do not isolate every individual code change,
+prove a noise floor, or measure WiFi throughput. The improvement also removes
+main's inherited unconditional interrupt scanning, not merely the newly added
+WiFi predicate. No claim is made for other workloads or hardware timing.

@@ -1,0 +1,94 @@
+{
+  "sources": {
+    "main": "ed34b220cd0e261d369a5eee92ca8f1f33cbb0ad",
+    "reviewed": "1ca3ae40f1c5ba0b883e776a6a9a9ab8225dc692",
+    "after": "68eb1a4c973383c66b465fee1202591d851d87ef"
+  },
+  "counters": [
+    {
+      "label": "main",
+      "load_before": 2.62,
+      "load_after": 2.64599609375,
+      "counts": {
+        "ticks": 75011991,
+        "irq_refresh": 75256512,
+        "pending_work": 0
+      }
+    },
+    {
+      "label": "reviewed",
+      "load_before": 2.65,
+      "load_after": 2.64599609375,
+      "counts": {
+        "ticks": 75011991,
+        "irq_refresh": 75256512,
+        "pending_work": 0
+      }
+    },
+    {
+      "label": "after",
+      "load_before": 2.65,
+      "load_after": 2.59423828125,
+      "counts": {
+        "ticks": 75011991,
+        "irq_refresh": 247518,
+        "pending_work": 0
+      }
+    }
+  ],
+  "explanation": "Before: three unconditional AES/TX/AP predicates per device tick; pending_work did not exist. After: pending_work entry count is zero on c3-hello. IRQ counter is placed in Peripherals::source_status, not per aliased device, so aliases do not inflate scan counts. Main has no WiFi predicates but still rescans interrupts unconditionally.",
+  "console_sha256": {
+    "main": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "reviewed": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "after": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd"
+  },
+  "work": {
+    "main": {
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "interrupts": 3028,
+      "exceptions": 0
+    },
+    "reviewed": {
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "interrupts": 3028,
+      "exceptions": 0
+    },
+    "after": {
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "interrupts": 3028,
+      "exceptions": 0
+    }
+  },
+  "binary_sha256": {
+    "main": "fb54360ec6f5f6a8e334f987df360448698fa4dd3b89efc519908ffeb96b7432",
+    "reviewed": "b87499d85224b0dd7e62ec600757f4901dc2246b169567a7f98358480009167e",
+    "after": "30b67b751f56ebd4a6c4a07d96b439884d621f675f1a6002c3409f10ac6402f2"
+  },
+  "command": [
+    "BINARY",
+    "--chip",
+    "c3",
+    "--boot",
+    "rom",
+    "--board",
+    "none",
+    "--rom",
+    "FW/esp32c3_rev3_rom.elf",
+    "--bootloader",
+    "FW/public/c3-hello-bootloader.bin",
+    "--ptable",
+    "FW/public/c3-hello-ptable.bin",
+    "--app",
+    "FW/public/c3-hello_world.bin",
+    "--flash-mb",
+    "4",
+    "--mac",
+    "00:00:00:00:00:00",
+    "--max-seconds",
+    "30"
+  ],
+  "instrument_script_sha256": "d19f9ac23527b612176f30990c130e9ece65a98611f13865e462f80481a51cc4"
+}
