@@ -166,7 +166,7 @@ pub struct Peripherals {
     pub spi2: Box<GpSpi>,
     pub rmt: Box<RmtCompact>,
     pub io_mux: RegRam,
-    pub wifi: crate::wifi::WifiMac,
+    pub wifi: Box<crate::wifi::WifiMac>,
     pub fe_iq: crate::wifi::FeIq,
     pub i2c_mst: crate::wifi::I2cMst,
 }
