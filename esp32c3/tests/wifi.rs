@@ -167,3 +167,20 @@ fn configured_ap_keeps_work_scheduled_across_reboot() {
     m.bus.tick(16_000_000);
     assert_eq!(m.bus.periph.wifi.ap.as_ref().unwrap().stats.0, 1);
 }
+
+#[test]
+fn usb_fifo_read_refreshes_the_next_packet_interrupt() {
+    use esp_soc::SocBus;
+    let mut m = esp32c3::machine(STATION, 4 << 20);
+    m.bus.write32(0x60043010, 1 << 2).unwrap();
+    m.bus.serial_input(&[0x61; 65]);
+    m.bus.write32(0x60043014, 1 << 2).unwrap();
+    assert!(!m.bus.periph.usb.irq());
+    for _ in 0..63 { assert_eq!(m.bus.read8(0x60043000).unwrap(), 0x61); }
+    assert!(!m.bus.periph.usb.irq());
+    m.bus.irq_dirty = false;
+    assert_eq!(m.bus.read8(0x60043000).unwrap(), 0x61);
+    assert!(m.bus.periph.usb.irq());
+    assert!(m.bus.irq_dirty, "the read must refresh IRQs without an unconditional tick scan");
+    assert_eq!(m.bus.tick(1), 0, "no clocked interrupt transition is available to mask a missed read");
+}

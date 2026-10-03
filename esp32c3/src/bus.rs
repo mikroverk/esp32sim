@@ -95,6 +95,7 @@ impl SocBus {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
         let w = self.periph.read32(addr & !3);
+        if addr & !3 == 0x6004_3000 { self.irq_dirty = true; } // FIFO read can present the next USB packet.
         match size { 1 => (w >> ((addr & 3) * 8)) & 0xff, 2 => (w >> ((addr & 2) * 8)) & 0xffff, _ => w }
     }
 
