@@ -150,6 +150,10 @@ No personal paths, hostnames, usernames or raw private captures are included in 
 
 ## Quiet-machine idle follow-up
 
+The acceptance claim in this section was not reproduced independently. See the
+[independent reproduction follow-up](#independent-reproduction-follow-up) for the
+replacement implementation and two confirmation runs; the original samples remain unchanged.
+
 The supplied quiet-machine result was main 2.430 s versus PR 167 2.504 s, +3.0%.
 This extends EX204 and EX114 with explicit unused-device call counts and a comparison against
 upstream `ed34b22`, using seven interleaved rounds after a warmup and a load threshold.
@@ -216,3 +220,108 @@ warnings denied passed; the release workspace suite with `--include-ignored --sk
 passed 487 tests, zero ignored, 13 filtered. Goldens stayed bit-identical. The wasm build and all
 eight requested demos passed. The new dispatch and SoC tests cover zero idle polling, activation,
 clock gating, pause, one-shot removal, asserted IRQ retention, clear and reset. No JIT code changed.
+
+## Independent reproduction follow-up
+
+The earlier +0.303% result did not reproduce independently. A supplied quiet run of
+894ffa4 measured main 2.408 s, range 2.379–2.437, versus the branch 2.449 s,
+range 2.436–2.488, at load 1.7–2.2. An earlier loaded comparison was +1.6%.
+Those supplied summary values have no raw samples in this receipt. A fresh local
+seven-round comparison reproduced the regression: main 2.402527 s versus
+894ffa4 at 2.438191 s, +1.484%. The original published branch remains d59b5d2;
+its historical seven-round comparison was 2.462887 s against main 2.425023 s.
+Neither historical number is substituted into the new paired comparisons.
+
+EX204 is extended with compiled-code inspection and two required confirmation
+runs. EX114 covers inactive dispatch; EX133's existing Machine layout keeps
+optional state at the tail. This follow-up concerns the PWM peripheral fields,
+not virtual quanta or a scheduler change.
+
+The local arm64 release disassembly showed that the old optional_words array and
+loop were already constant-folded. The problem was merging an unrestricted
+cached u32: Lines::update could no longer eliminate unrelated source bits. The
+exact compile-time mask restores that elimination. A pending-IRQ flag was also
+tried, but LLVM converted it to unconditional loads and a conditional select;
+it added four instructions over the mask-only form. It failed both comparisons
+at +0.675% and +0.555%, so it was dropped. Mask alone measured +0.785% and was
+insufficient. Moving the inline PWM fields behind the existing peripherals
+restored C3's interrupt-map offset from 0xa30 to main's 0x9a0. That variant
+measured +0.358% then +0.760%, so it did not satisfy the two-run requirement.
+
+The original 894ffa4 C3 refresh_irq function had 354 static instructions and
+21 vector loads, versus main's 341 and 19. The exact mask reduces that to
+344 and 19. These are static disassembly counts, not dynamic CPU instruction
+counts. Ordinary register writes already omit refresh_optional. The extended
+OptionalChip test verifies an ordinary write and a static interrupt scan do
+not poll the optional device. Existing tests preserve a stopped timer's asserted
+interrupt, which prevents gating cached sources on active_optional alone.
+
+The final change in `529815e` also moves optional ticking before the static device
+loop. This shortens the delta-count lifetime across device calls. The compiler
+saves three register pairs instead of four and reduces C3's tick stack frame
+from 192 to 176 bytes. It partially unrolls the static loop, increasing its static
+code size from 156 to 283 instructions. No scheduler quantum, clock advancement,
+divider, static-device order or deadline behavior changed. The exact compiled
+summaries and binary hashes are in [idle-compiled-profile.json](idle-compiled-profile.json).
+Rust field layout is compiler-dependent; the offset comparison describes these
+Rust 1.99.0 arm64 builds, not a portable ABI guarantee.
+
+Two consecutive seven-round comparisons of the same final binary passed:
+
+| Run | Main median CPU s | After median CPU s | Difference | Main range s | After range s |
+| --- | ---: | ---: | ---: | --- | --- |
+| 1 | 2.405154 | 2.407156 | +0.083% | 2.396368–2.424965 | 2.373718–2.419441 |
+| 2 | 2.409781 | 2.399303 | −0.435% | 2.379705–2.416869 | 2.377932–2.420488 |
+
+Both are within +0.5% with overlapping ranges. These results establish the
+requested local idle bound, not a general speedup. Each comparison used one
+excluded warmup per arm, seven interleaved rounds, reverse order on even rounds,
+and child user+system CPU time from getrusage. Main was `ed34b22`; the final
+implementation is `529815e`. The maximum accepted start/end 1-minute loads were
+2.673828 and 2.203613 respectively. Run 1 waited four times and discarded one
+attempt that ended above load 3; run 2 needed neither. No builds or tests ran
+concurrently with accepted benchmark samples.
+
+All 28 accepted samples retired 4,800,000,000 instructions and cycles over
+30.000 emulated seconds, with zero exceptions, 3028 interrupts and console SHA-256
+`3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd`.
+[Run 1](idle-confirmation-run1.json) and [run 2](idle-confirmation-run2.json) retain
+all samples, toolchain, firmware hashes, binary hashes, load and acceptance checks.
+The [reproduced baseline](idle-recheck-baseline.json), rejected
+[flag run 1](idle-mask-flag-run1.json), [flag run 2](idle-mask-flag-run2.json),
+[mask-only run](idle-mask-only.json), [layout run 1](idle-layout-run1.json) and
+[layout run 2](idle-layout-run2.json) remain available. Their patches apply to
+`894ffa4`: [mask with flag](idle-mask-flag.patch.gz), [mask only](idle-mask-only.patch.gz),
+and [mask with tail fields](idle-layout.patch.gz). The last variant passed once
+and failed its confirmation; both results are retained.
+
+Reproduce with the existing [benchmark script](benchmark-idle.py), a main checkout
+at `ed34b22`, this checkout at `529815e`, and caller-supplied firmware directory `FW`.
+Build main with `CARGO_TARGET_DIR=/tmp/pr167-confirm-main-target` and this branch
+with `CARGO_TARGET_DIR=/tmp/pr167-tick-target`, each using
+`cargo +1.99.0 build --release -p esp32sim --bin esp32sim` from its own checkout.
+Then run twice, preserving each output before the next run:
+
+```sh
+for run in 1 2; do
+  python3 docs/evidence/pwm-arduino-2026-10-02/benchmark-idle.py "$FW" \
+    main=/tmp/pr167-confirm-main-target/release/esp32sim \
+    after=/tmp/pr167-tick-target/release/esp32sim
+  cp /tmp/pr167-quiet.json "/tmp/pr167-confirmation-$run.json"
+done
+```
+
+The measured local script copies differed only in output prefixes, so they did
+not overwrite prior captures. Original result-file hashes are retained in the
+curated JSON. No personal fields required removal; raw CLI logs and full
+assembly remain under `/tmp`. Only relevant compiled-code summaries and aggregate
+load are committed. Patches were inspected after decompression.
+
+Final validation on `529815e`: both required Rust 1.99.0 Clippy commands passed
+with warnings denied. The release workspace suite passed 487 tests, zero ignored,
+13 filtered, with bit-identical goldens. The wasm build and all eight requested
+demos passed. The extended dispatch test covers ordinary writes without optional
+polling, shared clock deltas, activation, one-shot removal, stopped pending IRQs
+and clear. Existing SoC tests cover gates and resets. JIT code is unchanged.
+Privacy validation after staging the new receipts passed: 1492 tracked evidence files,
+19 gzip files, no configured patterns. Manual review included the JSON and decompressed patches.
