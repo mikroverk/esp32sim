@@ -1,0 +1,251 @@
+{
+  "candidate": "Restored unconditional C3 tick result and removed USB follow-up; retained pending-work cache, before adding WiFi IRQ cache in 00a7502.",
+  "measurement": "Partial seven-round run using quiet-bench.py; child user+system CPU seconds; starts gated below load 3.",
+  "excluded": "Stopped after one sample ended at load 3.649; no completed seven-round comparison or acceptance claim. Initial executable was subsequently rebuilt; its hash was not captured.",
+  "sources": {
+    "main": "ed34b220cd0e261d369a5eee92ca8f1f33cbb0ad",
+    "published": "6feac19acfb2128e50ae1fb1a2f56eb1df4131ef"
+  },
+  "samples": [
+    {
+      "label": "published",
+      "round": "warmup",
+      "user_s": 2.5408660000000003,
+      "system_s": 0.025837,
+      "wall_s": 2.8702057920163497,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5667030000000004,
+      "load_before": 1.98,
+      "loadavg": [
+        2.3046875,
+        2.43603515625,
+        2.955078125
+      ]
+    },
+    {
+      "label": "main",
+      "round": "warmup",
+      "user_s": 2.565608,
+      "system_s": 0.048154,
+      "wall_s": 2.866032624966465,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.613762,
+      "load_before": 2.3,
+      "loadavg": [
+        2.3603515625,
+        2.4453125,
+        2.955078125
+      ]
+    },
+    {
+      "label": "after",
+      "round": "warmup",
+      "user_s": 2.5123099999999994,
+      "system_s": 0.023737999999999995,
+      "wall_s": 2.8181323339231312,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.536047999999999,
+      "load_before": 2.36,
+      "loadavg": [
+        2.3603515625,
+        2.4453125,
+        2.955078125
+      ]
+    },
+    {
+      "label": "published",
+      "round": 1,
+      "user_s": 2.572304,
+      "system_s": 0.008356000000000002,
+      "wall_s": 2.583210250013508,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.58066,
+      "load_before": 2.36,
+      "loadavg": [
+        2.4111328125,
+        2.4541015625,
+        2.955078125
+      ]
+    },
+    {
+      "label": "main",
+      "round": 1,
+      "user_s": 2.566013,
+      "system_s": 0.007355,
+      "wall_s": 2.5762368330033496,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.573368,
+      "load_before": 2.41,
+      "loadavg": [
+        2.4111328125,
+        2.4541015625,
+        2.955078125
+      ]
+    },
+    {
+      "label": "after",
+      "round": 1,
+      "user_s": 2.628323,
+      "system_s": 0.013660000000000005,
+      "wall_s": 2.656419042032212,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6419829999999997,
+      "load_before": 2.41,
+      "loadavg": [
+        2.5380859375,
+        2.4794921875,
+        2.9609375
+      ]
+    },
+    {
+      "label": "after",
+      "round": 2,
+      "user_s": 2.5908369999999987,
+      "system_s": 0.014871000000000023,
+      "wall_s": 2.617504334077239,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6057079999999986,
+      "load_before": 2.54,
+      "loadavg": [
+        2.5380859375,
+        2.4794921875,
+        2.9609375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 2,
+      "user_s": 2.5533900000000003,
+      "system_s": 0.008695000000000008,
+      "wall_s": 2.564990208018571,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.562085,
+      "load_before": 2.54,
+      "loadavg": [
+        2.73486328125,
+        2.52099609375,
+        2.97265625
+      ]
+    },
+    {
+      "label": "published",
+      "round": 2,
+      "user_s": 2.6199580000000005,
+      "system_s": 0.008496000000000004,
+      "wall_s": 2.630866250023246,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6284540000000005,
+      "load_before": 2.73,
+      "loadavg": [
+        2.73486328125,
+        2.52099609375,
+        2.97265625
+      ]
+    },
+    {
+      "label": "published",
+      "round": 3,
+      "user_s": 2.6259169999999976,
+      "system_s": 0.014033000000000018,
+      "wall_s": 2.645496499957517,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6399499999999976,
+      "load_before": 2.73,
+      "loadavg": [
+        2.8359375,
+        2.54541015625,
+        2.978515625
+      ]
+    },
+    {
+      "label": "main",
+      "round": 3,
+      "user_s": 2.578993999999998,
+      "system_s": 0.0044430000000000025,
+      "wall_s": 2.5872430000454187,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.583436999999998,
+      "load_before": 2.84,
+      "loadavg": [
+        2.8359375,
+        2.54541015625,
+        2.978515625
+      ]
+    },
+    {
+      "label": "after",
+      "round": 3,
+      "user_s": 2.631729,
+      "system_s": 0.007357000000000002,
+      "wall_s": 2.6490688750054687,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.639086,
+      "load_before": 2.84,
+      "loadavg": [
+        3.6494140625,
+        2.71875,
+        3.037109375
+      ]
+    }
+  ]
+}

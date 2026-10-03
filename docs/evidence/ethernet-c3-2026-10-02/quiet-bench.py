@@ -23,8 +23,8 @@ def run(label,binary,round):
  sample['loadavg']=list(os.getloadavg())
  assert sample['instructions']==sample['cycles']==4_800_000_000
  assert sample['exceptions']==0
- Path(f'/tmp/pr170-quiet-{label}-{round}.stdout').write_bytes(p.stdout)
- Path(f'/tmp/pr170-quiet-{label}-{round}.stderr').write_bytes(p.stderr)
+ Path(f'/tmp/pr170-scoped-{label}-{round}.stdout').write_bytes(p.stdout)
+ Path(f'/tmp/pr170-scoped-{label}-{round}.stderr').write_bytes(p.stderr)
  print(json.dumps(sample),flush=True)
  return sample
 for label,binary in arms:run(label,binary,'warmup')
@@ -32,6 +32,6 @@ for r in range(1,8):
  for label,binary in arms if r%2 else reversed(arms):results.append(run(label,binary,r))
 assert len({s['console_sha256'] for s in results})==1
 out=dict(command=['BINARY',*[a.replace(str(fw),'FW') for a in args]],measurement='resource.getrusage(RUSAGE_CHILDREN) user + system CPU seconds around one completed CLI subprocess; seven samples per arm after one excluded warmup; alternating arm order; uptime load below 2.5 before every run, below 3 after every measured run',host=dict(system=platform.system(),release=platform.release(),arch=platform.machine()),toolchain=subprocess.check_output(['rustc','+1.99.0','--version'],text=True).strip(),inputs={str(p.relative_to(fw)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [fw/'esp32c3_rev3_rom.elf',fw/'public/c3-hello-bootloader.bin',fw/'public/c3-hello-ptable.bin',fw/'public/c3-hello_world.bin']},binaries={label:hashlib.sha256(Path(binary).read_bytes()).hexdigest() for label,binary in arms},samples=results,limitations=['Local macOS arm64 CPU-time comparison, not browser or hardware timing.','No process inventory retained; unrelated system load was not controlled.','All arms use unchanged native scheduling and identical firmware, instructions, cycles and console hash.'])
-Path('/tmp/pr170-quiet.json').write_text(json.dumps(out,indent=2)+'\n')
+Path('/tmp/pr170-scoped.json').write_text(json.dumps(out,indent=2)+'\n')
 
 assert all(s["loadavg"][0] < 3 for s in results), "load crossed 3: retain this receipt as excluded and rerun when quiet"
