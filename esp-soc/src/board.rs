@@ -12,11 +12,27 @@ pub struct BoardEdge {
     pub level: bool,
 }
 
+/// Physical routes for a single-lane SPI transaction. Output masks allow mirrored routes.
+/// `cs` contains asserted active-low hardware selects and low, enabled software GPIO selects.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct SpiPins {
+    pub sclk: u64,
+    pub mosi: u64,
+    pub miso: Option<u8>,
+    pub cs: u64,
+}
+
 /// What a board does with the SoC's pin-level activity.
 pub trait BoardModel {
     fn name(&self) -> &'static str;
     /// GPIO output level changes, in order.
     fn gpio_changes(&mut self, _changes: &[(u8, bool)]) {}
+    /// Output changes at the SoC bus cycle. The drive masks also expose output-enable
+    /// transitions (including releasing a low pin), needed by open-drain pulse protocols.
+    /// Called immediately after a GPIO output/enable write on chips with pin transport.
+    fn gpio_output_at(&mut self, _cycle: VirtualCycle, changes: &[(u8, bool)], _enabled: u64, _output: u64) {
+        if !changes.is_empty() { self.gpio_changes(changes); }
+    }
     /// A completed RMT transmission, decoded to bits by the peripheral model, with the pin the
     /// GPIO matrix has that channel routed to. Drivers that take a fresh channel per refresh
     /// (the Arduino NeoPixel one does) make the channel meaningless; the pin names the strip.
@@ -28,6 +44,13 @@ pub trait BoardModel {
     fn spi_transfer(&mut self, host: u8, tx: &[u8], rx_len: usize) -> Vec<u8> {
         self.spi_tx(host, tx);
         vec![0xff; rx_len]
+    }
+    /// Opt in to physical SPI routes. Fixed boards avoid route decoding.
+    fn uses_spi_pins(&self) -> bool { false }
+    /// Pin-aware boards select their devices using these routes and return MISO bytes.
+    /// The default preserves the controller-based callback.
+    fn spi_transfer_pins(&mut self, host: u8, _pins: SpiPins, tx: &[u8], rx_len: usize) -> Vec<u8> {
+        self.spi_transfer(host, tx, rx_len)
     }
     fn gpio_events(&self) -> u64 { 0 }
     /// Devices on the I2C buses: (bus, 7-bit address, device).
@@ -71,6 +94,8 @@ pub trait BoardModel {
     fn touch_at(&mut self, _cycle: VirtualCycle, x: u16, y: u16, down: bool) { self.touch(x, y, down); }
     /// Current board-driven GPIO input levels, used to reconnect a persistent board after reset.
     fn input_levels(&self) -> Vec<(u8, bool)> { Vec::new() }
+    /// Whether GPIO edge polling is needed. Cached by `attach_board_devices`.
+    fn uses_gpio_edges(&self) -> bool { true }
     /// Earliest autonomous transition strictly after the board's current cycle.
     fn next_deadline(&self) -> Option<VirtualCycle> { None }
     /// Advance monotonically through every board transition due by `cycle`.
@@ -89,4 +114,7 @@ pub type Board = Box<dyn BoardModel>;
 
 /// A bare module: nothing on the pins, console only.
 pub struct NoBoard;
-impl BoardModel for NoBoard { fn name(&self) -> &'static str { "none" } }
+impl BoardModel for NoBoard {
+    fn name(&self) -> &'static str { "none" }
+    fn uses_gpio_edges(&self) -> bool { false }
+}

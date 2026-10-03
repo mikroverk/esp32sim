@@ -1,0 +1,98 @@
+{
+  "experiment": "EX206",
+  "source": "92a92a29b1bda7cfa06a27e58d8fc2119b16b615",
+  "base": "717f02633ddc1447d4fc82a9c30eafcfdfed2f3f",
+  "environment": {
+    "os": "macOS 26.6.2",
+    "architecture": "arm64",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "platformio": "6.1.19",
+    "platform": "55.3.38+sha.fbdfc29",
+    "arduino": "3.3.8",
+    "idf_libraries": "5.5.4+sha.735507283d",
+    "gcc": "14.2.0+20260121"
+  },
+  "checks": {
+    "focused": "3 passed, 1 ignored",
+    "arduino": "first run failed output tolerance; one corrected rerun passed",
+    "cargo build --release": "passed",
+    "cargo test --workspace": "470 passed, 0 failed, 24 ignored",
+    "tools/wasm-build.sh": "passed",
+    "node tools/check-evidence-privacy.mjs": "passed after staging; 1479 evidence files, 15 gzip files",
+    "git diff --check": "passed"
+  },
+  "arduino": {
+    "cpu_hz": 160000000,
+    "cycles": 160000000,
+    "instructions": 160000000,
+    "output_high_cycle": 3381184,
+    "output_low_cycle": 3397376,
+    "output_width_cycles": 16192,
+    "requested_output_us": 100,
+    "output_tolerance_cycles": 384,
+    "input_high_cycle": 3429376,
+    "input_low_cycle": 3589376,
+    "input_width_cycles": 160000,
+    "pulseIn_us": 999,
+    "input_interrupt_count": 2,
+    "i2c_attached_pins": [
+      6,
+      7
+    ],
+    "i2c_wrong_pins": [
+      10,
+      11
+    ],
+    "i2c_address": 66,
+    "read_byte": 165,
+    "serial": [
+      "I2C right=0",
+      "I2C count=1 value=a5",
+      "I2C wrong=2",
+      "ECHO width_us=999 edges=2",
+      "C6 TRANSPORT DONE"
+    ]
+  },
+  "artifacts": {
+    "firmware.factory.bin": {
+      "sha256": "1f6a04b03259b2ec56eaad2ee805b11d9837dd9ddde1b292392e63f1391500cd",
+      "bytes": 392384
+    },
+    "firmware.bin": {
+      "sha256": "9e9b9dc081263cd4b1fd5222bafe664571bc82d080aa295c8e4b880269b9cc80",
+      "bytes": 326848
+    },
+    "firmware.elf": {
+      "sha256": "928c6d1874b7f22847956595fb2f2fcc58c59d663a7faedb7f5a9461ff59a7c2",
+      "bytes": 6863644
+    },
+    "bootloader.bin": {
+      "sha256": "022390206caedbc5f780cd955b31e1dd1219091f374e420cd0531b2f5b5b5037",
+      "bytes": 20976
+    },
+    "partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "rom.elf": {
+      "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "bytes": 489768
+    },
+    "esp32sim.wasm": {
+      "sha256": "2c5bf78f339758537043eb8c577b0f345b7f6a7967cc75ed8c47282c1eb16ec7",
+      "bytes": 2128710
+    },
+    "pin_transport.rs": {
+      "sha256": "e4cb84ebb1735ab6d41c2f621bf90a342ae045e83b19072a8926b1ee97f159ef",
+      "bytes": 9018
+    },
+    "main.cpp": {
+      "sha256": "d846f21e389be16b784b32ee50e3a02f6cc8265dfe92afe796f240f04eea6263",
+      "bytes": 875
+    },
+    "platformio.ini": {
+      "sha256": "8f717aa14299d33b5c2a8a96be3814fff4f3d5eecafbed71f448b8cfb8a7fa64",
+      "bytes": 176
+    }
+  }
+}

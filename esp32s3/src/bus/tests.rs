@@ -747,7 +747,7 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
         ("sha", |p| p.sha.dma_pending = true),
         ("spi-dma", |p| p.spi2.dma_tx_pending = Some(8)),
         ("spi-transfer", |p| p.spi2.write(0, 1 << 24)),
-        ("rmt", |p| p.rmt.ch[0].running = true),
+        ("rmt", |p| p.rmt.write(0x20, 1)),
         ("rmt-done", |p| p.rmt.done.push((0, Vec::new()))),
         ("gpio", |p| p.gpio.changes.push((0, true))),
         ("gpio-input", |p| p.gpio.input_changes.push((0, true))),
@@ -889,7 +889,7 @@ fn read_flush_reports_timer_and_rmt_threshold_sources() {
         assert!(!bus.block_break(), "unchanged timer {timer}");
     }
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
-    bus.periph.rmt.ch[0].running = true;
+    bus.periph.rmt.write(0x20, 1);
     bus.periph.rmt.ch[0].tx_lim = 1;
     bus.periph.rmt.mem[0] = 100 | (100 << 16);
     bus.periph.rmt.int_ena = 1 << 8;

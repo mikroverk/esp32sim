@@ -1,0 +1,163 @@
+{
+  "command": [
+    "BINARY",
+    "--chip",
+    "c3",
+    "--boot",
+    "rom",
+    "--board",
+    "none",
+    "--rom",
+    "FW/esp32c3_rev3_rom.elf",
+    "--bootloader",
+    "FW/public/c3-hello-bootloader.bin",
+    "--ptable",
+    "FW/public/c3-hello-ptable.bin",
+    "--app",
+    "FW/public/c3-hello_world.bin",
+    "--flash-mb",
+    "4",
+    "--mac",
+    "00:00:00:00:00:00",
+    "--max-seconds",
+    "30"
+  ],
+  "measurement": "resource.getrusage(RUSAGE_CHILDREN) user + system CPU seconds around one completed CLI subprocess; three samples per arm after one excluded warmup; reverse order in round 2",
+  "host": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "arch": "arm64"
+  },
+  "toolchain": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "inputs": {
+    "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be"
+  },
+  "binaries": {
+    "main": "9a2b74c108571ac7c4cbdb48ee654e761fb18085d3af7337d8cd6cdce36baf68",
+    "fixed-c3": "6fd5d4046ac46f815084cde14d76e5219964be580e255f64259a42d30e5dc212"
+  },
+  "samples": [
+    {
+      "label": "main",
+      "round": 1,
+      "user_s": 2.648658000000001,
+      "system_s": 0.005620000000000002,
+      "wall_s": 2.6589197090361267,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.654278000000001,
+      "loadavg": [
+        5.64013671875,
+        16.3994140625,
+        27.1630859375
+      ]
+    },
+    {
+      "label": "fixed-c3",
+      "round": 1,
+      "user_s": 2.777061999999999,
+      "system_s": 0.005781999999999999,
+      "wall_s": 2.7873590419767424,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.782843999999999,
+      "loadavg": [
+        5.9091796875,
+        16.2763671875,
+        27.056640625
+      ]
+    },
+    {
+      "label": "fixed-c3",
+      "round": 2,
+      "user_s": 2.7785709999999995,
+      "system_s": 0.005704000000000001,
+      "wall_s": 2.789875749964267,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.7842749999999996,
+      "loadavg": [
+        5.9091796875,
+        16.2763671875,
+        27.056640625
+      ]
+    },
+    {
+      "label": "main",
+      "round": 2,
+      "user_s": 2.660769000000002,
+      "system_s": 0.005780999999999998,
+      "wall_s": 2.6713267079321668,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6665500000000018,
+      "loadavg": [
+        6.15625,
+        16.1552734375,
+        26.95068359375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 3,
+      "user_s": 2.6409710000000004,
+      "system_s": 0.005583999999999999,
+      "wall_s": 2.650925833033398,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.646555,
+      "loadavg": [
+        6.15625,
+        16.1552734375,
+        26.95068359375
+      ]
+    },
+    {
+      "label": "fixed-c3",
+      "round": 3,
+      "user_s": 2.8293839999999975,
+      "system_s": 0.0057970000000000035,
+      "wall_s": 2.8399367090314627,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.8351809999999973,
+      "loadavg": [
+        6.2236328125,
+        16.0029296875,
+        26.83349609375
+      ]
+    }
+  ],
+  "limitations": [
+    "Local macOS arm64 CPU-time comparison, not browser or hardware timing.",
+    "No process inventory retained; unrelated system load was not controlled.",
+    "All arms use unchanged native scheduling and identical firmware, instructions, cycles and console hash."
+  ]
+}
