@@ -70,11 +70,19 @@ pub trait Soc: 'static {
 
 /// Programmed GPIO state, not the resolved electrical level or peripheral-matrix output.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GpioState {
     pub output: bool,
     pub output_enable: bool,
     pub pull_up: bool,
     pub pull_down: bool,
+}
+
+impl GpioState {
+    /// Construct a snapshot of the output latch, output enable and programmed pulls.
+    pub const fn new(output: bool, output_enable: bool, pull_up: bool, pull_down: bool) -> Self {
+        Self { output, output_enable, pull_up, pull_down }
+    }
 }
 
 pub trait SocBus: Bus {

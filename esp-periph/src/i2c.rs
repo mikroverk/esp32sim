@@ -48,8 +48,8 @@ impl I2c {
             None => self.devices.push((addr, dev)),
         }
     }
-    /// Remove a device, returning it so the host can move it to another bus or address.
-    /// Forget a selected device: further writes NACK and reads return 0xff until a new address.
+    /// Remove the device at `addr` and return it. If it was selected mid-transfer it gets no
+    /// `stop()`; ack-checked writes then NACK and reads return 0xff until the next address phase.
     pub fn detach(&mut self, addr: u8) -> Option<Box<dyn I2cDevice>> {
         let index = self.devices.iter().position(|(attached, _)| *attached == addr)?;
         self.cur = self.cur.and_then(|cur| if cur == index { None } else { Some(cur - usize::from(cur > index)) });

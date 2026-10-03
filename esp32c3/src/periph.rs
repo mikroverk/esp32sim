@@ -140,6 +140,7 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
+    pub io_mux: RegRam,
     pub rtc: RtcCntl,
     pub efuse: Efuse,
     pub system: SystemRegs,
@@ -169,6 +170,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     // the efuse controller shares the RTC block on the C3, at +0x800
     0x08 "EFUSE" (efuse) delta -0x800 @ 0x800..=0xfff => [];
     0x08 "RTCCNTL" (rtc) => [];
+    0x09 "IO_MUX" (io_mux) => [];
     0x1f "TIMG0" (timg[0]) => [src::TG0_T0];
     0x20 "TIMG1" (timg[1]) => [src::TG1_T0];
     0x23 "SYSTIMER" (systimer) => [src::SYSTIMER_T0, src::SYSTIMER_T1, src::SYSTIMER_T2];
@@ -198,7 +200,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new_c3(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
