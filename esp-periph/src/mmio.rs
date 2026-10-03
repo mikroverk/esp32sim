@@ -168,9 +168,13 @@ macro_rules! device_set {
                     let bits = $crate::Device::irq_sources(&self.$($f)+);
                     if bits != 0 { let mut b = 0u32; $( if $src != $crate::NO_SOURCE && bits & (1u64 << b) != 0 { st[$src / 32] |= 1 << ($src % 32); } b += 1; )* let _ = b; }
                 } )*
+                let mut optional_words = [false; 4];
                 $( if false $(|| stringify!($alias) == "optional")? {
-                    $( if $src != $crate::NO_SOURCE { st[$src / 32] |= $crate::DeviceSet::misc(self).optional_sources[$src / 32] & (1 << ($src % 32)); } )*
+                    $( if $src != $crate::NO_SOURCE { optional_words[$src / 32] = true; } )*
                 } )*
+                for word in 0..4 {
+                    if optional_words[word] { st[word] |= $crate::DeviceSet::misc(self).optional_sources[word]; }
+                }
                 st
             }
             #[inline$(($hint))?]
