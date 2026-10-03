@@ -35,11 +35,5 @@
   "goldens": "Native goldens and all eight WASM demos pass unchanged. No UPDATE_GOLDENS used.",
   "jit": "No JIT implementation changes; separate wasm-jit-test.sh not required.",
   "external_tests": "Firmware/hardware-dependent external_* tests excluded as requested; no new Arduino acceptance run claimed.",
-  "checked_and_measured_revision": "813721aec3372741c05acd8cf656ace0e83b3456",
-  "measured_source_equivalents_after_rebase": {
-    "ce5e1cca80750a49e40fefbed363edbd6eecbe02": "c913cec8c813ac55559c1ea12a97341267ff20e7",
-    "b3505357b7f9dbcc62e753f812d5ed62b3d06bb2": "994908fb5b112a36addbc1fe33308a4393bf7b0f",
-    "813721aec3372741c05acd8cf656ace0e83b3456": "39d2cb3007ddb21003cd98f076573e3e7c11df67"
-  },
-  "equivalence_check": "git diff OLD NEW -- *.rs Cargo.toml Cargo.lock is empty for every pair; only evidence/documentation ancestry changed."
+  "checked_and_measured_revision": "813721aec3372741c05acd8cf656ace0e83b3456"
 }
