@@ -343,7 +343,7 @@ esp32sim is released under the [MIT License](LICENSE), copyright Joakim Eriksson
 ([@joakimeriksson](https://github.com/joakimeriksson)) and Alice
 ([@aliceisjustplaying](https://github.com/aliceisjustplaying)).
 
-The demos use third-party files that keep their own licenses:
+Third-party code, data and demo files keep their own licenses:
 
 - **pocket-tank** ([mediacutlet/pocket-tank](https://github.com/mediacutlet/pocket-tank), MIT). Its
   bootloader, partition table and app are committed under `web/wasm/fw/public/` with
@@ -353,3 +353,6 @@ The demos use third-party files that keep their own licenses:
 - **xterm.js** ([xtermjs/xterm.js](https://github.com/xtermjs/xterm.js), MIT), fetched, not committed.
 - **Linux image** ([svermigo/Linux-on-esp32-S3](https://github.com/svermigo/Linux-on-esp32-S3),
   GPL-3.0), fetched, not committed.
+- **ESP-IDF ADC calibration data** (Espressif, Apache-2.0): the curve-fitting coefficients
+  and S3 ADC1 calibration from #165, now together in `esp-periph/src/sar_adc.rs`;
+  see `esp-periph/LICENSE-ADC`.

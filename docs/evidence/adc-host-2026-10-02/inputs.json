@@ -1,0 +1,122 @@
+{
+  "firmware/s3/bootloader.bin": {
+    "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432",
+    "bytes": 19984
+  },
+  "firmware/s3/partitions.bin": {
+    "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+    "bytes": 3072
+  },
+  "firmware/s3/firmware.bin": {
+    "sha256": "0b39cb67a22a572ea63f361d73386cc0f2db3c8f9dc8ea794b85275d02fa0c8b",
+    "bytes": 310112
+  },
+  "firmware/s3/firmware.elf": {
+    "sha256": "3e9176ec585f6ff540333a0ba427e37de63c892568e4376de54e1dd4af03225f",
+    "bytes": 6572408
+  },
+  "rom/esp32s3_rev0_rom.elf": {
+    "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "bytes": 949552
+  },
+  "firmware/c3/bootloader.bin": {
+    "sha256": "da409642ea1619c16b4ef485219a91c3c2ae873ce3bae37330c24100bd747439",
+    "bytes": 19520
+  },
+  "firmware/c3/partitions.bin": {
+    "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "bytes": 3072
+  },
+  "firmware/c3/firmware.bin": {
+    "sha256": "d09addb97507ca148778fb154f2cfd46ddba6ebb5e57385e4ca0aad04f5eb040",
+    "bytes": 300560
+  },
+  "firmware/c3/firmware.elf": {
+    "sha256": "94229844146b78fbece4e86e5ccaac8bb733e0687c0d15e1fb5bafd1d6651f56",
+    "bytes": 6408888
+  },
+  "rom/esp32c3_rev0_rom.elf": {
+    "sha256": "11d565922e0a405b477756de748a14046f86dfb40d997766252a04cb378f0694",
+    "bytes": 547036
+  },
+  "firmware/c6/bootloader.bin": {
+    "sha256": "022390206caedbc5f780cd955b31e1dd1219091f374e420cd0531b2f5b5b5037",
+    "bytes": 20976
+  },
+  "firmware/c6/partitions.bin": {
+    "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "bytes": 3072
+  },
+  "firmware/c6/firmware.bin": {
+    "sha256": "6da909e7c5d0a4ac25326d1d08e256c78e5c09c00acc2962104a28f43baef345",
+    "bytes": 344912
+  },
+  "firmware/c6/firmware.elf": {
+    "sha256": "6d53b25d2a03bed2588f585532a9c6e04fe59d44d8cc276f7c722b1749fcac97",
+    "bytes": 6416752
+  },
+  "rom/esp32c6_rev0_rom.elf": {
+    "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "bytes": 489768
+  },
+  "idf-v5.5/esp32c3-cal.txt": {
+    "sha256": "8b722e148da51ad7055085730b95c2fafda25d844d835b6234363d70a1f588fe",
+    "bytes": 3609
+  },
+  "idf-v5.5/esp32c3-curve.txt": {
+    "sha256": "b772c6a4f35c3e52107add1d54a2aa5810f739e208ad6549b7c97ebc49722a90",
+    "bytes": 2218
+  },
+  "idf-v5.5/esp32c3-ll.txt": {
+    "sha256": "962b31e159d8d611b4d64a780cae094451b4c6192c0a181cc1cbf267b6dd865f",
+    "bytes": 34563
+  },
+  "idf-v5.5/esp32c3-reg.txt": {
+    "sha256": "14eebaf0b6711d58f474bcfa50127d3f97905f3eec364dfd938b1f90c1d640d9",
+    "bytes": 29321
+  },
+  "idf-v5.5/esp32c6-cal.txt": {
+    "sha256": "ccaffa3cdc7267e0804d4ad401a70bb96d9c8c91e8c5d777b6c19b0a388c4629",
+    "bytes": 5070
+  },
+  "idf-v5.5/esp32c6-curve.txt": {
+    "sha256": "0930c0fbed40a78e4e34f5316e95534ab87f7afda5c77040beb10c31eab77640",
+    "bytes": 3120
+  },
+  "idf-v5.5/esp32c6-ll.txt": {
+    "sha256": "6ac9d620f837a181a6d7a9c129618f3558353d25f5307975db227b50f223243c",
+    "bytes": 30843
+  },
+  "idf-v5.5/esp32c6-reg.txt": {
+    "sha256": "9cd115fe70e497ed47e09779a1b2103ad5e60667a365c2cc0e9c08feb47f8ace",
+    "bytes": 43606
+  },
+  "idf-v5.5/esp32s3-cal.txt": {
+    "sha256": "449b9c4559a08cae21aacd5230390abb2966e25df9333b80fbcd2faa688128f1",
+    "bytes": 4717
+  },
+  "idf-v5.5/esp32s3-curve.txt": {
+    "sha256": "9995bb0e8b76caf0c41268391fcad62f94b6adf7dcdd76bbfb1e7dbb770a7191",
+    "bytes": 3115
+  },
+  "idf-v5.5/esp32s3-ll.txt": {
+    "sha256": "995d83949f7b60a343dae53209a8c4bc5e317f55cfb6d8407dc62bb52795311c",
+    "bytes": 42721
+  },
+  "idf-v5.5/esp32s3-reg.txt": {
+    "sha256": "d39f695cd6b65bd4500502f85d1e154ac3f5c8e2f8ed5c66325af107689b1a35",
+    "bytes": 30948
+  },
+  "platformio.ini": {
+    "sha256": "9d019210b8cf28ebb6269d16eb9c0fae828276fa51d968b1442561066288a09a",
+    "bytes": 253
+  },
+  "main.cpp": {
+    "sha256": "dfb1c84fbb1df847c82b8c4d6f770de175b228a0d43939e7b2d35241927738d7",
+    "bytes": 576
+  },
+  "predict.py": {
+    "sha256": "20dcad7436d0b7b6976cc66b8a5a19406924a0d3051e64c93aed9f8d51026851",
+    "bytes": 1158
+  }
+}
