@@ -109,11 +109,11 @@ cp docs/evidence/c3-peripherals-2026-10-02/platformio.ini "$firmware_dir/"
 cp docs/evidence/c3-peripherals-2026-10-02/main.cpp "$firmware_dir/src/"
 pio run -d "$firmware_dir"
 ESP32SIM_TRANSPORT_BUILD="$firmware_dir/.pio/build/c3" \
-  cargo test --release -p esp32c3 --test pin_transport external_c3_arduino_pin_transport -- --nocapture
-cargo test -p esp32c3 --test pin_transport
-cargo build --release
-cargo test --workspace
-tools/wasm-build.sh
+  cargo +1.99.0 test --release -p esp32c3 --test pin_transport external_c3_arduino_pin_transport -- --nocapture
+cargo +1.99.0 test -p esp32c3 --test pin_transport -- --skip external_
+cargo +1.99.0 build --release
+cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_
+RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh
 node tools/check-evidence-privacy.mjs
 git diff --check
 ```
