@@ -110,6 +110,10 @@ pub trait SocBus: Bus {
     /// Deliver host touch at the bus's current time horizon.
     fn touch_input(&mut self, x: u16, y: u16, down: bool) { self.board().touch(x, y, down); }
     fn gpio_input(&self) -> u64;
+    /// Averaged PWM at a GPIO-matrix output: frequency in Hz and high-time fraction scaled to 0..65535.
+    /// `None` means no supported running PWM snapshot: unrouted, disabled, paused or unsupported.
+    /// It does not mean a low pin; a paused timer can hold a level. Running 0/100% duty is `Some`.
+    fn pwm_output(&self, _pin: u8) -> Option<(f64, u32)> { None }
     /// Start/stop recording GPIO edges (outputs as they reach the board, inputs as they are set).
     fn observe_gpio(&mut self, on: bool);
     /// (cycle, pin, level) edges recorded since the last call.

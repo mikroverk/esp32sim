@@ -1,0 +1,130 @@
+{
+  "method": "objdump --demangle --disassemble BINARY; extract the C3 SocBus refresh_irq and tick functions, count disassembly instruction lines and ldr q instructions. Counts are static compiled instructions, not dynamic CPU retirement counts.",
+  "build": "cargo +1.99.0 build --release -p esp32sim --bin esp32sim; each arm uses a separate CARGO_TARGET_DIR",
+  "arms": {
+    "main": {
+      "revision": "ed34b22",
+      "binary_sha256": "bc9ad6a40cd5eb6f387c35c74002c03067e34b18a7fbe12bc9ff3f27e6e5f148",
+      "interrupt_map_offset_from_bus": "0x9a0",
+      "functions": {
+        "refresh_irq": {
+          "instructions": 341,
+          "ldr_q_instructions": 19,
+          "disassembly_sha256": "4f907aa3311197c0631d05113cc91d1d31e18b3a0971b4f0bb9c22dfaaf289c7"
+        },
+        "tick": {
+          "instructions": 151,
+          "ldr_q_instructions": 0,
+          "disassembly_sha256": "ef29b2bc944225565af4198daa9c4b45261884a6520f66b34cc574710c5e5786"
+        }
+      },
+      "tick_stack_bytes": 192,
+      "tick_saved_register_pairs": 4
+    },
+    "before": {
+      "revision": "894ffa4",
+      "binary_sha256": "0710fcd74b65df1e24d97acae0704e18b6acf29f6a84c54744ac4cf86f618f65",
+      "interrupt_map_offset_from_bus": "0xa30",
+      "functions": {
+        "refresh_irq": {
+          "instructions": 354,
+          "ldr_q_instructions": 21,
+          "disassembly_sha256": "5a550c7d02d1266f7e53eb344d324061c6741900324a9fb89710c28636846b42"
+        },
+        "tick": {
+          "instructions": 156,
+          "ldr_q_instructions": 0,
+          "disassembly_sha256": "1e9ea20650b8d8e367253a32a91ca796ee2f0f0fd469080c091bbc6fc9172262"
+        }
+      },
+      "tick_stack_bytes": 192,
+      "tick_saved_register_pairs": 4
+    },
+    "mask_and_flag": {
+      "revision": "894ffa4 + idle-mask-flag.patch.gz",
+      "binary_sha256": "5195cf0a95db4af61ed2eee44856b640907553fec2f465a513d732738492c902",
+      "interrupt_map_offset_from_bus": "0xa30",
+      "functions": {
+        "refresh_irq": {
+          "instructions": 348,
+          "ldr_q_instructions": 19,
+          "disassembly_sha256": "94de7ea61d9258fa11a2403d602213afe3e315cbd4ede0e724886e6017e666b3"
+        },
+        "tick": {
+          "instructions": 156,
+          "ldr_q_instructions": 0,
+          "disassembly_sha256": "6c82d955364faeafeaeb8d0bb0609b6d2229dc0c439c7ff53f9c461760bb4e53"
+        }
+      },
+      "tick_stack_bytes": 192,
+      "tick_saved_register_pairs": 4
+    },
+    "mask_only": {
+      "revision": "894ffa4 + idle-mask-only.patch.gz",
+      "binary_sha256": "434e7c196070dac2c73355f97e0857be520d3f1e4f1420517e2f9ffcabe333d3",
+      "interrupt_map_offset_from_bus": "0xa30",
+      "functions": {
+        "refresh_irq": {
+          "instructions": 344,
+          "ldr_q_instructions": 19,
+          "disassembly_sha256": "deb6ece51e3217686c95c373f8957fa7c91b762dbebb1832e032ae45a5960457"
+        },
+        "tick": {
+          "instructions": 156,
+          "ldr_q_instructions": 0,
+          "disassembly_sha256": "d92feff7b72537c310e57cb231523d82a6c6eb36047ffe5e115e753555a84578"
+        }
+      },
+      "tick_stack_bytes": 192,
+      "tick_saved_register_pairs": 4
+    },
+    "mask_and_tail_fields": {
+      "revision": "894ffa4 + idle-layout.patch.gz",
+      "binary_sha256": "e43737d23cf147b5afb0102f2f32fde9f1ad96743284eacf41dfe3bf2040c082",
+      "interrupt_map_offset_from_bus": "0x9a0",
+      "functions": {
+        "refresh_irq": {
+          "instructions": 344,
+          "ldr_q_instructions": 19,
+          "disassembly_sha256": "e05fafd633bbcb4bb3e259d76ecd7685be9d5ff8cbcb8bc5e1b0123dd7f6b322"
+        },
+        "tick": {
+          "instructions": 156,
+          "ldr_q_instructions": 0,
+          "disassembly_sha256": "45d5d785e1a0487c9e73f4d2fa02b1bf250ac73706d8ac8a58adeada2034fd2f"
+        }
+      },
+      "tick_stack_bytes": 192,
+      "tick_saved_register_pairs": 4
+    },
+    "final": {
+      "revision": "529815e140ba7c181d6f5d68a7ffade26902eaed",
+      "binary_sha256": "d68eabe92e2af5c6089d40396e436799c98e26d3c2f648b890e32f15c07bbfd1",
+      "interrupt_map_offset_from_bus": "0x9a0",
+      "functions": {
+        "refresh_irq": {
+          "instructions": 344,
+          "ldr_q_instructions": 19,
+          "disassembly_sha256": "39b70472e303dea81905afdc7f3bbca7c76b82c9e528331ad4030302d509c488"
+        },
+        "tick": {
+          "instructions": 283,
+          "ldr_q_instructions": 0,
+          "disassembly_sha256": "07681baac2ee38ac22374133c4c54664bc06a68808058e97b08a6c5a5e8b807e"
+        }
+      },
+      "tick_stack_bytes": 176,
+      "tick_saved_register_pairs": 3
+    }
+  },
+  "findings": [
+    "The optional_words loop in 894ffa4 is already folded by the optimizer.",
+    "An unrestricted cached u32 defeats known-zero interrupt-source elimination in Lines::update. Masking to declared sources restores it; C3 uses only bit 23 in word 0.",
+    "A separate optional_irq flag compiles to unconditional cache loads plus a csel, adding four instructions relative to mask-only. This variant failed both comparisons and was dropped.",
+    "Moving inline PWM fields behind existing peripheral fields restores the C3 interrupt-map offset to main without changing scheduler behavior or allocating a new indirection.",
+    "The final tick function retains the existing active-list empty check, with optional ticking out of line. No PWM clock/IRQ queries occur in the empty-list scheduler path.",
+    "The constant-tag condition removes refresh_optional from ordinary dispatch_write arms. The extended OptionalChip test verifies ordinary writes and static IRQ scans cause no optional-model queries.",
+    "Moving optional ticking before the static loop shortens the delta-count lifetime. LLVM saves three register pairs instead of four and reduces the tick frame from 192 to 176 bytes; it also partially unrolls the static loop, increasing its static instruction count. Clock advancement, divider table, static-device order and scheduler cadence are unchanged."
+  ],
+  "privacy": "Only compiled-function summaries, artifact hashes and relevant offsets retained. Full local disassembly stays in /tmp; no personal paths, process inventories or host identifiers are included."
+}

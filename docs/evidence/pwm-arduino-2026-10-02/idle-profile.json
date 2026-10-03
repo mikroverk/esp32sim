@@ -1,0 +1,21 @@
+{
+  "before_revision": "71ceb1692cb6d5f26ba586737881dd7a36c40a09",
+  "after_revision": "f1abd7d7a1154704835c2a310459e76acd85d9a4",
+  "workload": "Same CLI flags and firmware as idle-final.json, 30 emulated seconds; instrumented binaries are not used for timing.",
+  "before": {
+    "clock_queries": 229519576,
+    "irq_queries": 75256512,
+    "ticks": 0,
+    "writes": 0
+  },
+  "after": {
+    "clock_queries": 61,
+    "irq_queries": 61,
+    "ticks": 0,
+    "writes": 0
+  },
+  "interpretation": "After counts occur only at register/clock configuration boundaries. Empty active lists never call PWM clock, irq_sources or tick during scheduler rounds. The final word-merge change does not alter participation. Main has no PWM model in these dispatch tables.",
+  "method": "Insert relaxed AtomicU64 increments at the entry of Ledc::clock, irq_sources, tick and write. Print cumulative counts when Ledc is dropped; retain the final cumulative row, including reboots.",
+  "privacy": "Only aggregate counts retained; raw console and build output remain outside Git.",
+  "limitation": "Atomic counters can inhibit compiler hoisting; counts describe logical query entries, not hardware instruction counts. Timing measurements use separate uninstrumented binaries."
+}
