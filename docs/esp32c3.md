@@ -127,6 +127,8 @@ $OD -d examples/hello_world-c3/build/hello_world.elf > /tmp/app.dis
 RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release
 ```
 
+LEDC models low-speed timers, static duty latching and GPIO-matrix frequency/duty observation through `--pwm PIN`. Hardware fades and sampled PWM edges are not modelled.
+
 ## Not there yet
 
 - **Watchdogs.** The [timer-group watchdogs](../esp-periph/src/timg.rs) are register RAM and never fire. The [RTC watchdog](../esp-periph/src/rtc_cntl.rs) supports reset stages, feed and write protection at the C3 register offsets; its interrupt stage sets raw status but does not interrupt the CPU.
@@ -139,7 +141,7 @@ RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release
   in `esp-soc` now, so a C3 board is an `impl BoardModel` plus its devices; nothing else changes.
 - (superseded) `BoardModel` is an S3 concept
   today; a C3 board would need it lifted out.
-- **Peripherals on demand**: I2C, SPI2 master, LEDC, RMT, ADC, TWAI. Each shows up as an unknown
+- **Peripherals on demand**: I2C, SPI2 master, RMT, ADC, TWAI. Each shows up as an unknown
   register with `--log-periph` the moment a firmware wants it.
 - **`Saved PC`** on a non-power-on reset: the ROM reads a PC the previous reset stashed in RTC
   memory, which the emulator does not write.
