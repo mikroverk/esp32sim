@@ -235,7 +235,7 @@ impl SocBus {
             mac.tx_done(queue);
             if let Some(ap) = &mut mac.ap {
                 if let Some(data) = ap.on_station_tx(&frame, now_us) {
-                    if let Some(eth) = esp_soc::wifi::data_to_eth(&data) { if !mac.relay || (eth.len() <= 1518 && mac.eth_tx.len() < 64) { mac.eth_tx.push(eth); } }
+                    if let Some(eth) = esp_soc::wifi::data_to_eth(&data) { if !mac.relay || (eth.len() <= 1518 && mac.eth_tx.len() < 64) { mac.eth_tx.push(eth); } else { mac.tx_dropped += 1; } }
                 }
             }
             self.irq_dirty = true;

@@ -136,6 +136,7 @@ impl esp_soc::SocBus for SocBus {
         let cause = self.periph.rtc.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
+        // The host AP and network survive a guest reboot; only the MAC and relay queues reset.
         p.wifi.ap = old.wifi.ap; p.wifi.net = old.wifi.net; p.wifi.log = old.wifi.log; p.wifi.relay = old.wifi.relay;
         p.efuse = old.efuse;
         p.rtc.analog = old.rtc.analog;

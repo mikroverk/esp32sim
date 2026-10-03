@@ -1,8 +1,8 @@
 //! C3 MAC, analog register master and ideal-radio calibration handshakes.
 use esp_periph::{Device, RegRam, WriteEffect};
-/// The 802.11 MAC the closed `libpp`/`libnet80211` drive. Undocumented by Espressif; the register
-/// layout matches the classic ESP32's as reverse-engineered by esp32-open-mac (0x3ff73000 there,
-/// 0x60033000 here). Modelled from the blob's own accesses — see docs/wifi-plan.md.
+/// The 802.11 MAC the closed `libpp`/`libnet80211` drive. Undocumented by Espressif; the
+/// C3 register layout is modelled from the closed driver's accesses, using the S3 model as a starting
+/// point. esp32-open-mac describes the classic ESP32, not this MAC. No C3 silicon comparison.
 pub struct WifiMac {
     pub ram: RegRam,
     pub ram2: RegRam,
@@ -24,7 +24,7 @@ pub struct WifiMac {
     pub rx_next: u32,
     pub rx_last: u32,
     pub rx_frames: u64,
-    pub rx_dropped: u64,
+    pub rx_dropped: u64, pub tx_dropped: u64,
     pub relay: bool,
     pub ap: Option<esp_soc::wifi::VirtualAp>,
     pub eth_tx: Vec<Vec<u8>>,
@@ -48,7 +48,7 @@ impl WifiMac {
             rx_next: 0,
             rx_last: 0,
             rx_frames: 0,
-            rx_dropped: 0,
+            rx_dropped: 0, tx_dropped: 0,
             relay: false,
             ap: None,
             eth_tx: Vec::new(),
@@ -69,6 +69,8 @@ impl WifiMac {
         self.events != 0 || self.pwr_events != 0
     }
     /// TX queue n has its PLCP0 register at 0xd08 - 8n (hal_mac_txq_enable: (0x0c0067a1 - n) << 3).
+    /// Eleven PLCP slots end at 0xcb8; extending to 16 would overlap state/clear registers
+    /// at 0xcb0 and 0xca8. This is a driver-derived limit, not a silicon queue count.
     fn txq_of(off: u32) -> Option<u8> {
         if off <= 0xd08 && (0xd08 - off).is_multiple_of(8) && (0xd08 - off) / 8 < 11 {
             Some(((0xd08 - off) / 8) as u8)
@@ -199,46 +201,27 @@ impl Default for WifiMac {
 
 /// Ideal-radio IQ estimator: the closed driver starts a sample with CTRL bits0/1,
 /// then polls DONE. Correlation outputs remain zero, matching the S3 radio model.
-/// Completion latency is deterministic, not an analog timing model.
+/// Completion latency is deterministic, not an analog timing model. The driver polls DONE;
+/// evaluate its timestamp on access so this non-interrupting device needs no ticking or deadline.
 #[derive(Default)]
 pub struct FeIq {
     ram: RegRam,
-    remaining: u64,
-    done: bool,
+    pub now_cycles: u64,
+    done_at: Option<u64>,
 }
 impl Device for FeIq {
     fn read(&mut self, off: u32) -> u32 {
         if off == 0x174 {
-            return self.ram.read(off) | (u32::from(self.done) << 16);
+            return self.ram.read(off) | (u32::from(self.done_at.is_some_and(|t| self.now_cycles >= t)) << 16);
         }
         self.ram.read(off)
     }
     fn write(&mut self, off: u32, value: u32) -> WriteEffect {
         if off == 0x144 && value & 3 == 3 && self.ram.read(off) & 3 != 3 {
-            self.done = false;
-            self.remaining = 80;
+            self.done_at = Some((self.now_cycles / 2 + 80) * 2);
         }
-        if off != 0x174 {
-            self.ram.write(off, value);
-        }
+        if off != 0x174 { self.ram.write(off, value); }
         WriteEffect::NONE
-    }
-    fn clock(&self) -> Option<emu_core::ClockDomain> {
-        Some(emu_core::ClockDomain::Apb)
-    }
-    fn tick(&mut self, ticks: u64) {
-        if self.remaining > 0 {
-            self.remaining = self.remaining.saturating_sub(ticks);
-            if self.remaining == 0 {
-                self.done = true;
-            }
-        }
-    }
-    fn has_deadline(&self) -> bool {
-        true
-    }
-    fn next_deadline(&self) -> Option<u64> {
-        (self.remaining > 0).then_some(self.remaining)
     }
 }
 

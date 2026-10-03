@@ -541,7 +541,7 @@ impl SocBus {
             let now_us = self.cycles / (crate::periph::CPU_HZ / 1_000_000);
             if let Some(ap) = &mut self.periph.wifi.ap {
                 if let Some(data) = ap.on_station_tx(&frame, now_us) {
-                    if let Some(eth) = crate::wifi::data_to_eth(&data) { if !self.periph.wifi.relay || (eth.len() <= 1518 && self.periph.wifi.eth_tx.len() < 64) { self.periph.wifi.eth_tx.push(eth); } }
+                    if let Some(eth) = crate::wifi::data_to_eth(&data) { if !self.periph.wifi.relay || (eth.len() <= 1518 && self.periph.wifi.eth_tx.len() < 64) { self.periph.wifi.eth_tx.push(eth); } else { self.periph.wifi.tx_dropped += 1; } }
                 }
             }
         }

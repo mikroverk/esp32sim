@@ -1,4 +1,5 @@
 //! Ethernet relay through guest Wi-Fi descriptors on all three chips.
+use emu_core::Bus;
 use esp_soc::net::VirtualNet;
 use esp_soc::wifi::{ApConfig, StaState, VirtualAp};
 use esp_soc::SocBus;
@@ -175,4 +176,74 @@ fn relay_bounds_mode_changes_and_reset() {
         }
         assert_eq!(bus.take_ethernet_frames().len(), 64);
     }
+}
+
+#[test]
+fn relay_rx_backpressure_keeps_frames_until_the_next_tick() {
+    let reply = VirtualNet::new(false).handle(&discover(), 1000).remove(0);
+    for (mut bus, ram, mac, cycles, c6) in buses() {
+        bus.set_ethernet_relay(true).unwrap();
+        // Consume the initial beacon before the relay frames.
+        bus.tick(cycles); bus.flush_ticks();
+        arm_rx(&mut *bus, ram, mac, c6);
+        bus.write32(ram + 0x1008, ram + 0x1000).unwrap();
+        for _ in 0..64 { bus.receive_ethernet_frame(&reply).unwrap(); }
+        bus.tick(cycles); bus.flush_ticks();
+        assert_eq!(received(&mut *bus, ram, c6), reply);
+        bus.receive_ethernet_frame(&reply).unwrap();
+        assert!(bus.receive_ethernet_frame(&reply).is_err(), "only one frame left the relay queue");
+        bus.tick(cycles); bus.flush_ticks();
+        assert!(bus.receive_ethernet_frame(&reply).is_err(), "unrecycled descriptor must apply backpressure");
+        bus.write32(ram + 0x1000, 1 << 31 | 1700).unwrap();
+        bus.tick(cycles); bus.flush_ticks();
+        assert_eq!(received(&mut *bus, ram, c6), reply);
+        bus.receive_ethernet_frame(&reply).unwrap();
+        assert!(bus.receive_ethernet_frame(&reply).is_err());
+        bus.write32(ram + 0x1000, 1 << 31 | 1700).unwrap();
+        bus.tick(cycles / 10); bus.flush_ticks();
+        assert_eq!(bus.read32(ram + 0x1000).unwrap() >> 30, 2);
+        assert!(bus.receive_ethernet_frame(&reply).is_err(), "recycling must not bypass the 400 us airtime");
+        bus.tick(cycles); bus.flush_ticks();
+        assert_eq!(received(&mut *bus, ram, c6), reply);
+    }
+}
+
+#[test]
+fn s3_reboot_preserves_the_host_ap_and_network() {
+    let mut bus = esp32s3::bus::SocBus::new(1 << 20, 0, STA);
+    bus.periph.wifi.ap = Some(ap());
+    let mut net = VirtualNet::new(false);
+    net.gw_ip = [10, 1, 2, 3]; net.dhcp_acks = 7;
+    net.nat = Some(esp_soc::nat::Nat::new(false));
+    bus.periph.wifi.net = Some(net); bus.refresh_tick_budget();
+    bus.reboot(STA);
+    let ap = bus.periph.wifi.ap.as_ref().expect("AP survives reboot");
+    assert_eq!(ap.sta, STA); assert_eq!(ap.state, StaState::Associated);
+    let net = bus.periph.wifi.net.as_ref().expect("network survives reboot");
+    assert_eq!(net.gw_ip, [10, 1, 2, 3]); assert_eq!(net.dhcp_acks, 7); assert!(net.nat.is_some());
+    transmit(&mut bus, 0x3fc90000, 0x60033000, false, &discover());
+    bus.tick(240_000); bus.flush_ticks();
+    assert!(bus.periph.wifi.eth_tx.is_empty());
+    assert_eq!(bus.periph.wifi.ap.as_ref().unwrap().stats.2, 1);
+}
+
+#[test]
+fn relay_tx_counts_oversize_and_full_queue_drops() {
+    macro_rules! check {
+        ($bus:expr, $wifi:ident, $ram:expr, $mac:expr, $cycles:expr, $c6:expr) => {{
+            let mut bus = $bus;
+            bus.periph.$wifi.ap = Some(ap()); bus.set_ethernet_relay(true).unwrap();
+            let mut frame = discover(); frame.resize(1519, 0);
+            transmit(&mut bus, $ram, $mac, $c6, &frame); bus.tick($cycles); bus.flush_ticks();
+            assert_eq!(bus.periph.$wifi.tx_dropped, 1); assert!(bus.take_ethernet_frames().is_empty());
+            frame.truncate(1518);
+            for _ in 0..65 { transmit(&mut bus, $ram, $mac, $c6, &frame); bus.tick($cycles); bus.flush_ticks(); }
+            assert_eq!(bus.periph.$wifi.tx_dropped, 2); assert_eq!(bus.take_ethernet_frames().len(), 64);
+            transmit(&mut bus, $ram, $mac, $c6, &frame); bus.tick($cycles); bus.flush_ticks();
+            assert_eq!(bus.periph.$wifi.tx_dropped, 2); assert_eq!(bus.take_ethernet_frames(), vec![frame]);
+        }};
+    }
+    check!(esp32s3::bus::SocBus::new(1 << 20, 0, STA), wifi, 0x3fc90000, 0x60033000, 240_000, false);
+    check!(esp32c3::bus::SocBus::new(1 << 20, STA), wifi, 0x3fc90000, 0x60033000, 160_000, false);
+    check!(esp32c6::bus::SocBus::new(1 << 20, STA), wifi_mac, 0x40810000, 0x600a4000, 160_000, true);
 }
