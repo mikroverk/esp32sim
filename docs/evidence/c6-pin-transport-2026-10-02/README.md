@@ -102,11 +102,11 @@ cp docs/evidence/c6-pin-transport-2026-10-02/platformio.ini "$c6_dir/"
 cp docs/evidence/c6-pin-transport-2026-10-02/main.cpp "$c6_dir/src/"
 pio run -d "$c6_dir"
 ESP32SIM_TRANSPORT_BUILD="$c6_dir/.pio/build/c6" \
-  cargo test --release -p esp32c6 --test pin_transport external_c6_arduino_pin_transport -- --nocapture
-cargo test -p esp32c6 --test pin_transport
-cargo build --release
-cargo test --workspace
-tools/wasm-build.sh
+  cargo +1.99.0 test --release -p esp32c6 --test pin_transport external_c6_arduino_pin_transport -- --nocapture
+cargo +1.99.0 test -p esp32c6 --test pin_transport -- --skip external_
+cargo +1.99.0 build --release
+cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_
+RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh
 node tools/check-evidence-privacy.mjs
 git diff --check
 ```
