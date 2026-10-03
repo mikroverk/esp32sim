@@ -179,10 +179,9 @@ impl SocBus {
         Ok(())
     }
 
-    /// Run the SPI1 controller if the guest just kicked it, then advance device time.
-    fn devices(&mut self, cycles: u32) {
-        if self.periph.spi_exec { self.run_spi(); }
-        self.periph.tick(cycles as u64);
+    /// Advance devices and report clock-driven interrupt changes.
+    fn devices(&mut self, cycles: u32) -> bool {
+        let changed = self.periph.tick(cycles as u64);
         if !self.periph.rmt.rmt.done.is_empty() {
             for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
                 let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
@@ -199,6 +198,7 @@ impl SocBus {
             }
         }
         if !self.periph.gpio.input_changes.is_empty() { self.periph.gpio.input_changes.clear(); }
+        changed
     }
 }
 
@@ -259,8 +259,7 @@ impl Bus for SocBus {
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
-        self.devices(cycles);
-        1
+        self.devices(cycles) as u32
     }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
