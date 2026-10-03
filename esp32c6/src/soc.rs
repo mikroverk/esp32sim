@@ -33,6 +33,22 @@ impl Soc for C6 {
 }
 
 impl esp_soc::SocBus for SocBus {
+    fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
+        let mac = &mut self.periph.wifi_mac;
+        if mac.relay != enabled { mac.eth_tx.clear(); mac.eth_rx.clear(); mac.relay = enabled; }
+        Ok(())
+    }
+    fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> {
+        if self.periph.wifi_mac.relay { std::mem::take(&mut self.periph.wifi_mac.eth_tx) } else { Vec::new() }
+    }
+    fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
+        let mac = &mut self.periph.wifi_mac;
+        if !mac.relay || mac.ap.is_none() { return Err("Ethernet relay requires relay mode and a virtual AP".into()); }
+        if !(14..=1518).contains(&frame.len()) { return Err("Ethernet frame must be 14..=1518 bytes without FCS".into()); }
+        if mac.eth_rx.len() >= 64 { return Err("Ethernet receive queue full".into()); }
+        mac.eth_rx.push(frame.to_vec());
+        Ok(())
+    }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
         match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }
@@ -96,7 +112,7 @@ impl esp_soc::SocBus for SocBus {
         p.spi1.0.jedec = old.spi1.0.jedec;
         p.gpio.strap = old.gpio.strap;      // strapping pins are board wiring, not chip state
         // The access point and the network behind it are the world outside the chip.
-        p.wifi_mac.ap = old.wifi_mac.ap; p.wifi_mac.net = old.wifi_mac.net; p.wifi_mac.log = old.wifi_mac.log;
+        p.wifi_mac.ap = old.wifi_mac.ap; p.wifi_mac.net = old.wifi_mac.net; p.wifi_mac.log = old.wifi_mac.log; p.wifi_mac.relay = old.wifi_mac.relay;
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;

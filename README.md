@@ -142,8 +142,8 @@ H=examples/hello_world-c3/build
 prints the ROM banner, the bootloader log, `Hello world!` and the reboot, three times over.
 Checked line-for-line against a physical C3 module: **205 of 208 console lines identical** over
 three boot cycles — the difference is the ROM's `Saved PC:` line. `--mac`, `--reset-cause` and
-`--strap` let a run adopt a board's identity so the comparison is meaningful. Still a draft: no
-WiFi, no boards, `--boot app` unsupported. See [docs/esp32c3.md](docs/esp32c3.md) for what works,
+`--strap` let a run adopt a board's identity so the comparison is meaningful. WiFi station mode
+supports open and WPA2 virtual APs with DHCP and NAT. No boards; `--boot app` unsupported. See [docs/esp32c3.md](docs/esp32c3.md) for what works,
 what does not, and the five emulator bugs the hardware found.
 
 ## Run — ESP32-C6

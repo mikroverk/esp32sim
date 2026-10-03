@@ -517,7 +517,7 @@ impl SocBus {
             let now_us = self.cycles / (crate::periph::CPU_HZ / 1_000_000);
             if let Some(ap) = &mut self.periph.wifi.ap {
                 if let Some(data) = ap.on_station_tx(&frame, now_us) {
-                    if let Some(eth) = crate::wifi::data_to_eth(&data) { self.periph.wifi.eth_tx.push(eth); }
+                    if let Some(eth) = crate::wifi::data_to_eth(&data) { if !self.periph.wifi.relay || (eth.len() <= 1518 && self.periph.wifi.eth_tx.len() < 64) { self.periph.wifi.eth_tx.push(eth); } else { self.periph.wifi.tx_dropped += 1; } }
                 }
             }
         }
@@ -537,7 +537,9 @@ impl SocBus {
         let busy = { let d = self.periph.wifi.last_rx_desc; d != 0 && self.read32_unpriced(d).unwrap_or(0) & (1 << 30) != 0 };
         if busy && now_us.wrapping_sub(self.periph.wifi.last_rx_us) < 50_000 { return; }
         let mut due = { let ap = self.periph.wifi.ap.as_mut().unwrap(); ap.step(now_us) };
-        let eth_in = std::mem::take(&mut self.periph.wifi.eth_rx);
+        let eth_in = if self.periph.wifi.relay {
+            if due.is_empty() && !self.periph.wifi.eth_rx.is_empty() { vec![self.periph.wifi.eth_rx.remove(0)] } else { Vec::new() }
+        } else { std::mem::take(&mut self.periph.wifi.eth_rx) };
         for e in eth_in { if let Some(f) = self.periph.wifi.ap.as_mut().unwrap().data_from_ds(&e) { due.push(crate::wifi::AirFrame { at_us: now_us, frame: f }); } }
         if due.is_empty() { return; }
         // management responses (auth, assoc, probe) go before beacons: a connect exchange must not be
@@ -829,7 +831,7 @@ impl SocBus {
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if self.periph.sha.dma_pending { self.sha_dma_step(); }
         if self.periph.wifi.ap.is_some() { self.wifi_air_step(); }
-        if let Some(net) = &mut self.periph.wifi.net {
+        if let Some(net) = self.periph.wifi.net.as_mut().filter(|_| !self.periph.wifi.relay) {
             let now_us = self.cycles / (crate::periph::CPU_HZ / 1_000_000);
             let out = std::mem::take(&mut self.periph.wifi.eth_tx);
             // Frames from the station are handled the moment they are sent, but reading the host

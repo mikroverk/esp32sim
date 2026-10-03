@@ -69,6 +69,14 @@ pub trait Soc: 'static {
 }
 
 pub trait SocBus: Bus {
+    /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
+    /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
+    fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
+    /// Drain complete Ethernet frames without FCS, in transmit order. Empty outside relay mode.
+    fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> { Vec::new() }
+    /// Queue a 14..=1518-byte Ethernet frame without FCS. Requires relay mode and an AP.
+    /// At most 64 frames may await delivery; a full queue returns an error without changing it.
+    fn receive_ethernet_frame(&mut self, _frame: &[u8]) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
     fn cycles(&self) -> u64;
     /// CPU cycles from the current device horizon to the next transition that may wake a core.
     fn next_deadline(&self) -> Option<u64> { None }

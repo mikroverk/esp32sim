@@ -2,12 +2,12 @@
 //!
 //! The C3 and the S3 share most of their peripheral IP — UART, USB-Serial/JTAG, systimer, timer
 //! groups, GPIO, the SPI flash controller, GDMA, SHA/AES/RSA are the same blocks with the same
-//! register layouts — so the models come from `esp-periph` and only the address map, the cache
-//! controller and the interrupt controller are written here.
+//! register layouts apart from C3 GDMA. The models come from `esp-periph`; the C3 GDMA adapter,
+//! address map, cache controller and interrupt controller live here.
 
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect, NO_SOURCE};
-use esp_periph::{Aes, Efuse, Gdma, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
+use esp_periph::{Aes, Efuse, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
 
 pub const CPU_HZ: u64 = 160_000_000;
 pub const PERIPH_BASE: u32 = 0x6000_0000;
@@ -147,7 +147,7 @@ pub struct Peripherals {
     pub intc: Intc,
     pub spi0: SpiMem,
     pub spi1: SpiMem,
-    pub gdma: Gdma,
+    pub gdma: crate::gdma::Gdma,
     pub sha: Sha,
     pub aes: Aes,
     pub rsa: Rsa,
@@ -155,12 +155,22 @@ pub struct Peripherals {
     /// register RAM behind unmodelled blocks, first-touch logging, pc attribution
     pub misc: Misc,
     pub spi_exec: bool,
+    pub work_pending: bool,
+    wifi_irq: bool, // cached source 0; updated with feature work, not polled by each interrupt scan
     clock: ClockTree<4>,
     last_status: [u32; 4],
+    pub wifi: Box<crate::wifi::WifiMac>,
+    pub fe_iq: crate::wifi::FeIq,
+    pub i2c_mst: crate::wifi::I2cMst,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+    0x06 "FE_IQ" (fe_iq) @ 0x140..=0x177 => [];
+    0x33 "WIFI_MAC" (wifi) => [];
+    0x34 "WIFI_MAC2" (wifi) delta 0x1000 => [];
+    0x35 "WDEV" (wifi) delta 0x2000 => [];
+    0x0e "I2C_MST" (i2c_mst) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x10 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI1" (spi1) => [];
@@ -190,6 +200,8 @@ impl DeviceSet for Peripherals {
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+        if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
+        if block == 0x06 { self.fe_iq.now_cycles = self.clock.cycles(); }
         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
     }
 }
@@ -197,14 +209,15 @@ impl DeviceSet for Peripherals {
 impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
+            wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
-            gdma: Gdma::new(),
+            gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+            misc: Misc::new(), spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
             last_status: [0; 4],
         }
     }
@@ -223,10 +236,19 @@ impl Peripherals {
         }
     }
 
-    pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
+    pub fn read32(&mut self, addr: u32) -> u32 {
+        mmio::read32(self, addr)
+    }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        self.refresh_work();
+    }
+
+    /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
+    pub fn refresh_work(&mut self) {
+        self.wifi_irq = self.wifi.irq();
+        self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.ap.is_some();
     }
 
     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
@@ -236,7 +258,9 @@ impl Peripherals {
     pub fn cycles_until_timer(&self) -> u32 { Dispatch::cycles_until_deadline(self) }
 
     /// Which interrupt sources are asserted right now.
-    pub fn source_status(&self) -> [u32; 4] { Dispatch::source_status(self) }
+    pub fn source_status(&self) -> [u32; 4] {
+        let mut st = Dispatch::source_status(self); st[0] |= self.wifi_irq as u32; st
+    }
 
     /// Refresh the interrupt matrix; returns true if any source changed.
     pub fn refresh_lines(&mut self) -> bool {
