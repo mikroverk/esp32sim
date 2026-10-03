@@ -95,7 +95,6 @@ impl SocBus {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
         let w = self.periph.read32(addr & !3);
-        if addr & !3 == 0x6004_3000 { self.irq_dirty = true; } // FIFO read can present the next USB packet.
         match size { 1 => (w >> ((addr & 3) * 8)) & 0xff, 2 => (w >> ((addr & 2) * 8)) & 0xffff, _ => w }
     }
 
@@ -349,16 +348,14 @@ impl SocBus {
         Ok(())
     }
 
-    /// Advance device time; idle rounds use only the existing pending-work check.
     #[inline(always)]
-    fn devices(&mut self, cycles: u32) -> bool {
-        let changed = self.periph.tick(cycles as u64);
-        if self.periph.work_pending { self.pending_work(); }
-        changed
+    fn devices(&mut self, cycles: u32) {
+        if self.periph.work_pending { self.pending_work(cycles); } else { self.periph.tick(cycles as u64); }
     }
 
-    fn pending_work(&mut self) {
+    fn pending_work(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
+        self.periph.tick(cycles as u64);
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
         if self.periph.wifi.ap.is_some() { self.wifi_air_step(); self.wifi_net_step(); }
@@ -447,7 +444,8 @@ impl Bus for SocBus {
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
         if self.pins_active { return self.tick_with_pins(cycles); }
-        self.devices(cycles) as u32
+        self.devices(cycles);
+        1
     }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
