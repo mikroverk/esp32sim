@@ -4,7 +4,7 @@
     {
       "file": "docs/evidence/uart-endpoint-2026-10-02/README.md",
       "original_sha256": "70ccabf2a2d8b28b57fe3a4772e4beedd31942aac4cfbf4634336bcc8eb7e071",
-      "sanitized_sha256": "4c87ca797f4715f5cca0bd1d3025b3125d17aee54d41764a14dc349cb6ab92d2"
+      "sanitized_sha256": "60c809c541e93b68bcb7d5f83969ac802e37e81f1229d372b5b74fc40cbd4ea3"
     },
     {
       "file": "docs/evidence/uart-endpoint-2026-10-02/results.json",
@@ -19,7 +19,8 @@
     {
       "file": "docs/experiments.md",
       "original_sha256": "57138685fb3feae36db06ff601abfefcb5556c3344b7fc29b5731247b04e5436",
-      "sanitized_sha256": "2249708fc7823b0fd66a34648816e846a32e037a4c04ba5b695acf116f902746"
+      "sanitized_sha256": "a6f080d6eb998d58c7fd3d0a2b00595d682597bf43df9c072c5b3a23f17933d3"
     }
-  ]
+  ],
+  "effect": "Removed session narrative and superseded candidate references; historical numeric measurements and artifact hashes retained. Sanitized hashes include the review corrections and check/CPU evidence links."
 }

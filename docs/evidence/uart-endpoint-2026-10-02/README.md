@@ -74,3 +74,13 @@ Session narrative, cache-permission errors and unresolvable fork revision refere
 were removed. `redactions.json` records original and sanitized receipt hashes. Numeric
 measurements and historical artifact hashes are unchanged. The removed patch limits
 reconstruction of that superseded candidate; retained hashes still identify it.
+
+## Review correction (EX203)
+
+UART inherits typed IO_MUX from the pin-transport stack and uses its shared route decoder. C6 TX masking, S3 GPIO46 and the S3/C3 20 MHz RC source are corrected. Board UART delivery is opt-in and cached at device attachment; callbacks carry emulated cycle stamps. RX delivery and framing checks are shared in esp-soc.
+
+[review.json](review.json) records the full checks; [review-mutations.json](review-mutations.json) records eleven killed mutations, including all reported UART survivors and the C3 reset/idle and RMT mask checks. Run `python3 docs/evidence/uart-endpoint-2026-10-02/check-review-mutations.py` from an otherwise idle clean worktree to repeat; it restores each edited source in a `finally` block and writes logs under `/tmp`. All eight UART endpoint tests pass after restoration.
+
+The shared [EX205 CPU receipt](../c3-peripherals-2026-10-02/cpu-rmt-final.json) measures three 30-emulated-second c3-hello runs per arm. Main CPU seconds: 2.606990, 2.624362, 2.614370; published UART: 2.708919, 2.738410, 2.696680; corrected C3 stack: 2.753298, 2.773484, 2.772790; UART on corrected stack: 2.803772, 2.748303, 2.773400. UART adds 0.02% to the corrected stack median (2.773400 versus 2.772790 s), within observed noise. The full stack remains 6.1% above main. Every sample executes 4.8 billion instructions/cycles, zero exceptions and identical console bytes. Background load is uncontrolled; these native CPU samples make no browser or hardware timing claim. This revises EX203's register correctness and idle delivery mechanism, retaining historical acceptance measurements above.
+
+The deleted patch's historical hash and original/sanitized receipt hashes are preserved in `redactions.json`; the current hashes include this review update.

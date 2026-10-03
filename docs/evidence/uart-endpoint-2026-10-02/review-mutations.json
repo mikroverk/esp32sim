@@ -1,0 +1,104 @@
+{
+  "source_revision": "b91f9556637e0555cb9789d238ccd4cf4e6d550f",
+  "equivalent_source_revision": "64b921c82f139f4eaf72d4ec8caf0f4e82a8467a",
+  "source_note": "Rebase changes documentation and adds a C3 interrupt-transition test; production Rust and the mutated checks are unchanged.",
+  "mutations": [
+    {
+      "mutation": "FUN_IE",
+      "killed": true,
+      "failed_tests": [
+        "test c6 ... FAILED",
+        "test c3 ... FAILED",
+        "test s3 ... FAILED",
+        "test result: FAILED. 5 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "GPIO_ENABLE",
+      "killed": true,
+      "failed_tests": [
+        "test c3 ... FAILED",
+        "test c6 ... FAILED",
+        "test s3 ... FAILED",
+        "test result: FAILED. 5 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "baud_30_percent",
+      "killed": true,
+      "failed_tests": [
+        "test c6 ... FAILED",
+        "test c3 ... FAILED",
+        "test s3 ... FAILED",
+        "test result: FAILED. 5 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "C6_TX_mask",
+      "killed": true,
+      "failed_tests": [
+        "test c6 ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "GPIO46",
+      "killed": true,
+      "failed_tests": [
+        "test s3_gpio46_is_a_uart_output ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "S3_RC_clock",
+      "killed": true,
+      "failed_tests": [
+        "test s3 ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "C3_RC_clock",
+      "killed": true,
+      "failed_tests": [
+        "test c3 ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "C3_reset_selector",
+      "killed": true,
+      "failed_tests": [
+        "test reset_gpio_select_drives_software_cs_and_keeps_the_change_buffer ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "UART_cached_capability",
+      "killed": true,
+      "failed_tests": [
+        "test boards_without_uart_opt_in_keep_console_only ... FAILED",
+        "test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "C3_idle_board_gate",
+      "killed": true,
+      "failed_tests": [
+        "test idle_board_does_not_receive_clock_callbacks ... FAILED",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "mutation": "RMT_running_mask_clear",
+      "killed": true,
+      "failed_tests": [
+        "test rmt::tx_stop_tests::running_mask_tracks_stop_and_completion_on_each_channel ... FAILED",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.00s"
+      ]
+    }
+  ],
+  "restored_control": "All eight UART endpoint tests pass after restoring sources; C3 pin tests also pass.",
+  "command": "python3 docs/evidence/uart-endpoint-2026-10-02/check-review-mutations.py",
+  "logs": "Each mutation writes /tmp/mutation-NAME.log; the combined result is /tmp/pr171-mutations.json."
+}
