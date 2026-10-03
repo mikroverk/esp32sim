@@ -1,0 +1,561 @@
+{
+  "command": [
+    "BINARY",
+    "--chip",
+    "c3",
+    "--boot",
+    "rom",
+    "--board",
+    "none",
+    "--rom",
+    "FW/esp32c3_rev3_rom.elf",
+    "--bootloader",
+    "FW/public/c3-hello-bootloader.bin",
+    "--ptable",
+    "FW/public/c3-hello-ptable.bin",
+    "--app",
+    "FW/public/c3-hello_world.bin",
+    "--flash-mb",
+    "4",
+    "--mac",
+    "00:00:00:00:00:00",
+    "--max-seconds",
+    "30"
+  ],
+  "measurement": "resource.getrusage(RUSAGE_CHILDREN) user + system CPU seconds around one completed CLI subprocess; seven samples per arm after one excluded warmup; alternating arm order; uptime load below 2.5 before every run, below 3 after every measured run",
+  "host": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "arch": "arm64"
+  },
+  "toolchain": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "inputs": {
+    "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be"
+  },
+  "binaries": {
+    "published": "eeb847cc2d2d43ff9398ef0d4c91025ce669509d61ae3eba6ae2820552d77d29",
+    "main": "bf381be01a153e4844e540b6502801e9fba68b1e06516bdb8f7cd232accc8fb6",
+    "after": "2fb8dcda85f6483524726c51db9afee723da6d70a1bd74bce970d17d59ad6edd"
+  },
+  "samples": [
+    {
+      "label": "published",
+      "round": 1,
+      "user_s": 2.6181990000000006,
+      "system_s": 0.0068090000000000095,
+      "wall_s": 2.6289284999947995,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6250080000000007,
+      "load_before": 2.39,
+      "loadavg": [
+        2.392578125,
+        3.21826171875,
+        4.73876953125
+      ]
+    },
+    {
+      "label": "main",
+      "round": 1,
+      "user_s": 2.558338000000001,
+      "system_s": 0.005559000000000008,
+      "wall_s": 2.567731500021182,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5638970000000008,
+      "load_before": 2.39,
+      "loadavg": [
+        2.44091796875,
+        3.21435546875,
+        4.728515625
+      ]
+    },
+    {
+      "label": "after",
+      "round": 1,
+      "user_s": 1.1322089999999996,
+      "system_s": 0.003949000000000008,
+      "wall_s": 1.1379210830200464,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.1361579999999996,
+      "load_before": 2.44,
+      "loadavg": [
+        2.44091796875,
+        3.21435546875,
+        4.728515625
+      ]
+    },
+    {
+      "label": "after",
+      "round": 2,
+      "user_s": 1.1048650000000002,
+      "system_s": 0.003695999999999977,
+      "wall_s": 1.110825499985367,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.1085610000000001,
+      "load_before": 2.44,
+      "loadavg": [
+        2.44091796875,
+        3.21435546875,
+        4.728515625
+      ]
+    },
+    {
+      "label": "main",
+      "round": 2,
+      "user_s": 2.5326439999999995,
+      "system_s": 0.005563999999999986,
+      "wall_s": 2.541570583009161,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5382079999999996,
+      "load_before": 2.44,
+      "loadavg": [
+        2.7255859375,
+        3.26025390625,
+        4.73583984375
+      ]
+    },
+    {
+      "label": "published",
+      "round": 2,
+      "user_s": 2.6439500000000002,
+      "system_s": 0.00569900000000001,
+      "wall_s": 2.654345375020057,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.649649,
+      "load_before": 2.47,
+      "loadavg": [
+        2.46630859375,
+        3.185546875,
+        4.69189453125
+      ]
+    },
+    {
+      "label": "published",
+      "round": 3,
+      "user_s": 2.8070880000000002,
+      "system_s": 0.005742999999999998,
+      "wall_s": 2.818617207929492,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.812831,
+      "load_before": 2.47,
+      "loadavg": [
+        2.5888671875,
+        3.19873046875,
+        4.6875
+      ]
+    },
+    {
+      "label": "main",
+      "round": 3,
+      "user_s": 2.5432799999999993,
+      "system_s": 0.00357799999999997,
+      "wall_s": 2.5492219999432564,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5468579999999994,
+      "load_before": 2.39,
+      "loadavg": [
+        2.39404296875,
+        3.20947265625,
+        4.1884765625
+      ]
+    },
+    {
+      "label": "after",
+      "round": 3,
+      "user_s": 1.1167310000000015,
+      "system_s": 0.0034339999999999926,
+      "wall_s": 1.1239959999220446,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.1201650000000014,
+      "load_before": 2.39,
+      "loadavg": [
+        2.6826171875,
+        3.25537109375,
+        4.19873046875
+      ]
+    },
+    {
+      "label": "after",
+      "round": 4,
+      "user_s": 1.071282,
+      "system_s": 0.005859999999999976,
+      "wall_s": 1.0797867089277133,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.077142,
+      "load_before": 2.45,
+      "loadavg": [
+        2.45458984375,
+        3.16162109375,
+        4.1318359375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 4,
+      "user_s": 2.5371699999999997,
+      "system_s": 0.008048,
+      "wall_s": 2.5473220830317587,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5452179999999998,
+      "load_before": 2.45,
+      "loadavg": [
+        2.45458984375,
+        3.16162109375,
+        4.1318359375
+      ]
+    },
+    {
+      "label": "published",
+      "round": 4,
+      "user_s": 2.6129929999999995,
+      "system_s": 0.005236999999999992,
+      "wall_s": 2.6211904999800026,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.6182299999999996,
+      "load_before": 2.45,
+      "loadavg": [
+        2.498046875,
+        3.15869140625,
+        4.125
+      ]
+    },
+    {
+      "label": "published",
+      "round": 5,
+      "user_s": 2.588173000000001,
+      "system_s": 0.0047699999999999965,
+      "wall_s": 2.5950369170168415,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5929430000000013,
+      "load_before": 2.34,
+      "loadavg": [
+        2.3408203125,
+        3.103515625,
+        4.09375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 5,
+      "user_s": 2.5242679999999993,
+      "system_s": 0.005141000000000007,
+      "wall_s": 2.533082249923609,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5294089999999994,
+      "load_before": 2.34,
+      "loadavg": [
+        2.3935546875,
+        3.1015625,
+        4.0869140625
+      ]
+    },
+    {
+      "label": "after",
+      "round": 5,
+      "user_s": 1.1074800000000025,
+      "system_s": 0.002707999999999988,
+      "wall_s": 1.1116734580136836,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.1101880000000024,
+      "load_before": 2.39,
+      "loadavg": [
+        2.3935546875,
+        3.1015625,
+        4.0869140625
+      ]
+    },
+    {
+      "label": "after",
+      "round": 6,
+      "user_s": 1.1375230000000016,
+      "system_s": 0.003591999999999984,
+      "wall_s": 1.143123707966879,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.1411150000000017,
+      "load_before": 2.39,
+      "loadavg": [
+        2.3935546875,
+        3.1015625,
+        4.0869140625
+      ]
+    },
+    {
+      "label": "main",
+      "round": 6,
+      "user_s": 2.4286309999999958,
+      "system_s": 0.0071410000000000085,
+      "wall_s": 2.4394782080780715,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4357719999999956,
+      "load_before": 2.39,
+      "loadavg": [
+        2.52197265625,
+        3.1162109375,
+        4.0859375
+      ]
+    },
+    {
+      "label": "published",
+      "round": 6,
+      "user_s": 2.5839810000000014,
+      "system_s": 0.005508000000000013,
+      "wall_s": 2.592501917039044,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5894890000000013,
+      "load_before": 2.36,
+      "loadavg": [
+        2.361328125,
+        3.0625,
+        4.05517578125
+      ]
+    },
+    {
+      "label": "published",
+      "round": 7,
+      "user_s": 2.5959780000000023,
+      "system_s": 0.005451000000000039,
+      "wall_s": 2.6050670000258833,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.601429000000002,
+      "load_before": 2.36,
+      "loadavg": [
+        2.732421875,
+        3.12744140625,
+        4.072265625
+      ]
+    },
+    {
+      "label": "main",
+      "round": 7,
+      "user_s": 2.5135819999999995,
+      "system_s": 0.005379999999999996,
+      "wall_s": 2.521279790904373,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5189619999999997,
+      "load_before": 2.37,
+      "loadavg": [
+        2.36962890625,
+        3.0205078125,
+        4.01171875
+      ]
+    },
+    {
+      "label": "after",
+      "round": 7,
+      "user_s": 1.1180869999999956,
+      "system_s": 0.003202000000000038,
+      "wall_s": 1.1236614580266178,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.1212889999999955,
+      "load_before": 2.37,
+      "loadavg": [
+        2.419921875,
+        3.02001953125,
+        4.00537109375
+      ]
+    }
+  ],
+  "limitations": [
+    "Local macOS arm64 CPU-time comparison, not browser or hardware timing.",
+    "No process inventory retained; unrelated system load was not controlled.",
+    "All arms use unchanged native scheduling and identical firmware, instructions, cycles and console hash."
+  ],
+  "sources": {
+    "published": "6feac19acfb2128e50ae1fb1a2f56eb1df4131ef",
+    "main": "ed34b220cd0e261d369a5eee92ca8f1f33cbb0ad",
+    "after": "68eb1a4c973383c66b465fee1202591d851d87ef"
+  },
+  "summary": {
+    "published": {
+      "median_cpu_s": 2.6182299999999996,
+      "min_cpu_s": 2.5894890000000013,
+      "max_cpu_s": 2.812831
+    },
+    "main": {
+      "median_cpu_s": 2.5382079999999996,
+      "min_cpu_s": 2.4357719999999956,
+      "max_cpu_s": 2.5638970000000008
+    },
+    "after": {
+      "median_cpu_s": 1.1201650000000014,
+      "min_cpu_s": 1.077142,
+      "max_cpu_s": 1.1411150000000017
+    }
+  },
+  "after_vs_main_percent": -55.867880016137306,
+  "published_vs_main_percent": 3.152696705707325,
+  "post_run_load_range": [
+    2.3408203125,
+    2.732421875
+  ],
+  "outcome": "accepted: all starts below 2.5, all post-run loads below 3; faster than main, not statistical equivalence or overlapping ranges",
+  "warmups": [
+    {
+      "label": "published",
+      "round": "warmup",
+      "user_s": 2.4537109999999998,
+      "system_s": 0.008195000000000008,
+      "wall_s": 2.466303584049456,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.461906,
+      "load_before": 2.43,
+      "loadavg": [
+        2.4267578125,
+        3.2392578125,
+        4.75537109375
+      ]
+    },
+    {
+      "label": "main",
+      "round": "warmup",
+      "user_s": 2.374574,
+      "system_s": 0.006197999999999981,
+      "wall_s": 2.383813749998808,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.380772,
+      "load_before": 2.43,
+      "loadavg": [
+        2.392578125,
+        3.21826171875,
+        4.73876953125
+      ]
+    },
+    {
+      "label": "after",
+      "round": "warmup",
+      "user_s": 1.114528,
+      "system_s": 0.0028499999999999914,
+      "wall_s": 1.1196590000763535,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 1.117378,
+      "load_before": 2.39,
+      "loadavg": [
+        2.392578125,
+        3.21826171875,
+        4.73876953125
+      ]
+    }
+  ]
+}
