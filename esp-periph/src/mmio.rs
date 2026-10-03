@@ -31,7 +31,7 @@ pub trait Dispatch {
     /// Which chip interrupt sources are asserted right now, one bit per source number.
     fn source_status(&self) -> [u32; 4];
     /// Advance device time by `cycles` CPU cycles: every clocked device receives the ticks its
-    /// domain gained. Static devices follow table order; configured optional devices follow afterward.
+    /// domain gained. Configured optional devices tick first; static devices follow table order.
     /// Advance clocked devices and report whether any device interrupt source changed.
     fn tick(&mut self, cycles: u64) -> bool;
     /// CPU cycles until the earliest timer deadline (conservative by one device tick), or
@@ -167,12 +167,16 @@ macro_rules! device_set {
                     let bits = $crate::Device::irq_sources(&self.$($f)+);
                     if bits != 0 { let mut b = 0u32; $( if $src != $crate::NO_SOURCE && bits & (1u64 << b) != 0 { st[$src / 32] |= 1 << ($src % 32); } b += 1; )* let _ = b; }
                 } )*
-                let mut optional_words = [false; 4];
-                $( if false $(|| stringify!($alias) == "optional")? {
-                    $( if $src != $crate::NO_SOURCE { optional_words[$src / 32] = true; } )*
-                } )*
+                // Preserve known-zero source bits so the matrix can eliminate unused routes.
+                const OPTIONAL_SOURCES: [u32; 4] = {
+                    let mut words = [0; 4];
+                    $( if $crate::__optional!($($alias)?) {
+                        $( if $src != $crate::NO_SOURCE { words[$src / 32] |= 1 << ($src % 32); } )*
+                    } )*
+                    words
+                };
                 for word in 0..4 {
-                    if optional_words[word] { st[word] |= $crate::DeviceSet::misc(self).optional_sources[word]; }
+                    if OPTIONAL_SOURCES[word] != 0 { st[word] |= $crate::DeviceSet::misc(self).optional_sources[word] & OPTIONAL_SOURCES[word]; }
                 }
                 st
             }
@@ -181,6 +185,7 @@ macro_rules! device_set {
                 let mut irq_changed = false;
                 let mut deltas = [($crate::__ClockDomain::Cpu, 0u64); 8]; let mut n = 0usize;
                 self.$clk.advance(&Self::CLOCKS, cycles, |d, t| { if n < 8 { deltas[n] = (d, t); n += 1; } });
+                if !$crate::DeviceSet::misc(self).active_optional.is_empty() { irq_changed |= self.tick_optional(&deltas[..n]); }
                 for &(d, t) in &deltas[..n] {
                     $( if !(false $(|| matches!(stringify!($alias), "alias" | "optional"))?) && $crate::Device::clock(&self.$($f)+) == Some(d) {
                         // Only clocked devices can change here. Do not scan unclocked
@@ -190,7 +195,6 @@ macro_rules! device_set {
                         irq_changed |= before != $crate::Device::irq_sources(&self.$($f)+);
                     } )*
                 }
-                if !$crate::DeviceSet::misc(self).active_optional.is_empty() { irq_changed |= self.tick_optional(&deltas[..n]); }
                 irq_changed
             }
             #[inline(never)]
@@ -239,3 +243,6 @@ macro_rules! device_set {
 macro_rules! __count { () => { 0usize }; ($x:tt $($rest:tt)*) => { 1usize + $crate::__count!($($rest)*) }; }
 #[doc(hidden)] pub use emu_core::{ClockDomain as __ClockDomain, ClockTree as __ClockTree, Dividers as __Dividers};
 #[doc(hidden)] pub use emu_core::clock::divider as __divider;
+
+#[doc(hidden)] #[macro_export]
+macro_rules! __optional { (optional) => { true }; ($($tag:ident)?) => { false }; }
