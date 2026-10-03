@@ -1,0 +1,30 @@
+{
+  "source_revision": "dcf0496a6ef6d61054da2e6defe11fbee1b26795",
+  "cases": [
+    {
+      "name": "uart_only_participation",
+      "file": "esp32c3/src/bus.rs",
+      "old": "self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running()",
+      "new": "self.board_edges || self.periph.rmt.rmt.is_running()",
+      "last_occurrence_only": false,
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "--release",
+        "-p",
+        "esp32sim",
+        "--test",
+        "uart_endpoint",
+        "c3",
+        "--",
+        "--skip",
+        "external_"
+      ],
+      "exit": 101,
+      "killed": true
+    }
+  ],
+  "reproduce_revision": "5d8231e7e4596680343694df1dadb9dbc9777ae4",
+  "source_equivalence": "git diff dcf0496 HEAD -- . :!docs is empty after the documentation-only rebase; all tracked Rust/Cargo hashes also match the checked build."
+}

@@ -35,3 +35,14 @@ pub trait Device {
     /// Print what the device does (`--debug <name>`).
     fn debug(&mut self, _on: bool) {}
 }
+
+impl<T: Device> Device for Box<T> {
+    fn read(&mut self, off: u32) -> u32 { (**self).read(off) }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect { (**self).write(off, v) }
+    fn irq_sources(&self) -> u64 { (**self).irq_sources() }
+    fn clock(&self) -> Option<ClockDomain> { (**self).clock() }
+    fn tick(&mut self, ticks: u64) { (**self).tick(ticks); }
+    fn has_deadline(&self) -> bool { (**self).has_deadline() }
+    fn next_deadline(&self) -> Option<u64> { (**self).next_deadline() }
+    fn debug(&mut self, on: bool) { (**self).debug(on); }
+}

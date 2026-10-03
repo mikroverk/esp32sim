@@ -1,0 +1,118 @@
+diff --git a/esp32c3/src/bus.rs b/esp32c3/src/bus.rs
+index 8f11769..f1f8284 100644
+--- a/esp32c3/src/bus.rs
++++ b/esp32c3/src/bus.rs
+@@ -183,6 +183,7 @@ impl SocBus {
+     fn devices(&mut self, cycles: u32) {
+         if self.periph.spi_exec { self.run_spi(); }
+         self.periph.tick(cycles as u64);
++        if !self.board_edges && !self.periph.pin_devices_used { return; }
+         if !self.periph.rmt.rmt.done.is_empty() {
+             for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
+                 let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
+diff --git a/esp32c3/src/periph.rs b/esp32c3/src/periph.rs
+index 0b2b45d..bdb89e0 100644
+--- a/esp32c3/src/periph.rs
++++ b/esp32c3/src/periph.rs
+@@ -162,6 +162,7 @@ pub struct Peripherals {
+     pub spi_exec: bool,
+     clock: ClockTree<4>,
+     last_status: [u32; 4],
++    pub(crate) pin_devices_used: bool,
+ }
+ 
+ // Every peripheral, where it sits, and its interrupt source numbers (`src`).
+@@ -199,7 +200,8 @@ impl DeviceSet for Peripherals {
+     fn block_name(block: u32) -> &'static str { Peripherals::block_name(block) }
+     fn misc(&self) -> &Misc { &self.misc }
+     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
+-    fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
++    fn pre_access(&mut self, block: u32, _off: u32, write: bool) {
++        if write && matches!(block, 0x13 | 0x16 | 0x24) { self.pin_devices_used = true; }
+         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
+     }
+ }
+@@ -216,7 +218,7 @@ impl Peripherals {
+             gdma: Gdma::new(),
+             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
+             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+-            last_status: [0; 4],
++            last_status: [0; 4], pin_devices_used: false,
+         }
+     }
+ 
+@@ -248,18 +250,18 @@ impl Peripherals {
+     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
+     pub fn tick(&mut self, cycles: u64) {
+         Dispatch::tick(self, cycles);
+-        if self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); }
++        if self.pin_devices_used && self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); }
+     }
+ 
+     pub fn cycles_until_timer(&self) -> u32 {
+         let timer = Dispatch::cycles_until_deadline(self);
+-        if self.rmt.rmt.is_running() { timer.min(31) } else { timer }
++        if self.pin_devices_used && self.rmt.rmt.is_running() { timer.min(31) } else { timer }
+     }
+ 
+     /// Which interrupt sources are asserted right now.
+     pub fn source_status(&self) -> [u32; 4] {
+         let mut st = Dispatch::source_status(self);
+-        if self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0 {
++        if self.pin_devices_used {
+             if self.i2c.irq() { st[0] |= 1 << src::I2C_EXT0; }
+             if self.spi2.irq() { st[0] |= 1 << src::SPI2; }
+             if self.rmt.rmt.irq() { st[0] |= 1 << src::RMT; }
+diff --git a/esp32c3/src/soc.rs b/esp32c3/src/soc.rs
+index 5a21979..6018225 100644
+--- a/esp32c3/src/soc.rs
++++ b/esp32c3/src/soc.rs
+@@ -33,7 +33,8 @@ impl esp_soc::SocBus for SocBus {
+     fn cycles(&self) -> u64 { self.cycles }
+     fn next_deadline(&self) -> Option<u64> {
+         let timer = match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) };
+-        let board = self.board_edges.then(|| self.board.next_deadline()).flatten().map(|t| t.saturating_sub(self.cycles).max(1));
++        if !self.board_edges { return timer; }
++        let board = self.board.next_deadline().map(|t| t.saturating_sub(self.cycles).max(1));
+         match (timer, board) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
+     }
+     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
+@@ -122,6 +123,7 @@ impl esp_soc::SocBus for SocBus {
+     fn gpio_set_input(&mut self, pin: u8, level: bool) {
+         let before = self.periph.gpio.input;
+         self.periph.gpio.set_input(pin, level);
++        self.periph.gpio.input_changes.clear();
+         self.irq_dirty |= before != self.periph.gpio.input;
+         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
+     }
+diff --git a/esp32c3/tests/pin_transport.rs b/esp32c3/tests/pin_transport.rs
+index 8fa1638..50f56c3 100644
+--- a/esp32c3/tests/pin_transport.rs
++++ b/esp32c3/tests/pin_transport.rs
+@@ -425,3 +425,26 @@ fn idle_board_does_not_receive_clock_callbacks() {
+     assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
+     assert!(m.bus.periph.rmt.rmt.done.is_empty());
+ }
++
++#[test]
++fn pin_interrupts_follow_enable_clear_and_spi_completion() {
++    use esp32c3::periph::src;
++    let mut m = esp32c3::machine([0; 6], 4 << 20);
++    let bus = &mut m.bus;
++    bus.periph.i2c.attach(0x42, Box::new(Device(None, 11)));
++    for (base, ena, clr, bit, source) in [
++        (0x6001_3000, 0x28, 0x24, 1 << 7, src::I2C_EXT0),
++        (0x6002_4000, 0x34, 0x38, 1 << 12, src::SPI2),
++    ] {
++        bus.write32(base + ena, bit).unwrap();
++        if source == src::I2C_EXT0 { assert_eq!(read_i2c(bus), (true, 11)); }
++        else { spi(bus); }
++        assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
++        bus.write32(base + ena, 0).unwrap();
++        assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
++        bus.write32(base + ena, bit).unwrap();
++        assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
++        bus.write32(base + clr, bit).unwrap();
++        assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
++    }
++}

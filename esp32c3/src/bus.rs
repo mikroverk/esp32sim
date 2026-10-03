@@ -4,6 +4,8 @@
 //! MMU. SRAM1 is dual-mapped (IRAM `0x4038_0000` and DRAM `0x3FC8_0000` are the same bytes);
 //! SRAM0 below it is the instruction cache's, reachable only from the instruction bus.
 
+mod pins;
+
 use crate::periph::{Peripherals, PERIPH_BASE, PERIPH_END};
 use riscv_rv32::bus::{Bus, Fault};
 
@@ -40,6 +42,9 @@ pub struct SocBus {
     pub periph: Peripherals,
     /// a bare module: nothing on the pins
     pub board: esp_soc::Board,
+    uart_pins: bool,
+    pub(crate) board_edges: bool,
+    pub(crate) pins_active: bool,
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     /// a peripheral write may have moved an interrupt line: re-derive before the next instruction
@@ -58,7 +63,7 @@ impl SocBus {
             rtc_slow: vec![0; (RTC_SLOW_HIGH - RTC_SLOW_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [MMU_INVALID; MMU_ENTRIES],
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard),
+            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), uart_pins: false, board_edges: false, pins_active: false,
             cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(),
         }
     }
@@ -104,14 +109,64 @@ impl SocBus {
             1 => { let old = self.periph.read32(a); let sh = (addr & 3) * 8; (old & !(0xff << sh)) | ((v & 0xff) << sh) }
             _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
         };
+        let drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
+        if a & !0xfff == 0x6001_6000 { self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running(); }
+        if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
+            self.deliver_gpio_output();
+        }
+        if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), _ => None } {
+            if self.uart_pins { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
+        }
         // A SPI flash command must complete before the guest can read its result: firmware kicks
         // the command and polls/reads the data registers a few instructions later, well inside one
         // scheduling quantum. Running it at the quantum boundary instead loses the race and the
         // read returns zeros — which is exactly how `E memspi: no response` showed up on a
         // non-power-on boot while a power-on boot happened to survive it.
         if self.periph.spi_exec { self.run_spi(); }
+        if a == 0x6002_4000 && self.periph.spi2.has_pending_transfer() { self.deliver_spi2_transfer(); }
         self.irq_dirty = true;
+    }
+
+    /// Attach controller 0 devices and reconnect board inputs after a reset.
+    pub fn attach_board_devices(&mut self) {
+        self.uart_pins = self.board.uses_uart_pins();
+        self.board_edges = self.board.uses_gpio_edges();
+        self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
+        for (bus, address, device) in self.board.i2c_devices() {
+            if bus == 0 { self.periph.i2c.attach(address, device); }
+        }
+        for (pin, level) in self.board.input_levels() { self.periph.gpio.set_input(pin, level); }
+        self.periph.gpio.input_changes.clear();
+        self.irq_dirty = true;
+    }
+
+    fn deliver_gpio_output(&mut self) {
+        let changes = &self.periph.gpio.changes;
+        if let Some(events) = &mut self.gpio_events {
+            events.extend(changes.iter().map(|&(pin, level)| (self.cycles, pin, level)));
+        }
+        self.board.gpio_output_at(self.cycles, changes, self.periph.gpio.enable, self.periph.gpio.out);
+        self.periph.gpio.changes.clear();
+    }
+
+    fn deliver_spi2_transfer(&mut self) {
+        let Some(transfer) = self.periph.spi2.take_transfer() else { return };
+        let rx = if self.board.uses_spi_pins() {
+            self.board.spi_transfer_pins(2, self.periph.spi2_pins(), &transfer.tx, transfer.rx_len)
+        } else {
+            self.board.spi_transfer(2, &transfer.tx, transfer.rx_len)
+        };
+        self.periph.spi2.finish_transfer(transfer, &rx);
+        self.irq_dirty = true;
+    }
+
+    #[inline(never)]
+    fn receive_uart_input(&mut self) {
+        for input in self.board.uart_rx(self.cycles) {
+            self.periph.uart_pin_input(&input);
+            self.irq_dirty = true;
+        }
     }
 
     /// Execute a pending SPI1 command against the flash image.
@@ -142,9 +197,33 @@ impl SocBus {
     }
 
     /// Run the SPI1 controller if the guest just kicked it, then advance device time.
+    #[inline(always)]
     fn devices(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
         self.periph.tick(cycles as u64);
+    }
+
+    #[inline(never)]
+    fn tick_with_pins(&mut self, cycles: u32) -> u32 {
+        self.devices(cycles);
+        if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
+        for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
+            let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
+            self.board.rmt_frame(pin, &bits);
+            self.irq_dirty = true;
+        }
+        self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
+        if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
+            self.board.advance_to(self.cycles);
+            for edge in self.board.take_edges() {
+                self.periph.gpio.set_input(edge.pin, edge.level);
+                if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
+                self.irq_dirty = true;
+            }
+        }
+        self.periph.gpio.input_changes.clear();
+        if self.uart_pins { self.receive_uart_input(); }
+        1
     }
 }
 
@@ -205,6 +284,7 @@ impl Bus for SocBus {
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
+        if self.pins_active { return self.tick_with_pins(cycles); }
         self.devices(cycles);
         1
     }
@@ -213,4 +293,23 @@ impl Bus for SocBus {
     /// a peripheral write may have moved a line: the core's run stops so the machine re-derives it
     #[inline(always)]
     fn block_break(&self) -> bool { self.irq_dirty }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_clock_participation_stops_when_rmt_finishes() {
+        let mut bus = SocBus::new(4 << 20, [0; 6]);
+        assert!(!bus.pins_active);
+        assert_eq!(bus.tick(64), 1);
+        bus.write32(0x6001_6010, 1 | 1 << 8 | 1 << 16).unwrap();
+        assert!(bus.pins_active);
+        assert!(esp_soc::SocBus::next_deadline(&bus).is_some_and(|n| n <= 31));
+        assert_eq!(bus.tick(64), 1);
+        assert!(!bus.pins_active);
+        assert!(bus.periph.rmt.rmt.done.is_empty());
+        assert_eq!(bus.tick(64), 1);
+    }
 }

@@ -1,0 +1,757 @@
+{
+  "command": [
+    "BINARY",
+    "--chip",
+    "c3",
+    "--boot",
+    "rom",
+    "--board",
+    "none",
+    "--rom",
+    "FW/esp32c3_rev3_rom.elf",
+    "--bootloader",
+    "FW/public/c3-hello-bootloader.bin",
+    "--ptable",
+    "FW/public/c3-hello-ptable.bin",
+    "--app",
+    "FW/public/c3-hello_world.bin",
+    "--flash-mb",
+    "4",
+    "--mac",
+    "00:00:00:00:00:00",
+    "--max-seconds",
+    "30"
+  ],
+  "measurement": "resource.getrusage(RUSAGE_CHILDREN) user + system CPU seconds around one completed CLI subprocess; seven samples per arm after one excluded warmup; reverse order in even rounds",
+  "host": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "arch": "arm64"
+  },
+  "toolchain": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "inputs": {
+    "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be"
+  },
+  "binaries": {
+    "main": "12cff04bf56201d7aa323a34eec7bf81b0e6e9402620e85ed15745c4e91665df",
+    "published-c3": "53dbadd87837b9f3247efde55573cb52f9ef5b9f31d66e6623b8cfb0694bc3e3",
+    "c3": "b655315824e335b6baf26a1e623a4d9a5f19e1bb48019b4943e5b6f3c55e06a9",
+    "published-uart": "c5884734a62b4947f31ba9544a585bb0c708af8e7a50cbb5739778d34fe714f0",
+    "uart": "135f447d3deae9cd628bb9b004b0053f78977c60da9055fa256c026dda753340"
+  },
+  "samples": [
+    {
+      "label": "main",
+      "round": 1,
+      "user_s": 2.397425,
+      "system_s": 0.005320999999999999,
+      "wall_s": 2.4056638330221176,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.402746,
+      "load_before": 1.81,
+      "loadavg": [
+        1.74853515625,
+        1.94482421875,
+        1.96240234375
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 1,
+      "user_s": 2.924542999999998,
+      "system_s": 0.009462000000000005,
+      "wall_s": 2.9405818750383332,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.934004999999998,
+      "load_before": 1.75,
+      "loadavg": [
+        1.6884765625,
+        1.9287109375,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 1,
+      "user_s": 2.5084289999999996,
+      "system_s": 0.006942999999999991,
+      "wall_s": 2.52006337500643,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5153719999999997,
+      "load_before": 1.69,
+      "loadavg": [
+        1.6884765625,
+        1.9287109375,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 1,
+      "user_s": 2.494385000000001,
+      "system_s": 0.005140999999999993,
+      "wall_s": 2.5025280829286203,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4995260000000012,
+      "load_before": 1.69,
+      "loadavg": [
+        1.63330078125,
+        1.9130859375,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 1,
+      "user_s": 2.454086,
+      "system_s": 0.0060069999999999985,
+      "wall_s": 2.463509042048827,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.460093,
+      "load_before": 1.63,
+      "loadavg": [
+        1.63330078125,
+        1.9130859375,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 2,
+      "user_s": 2.423178,
+      "system_s": 0.006364999999999996,
+      "wall_s": 2.432671291055158,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4295430000000002,
+      "load_before": 1.63,
+      "loadavg": [
+        1.63330078125,
+        1.9130859375,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 2,
+      "user_s": 2.4650420000000004,
+      "system_s": 0.005220000000000002,
+      "wall_s": 2.473461917019449,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4702620000000004,
+      "load_before": 1.74,
+      "loadavg": [
+        1.74267578125,
+        1.9306640625,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 2,
+      "user_s": 2.555348000000002,
+      "system_s": 0.05896299999999999,
+      "wall_s": 2.6181041250238195,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.614311000000002,
+      "load_before": 1.74,
+      "loadavg": [
+        1.68310546875,
+        1.9150390625,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 2,
+      "user_s": 2.844918,
+      "system_s": 0.0072239999999999804,
+      "wall_s": 2.8574617080157623,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.8521419999999997,
+      "load_before": 1.68,
+      "loadavg": [
+        1.68310546875,
+        1.9150390625,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 2,
+      "user_s": 2.3720630000000043,
+      "system_s": 0.005891000000000007,
+      "wall_s": 2.381858541048132,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.3779540000000043,
+      "load_before": 1.68,
+      "loadavg": [
+        1.6279296875,
+        1.8994140625,
+        1.94482421875
+      ]
+    },
+    {
+      "label": "main",
+      "round": 3,
+      "user_s": 2.399189,
+      "system_s": 0.004974000000000006,
+      "wall_s": 2.4073743750341237,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4041629999999996,
+      "load_before": 1.63,
+      "loadavg": [
+        1.6279296875,
+        1.8994140625,
+        1.94482421875
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 3,
+      "user_s": 2.8145260000000007,
+      "system_s": 0.006055000000000005,
+      "wall_s": 2.825710333068855,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.8205810000000007,
+      "load_before": 1.63,
+      "loadavg": [
+        1.65771484375,
+        1.90087890625,
+        1.94482421875
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 3,
+      "user_s": 2.475377999999999,
+      "system_s": 0.006156999999999996,
+      "wall_s": 2.4853761659469455,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.481534999999999,
+      "load_before": 1.66,
+      "loadavg": [
+        1.65771484375,
+        1.90087890625,
+        1.94482421875
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 3,
+      "user_s": 2.471720000000005,
+      "system_s": 0.00520799999999999,
+      "wall_s": 2.480434790952131,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.476928000000005,
+      "load_before": 1.66,
+      "loadavg": [
+        2.00537109375,
+        1.96875,
+        1.96826171875
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 3,
+      "user_s": 2.4617919999999955,
+      "system_s": 0.005472000000000005,
+      "wall_s": 2.470696458942257,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4672639999999957,
+      "load_before": 2.01,
+      "loadavg": [
+        2.00537109375,
+        1.96875,
+        1.96826171875
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 4,
+      "user_s": 2.477257999999999,
+      "system_s": 0.005223000000000005,
+      "wall_s": 2.4868224170058966,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.482480999999999,
+      "load_before": 2.01,
+      "loadavg": [
+        2.0849609375,
+        1.98583984375,
+        1.97412109375
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 4,
+      "user_s": 2.4821719999999985,
+      "system_s": 0.009609000000000006,
+      "wall_s": 2.4950552500085905,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4917809999999987,
+      "load_before": 2.08,
+      "loadavg": [
+        2.0849609375,
+        1.98583984375,
+        1.97412109375
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 4,
+      "user_s": 2.436979000000001,
+      "system_s": 0.00582000000000002,
+      "wall_s": 2.447080709040165,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.442799000000001,
+      "load_before": 2.08,
+      "loadavg": [
+        2.078125,
+        1.98583984375,
+        1.97412109375
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 4,
+      "user_s": 2.8095280000000002,
+      "system_s": 0.006535000000000013,
+      "wall_s": 2.8199254580540583,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.816063,
+      "load_before": 2.08,
+      "loadavg": [
+        2.078125,
+        1.98583984375,
+        1.97412109375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 4,
+      "user_s": 2.427780999999996,
+      "system_s": 0.005458000000000018,
+      "wall_s": 2.4362383749103174,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.433238999999996,
+      "load_before": 2.08,
+      "loadavg": [
+        1.99169921875,
+        1.96923828125,
+        1.96826171875
+      ]
+    },
+    {
+      "label": "main",
+      "round": 5,
+      "user_s": 2.424183999999997,
+      "system_s": 0.0065910000000000135,
+      "wall_s": 2.435265791020356,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.430774999999997,
+      "load_before": 1.99,
+      "loadavg": [
+        1.99169921875,
+        1.96923828125,
+        1.96826171875
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 5,
+      "user_s": 2.8095710000000054,
+      "system_s": 0.006817999999999991,
+      "wall_s": 2.8203755830181763,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.8163890000000054,
+      "load_before": 1.99,
+      "loadavg": [
+        1.912109375,
+        1.953125,
+        1.96240234375
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 5,
+      "user_s": 2.4966730000000013,
+      "system_s": 0.005145000000000011,
+      "wall_s": 2.505995291052386,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.5018180000000014,
+      "load_before": 1.91,
+      "loadavg": [
+        1.912109375,
+        1.953125,
+        1.96240234375
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 5,
+      "user_s": 2.502311000000006,
+      "system_s": 0.005798999999999999,
+      "wall_s": 2.5112874580081552,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.508110000000006,
+      "load_before": 1.91,
+      "loadavg": [
+        1.8388671875,
+        1.93701171875,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 5,
+      "user_s": 2.4562290000000075,
+      "system_s": 0.005967999999999973,
+      "wall_s": 2.4662163329776376,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4621970000000077,
+      "load_before": 1.84,
+      "loadavg": [
+        1.8388671875,
+        1.93701171875,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 6,
+      "user_s": 2.4456579999999946,
+      "system_s": 0.00518799999999997,
+      "wall_s": 2.4540503750322387,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4508459999999945,
+      "load_before": 1.84,
+      "loadavg": [
+        1.771484375,
+        1.92138671875,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 6,
+      "user_s": 2.491474000000011,
+      "system_s": 0.0063750000000000195,
+      "wall_s": 2.503347290912643,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.497849000000011,
+      "load_before": 1.77,
+      "loadavg": [
+        1.771484375,
+        1.92138671875,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 6,
+      "user_s": 2.4684019999999975,
+      "system_s": 0.005147000000000013,
+      "wall_s": 2.4765928339911625,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4735489999999976,
+      "load_before": 1.77,
+      "loadavg": [
+        1.78955078125,
+        1.92236328125,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 6,
+      "user_s": 2.836546999999996,
+      "system_s": 0.006854000000000027,
+      "wall_s": 2.8480105419876054,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.843400999999996,
+      "load_before": 1.79,
+      "loadavg": [
+        1.78955078125,
+        1.92236328125,
+        1.95068359375
+      ]
+    },
+    {
+      "label": "main",
+      "round": 6,
+      "user_s": 2.3970950000000073,
+      "system_s": 0.005431000000000019,
+      "wall_s": 2.4055887080030516,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4025260000000075,
+      "load_before": 1.79,
+      "loadavg": [
+        1.88623046875,
+        1.93994140625,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "main",
+      "round": 7,
+      "user_s": 2.387092999999993,
+      "system_s": 0.006129999999999969,
+      "wall_s": 2.3970173340057954,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.3932229999999928,
+      "load_before": 1.89,
+      "loadavg": [
+        1.88623046875,
+        1.93994140625,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "published-c3",
+      "round": 7,
+      "user_s": 2.8287679999999966,
+      "system_s": 0.007216,
+      "wall_s": 2.8397881250130013,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.8359839999999967,
+      "load_before": 1.89,
+      "loadavg": [
+        1.89501953125,
+        1.94091796875,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "c3",
+      "round": 7,
+      "user_s": 2.4656520000000057,
+      "system_s": 0.006902000000000019,
+      "wall_s": 2.477882375009358,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.472554000000006,
+      "load_before": 1.9,
+      "loadavg": [
+        1.89501953125,
+        1.94091796875,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "published-uart",
+      "round": 7,
+      "user_s": 2.502708999999996,
+      "system_s": 0.005427000000000015,
+      "wall_s": 2.5113423329312354,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.508135999999996,
+      "load_before": 1.9,
+      "loadavg": [
+        1.9033203125,
+        1.94189453125,
+        1.95654296875
+      ]
+    },
+    {
+      "label": "uart",
+      "round": 7,
+      "user_s": 2.418931999999998,
+      "system_s": 0.006291999999999964,
+      "wall_s": 2.4291185829788446,
+      "instructions": 4800000000,
+      "cycles": 4800000000,
+      "emulated_seconds": 30.0,
+      "exceptions": 0,
+      "interrupts": 3028,
+      "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+      "cpu_s": 2.4252239999999983,
+      "load_before": 1.9,
+      "loadavg": [
+        1.9033203125,
+        1.94189453125,
+        1.95654296875
+      ]
+    }
+  ],
+  "limitations": [
+    "Local macOS arm64 CPU-time comparison, not browser or hardware timing.",
+    "No process inventory retained; uptime one-minute load is below 3 before every subprocess, and rounded post-run load is also below 3. Aggregate load cannot exclude all brief contention.",
+    "All arms use unchanged native scheduling and identical firmware, instructions, cycles and console hash."
+  ],
+  "outcome": "Rejected: caching only new pin source bits was slower than the cached enable branch. Baseline rescans and tick return were unchanged. Targeted C3 library and transport tests passed.",
+  "patches": [
+    "scope-patches.json.gz#source-bits",
+    "scope-patches.json.gz#uart-layout"
+  ]
+}

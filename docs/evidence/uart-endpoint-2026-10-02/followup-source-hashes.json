@@ -1,0 +1,14 @@
+{
+  "esp-periph/src/uart.rs": "92c6e50725e0f02280ac1514d1c0c1b3bbb7ead2f06b4d91e9d9c84760ebe11f",
+  "esp-soc/src/board.rs": "333271a5807b94e2a1f22fd6aef371fd92852f70e9810aafb2ccab003df3d843",
+  "esp-soc/src/lib.rs": "54c9c80434d88be281b22a40541efcfdbff82db7416452cacc29e6ff7e1a06ee",
+  "esp-soc/src/uart.rs": "3a82caed5222b0e6fb05989e1c617dfb37f1754bb86138f7e92fb83c3ba7ca4e",
+  "cli/examples/uart_echo.rs": "56bd35b0576a2acfbc4b69743e1016771b750288665ee7342faba2da53e05a11",
+  "esp32s3/src/bus.rs": "655329522b7f1123902b465fe147dd786d970ea504622ed6556564e12ed2c992",
+  "esp32s3/src/periph.rs": "bfd829762357ee17cce698d83c3f354078d7ac9a2ec13e1da88adb93eb02c663",
+  "esp32c3/src/bus.rs": "37d1d1abb639a428a744ce6db0292302eb8f7e186de3a78ee4e8bda3c4466161",
+  "esp32c3/src/periph.rs": "c42a82a5f3b72abfc9b6b9c2d699756206b0ac959ed13cb8b45afbf50c984a22",
+  "esp32c6/src/bus.rs": "5075a5eeb1ff0202f21d50bea141a5d37a710b27d50d0d38f718a8e099c2cae6",
+  "esp32c6/src/periph.rs": "d46b5f08a0bb39120f8e94ab7a8f83e69d41d451794daa818c1f8f1c6b265413",
+  "cli/tests/uart_endpoint.rs": "ecf1a685e3e9eeddae95f7367046215b47842dcbe88f9d726a3dfcb9e5d24bb1"
+}

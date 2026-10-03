@@ -32,6 +32,7 @@ impl Soc for C3 {
 impl esp_soc::SocBus for SocBus {
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
+        if self.pins_active { return self.pin_deadline(); }
         match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }
     }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
@@ -98,6 +99,7 @@ impl esp_soc::SocBus for SocBus {
         // real silicon rather than POWERON.
         p.rtc.ram.write(0x38, cause | (cause << 6));
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
+        self.attach_board_devices();
         cause
     }
     fn sw_reset(&self) -> bool { self.periph.rtc.sw_reset }
@@ -119,6 +121,7 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let before = self.periph.gpio.input;
         self.periph.gpio.set_input(pin, level);
+        self.periph.gpio.input_changes.clear();
         self.irq_dirty |= before != self.periph.gpio.input;
         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
     }
@@ -140,4 +143,15 @@ impl esp_soc::SocBus for SocBus {
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
     fn audio(&self) -> (&[i16], u32) { (&[], 44100) }
     fn irq_sources_of(&self, _core: usize, line: u32) -> Vec<usize> { (0..src::COUNT).filter(|&s| self.periph.intc.map[s] == line).collect() }
+}
+
+impl SocBus {
+    #[inline(never)]
+    fn pin_deadline(&self) -> Option<u64> {
+        let timer = match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) };
+        let timer = if self.periph.rmt.rmt.is_running() { Some(timer.unwrap_or(u64::MAX).min(31)) } else { timer };
+        if !self.board_edges { return timer; }
+        let board = self.board.next_deadline().map(|t| t.saturating_sub(self.cycles).max(1));
+        match (timer, board) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
+    }
 }

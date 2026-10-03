@@ -24,9 +24,11 @@ pub struct Rmt {
     pub done: Vec<(usize, Vec<bool>)>,
     pub tx_count: u64,
     cpu_per_apb: i64,
+    running: u8,
 }
 impl Rmt {
-    pub fn new(cpu_hz: u64) -> Self { Rmt { cpu_per_apb: (cpu_hz / crate::APB_HZ) as i64, ch: Default::default(), mem: [0; RMT_MEM_WORDS * 8], int_raw: 0, int_ena: 0, sys_conf: 0, ram: RegRam::new(), done: Vec::new(), tx_count: 0 } }
+    pub fn new(cpu_hz: u64) -> Self { Rmt { running: 0, cpu_per_apb: (cpu_hz / crate::APB_HZ) as i64, ch: Default::default(), mem: [0; RMT_MEM_WORDS * 8], int_raw: 0, int_ena: 0, sys_conf: 0, ram: RegRam::new(), done: Vec::new(), tx_count: 0 } }
+    pub fn is_running(&self) -> bool { self.running != 0 }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
         match off {
@@ -52,6 +54,7 @@ impl Rmt {
                 if v & (1 << 1) != 0 { c.rd = 0; c.mem_empty = false; c.end_pending = false; }      // MEM_RD_RST
                 if v & (1 << 0) != 0 { c.running = true; c.rd = 0; c.mem_empty = false; c.end_pending = false; c.since_thr = 0; c.acc_cycles = 0; c.bits.clear(); c.loop_count = 0; }   // TX_START
                 if v & (1 << 7) != 0 { c.running = false; }                 // TX_STOP
+                self.running = (self.running & !(1 << n)) | ((c.running as u8) << n);
             }
             0x78 => self.int_ena = v, 0x7c => self.int_raw &= !v,
             0x80..=0x8c => self.ch[((off - 0x80) / 4) as usize].carrier = v,
@@ -63,6 +66,7 @@ impl Rmt {
     }
     /// Advance transmitters by CPU cycles; symbols are consumed at their programmed duration.
     pub fn tick(&mut self, cycles: u64) {
+        if !self.is_running() { return; }
         for n in 0..4 {
             let c = &mut self.ch[n];
             if !c.running { continue; }
@@ -125,6 +129,7 @@ impl Rmt {
                 if c.tx_lim & 0x1ff != 0 && c.since_thr >= c.tx_lim & 0x1ff { c.since_thr = 0; self.int_raw |= 1 << (8 + n); }   // TX_THR_EVENT
                 c.end_pending = d1 == 0;
             }
+            if !c.running { self.running &= !(1 << n); }
         }
     }
 }
@@ -140,6 +145,21 @@ impl Device for Rmt {
 #[cfg(test)]
 mod tx_stop_tests {
     use super::*;
+    #[test]
+    fn running_mask_tracks_stop_and_completion_on_each_channel() {
+        let mut r = Rmt::new(160_000_000);
+        assert!(!r.is_running());
+        for n in 0..4 {
+            r.write(0x20 + n * 4, 1);
+            r.write(0x20 + ((n + 1) % 4) * 4, 1);
+            r.write(0x20 + n * 4, 1 << 7);
+            assert!(r.is_running());
+            r.tick(1);
+            assert!(!r.is_running());
+            assert!(!r.ch.iter().any(|c| c.running));
+            assert_eq!(r.done.pop().unwrap().0, ((n + 1) % 4) as usize);
+        }
+    }
     /// The IDF 4.4 legacy driver stops a channel (TX_STOP = 1) and later starts it with a
     /// read-modify-write of CONF0: the stop must not come back and cancel the start.
     #[test]

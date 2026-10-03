@@ -10,7 +10,7 @@ use crate::radio::Ieee802154;
 use crate::wifi::{ModemBb, WifiMac};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, RegRam, WriteEffect, NO_SOURCE};
-use esp_periph::{Aes, Efuse, Gdma, Gpio, GpSpi, Rmt, Rsa, Sha, SpiMem, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
+use esp_periph::{Aes, Efuse, Gdma, Gpio, GpSpi, Rsa, Sha, SpiMem, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
 use esp_periph::{RST_POWERON, RST_SW_CPU, RST_SW_SYS};
 
 pub const CPU_HZ: u64 = 160_000_000;
@@ -244,39 +244,7 @@ impl Device for AssistDebug {
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { self.ram.write(off, v); WriteEffect::NONE }
 }
 
-/// The C6's RMT: the S3's transmitter IP with two TX and two RX channels on a compacted register
-/// map. The TX channels' CONF0 bits and the interrupt bits the model raises (TX_END n, TX_THR
-/// 8+n) are the same, so this only maps offsets onto the shared model; the RX channels read back
-/// what was written.
-pub struct RmtC6 { pub rmt: Rmt, ram: RegRam }
-impl RmtC6 {
-    pub fn new(cpu_hz: u64) -> Self { RmtC6 { rmt: Rmt::new(cpu_hz), ram: RegRam::new() } }
-    fn map(off: u32) -> Option<u32> {
-        Some(match off {
-            0x00..=0x0c => off,                                   // CHnDATA
-            0x10 | 0x14 => 0x20 + (off - 0x10),                   // CH0/1 CONF0 (TX)
-            0x28 | 0x2c => 0x50 + (off - 0x28),                   // CH0/1 STATUS
-            0x38 => 0x70, 0x3c => 0x74, 0x40 => 0x78, 0x44 => 0x7c,   // INT_RAW / ST / ENA / CLR
-            0x48 | 0x4c => 0x80 + (off - 0x48),                   // CH0/1 CARRIER_DUTY
-            0x58 | 0x5c => 0xa0 + (off - 0x58),                   // CH0/1 TX_LIM
-            0x68 => 0xc0, 0x6c => 0xc4, 0x70 => 0xc8,             // SYS_CONF, TX_SIM, REF_CNT_RST
-            0x400..=0x6fc => 0x800 + (off - 0x400),               // symbol memory, 48 words per channel
-            _ => return None,
-        })
-    }
-}
-impl Device for RmtC6 {
-    fn read(&mut self, off: u32) -> u32 { match Self::map(off) { Some(o) => self.rmt.read(o), None => self.ram.read(off) } }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect { match Self::map(off) { Some(o) => self.rmt.write(o, v), None => self.ram.write(off, v) } WriteEffect::NONE }
-    fn irq_sources(&self) -> u64 { self.rmt.irq() as u64 }
-    fn clock(&self) -> Option<ClockDomain> { Some(ClockDomain::Cpu) }
-    fn tick(&mut self, cycles: u64) { self.rmt.tick(cycles) }
-    /// A channel mid-transmission raises TX_END/TX_THR from its own symbol clock: while one
-    /// runs, time may only be skipped one symbol at a time (the shortest WS2812 symbol is
-    /// 0.4 µs; 32 cycles is under that at any RMT divider the led_strip driver uses).
-    fn has_deadline(&self) -> bool { true }
-    fn next_deadline(&self) -> Option<u64> { Some(if self.rmt.ch.iter().any(|c| c.running) { 32 } else { u64::MAX }) }
-}
+pub use esp_periph::rmt_compact::RmtCompact as RmtC6;
 
 /// The C6's GDMA: three channels with the S3's per-channel registers but the interrupt registers
 /// gathered at the front of the block (IN at 0x00 + 0x10n, OUT at 0x30 + 0x10n) and the channel
@@ -362,6 +330,8 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
+    pub io_mux: RegRam,
+    pub i2c: esp_periph::i2c::I2c,
     pub efuse: Efuse,
     pub spi0: SpiMemC6,
     pub spi1: SpiMemC6,
@@ -395,6 +365,7 @@ pub struct Peripherals {
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+    0x04 "I2C0" (i2c) => [src::I2C_EXT0];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x01 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI0" (spi0) => [];
@@ -411,6 +382,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x88 "AES" (aes) => [src::AES];
     0x89 "SHA" (sha) => [];
     0x8a "RSA" (rsa) => [src::RSA];
+    0x90 "IO_MUX" (io_mux) => [];
     0x91 "GPIO" (gpio) => [src::GPIO];
     0x96 "PCR" (pcr) => [];
     0xa0 "MODEM_BB" (modem_bb) => [];
@@ -444,7 +416,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
@@ -473,9 +445,27 @@ impl Peripherals {
         }
     }
 
+    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
+        let clock = self.pcr.read(4 + port as u32 * 12);
+        esp_soc::uart::UartPins::C6.route(port, &self.gpio, &self.io_mux,
+            self.uart[port].baud(clock, 20_000_000))
+    }
+
+    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
+        let routes: [_; 2] = std::array::from_fn(|port| self.uart_route(port));
+        esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
+    }
+
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
+    fn i2c_pin(&self, signal: usize) -> Option<u8> {
+        esp_soc::pins::ChipPins::C6.routes(&self.gpio, &self.io_mux).i2c_pin(signal)
+    }
+
     pub fn write32(&mut self, addr: u32, v: u32) {
+        if addr == 0x6000_4004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
+            self.i2c.set_pins(self.i2c_pin(46).zip(self.i2c_pin(45)));
+        }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
     }
 

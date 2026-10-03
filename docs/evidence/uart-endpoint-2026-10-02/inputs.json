@@ -1,0 +1,77 @@
+[
+  {
+    "file": "target/uart-evidence/firmware/s3/firmware.bin",
+    "bytes": 294608,
+    "sha256": "f9fbebf24df169acc768fac5f4c02674d7a4c37c6ddbebe0cee03b57b721ee51"
+  },
+  {
+    "file": "target/uart-evidence/firmware/s3/firmware.elf",
+    "bytes": 6370176,
+    "sha256": "85bab94d538c88f6408739bd1a6894f1b07111cc26a6f33a3bf88ade6b49ea9e"
+  },
+  {
+    "file": "target/uart-evidence/firmware/s3/bootloader.bin",
+    "bytes": 19984,
+    "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432"
+  },
+  {
+    "file": "target/uart-evidence/firmware/s3/partitions.bin",
+    "bytes": 3072,
+    "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+  },
+  {
+    "file": "ROM_DIR/esp32s3_rev0_rom.elf",
+    "bytes": 949552,
+    "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c3/firmware.bin",
+    "bytes": 290128,
+    "sha256": "a0eec3033ea96fddc55f4f8bdd45ac6f173ca7c3f9da454b9510e8970f1564c7"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c3/firmware.elf",
+    "bytes": 6194312,
+    "sha256": "2a2cd81647ccb12b5db4ea8c8491d2c4fad3bda1e6e4520f71991f78671c2f23"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c3/bootloader.bin",
+    "bytes": 19520,
+    "sha256": "da409642ea1619c16b4ef485219a91c3c2ae873ce3bae37330c24100bd747439"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c3/partitions.bin",
+    "bytes": 3072,
+    "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+  },
+  {
+    "file": "ROM_DIR/esp32c3_rev3_rom.elf",
+    "bytes": 556332,
+    "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c6/firmware.bin",
+    "bytes": 268640,
+    "sha256": "953bed3a99a7d941113b7cb60f242d2e77b6ca5c7550998a858b170cd477ed82"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c6/firmware.elf",
+    "bytes": 6188328,
+    "sha256": "fc291adb1bbed37dba0c38da4624810001019cbd06af4944f228e2e58dacc791"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c6/bootloader.bin",
+    "bytes": 20976,
+    "sha256": "022390206caedbc5f780cd955b31e1dd1219091f374e420cd0531b2f5b5b5037"
+  },
+  {
+    "file": "target/uart-evidence/firmware/c6/partitions.bin",
+    "bytes": 3072,
+    "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+  },
+  {
+    "file": "ROM_DIR/esp32c6_rev0_rom.elf",
+    "bytes": 489768,
+    "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+  }
+]

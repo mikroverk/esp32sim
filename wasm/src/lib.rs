@@ -116,6 +116,7 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
     } else if let Some(b) = c6_board {
         let mut m = esp32c6::machine([0xdc, 0x1e, 0xd5, 0x6e, 0x8c, 0xdc], flash_bytes);
         m.bus.board = b;
+        m.bus.attach_board_devices();
         m.bus.set_flash_size(flash_bytes);
         m.console.mask = 2;
         prepare(&mut m);

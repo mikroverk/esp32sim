@@ -1,0 +1,35 @@
+{
+  "reason": "Remove session details, inaccessible fork references and superseded patch; preserve numeric results and artifact hashes.",
+  "files": [
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/README.md",
+      "original_sha256": "70ccabf2a2d8b28b57fe3a4772e4beedd31942aac4cfbf4634336bcc8eb7e071",
+      "sanitized_sha256": "1b26de29a5bf09f845349794c0412ff79ded3d9e6ba76e4291aaafca71eb43c4",
+      "previous_sanitized_sha256": [
+        "60c809c541e93b68bcb7d5f83969ac802e37e81f1229d372b5b74fc40cbd4ea3"
+      ],
+      "before_scoped_followup_sha256": "60c809c541e93b68bcb7d5f83969ac802e37e81f1229d372b5b74fc40cbd4ea3"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/results.json",
+      "original_sha256": "be50cc36362d8296cf7f590a3535731a7fd862421979c3ab8be6a5de04ce3322",
+      "sanitized_sha256": "a8f82cd63c33b2f0126fa56ea8215b6c73389f6eb32dd5b1596342fd0d7ba6c9"
+    },
+    {
+      "file": "docs/evidence/uart-endpoint-2026-10-02/arduino-candidate.patch",
+      "original_sha256": "2ab9c95666c062813a21fdd397d5d4d2bedcc04bc9ac53ff36d428781aa700c5",
+      "status": "deleted: superseded candidate"
+    },
+    {
+      "file": "docs/experiments.md",
+      "original_sha256": "57138685fb3feae36db06ff601abfefcb5556c3344b7fc29b5731247b04e5436",
+      "sanitized_sha256": "8c33e68b9b6945204183982caa40caf29381d3fbc3b7c7a91879ba45acf6b9e6",
+      "previous_sanitized_sha256": [
+        "a6f080d6eb998d58c7fd3d0a2b00595d682597bf43df9c072c5b3a23f17933d3"
+      ],
+      "before_scoped_followup_sha256": "b1c328e1e0c929c0a96f0686c6a5638cf5978c7a4a355e9586e2612e5e242b69"
+    }
+  ],
+  "effect": "Removed session narrative and superseded candidate references; historical numeric measurements and artifact hashes retained. Sanitized hashes include the review corrections and check/CPU evidence links. Final hashes include the scoped CPU follow-up and inherited C3 evidence row; historical numeric results and original artifact hashes remain in their receipts.",
+  "previous_receipt_sha256": "01cb864c53e9a9d9edced126ce5d325e208e711f47cfcb86768f49e315f15302"
+}

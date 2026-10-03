@@ -1,0 +1,35 @@
+Clean dddb128 S3 baseline, no echo endpoint
+UART echo=FAIL bytes=0
+UART echo=FAIL bytes=0
+UART FAIL reset
+[emu] chip reset at t=2.053s: cause 0xc (RTC_SW_CPU_RESET)
+
+C3 before fix, representative diagnostic
+RX route=UartRoute { port: 1, tx_pins: 32, rx_pin: None, baud: Some(9600) } pin=4 bytes=[85] mux=200 matrix=44 raw=4002 ena=80195
+
+s3 final acceptance
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+chip=esp32s3 received=40 mismatches=2 wrong_pin=0 resets=2
+
+c3 final acceptance
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+chip=esp32c3 received=40 mismatches=2 wrong_pin=0 resets=2
+
+c6 final acceptance
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+UART echo=PASS bytes=10
+UART echo=PASS bytes=10
+UART PASS reset
+chip=esp32c6 received=40 mismatches=2 wrong_pin=0 resets=2
