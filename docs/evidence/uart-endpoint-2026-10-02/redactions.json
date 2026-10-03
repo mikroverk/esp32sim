@@ -4,7 +4,10 @@
     {
       "file": "docs/evidence/uart-endpoint-2026-10-02/README.md",
       "original_sha256": "70ccabf2a2d8b28b57fe3a4772e4beedd31942aac4cfbf4634336bcc8eb7e071",
-      "sanitized_sha256": "60c809c541e93b68bcb7d5f83969ac802e37e81f1229d372b5b74fc40cbd4ea3"
+      "sanitized_sha256": "277b8662e647b50140e19e539f80b527ca689e8cd14b524ba7c227687522ea86",
+      "previous_sanitized_sha256": [
+        "60c809c541e93b68bcb7d5f83969ac802e37e81f1229d372b5b74fc40cbd4ea3"
+      ]
     },
     {
       "file": "docs/evidence/uart-endpoint-2026-10-02/results.json",
@@ -19,8 +22,13 @@
     {
       "file": "docs/experiments.md",
       "original_sha256": "57138685fb3feae36db06ff601abfefcb5556c3344b7fc29b5731247b04e5436",
-      "sanitized_sha256": "a6f080d6eb998d58c7fd3d0a2b00595d682597bf43df9c072c5b3a23f17933d3"
+      "sanitized_sha256": "f6fe63ee0389a931529ae2049295860f274da5ad143459b7c6a781658586919a",
+      "previous_sanitized_sha256": [
+        "a6f080d6eb998d58c7fd3d0a2b00595d682597bf43df9c072c5b3a23f17933d3"
+      ]
     }
   ],
-  "effect": "Removed session narrative and superseded candidate references; historical numeric measurements and artifact hashes retained. Sanitized hashes include the review corrections and check/CPU evidence links."
+  "effect": "Removed session narrative and superseded candidate references; historical numeric measurements and artifact hashes retained. Sanitized hashes include the review corrections and check/CPU evidence links.",
+  "previous_receipt_sha256": "01cb864c53e9a9d9edced126ce5d325e208e711f47cfcb86768f49e315f15302",
+  "followup": "Quiet results appended; historical numeric samples, artifact hashes and earlier sanitized hashes are retained."
 }
