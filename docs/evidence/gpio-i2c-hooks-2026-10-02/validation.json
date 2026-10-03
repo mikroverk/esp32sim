@@ -1,0 +1,195 @@
+{
+  "experiment": "EX209",
+  "date": "2026-10-02",
+  "base": "dddb128052dca15250e2169b92ab73c4d87f524c",
+  "implementation": "1582deb2fff03d060ecb5739d2dd8b457dfe231d",
+  "behavior_reference": "221080ffccfa829106b398f896653535853c76c8",
+  "source_files": {
+    "cli/tests/gpio_i2c_hooks.rs": {
+      "bytes": 7693,
+      "sha256": "859195084e355b2c31d09083d0d467a0319bc414e834bb417aa780c6180933d2"
+    },
+    "esp-periph/src/i2c.rs": {
+      "bytes": 8372,
+      "sha256": "28e6da0616b94a9b97444685de0698935764d9042bbd5080c8eaef13bab951b7"
+    },
+    "esp-soc/src/lib.rs": {
+      "bytes": 968,
+      "sha256": "ca9be32336a908365fbe3a0e4bce82ded16eb1202e3f489645437510e3cce135"
+    },
+    "esp-soc/src/soc.rs": {
+      "bytes": 7610,
+      "sha256": "4082e6b7650432d0dfeaa7a1bba1a4528b9053a77f8c56acef976453f55d9ae1"
+    },
+    "esp32c3/src/soc.rs": {
+      "bytes": 8524,
+      "sha256": "21d86cbaf64e52e3132a5d760b5264ba4b27cebb8b5aff92bc114747074d9b8a"
+    },
+    "esp32c6/src/soc.rs": {
+      "bytes": 9100,
+      "sha256": "39b7102ac220b69bed4b796eeb4da67f13ae30ffaefc3f42f7349044359e7c92"
+    },
+    "esp32s3/src/bus.rs": {
+      "bytes": 52688,
+      "sha256": "bf442a38942af4873bb5e307b415877e5155b5dbe60e2077468a76c295ee40e8"
+    },
+    "esp32s3/src/soc.rs": {
+      "bytes": 14236,
+      "sha256": "7a1a7cfa8b600e5d6adde26bd0b98309b415a80b39b417cf6f3166ca6b45bd96"
+    }
+  },
+  "environment": {
+    "os": "Darwin",
+    "arch": "arm64",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "1.96.0 (30a34c682 2026-05-25)",
+    "node": "v22.23.1",
+    "platformio": "6.1.19",
+    "platform": "55.3.38+sha.fbdfc29",
+    "arduino": "3.3.8",
+    "arduino_libs": "5.5.4+sha.735507283d",
+    "xtensa_toolchain": "14.2.0+20260121",
+    "wasm_flags": "-Cllvm-args=-inline-threshold=2000",
+    "wasm_debug": "0",
+    "wasm_strip": "debuginfo",
+    "wasm_opt": false
+  },
+  "inputs": {
+    "bootloader.bin": {
+      "bytes": 19984,
+      "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432"
+    },
+    "partitions.bin": {
+      "bytes": 3072,
+      "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+    },
+    "firmware.bin": {
+      "bytes": 356592,
+      "sha256": "440182a26c66cc803ece0006fbe0946ee0f44ad006f2e5a0c746079367cf47cb"
+    },
+    "firmware.elf": {
+      "bytes": 7126960,
+      "sha256": "e2a77e30b2f8caa05dd1ff9091ac859db2d17fd8be37a860884301799a2b9473"
+    },
+    "esp32s3_rev0_rom.elf": {
+      "bytes": 949552,
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+    },
+    "main.cpp": {
+      "bytes": 662,
+      "sha256": "089398f1fe7b76fccd051827dc060437875027dcb0f9569313acc91e2f98e042"
+    },
+    "platformio.ini": {
+      "bytes": 176,
+      "sha256": "fdc3fde30244d21b557221eb3726d40045833aae4050a8a2d7908015277777a5"
+    }
+  },
+  "artifacts": {
+    "target/release/esp32sim": {
+      "bytes": 2201272,
+      "sha256": "e4e14268db3860287fa5b9a55901834769c1af4a9fe93c236974316d7cca9aef"
+    },
+    "target/release/deps/gpio_i2c_hooks-b1ee0a6656763288": {
+      "bytes": 1997136,
+      "sha256": "7eafe0d3fe7d183ebffc0d7a8868c8740caf17bac5ea6d30fa64aabd9b44f933"
+    },
+    "web/wasm/esp32sim.wasm": {
+      "bytes": 2112504,
+      "sha256": "432f3b7b3f8bd8eb79b13087a88a16f871d03e1df3313d68c1cd8d6372d48600"
+    }
+  },
+  "checks": [
+    {
+      "command": "pio run -d \"$hooks_project\"",
+      "attempt": 1,
+      "exit": 1,
+      "error": "PermissionError: [Errno 1] Operation not permitted: '/Users/alice/.platformio/platforms.lock'"
+    },
+    {
+      "command": "pio run -d \"$hooks_project\"",
+      "attempt": 2,
+      "change": "Granted package-cache write access through the sandbox approval mechanism. Firmware unchanged.",
+      "exit": 0
+    },
+    {
+      "command": "cargo test -p esp32sim --test gpio_i2c_hooks",
+      "exit": 0,
+      "passed": 5,
+      "ignored": 1
+    },
+    {
+      "command": "cargo build --release",
+      "exit": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "attempt": 1,
+      "exit": 1,
+      "error": "error[E0463]: can't find crate for `esp32s3` at cli/src/lib.rs:315:13; error: doctest failed, to rerun pass `-p esp32sim --doc`",
+      "conditions": "A focused Cargo rebuild overlapped the workspace run; this is a possible cause, not a proven root cause."
+    },
+    {
+      "command": "cargo test --workspace",
+      "attempt": 2,
+      "change": "No concurrent Cargo commands or source edits.",
+      "exit": 0,
+      "passed": 466,
+      "failed": 0,
+      "ignored": 23
+    },
+    {
+      "command": "tools/wasm-build.sh",
+      "exit": 0,
+      "scope": "Build only; no browser runtime test."
+    },
+    {
+      "command": "HOOKS_FIRMWARE=\"$hooks_project/.pio/build/s3\" cargo test --release -p esp32sim --test gpio_i2c_hooks arduino_s3_gpio_and_i2c_detach -- --ignored --nocapture",
+      "environment": "HOOKS_ROM supplied by caller",
+      "exit": 0,
+      "passed": 1,
+      "cycles": 11000000,
+      "retired_instructions": 4694155,
+      "reboots": 0,
+      "serial_checkpoints": [
+        "HOOK pullup",
+        "snapshot GpioState { output: false, output_enable: false, pull_up: true, pull_down: false }",
+        "HOOK pulldown",
+        "snapshot GpioState { output: false, output_enable: false, pull_up: false, pull_down: true }",
+        "HOOK output",
+        "snapshot GpioState { output: true, output_enable: true, pull_up: false, pull_down: false }",
+        "HOOK i2c 0 0",
+        "HOOK i2c 1 2",
+        "HOOK i2c 2 0",
+        "HOOK i2c 3 2",
+        "HOOK done",
+        "cycles=11000000 instructions=4694155 reboots=0"
+      ]
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "attempt": 1,
+      "exit": 1,
+      "error": "validation.json: personal home-directory label",
+      "cause": "A period directly after the normalized home label was parsed as part of the label. Delimited that label with backticks; no private original was present."
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit": 0,
+      "manual_review": "New README, JSON, sketch, PlatformIO config, test source and EX209 row reviewed; no private identifiers retained.",
+      "attempt": 2
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "limits": [
+    "Snapshot describes programmed GPIO and IO_MUX registers, not resolved electrical state or peripheral-matrix output.",
+    "C3/C6 GPIO tests drive registers; Arduino pinMode and Wire checks run on S3 only.",
+    "C3/C6 digital I2C controllers are outside this change.",
+    "No hardware, browser-execution or performance claim.",
+    "The 23 ignored workspace tests include this Arduino check, which was run separately; other ignored external-fixture tests were not enabled."
+  ],
+  "privacy": "Home-directory label in the first PlatformIO error normalized to `/Users/alice`. Kept compact outcomes and test checkpoints; omitted package-cache paths, compiler logs and unrelated boot output. No original private captures are committed.",
+  "cleanup": "Temporary PlatformIO .pio removed after recording firmware identities and the final Arduino pass."
+}

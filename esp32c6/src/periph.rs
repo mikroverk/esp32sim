@@ -362,6 +362,7 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
+    pub io_mux: RegRam,
     pub efuse: Efuse,
     pub spi0: SpiMemC6,
     pub spi1: SpiMemC6,
@@ -411,6 +412,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x88 "AES" (aes) => [src::AES];
     0x89 "SHA" (sha) => [];
     0x8a "RSA" (rsa) => [src::RSA];
+    0x90 "IO_MUX" (io_mux) => [];
     0x91 "GPIO" (gpio) => [src::GPIO];
     0x96 "PCR" (pcr) => [];
     0xa0 "MODEM_BB" (modem_bb) => [];
@@ -444,7 +446,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
