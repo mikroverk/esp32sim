@@ -180,7 +180,7 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x13 "I2C0" alias (i2c) => [src::I2C_EXT0];
     0x16 "RMT" alias (rmt) => [src::RMT];
     0x24 "SPI2" alias (spi2) => [src::SPI2];
-    0x19 "LEDC" (ledc) => [src::LEDC];
+    0x19 "LEDC" optional (ledc) => [src::LEDC];
     // the efuse controller shares the RTC block on the C3, at +0x800
     0x08 "EFUSE" (efuse) delta -0x800 @ 0x800..=0xfff => [];
     0x08 "RTCCNTL" (rtc) => [];
@@ -269,6 +269,7 @@ impl Peripherals {
         if addr == PERIPH_BASE + 0xc0018 && v & (1 << 11) != 0 { self.ledc = Ledc::new(LedcLayout::C3); }
         if addr == PERIPH_BASE + 0xc0010 || addr == PERIPH_BASE + 0xc0018 {
             self.ledc.clock_enabled = self.system.read(0x10) & (1 << 11) != 0 && self.system.read(0x18) & (1 << 11) == 0;
+            self.refresh_optional(0x19);
         }
     }
 

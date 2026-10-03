@@ -141,7 +141,7 @@ impl Device for Mcpwm {
         }
         WriteEffect::NONE
     }
-    fn clock(&self) -> Option<ClockDomain> { if self.clock_enabled { Some(ClockDomain::Apb) } else { None } }
+    fn clock(&self) -> Option<ClockDomain> { if (0..3).any(|timer| self.settings(timer).is_some()) { Some(ClockDomain::Apb) } else { None } }
     fn irq_sources(&self) -> u64 { u64::from(self.raw & self.regs.read(0x110) != 0) }
     fn tick(&mut self, ticks: u64) {
         for timer in 0..3 {
