@@ -39,21 +39,21 @@ single correctness-run observations, with no controlled load or speed claim.
 ## Reproduce
 
 Provide `NET_URL` as a URL reachable from host sockets, for example
-`http://<host-address>:18765/`. The virtual gateway `10.0.2.2` is not an alias for
+`http://127.0.0.1:18765/`. The virtual gateway `10.0.2.2` is not an alias for
 host loopback. Set `ROM_DIR` to the Espressif ROM ELF directory. Firmware uses
 Arduino-ESP32 3.3.8 with the pinned PlatformIO platform in `platformio.ini`.
 
 From the repository root, create a temporary sketch project and host server:
 
 ```sh
-export NET_URL='http://<host-address>:18765/'
+export NET_URL='http://127.0.0.1:18765/'
 export ROM_DIR='/path/to/esp-rom-elfs'
 P=/tmp/esp32sim-net-reproduce
 mkdir -p "$P/src" "$P/http"
 cp docs/evidence/ethernet-c3-2026-10-02/platformio.ini "$P/"
 cp docs/evidence/ethernet-c3-2026-10-02/main.cpp "$P/src/"
 printf 'upstream-net-ok\n' > "$P/http/index.html"
-python3 -m http.server 18765 --bind 0.0.0.0 --directory "$P/http"
+python3 -m http.server 18765 --bind 127.0.0.1 --directory "$P/http"
 ```
 
 In another terminal with the same variables, build all environments together.
@@ -138,3 +138,104 @@ values and pass/fail checks were preserved. These omissions prevent reconstructi
 of the local network configuration, but do not change the packet or HTTP result.
 No binary, private capture, process inventory or application inventory was
 committed. All evidence files were manually reviewed and are below 50 KB.
+
+## PR #170 review follow-up
+
+Baseline `6feac19acfb2128e50ae1fb1a2f56eb1df4131ef`; corrected source
+`df0f5c118c6f33ba2eca25c12d88397a58e0ce51`. This extends EX202 with the
+requested firmware golden, interrupt-bit and relay backpressure contracts, and
+CPU measurements. FE_IQ now evaluates completion on register access at the same
+80th APB edge, including odd CPU start cycles. It has no tick or deadline hook.
+The EX047 scheduling quantum is unchanged.
+
+The C3 GDMA `Device` adapter goes through MMIO logging and observation. Independent
+one-hot interrupt tests cover raw, enable, status, clear and matrix routing on
+all three channels. Swapping IN DONE/SUC_EOF bits makes the test fail. The relay
+test keeps its queue full across ticks, checks descriptor recycling and airtime,
+and fails when each chip's relay path drains all queued frames. S3 reboot keeps
+the external AP and network, including NAT, while resetting MAC queues. Tests
+check that fix and count oversize/full-queue TX drops on all three chips.
+
+`review-checks.json` records source/firmware hashes and results. Both required
+Clippy commands passed with Rust 1.99.0 and warnings denied. The release workspace
+suite passed 480 tests, zero failed/ignored, with 14 external tests filtered.
+All eight requested WASM manifests passed. Existing goldens are unchanged; only
+`wifi-station-c3.station.txt` was added. No JIT code changed.
+
+The C3 station input reuses `examples/c6-wifi-station`, with the LCD disabled,
+ESP-IDF 5.5.4, and the default synthetic WPA2 network. It scans, joins, receives
+`10.0.2.15`, and receives five of five gateway ping replies. The new golden was
+created once and then checked without `UPDATE_GOLDENS`. The IDF build recipe is
+in that example's README. This run used installed PlatformIO packages:
+
+```sh
+P=/tmp/pr170-station
+mkdir -p "$P"
+cp -R examples/c6-wifi-station/main "$P/"
+cp examples/c6-wifi-station/CMakeLists.txt "$P/"
+cat > "$P/sdkconfig.defaults" <<'CONFIG'
+CONFIG_IDF_TARGET="esp32c3"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+CONFIG_STATION_LCD=n
+CONFIG
+cat > "$P/platformio.ini" <<'CONFIG'
+[env:c3]
+platform = espressif32
+board = esp32-c3-devkitm-1
+framework = espidf
+board_build.sdkconfig_defaults = sdkconfig.defaults
+[platformio]
+src_dir = main
+CONFIG
+UV_CACHE_DIR=/tmp/pr170-uv pio run -d "$P"
+B=/tmp/pr170-station-input
+mkdir -p "$B/bootloader" "$B/partition_table"
+cp "$P/.pio/build/c3/bootloader.bin" "$B/bootloader/bootloader.bin"
+cp "$P/.pio/build/c3/partitions.bin" "$B/partition_table/partition-table.bin"
+cp "$P/.pio/build/c3/firmware.bin" "$B/c6_wifi_station.bin"
+cp "$P/.pio/build/c3/firmware.elf" "$B/c6_wifi_station.elf"
+C3_WIFI_STATION_BUILD="$B" ESP32SIM_ROM_DIR="$ROM_DIR" \
+  cargo +1.99.0 test --release -p esp32sim --test goldens external_wifi_station_c3 -- --exact
+```
+
+The installed platform version was `55.3.39+sha.cbc3349`; using another installed
+`espressif32` can change the build. The receipt pins the framework/toolchain
+versions and binary hashes. The first build failed on the sandbox's UV cache
+permissions, then on ESP-IDF's sysctl access; the authorized build succeeded.
+The first focused-test compile lacked the `Bus` trait import; adding the import
+fixed it. These failures are not counted as passing checks.
+
+For CPU measurements, build each source with `cargo +1.99.0 build --release -p
+esp32sim`, preserve its `esp32sim-c3` executable, then run from the repository root:
+
+```sh
+python3 docs/evidence/ethernet-c3-2026-10-02/bench-c3.py \
+  /path/to/before /path/to/after "$ROM_DIR/esp32c3_rev3_rom.elf" > /tmp/c3-timing.json
+```
+
+The script runs c3-hello for 30 emulated seconds, three times per executable in
+alternating order. CPU time is child user plus system time. Every run must report
+4,800,000,000 accounted instructions, and all console hashes must match. Counts
+include idle accounting; they are not retired busy instructions. No benchmarks
+from this task overlap this final batch. Other machine activity is uncontrolled;
+aggregate load is retained without process names or host identities.
+
+Final alternating CPU seconds, before/after by pair: 2.622587/2.660453,
+2.648567/2.679748, 2.651733/2.667746. Medians are 2.648567/2.667746,
+**0.72% more CPU time** after the review changes. Each run has 4,800,000,000
+accounted instructions and the same console SHA-256. FE_IQ's scheduling work is
+removed, but this whole-change comparison does not establish a speedup or isolate
+that change from the GDMA wrapper/code layout. One-minute system load was
+10.56–11.29; this is one in-use machine, with no confidence interval.
+
+The earlier non-alternating batch is retained in `review-initial-timing.json`:
+before 2.560053, 2.469549, 2.578199 CPU seconds; initial candidate 3.534965,
+3.142974, 2.754620. Its strong drift motivated the alternating follow-up rather
+than deleting the negative result. All six also reported 4,800,000,000 instructions.
+The initial candidate preceded the odd-cycle APB alignment correction; binary
+hashes distinguish it from the final source. Raw logs remain outside Git in
+`/tmp`; retained receipts contain no personal paths, process inventories or host
+identities. No original historical artifact hashes were replaced.
