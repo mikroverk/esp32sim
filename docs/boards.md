@@ -7,7 +7,10 @@ the C6's boards live in `esp32c6::board`):
 pub trait BoardModel {
     fn name(&self) -> &'static str;
     fn gpio_changes(&mut self, changes: &[(u8, bool)]) {}      // output edges, in order
-    fn rmt_frame(&mut self, ch: usize, bits: &[bool]) {}       // a decoded RMT transmission
+    fn gpio_output_at(&mut self, cycle: VirtualCycle, changes: &[(u8, bool)], enabled: u64, output: u64) {}
+    fn uses_spi_pins(&self) -> bool                          // opt in to route decoding
+    fn spi_transfer_pins(&mut self, host: u8, pins: SpiPins, tx: &[u8], rx_len: usize) -> Vec<u8>
+    fn rmt_frame(&mut self, pin: u8, bits: &[bool]) {}       // a decoded RMT transmission
     fn spi_transfer(&mut self, host: u8, tx: &[u8], rx_len: usize) -> Vec<u8>
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> // (bus, address, device)
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)>    // for the UI/PNG: w, h, RGB565, change counter
@@ -28,6 +31,12 @@ pub trait BoardModel {
     fn camera_preview(&self, w: u32, h: u32) -> Option<Vec<u8>>       // RGB for the UI
 }
 ```
+
+`gpio_output_at` includes output-enable changes and emulated bus cycles. Its default calls
+`gpio_changes` for level changes. `uses_spi_pins` enables `spi_transfer_pins`, whose `SpiPins`
+contains physical SCLK/MOSI/CS masks and a MISO pin. `I2cDevice::pins` optionally binds
+a device to (SDA, SCL); fixed devices keep their controller-only behavior.
+`esp_soc::pins::ChipPins` decodes GPIO matrix and IO_MUX routes.
 
 The SoC model produces the events; the board interprets them. `make_board(name)` maps the
 `--board` argument to an implementation.

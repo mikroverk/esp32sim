@@ -7,6 +7,8 @@ use crate::regram::RegRam;
 use std::collections::VecDeque;
 
 pub trait I2cDevice {
+    /// Optional physical (SDA, SCL) attachment. None keeps controller-only addressing.
+    fn pins(&self) -> Option<(u8, u8)> { None }
     /// Address phase: the master addressed this device for a read (`read`) or a write. Return ACK.
     fn start(&mut self, _read: bool) -> bool { true }
     /// One data byte from the master. Return ACK.
@@ -29,6 +31,7 @@ pub struct I2c {
     cmd: [u32; 8],
     devices: Vec<(u8, Box<dyn I2cDevice>)>,
     cur: Option<usize>,
+    pins: Option<(u8, u8)>,
     expect_addr: bool,
     nack: bool,
     pub log: bool,
@@ -37,16 +40,22 @@ pub struct I2c {
 
 impl I2c {
     pub fn new() -> Self {
-        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 8], devices: Vec::new(), cur: None, expect_addr: false, nack: false,
+        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 8], devices: Vec::new(), cur: None, pins: None, expect_addr: false, nack: false,
               log: false, transactions: 0 }
     }
-    /// A device attached at an occupied address replaces the one there: a board swapped before
+    /// A device attached at an occupied address and pin pair replaces the one there: a board swapped before
     /// boot (`esp32sim_set_measured_te`) must not leave the old board's devices answering.
     pub fn attach(&mut self, addr: u8, dev: Box<dyn I2cDevice>) {
-        match self.devices.iter_mut().find(|(attached, _)| *attached == addr) {
+        match self.devices.iter_mut().find(|(attached, old)| *attached == addr && old.pins() == dev.pins()) {
             Some(slot) => slot.1 = dev,
             None => self.devices.push((addr, dev)),
         }
+    }
+    pub fn has_pinned_devices(&self) -> bool { self.devices.iter().any(|(_, d)| d.pins().is_some()) }
+    /// Current controller route, supplied by the SoC before starting a command list.
+    pub fn set_pins(&mut self, pins: Option<(u8, u8)>) {
+        if self.pins != pins { self.cur = None; }
+        self.pins = pins;
     }
     pub fn has_device(&self, addr: u8) -> bool { self.devices.iter().any(|(attached, _)| *attached == addr) }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
@@ -94,7 +103,7 @@ impl I2c {
                         let ack = if self.expect_addr {
                             self.expect_addr = false;
                             let addr = b >> 1; let rd = b & 1 != 0;
-                            self.cur = self.devices.iter().position(|(a, _)| *a == addr);
+                            self.cur = self.devices.iter().position(|(a, d)| *a == addr && (d.pins().is_none() || d.pins() == self.pins));
                             if self.log { eprintln!("[i2c] start addr {:#04x} {}{}", addr, if rd { "R" } else { "W" }, if self.cur.is_none() { " (no device)" } else { "" }); }
                             match self.cur { Some(k) => self.devices[k].1.start(rd), None => false }
                         } else {
