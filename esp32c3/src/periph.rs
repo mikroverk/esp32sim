@@ -137,9 +137,6 @@ pub use esp_periph::Rng;
 
 pub struct Peripherals {
     pub adc: esp_periph::sar_adc::SarAdc,
-    pub wifi: crate::wifi::WifiMac,
-    pub fe_iq: crate::wifi::FeIq,
-    pub i2c_mst: crate::wifi::I2cMst,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
     pub systimer: Systimer,
@@ -161,7 +158,7 @@ pub struct Peripherals {
     pub misc: Misc,
     pub spi_exec: bool,
     pub work_pending: bool,
-    wifi_irq: u32, // cached source 0; updated with feature work, not polled by each interrupt scan
+    wifi_irq: bool, // cached source 0; updated with feature work, not polled by each interrupt scan
     clock: ClockTree<4>,
     last_status: [u32; 4],
     pin_irqs_enabled: bool,
@@ -169,6 +166,9 @@ pub struct Peripherals {
     pub spi2: Box<GpSpi>,
     pub rmt: Box<RmtCompact>,
     pub io_mux: RegRam,
+    pub wifi: crate::wifi::WifiMac,
+    pub fe_iq: crate::wifi::FeIq,
+    pub i2c_mst: crate::wifi::I2cMst,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
@@ -233,7 +233,7 @@ impl Peripherals {
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
             gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, work_pending: false, wifi_irq: 0, clock: Self::new_clock(),
+            misc: Misc::new(), spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
             last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
@@ -284,7 +284,7 @@ impl Peripherals {
 
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
-        self.wifi_irq = self.wifi.irq() as u32;
+        self.wifi_irq = self.wifi.irq();
         self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.ap.is_some();
     }
 
@@ -306,7 +306,7 @@ impl Peripherals {
             if self.spi2.irq() { st[0] |= 1 << src::SPI2; }
             if self.rmt.rmt.irq() { st[0] |= 1 << src::RMT; }
         }
-        st[0] |= self.wifi_irq;
+        st[0] |= self.wifi_irq as u32;
         st
     }
 
