@@ -1,0 +1,71 @@
+{
+  "source_revision": "2336c5825bd5bee16a771ac582826f4217677228",
+  "cases": [
+    {
+      "name": "pin_irq_enable_participation",
+      "file": "esp32c3/src/periph.rs",
+      "old": "self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;",
+      "new": "self.pin_irqs_enabled = false;",
+      "last_occurrence_only": false,
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "--release",
+        "-p",
+        "esp32c3",
+        "--lib",
+        "pin_interrupt_participation_tracks_enable_registers",
+        "--",
+        "--skip",
+        "external_"
+      ],
+      "exit": 101,
+      "killed": true
+    },
+    {
+      "name": "pin_irq_matrix_delivery",
+      "file": "esp32c3/src/periph.rs",
+      "old": "        if self.pin_irqs_enabled { return self.refresh_pin_lines(); }\n",
+      "new": "",
+      "last_occurrence_only": false,
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "--release",
+        "-p",
+        "esp32c3",
+        "--test",
+        "pin_transport",
+        "--",
+        "--skip",
+        "external_"
+      ],
+      "exit": 101,
+      "killed": true
+    },
+    {
+      "name": "rmt_completion_participation",
+      "file": "esp32c3/src/bus.rs",
+      "old": "        self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running();\n",
+      "new": "",
+      "last_occurrence_only": true,
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "test",
+        "--release",
+        "-p",
+        "esp32c3",
+        "--lib",
+        "pin_clock_participation_stops_when_rmt_finishes",
+        "--",
+        "--skip",
+        "external_"
+      ],
+      "exit": 101,
+      "killed": true
+    }
+  ]
+}

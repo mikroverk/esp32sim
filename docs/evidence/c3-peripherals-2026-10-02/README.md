@@ -157,3 +157,66 @@ Three c3-hello runs, 30 emulated seconds each, user plus system CPU seconds:
 Every run executed 4,800,000,000 instructions/cycles with zero exceptions and identical console SHA-256. C3 improves 10.0% against its published branch but remains 6.1% above main. UART adds 0.02% to the corrected C3 median. These are local macOS arm64 CPU samples under uncontrolled background load, not browser or hardware timing. No process inventory was retained.
 
 Reproduce with `python3 docs/evidence/c3-peripherals-2026-10-02/bench-idle.py FW main=MAIN_BINARY published-c3=PUBLISHED_C3_BINARY fixed-c3=FIXED_C3_BINARY published-uart=PUBLISHED_UART_BINARY fixed-uart=FIXED_UART_BINARY`. The harness writes logs and the JSON receipt under `/tmp`; supply firmware and binaries explicitly.
+
+## Scoped idle participation revision
+
+This continues EX205 with the original scheduler contract. C3 tick always returns
+1, and existing interrupt sources are rescanned every scheduler round. The added
+RMT and board services participate only while configured. Pin interrupt enable
+writes select the added-source path. The three new controllers are boxed after
+the existing hot fields; C3-only inlining preserves the baseline fixed-device
+clock path. SPI2 delivery remains submission-driven. No baseline interrupt cache
+is introduced.
+
+`pin_clock_participation_stops_when_rmt_finishes` checks active and idle transitions
+and the unchanged tick return. `pin_interrupt_participation_tracks_enable_registers`
+checks all three added controllers. The transport tests check mapped CPU lines
+as well as source bits. All three targeted mutations are killed; see
+[scope-mutations.json](scope-mutations.json).
+
+[scope-pilots.json](scope-pilots.json) retains the exploratory samples and rejected
+variants. [scope-patches.json.gz](scope-patches.json.gz) preserves their patches
+against the stated base. The ablation is a diagnostic with pin behavior disabled,
+not a correctness candidate. The boxed trial overlapped a later build and is
+invalid for acceptance. The final comparison uses separate build directories
+and frozen binaries with hashes checked before and after timing. Two earlier
+final batches were rejected when one-minute load reached 3; their partial samples
+are excluded. A harness warmup failed before measured rounds because its round
+argument shadowed the rounding function; the harness was corrected and restarted.
+
+The final harness is adapted from the supplied quiet benchmark. Run
+`python3 docs/evidence/c3-peripherals-2026-10-02/scope-bench.py FW main=MAIN_BINARY published-c3=PUBLISHED_C3_BINARY c3=C3_BINARY published-uart=PUBLISHED_UART_BINARY uart=UART_BINARY`.
+Build each arm with `CARGO_TARGET_DIR=ARM_TARGET cargo +1.99.0 build --release -p esp32sim --bin esp32sim`
+in its own checkout. It waits for `uptime` one-minute load below 3 before each
+subprocess and rejects a batch if load reaches 3 during a sample. Outputs stay
+in `/tmp`. Raw profiler process metadata is not retained; curated counts omit
+identities, paths and loaded-image inventories. Numeric samples and artifact
+hashes are unchanged by this omission.
+
+The first complete five-arm run missed the median threshold: main 2.405076 s, C3
+2.420847 s, UART 2.426573 s. Both ranges overlapped main, but +0.66% and +0.89%
+exceeded +0.5%. [scope-before.json](scope-before.json) retains this result.
+
+Final two-arm comparison: three seven-round batches with identical main and C3
+binary hashes. Pooled CPU medians are main 2.411907 s and C3
+2.418538 s, +0.27%. Ranges are 2.377721 to
+2.446411 s and 2.389145 to 2.430564 s. Each run executes
+4,800,000,000 instructions/cycles with zero exceptions, 3028 interrupts and the
+same console hash. Individual batch deltas were -0.46%, +0.56% and +0.98%; the
+pooled result meets the threshold, with visible variation between batches.
+
+The original published head `e6daec5` measured 2.844415 s against main 2.405076 s
+in the earlier seven-round five-arm reference. Final acceptance uses two arms,
+as requested. [scope-cpu.json](scope-cpu.json) retains all matching two-arm
+batches, source/input/binary hashes, load readings and limits. [scope-before.json](scope-before.json)
+retains the five-arm reference. The cold-deadline, source-bit-cache and enable-word
+trials were rejected; their receipts and patches remain alongside the earlier
+pilots. The optional-callback trial was rejected after disassembly because it
+still saved a frame and added an indirect call. None of these later trials is
+in the adopted code.
+
+[scope-review.json](scope-review.json) records both Clippy checks, 497 passing
+workspace tests and all eight WASM demos. Goldens are unchanged.
+[scope-profile.json](scope-profile.json) contains curated profile and assembly
+observations; [scope-exclusions.json](scope-exclusions.json) records rejected
+load batches. Raw captures and full build logs stay outside Git.
