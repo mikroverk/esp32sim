@@ -161,6 +161,14 @@ impl SocBus {
         self.irq_dirty = true;
     }
 
+    #[inline(never)]
+    fn receive_uart_input(&mut self) {
+        for input in self.board.uart_rx(self.cycles) {
+            self.periph.uart_pin_input(&input);
+            self.irq_dirty = true;
+        }
+    }
+
     /// Execute a pending SPI1 command against the flash image.
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
@@ -214,12 +222,7 @@ impl SocBus {
             }
         }
         self.periph.gpio.input_changes.clear();
-        if self.uart_pins {
-            for input in self.board.uart_rx(self.cycles) {
-                self.periph.uart_pin_input(&input);
-                self.irq_dirty = true;
-            }
-        }
+        if self.uart_pins { self.receive_uart_input(); }
         1
     }
 }
