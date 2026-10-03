@@ -16,8 +16,10 @@ fork at `221080f` was consulted as context, not used as an upstream dependency.
 
 ## S3/C3 design and shared contract
 
-`esp-soc::ble::Controller` exchanges H4 packets and supplies one virtual central
-and one virtual Battery Service peripheral. Shared VHCI glue resolves controller
+The original `esp-soc::ble::Controller` combined H4 handling with the peer.
+The PR #172 revision separates `ble::peer::Session` and its boxed `HciController`
+from the virtual central and Battery Service peer. They communicate through the
+packet link; scripts wait for advertising and serialize ATT requests. Shared VHCI glue resolves controller
 lifecycle, memory-release, power and packet functions from the application ELF.
 The adapters provide memory bounds, callback validation and guest trampolines.
 No Bluetooth MMIO block, product ABI or device catalogue was added.
@@ -247,3 +249,37 @@ identify original in-memory output and normalized retained output; redaction
 changes labels only, not measured values or protocol bytes. Prior diagnostic
 hashes remain in `negatives.json`. Full normalized logs and initial diagnostic
 summaries stay under ignored `target/ble`. Nothing was pushed or posted.
+
+
+## PR #172 review revision
+
+The revision starts at published head `00928a3a6d145ae18438a299142c241dfbd6f4c1`.
+It changes the controller/peer boundary and the adapter correctness contract,
+not the BLE workload or a performance mechanism. The prior receipts above remain
+historical results. `review172.json` records the new checks and input hashes;
+`review172-mutations.json` records the five deliberately broken variants.
+The updated `native-rv.S` saves the transport result across both guest free
+functions; its original form remains at the published head.
+
+Run the Arduino checks with:
+
+```sh
+ESP32SIM_BLE_FIRMWARE_DIR=/path/to/arduino-builds \
+ESP32SIM_ROM_DIR=/absolute/path/to/roms \
+cargo +1.99.0 test --release -p esp32sim --test ble external_ble_arduino_examples -- --nocapture
+```
+
+The builds use the same CHIP/EXAMPLE/.pio/build/BOARD layout as `run.py`.
+The test requires all twelve Server/Notify/Write/Scan builds and fails with the
+missing input name. It neither skips nor marks itself ignored.
+
+Retained intermediate failures: the CLI regression initially reached app boot
+before script parsing; script loading now precedes boot. The first Arduino pass
+rejected C6 because the new descriptor reader used offset 144. The installed IDF
+header and ELF section both place `idf_ver` at offset 112; the reader and test
+were corrected before the final validation. Neither failure changed a golden.
+
+Raw logs remain in `/tmp`. The committed summaries omit local paths, process
+identifiers and console captures, retaining hashes, checks, numeric results and
+limitations. No speed improvement or radio-timing accuracy is claimed. Without
+`--ble`, no new work is added to instruction dispatch or idle advancement.
