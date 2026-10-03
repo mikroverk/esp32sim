@@ -147,3 +147,72 @@ mutation checks. The evidence privacy check passed. No JIT code changed.
 The earlier receipt's nonexistent base hash was corrected to
 `dddb128052dca15250e2169b92ab73c4d87f524c`; earlier firmware results and artifact hashes are unchanged.
 No personal paths, hostnames, usernames or raw private captures are included in this follow-up.
+
+## Quiet-machine idle follow-up
+
+The supplied quiet-machine result was main 2.430 s versus PR 167 2.504 s, +3.0%.
+This extends EX204 and EX114 with explicit unused-device call counts and a comparison against
+upstream `ed34b22`, using seven interleaved rounds after a warmup and a load threshold.
+Earlier negative measurements above remain part of the record.
+
+At `71ceb16`, c3-hello made 229,519,576 LEDC clock queries and 75,256,512 IRQ queries despite
+zero LEDC writes and ticks. The earlier clock guard had removed ticking, not polling.
+`f1abd7d` registers PWM blocks for ticking only while configured and caches their IRQ bits on
+writes and ticks. Clock/reset changes refresh registration; paused and one-shot timers leave it,
+while asserted IRQ bits remain until cleared. The optional tick helper stays outside the inlined
+static-device loop. No scheduling quantum, instruction batch or timer deadline was changed.
+The repeated profile made only 61 clock and 61 IRQ queries, all at configuration boundaries.
+[Counter receipt](idle-profile.json) and [instrumentation script](instrument-idle.py).
+
+The first implementation put the optional-device work inside the tick function; its partial
+measurement was stopped while waiting above load 3. Its [patch](idle-inline.patch.gz) and
+[samples](idle-inline-partial.json) are preserved; it has no seven-round estimate.
+The outlined version still measured +0.976% versus main, above the requested +0.5% limit.
+That [complete result](idle-intermediate.json) is retained. `f544d6d` then replaced the per-source
+mask-and-merge with one cached merge per affected status word.
+
+Final seven-round CPU user+system results:
+
+| Arm | Revision | Median CPU s | Range CPU s |
+| --- | --- | ---: | --- |
+| Main | `ed34b22` | 2.425023 | 2.397953–2.446829 |
+| Published PR 167 | `d59b5d2` | 2.462887 | 2.449728–2.524860 |
+| After | `f544d6d` | 2.432365 | 2.414160–2.483557 |
+
+After is **+0.303% versus main**, with overlapping ranges, satisfying the
+requested limit. Published is +1.561% versus main in this comparison.
+All 21 accepted samples retired 4,800,000,000 instructions and cycles over 30.000 emulated
+seconds, with zero exceptions, 3028 interrupts and the same console SHA-256
+`3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd`.
+The accepted start/end 1-minute loads were below 3, maximum
+2.936523.
+Pauses were required while other jobs ran; attempts ending at load 3 or higher were discarded.
+These ranges include remaining host/frequency variation. The claim is the requested native
+idle regression bound, not a general emulator speedup.
+
+[Full final samples, input and binary hashes](idle-final.json).
+The [benchmark script](benchmark-idle.py) adapts the supplied `/tmp/bench-quiet.py` only to add
+load gating, separate output names and correct stale three-round metadata. Build every arm in
+its own source directory and target directory with `cargo +1.99.0 build --release -p esp32sim`.
+The measured builds used `CARGO_TARGET_DIR=/tmp/pr167-main-target`,
+`/tmp/pr167-published-target` and `/tmp/pr167-candidate2-target` respectively.
+Then run:
+
+```sh
+python3 docs/evidence/pwm-arduino-2026-10-02/benchmark-idle.py "$FW" \
+  main=/tmp/pr167-main-target/release/esp32sim \
+  published=/tmp/pr167-published-target/release/esp32sim \
+  after=/tmp/pr167-candidate2-target/release/esp32sim
+```
+
+`FW` is the caller's firmware directory containing the ROM ELF and `public/` demo images.
+The JSON records the exact CLI arguments, firmware hashes and toolchain. No personal paths,
+process inventories, hostnames or login names are retained. The benchmark JSON was already
+free of those fields; only provenance, summary statistics and clarified limitations were added.
+Its original file hash is retained as `source_result_sha256`.
+
+Final validation on the word-merge implementation: both Rust 1.99.0 Clippy commands with
+warnings denied passed; the release workspace suite with `--include-ignored --skip external_`
+passed 487 tests, zero ignored, 13 filtered. Goldens stayed bit-identical. The wasm build and all
+eight requested demos passed. The new dispatch and SoC tests cover zero idle polling, activation,
+clock gating, pause, one-shot removal, asserted IRQ retention, clear and reset. No JIT code changed.
