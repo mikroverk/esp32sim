@@ -85,3 +85,21 @@ Run Cargo commands sequentially. Export `HOOKS_ROM` before the firmware test.
 The test requires Espressif's `esp32s3_rev0_rom.elf`; the receipt identifies the
 ROM used here. The PlatformIO project pins pioarduino `55.03.38-1`, Arduino-ESP32
 3.3.8 and board `esp32-s3-devkitc-1`.
+
+
+## PR 175 review, October 3
+
+Revision `d3d2071` on published head `18118d6` replaces the C3/C6 generic
+IO_MUX lookup with typed register storage and makes `GpioState` non-exhaustive
+with a constructor. This extends EX209's correctness checks; it is not a timing
+retry. Both old-lookup mutations fail the corresponding snapshot test. The
+release workspace suite passes 475 tests with no ignored tests and 14 external
+tests filtered out. Both Clippy commands and all eight WASM manifests pass;
+goldens remain unchanged.
+
+[review175.json](review175.json) records commands, results, artifact hashes and
+limits. The external Arduino test now runs by its full name
+`external_arduino_s3_gpio_and_i2c_detach` without `--ignored`; provide
+`HOOKS_ROM` and `HOOKS_FIRMWARE` as above. The historical Arduino run was not
+repeated for this review. Its missing-input check fails with a message naming
+`HOOKS_FIRMWARE`. No JIT code or idle scheduling path changed.
