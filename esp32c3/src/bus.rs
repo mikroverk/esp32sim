@@ -43,6 +43,7 @@ pub struct SocBus {
     /// a bare module: nothing on the pins
     pub board: esp_soc::Board,
     pub(crate) board_edges: bool,
+    pub(crate) pins_active: bool,
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     /// a peripheral write may have moved an interrupt line: re-derive before the next instruction
@@ -61,7 +62,7 @@ impl SocBus {
             rtc_slow: vec![0; (RTC_SLOW_HIGH - RTC_SLOW_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [MMU_INVALID; MMU_ENTRIES],
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), board_edges: false,
+            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), board_edges: false, pins_active: false,
             cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(),
         }
     }
@@ -109,6 +110,7 @@ impl SocBus {
         };
         let drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
+        if a & !0xfff == 0x6001_6000 { self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running(); }
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
@@ -125,10 +127,12 @@ impl SocBus {
     /// Attach controller 0 devices and reconnect board inputs after a reset.
     pub fn attach_board_devices(&mut self) {
         self.board_edges = self.board.uses_gpio_edges();
+        self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running();
         for (bus, address, device) in self.board.i2c_devices() {
             if bus == 0 { self.periph.i2c.attach(address, device); }
         }
         for (pin, level) in self.board.input_levels() { self.periph.gpio.set_input(pin, level); }
+        self.periph.gpio.input_changes.clear();
         self.irq_dirty = true;
     }
 
@@ -180,16 +184,22 @@ impl SocBus {
     }
 
     /// Run the SPI1 controller if the guest just kicked it, then advance device time.
+    #[inline(always)]
     fn devices(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
         self.periph.tick(cycles as u64);
-        if !self.periph.rmt.rmt.done.is_empty() {
-            for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
-                let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
-                self.board.rmt_frame(pin, &bits);
-                self.irq_dirty = true;
-            }
+    }
+
+    #[inline(never)]
+    fn tick_with_pins(&mut self, cycles: u32) -> u32 {
+        self.devices(cycles);
+        if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
+        for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
+            let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
+            self.board.rmt_frame(pin, &bits);
+            self.irq_dirty = true;
         }
+        self.pins_active = self.board_edges || self.periph.rmt.rmt.is_running();
         if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
             self.board.advance_to(self.cycles);
             for edge in self.board.take_edges() {
@@ -198,7 +208,8 @@ impl SocBus {
                 self.irq_dirty = true;
             }
         }
-        if !self.periph.gpio.input_changes.is_empty() { self.periph.gpio.input_changes.clear(); }
+        self.periph.gpio.input_changes.clear();
+        1
     }
 }
 
@@ -259,6 +270,7 @@ impl Bus for SocBus {
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
+        if self.pins_active { return self.tick_with_pins(cycles); }
         self.devices(cycles);
         1
     }
@@ -267,4 +279,23 @@ impl Bus for SocBus {
     /// a peripheral write may have moved a line: the core's run stops so the machine re-derives it
     #[inline(always)]
     fn block_break(&self) -> bool { self.irq_dirty }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_clock_participation_stops_when_rmt_finishes() {
+        let mut bus = SocBus::new(4 << 20, [0; 6]);
+        assert!(!bus.pins_active);
+        assert_eq!(bus.tick(64), 1);
+        bus.write32(0x6001_6010, 1 | 1 << 8 | 1 << 16).unwrap();
+        assert!(bus.pins_active);
+        assert!(esp_soc::SocBus::next_deadline(&bus).is_some_and(|n| n <= 31));
+        assert_eq!(bus.tick(64), 1);
+        assert!(!bus.pins_active);
+        assert!(bus.periph.rmt.rmt.done.is_empty());
+        assert_eq!(bus.tick(64), 1);
+    }
 }

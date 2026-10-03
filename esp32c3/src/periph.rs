@@ -136,10 +136,6 @@ impl Device for Extmem {
 pub use esp_periph::Rng;
 
 pub struct Peripherals {
-    pub i2c: I2c,
-    pub spi2: GpSpi,
-    pub rmt: RmtCompact,
-    pub io_mux: RegRam,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
     pub systimer: Systimer,
@@ -162,17 +158,22 @@ pub struct Peripherals {
     pub spi_exec: bool,
     clock: ClockTree<4>,
     last_status: [u32; 4],
+    pin_irqs_enabled: bool,
+    pub i2c: Box<I2c>,
+    pub spi2: Box<GpSpi>,
+    pub rmt: Box<RmtCompact>,
+    pub io_mux: RegRam,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
-device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x10 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI1" (spi1) => [];
     0x03 "SPI0" (spi0) => [];
     0x04 "GPIO" (gpio) => [src::GPIO];
     0x09 "IO_MUX" (io_mux) => [];
-    // These three devices are serviced below only when active.
+    // Pin clocks and sources participate only when active.
     0x13 "I2C0" alias (i2c) => [src::I2C_EXT0];
     0x16 "RMT" alias (rmt) => [src::RMT];
     0x24 "SPI2" alias (spi2) => [src::SPI2];
@@ -207,7 +208,7 @@ impl DeviceSet for Peripherals {
 impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
-            i2c: I2c::new(), spi2: GpSpi::new(), rmt: RmtCompact::new(CPU_HZ), io_mux: RegRam::new(),
+            i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
@@ -216,7 +217,7 @@ impl Peripherals {
             gdma: Gdma::new(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
-            last_status: [0; 4],
+            last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
 
@@ -242,18 +243,21 @@ impl Peripherals {
             self.i2c.set_pins(pins);
         }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
+            self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
+        }
     }
 
-    /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
+    /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
+    #[inline(always)]
     pub fn tick(&mut self, cycles: u64) {
         Dispatch::tick(self, cycles);
-        if self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); }
     }
 
+    #[inline(always)]
     pub fn cycles_until_timer(&self) -> u32 {
-        let timer = Dispatch::cycles_until_deadline(self);
-        if self.rmt.rmt.is_running() { timer.min(31) } else { timer }
+        Dispatch::cycles_until_deadline(self)
     }
 
     /// Which interrupt sources are asserted right now.
@@ -269,10 +273,37 @@ impl Peripherals {
 
     /// Refresh the interrupt matrix; returns true if any source changed.
     pub fn refresh_lines(&mut self) -> bool {
+        if self.pin_irqs_enabled { return self.refresh_pin_lines(); }
+        let st = Dispatch::source_status(self);
+        let changed = st != self.last_status;
+        self.last_status = st;
+        self.intc.lines.update(&self.intc.map, &st);
+        changed
+    }
+
+    #[inline(never)]
+    fn refresh_pin_lines(&mut self) -> bool {
         let st = self.source_status();
         let changed = st != self.last_status;
         self.last_status = st;
         self.intc.lines.update(&self.intc.map, &st);
         changed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_interrupt_participation_tracks_enable_registers() {
+        let mut p = Peripherals::new([0; 6]);
+        assert!(!p.pin_irqs_enabled);
+        for (addr, bit) in [(0x6001_3028, 1 << 7), (0x6002_4034, 1 << 12), (0x6001_6040, 1)] {
+            p.write32(addr, bit);
+            assert!(p.pin_irqs_enabled);
+            p.write32(addr, 0);
+            assert!(!p.pin_irqs_enabled);
+        }
     }
 }

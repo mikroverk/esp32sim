@@ -340,6 +340,7 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
     let state = Arc::new(Mutex::new(State::default()));
     m.bus.board = Box::new(Board(state.clone()));
     m.bus.attach_board_devices();
+    m.bus.periph.intc.map[esp32c3::periph::src::RMT] = 5;
     for ch in 0..2u32 {
         let pin = 5 + ch;
         m.bus.write32(0x6000_4554 + pin * 4, 51 + ch).unwrap();
@@ -370,7 +371,11 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
             m.bus.periph.source_status()[0] & (1 << esp32c3::periph::src::RMT),
             0
         );
+        m.bus.periph.refresh_lines();
+        assert_ne!(m.bus.periph.intc.lines.level & (1 << 5), 0);
         m.bus.write32(0x6001_6044, 1 << ch).unwrap();
+        m.bus.periph.refresh_lines();
+        assert_eq!(m.bus.periph.intc.lines.level & (1 << 5), 0);
         assert_eq!(
             m.bus.periph.source_status()[0] & (1 << esp32c3::periph::src::RMT),
             0
@@ -421,7 +426,7 @@ fn idle_board_does_not_receive_clock_callbacks() {
     m.bus.board = Box::new(Idle);
     m.bus.attach_board_devices();
     let _ = esp_soc::SocBus::next_deadline(&m.bus);
-    m.bus.tick(64);
+    assert_eq!(m.bus.tick(64), 1);
     assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
     assert!(m.bus.periph.rmt.rmt.done.is_empty());
 }
@@ -436,15 +441,24 @@ fn pin_interrupts_follow_enable_clear_and_spi_completion() {
         (0x6001_3000, 0x28, 0x24, 1 << 7, src::I2C_EXT0),
         (0x6002_4000, 0x34, 0x38, 1 << 12, src::SPI2),
     ] {
+        bus.periph.intc.map[source] = 5;
         bus.write32(base + ena, bit).unwrap();
         if source == src::I2C_EXT0 { assert_eq!(read_i2c(bus), (true, 11)); }
         else { spi(bus); }
         assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.periph.refresh_lines();
+        assert_ne!(bus.periph.intc.lines.level & (1 << 5), 0);
         bus.write32(base + ena, 0).unwrap();
         assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.periph.refresh_lines();
+        assert_eq!(bus.periph.intc.lines.level & (1 << 5), 0);
         bus.write32(base + ena, bit).unwrap();
         assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.periph.refresh_lines();
+        assert_ne!(bus.periph.intc.lines.level & (1 << 5), 0);
         bus.write32(base + clr, bit).unwrap();
         assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
+        bus.periph.refresh_lines();
+        assert_eq!(bus.periph.intc.lines.level & (1 << 5), 0);
     }
 }
