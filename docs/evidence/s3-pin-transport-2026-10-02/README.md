@@ -82,7 +82,7 @@ that false positive in one retry.
 
 ## Reproduce
 
-Set `ESP32SIM_ROM` to an S3 revision-0 ROM ELF, for example the ROM supplied by
+Set `ESP32SIM_ROM_DIR` to a directory containing `esp32s3_rev0_rom.elf`, for example the ROM supplied by
 PlatformIO's `tool-esp-rom-elfs` package. The ROM hash is in `results.json`.
 Run these commands from the repository root:
 
@@ -93,7 +93,7 @@ cp docs/evidence/s3-pin-transport-2026-10-02/platformio.ini "$transport_dir/"
 cp docs/evidence/s3-pin-transport-2026-10-02/main.cpp "$transport_dir/src/"
 pio run -d "$transport_dir"
 ESP32SIM_TRANSPORT_BUILD="$transport_dir/.pio/build/s3" \
-  cargo test --release -p esp32s3 --test pin_transport arduino_pin_transport -- --ignored --nocapture
+  cargo test --release -p esp32s3 --test pin_transport external_s3_arduino_pin_transport -- --nocapture
 cargo test -p esp32s3 --test pin_transport
 cargo build --release
 cargo test --workspace
@@ -115,3 +115,11 @@ omitted. Home paths in the failure description use the normalized label
 hostnames, or private captures are included. These omissions do not alter the
 checks or measured values. Firmware and ROM binaries are identified by hash and
 are not committed; rebuilding may produce different firmware hashes.
+
+## Upstream review checks
+
+[review.json](review.json) records the Rust 1.99.0 checks and the FUN_IE mutation
+result. The test now clears FUN_IE while preserving MCU_SEL. GPIO output delivery
+retains the change buffer. Route decoding uses `esp_soc::pins::ChipPins`.
+The external test has a chip-specific name, requires `ESP32SIM_ROM_DIR`, and is
+excluded by `--skip external_`, with no ignore attribute.
