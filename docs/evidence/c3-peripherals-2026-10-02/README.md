@@ -137,3 +137,23 @@ path in an error uses `/Users/alice/`. Commands accept caller-supplied ROM and
 build paths. No host identity, process inventory, device identifier, or private
 capture is retained. Omissions do not change measured values or input hashes.
 No previously published receipt was sanitized or replaced.
+
+## Review revision (EX205)
+
+The C3 now skips idle RMT ticking, SPI completion polling, board clock/edge callbacks and disabled pin interrupt sources. Board GPIO capability is cached at attachment; RMT tracks active channels in a mask. SPI transfers are delivered on submission. The reset selector, retained GPIO buffer and idle board path have regression tests, including interrupt enable/clear/completion transitions.
+
+[review.json](review.json) records the full check results. [cpu-rmt-final.json](cpu-rmt-final.json) records the adopted native CPU comparison, all samples, revisions, binary/input hashes, command, correctness checks and limitations. The other `cpu-*.json` files retain earlier and rejected measurements; the two `rejected-*.patch` files preserve the later unadopted candidates. This revises EX205's measurement quality and idle-path mechanism; it does not introduce a new experiment.
+
+Three c3-hello runs, 30 emulated seconds each, user plus system CPU seconds:
+
+| Build | CPU seconds | Median |
+|---|---|---|
+| main | 2.606990, 2.624362, 2.614370 | 2.614370 |
+| Published C3 | 3.080239, 3.079602, 3.059772 | 3.079602 |
+| Corrected C3 | 2.753298, 2.773484, 2.772790 | 2.772790 |
+| Published UART | 2.708919, 2.738410, 2.696680 | 2.708919 |
+| Corrected UART on C3 stack | 2.803772, 2.748303, 2.773400 | 2.773400 |
+
+Every run executed 4,800,000,000 instructions/cycles with zero exceptions and identical console SHA-256. C3 improves 10.0% against its published branch but remains 6.1% above main. UART adds 0.02% to the corrected C3 median. These are local macOS arm64 CPU samples under uncontrolled background load, not browser or hardware timing. No process inventory was retained.
+
+Reproduce with `python3 docs/evidence/c3-peripherals-2026-10-02/bench-idle.py FW main=MAIN_BINARY published-c3=PUBLISHED_C3_BINARY fixed-c3=FIXED_C3_BINARY published-uart=PUBLISHED_UART_BINARY fixed-uart=FIXED_UART_BINARY`. The harness writes logs and the JSON receipt under `/tmp`; supply firmware and binaries explicitly.
