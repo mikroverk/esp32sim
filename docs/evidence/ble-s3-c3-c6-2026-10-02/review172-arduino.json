@@ -1,0 +1,381 @@
+{
+  "source_revision": "01a1bfc916f31c39dfeb9169605ac828b1a7e5a0",
+  "emulator_sha256": "7b0752a99c2fc0dffb06aa58b6eb2752f33a94ea332870ede6e95912ae95a2a5",
+  "runs": [
+    {
+      "chip": "s3",
+      "example": "Server",
+      "script": "0.5 ble connect\n0.6 ble discover\n1.0 ble read 0x0010\n",
+      "exit_code": 0,
+      "checks": {
+        "Hello World says Neil": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.258738,
+      "wall_to_advertising_s": 0.3547812079777941,
+      "wall_s": 0.41443012503441423,
+      "hashes": {
+        "firmware.elf": "1c7ff0672f1ed91092cd3c6eb4fcb55549601a58d63dc301b3631e297f789ef8",
+        "firmware.factory.bin": "56e1c2b891723741a411127e1948064dbebce91e346781b32693e6ad2e787c9d"
+      },
+      "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+      "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "log_sha256": "da8f5a115eaea4f6a0bef0d6cb92c46fe1f3f894e272adb5650ff7b5ad3c666b",
+      "serial_sha256": "f99b3e95b2bfb40c5e9a997463cdc2b0cbc1951d2650ead63c4a6ede37741b19",
+      "original_log_sha256": "da8f5a115eaea4f6a0bef0d6cb92c46fe1f3f894e272adb5650ff7b5ad3c666b",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — core0 9682631 + core1 2932774 insns in 0.1s wall = 86.8 Minsn/s; emulated 1.300s (312000000 cycles); 28804 exceptions, 4087 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "s3",
+      "example": "Notify",
+      "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble subscribe 0x0011\n",
+      "exit_code": 0,
+      "checks": {
+        "notification handle=0x0010": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true,
+        "incrementing_notifications": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.25681,
+      "wall_to_advertising_s": 0.10593008401338011,
+      "wall_s": 0.8468962920596823,
+      "hashes": {
+        "firmware.elf": "2f161863689698c559f3e35daeb9caaac30e8a086e51db2308a0fd1502af62bf",
+        "firmware.factory.bin": "ebb406bc4cea5679f91f733f1a25577eb5c592c9ebadf66c2d8d4463466e5998"
+      },
+      "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+      "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "log_sha256": "cfa2efcdc4275aa1ade9aff8fef82bc496d12b3fd77c4443ab53739800ba6c9b",
+      "serial_sha256": "6cb252e4ef5762f4f498158fb89fedf1e9f16ad7e79fd3e9191d508668f28e17",
+      "original_log_sha256": "cfa2efcdc4275aa1ade9aff8fef82bc496d12b3fd77c4443ab53739800ba6c9b",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — core0 13955280 + core1 63707081 insns in 0.8s wall = 94.8 Minsn/s; emulated 2.600s (624000000 cycles); 47036 exceptions, 7994 interrupts",
+      "notification_values": [
+        "01000000",
+        "02000000",
+        "03000000",
+        "04000000"
+      ]
+    },
+    {
+      "chip": "s3",
+      "example": "Write",
+      "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble write 0x0010 48656c6c6f2066726f6d20686f7374\n0.8 ble read 0x0010\n",
+      "exit_code": 0,
+      "checks": {
+        "New value: Hello from host": true,
+        "text=\"Hello from host\"": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.258744,
+      "wall_to_advertising_s": 0.10521199996583164,
+      "wall_s": 0.1648765829158947,
+      "hashes": {
+        "firmware.elf": "92e2a4386ea508167bb2af6ad3eaba65ff64d513874b82174e4539c1e30b93c4",
+        "firmware.factory.bin": "263e15fcf046c9d0f62a9913ec56417625b305225712c32ead3f4db5e112e9c5"
+      },
+      "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+      "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "log_sha256": "bfd47e582876bbd50b2d1b179e52534f69946ba992638dbeedefbad0fc70d2d7",
+      "serial_sha256": "e247f202e3a7ab2bf30f85d3134dc102a2d45b801d9f1038f62198b87826e76a",
+      "original_log_sha256": "bfd47e582876bbd50b2d1b179e52534f69946ba992638dbeedefbad0fc70d2d7",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — core0 9424171 + core1 2820139 insns in 0.1s wall = 83.4 Minsn/s; emulated 1.200s (288000000 cycles); 27694 exceptions, 3789 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "s3",
+      "example": "Scan",
+      "script": "",
+      "exit_code": 0,
+      "checks": {
+        "Name: esp32sim": true,
+        "Devices found: 1": true,
+        "Scan done!": true,
+        "clean_stop": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": null,
+      "wall_to_advertising_s": null,
+      "wall_s": 0.3848917499417439,
+      "hashes": {
+        "firmware.elf": "ea2bdd6b959c8e27c16e2b749f14eb7f72a410090a5e4dbe5fb9c051ce9717f0",
+        "firmware.factory.bin": "fa93e65805e64c80c71e5c77f9cec6f9cc3ed99ea6a7617343869c34281364cd"
+      },
+      "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+      "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "log_sha256": "9da022d0c33e76bf212ef949b8b3c5fa69d0b13af382c5afad8a6648279b0540",
+      "serial_sha256": "4486fe98269b3e6ce6c5c7eda30430019822ca11157891ba41af1d74d25c9f83",
+      "original_log_sha256": "9da022d0c33e76bf212ef949b8b3c5fa69d0b13af382c5afad8a6648279b0540",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — core0 23362505 + core1 7790698 insns in 0.4s wall = 85.6 Minsn/s; emulated 5.600s (1344000000 cycles); 87186 exceptions, 16950 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "c3",
+      "example": "Server",
+      "script": "0.5 ble connect\n0.6 ble discover\n1.0 ble read 0x0010\n",
+      "exit_code": 0,
+      "checks": {
+        "Hello World says Neil": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.267993,
+      "wall_to_advertising_s": 0.09690154192503542,
+      "wall_s": 0.2109217499382794,
+      "hashes": {
+        "firmware.elf": "b3980df8c4c1f5ad79495341f201753e3352d061e6cad071573136467650631b",
+        "firmware.factory.bin": "18d6ad705d6d0338b426d48363c5a8dfd1a0beb1965171d8dcf19cbd57471921"
+      },
+      "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+      "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "log_sha256": "536f363443d06039732b5d1091976beae4aadb23a53cee9d0a763c6f43d2e175",
+      "serial_sha256": "531c8d182f2e795f346fb60d170de124470bc38df5545c587802731a4426f1bf",
+      "original_log_sha256": "536f363443d06039732b5d1091976beae4aadb23a53cee9d0a763c6f43d2e175",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 208000000 insns in 0.2s wall = 1070.3 Minsn/s; emulated 1.300s (208000000 cycles); 0 exceptions, 2672 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "c3",
+      "example": "Notify",
+      "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble subscribe 0x0011\n",
+      "exit_code": 0,
+      "checks": {
+        "notification handle=0x0010": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true,
+        "incrementing_notifications": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.266153,
+      "wall_to_advertising_s": 0.09427683299873024,
+      "wall_s": 0.8341411669971421,
+      "hashes": {
+        "firmware.elf": "3380e947cee68a70bd1ec08a536d46bfe55a63414cd77f104b62f50b7bab4144",
+        "firmware.factory.bin": "25a82f4f102a5b9be0e784ef12eb3ce067f1c7137cca63f6aa2ccc608e45be3c"
+      },
+      "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+      "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "log_sha256": "f23e4a9f604a364ec032d4976b96560235ae9ff412751d67eb184c517bf487a6",
+      "serial_sha256": "2e4004168b9e649d00d7e3439abfb0c556ed36876bd648dcf2f604c420f2e075",
+      "original_log_sha256": "f23e4a9f604a364ec032d4976b96560235ae9ff412751d67eb184c517bf487a6",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 416000000 insns in 0.8s wall = 507.9 Minsn/s; emulated 2.600s (416000000 cycles); 0 exceptions, 5282 interrupts",
+      "notification_values": [
+        "01000000",
+        "02000000",
+        "03000000",
+        "04000000"
+      ]
+    },
+    {
+      "chip": "c3",
+      "example": "Write",
+      "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble write 0x0010 48656c6c6f2066726f6d20686f7374\n0.8 ble read 0x0010\n",
+      "exit_code": 0,
+      "checks": {
+        "New value: Hello from host": true,
+        "text=\"Hello from host\"": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.268008,
+      "wall_to_advertising_s": 0.09882016701158136,
+      "wall_s": 0.20772454200778157,
+      "hashes": {
+        "firmware.elf": "2b65c1263b3adba1dd16873e9cffbb6d2adbc95338e9a159f0368ee62e401560",
+        "firmware.factory.bin": "a66e94a7056ff3ddcc71c2a5c74234329bd716055e0275c4d8cf801ced684b5e"
+      },
+      "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+      "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "log_sha256": "a4adbf297b28a9c865fcf6e267950b85f477637d90e7a885f9245b3d8f683d42",
+      "serial_sha256": "f853fba11a7625da30715f64fd14aabcce7d2083c88bad42f66307210343c490",
+      "original_log_sha256": "a4adbf297b28a9c865fcf6e267950b85f477637d90e7a885f9245b3d8f683d42",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 192000000 insns in 0.2s wall = 996.6 Minsn/s; emulated 1.200s (192000000 cycles); 0 exceptions, 2473 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "c3",
+      "example": "Scan",
+      "script": "",
+      "exit_code": 0,
+      "checks": {
+        "Name: esp32sim": true,
+        "Devices found: 1": true,
+        "Scan done!": true,
+        "clean_stop": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": null,
+      "wall_to_advertising_s": null,
+      "wall_s": 0.7652612499659881,
+      "hashes": {
+        "firmware.elf": "e6cad5ac64df8e68f374e8e6649a2014d36667ce9c7fe300fde16d364a755d16",
+        "firmware.factory.bin": "d4668baf85824df08c209e74cd817aff626ddfc781f09f5f64d189be14907393"
+      },
+      "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+      "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "log_sha256": "e7028ee4e5bc4a8e3c127bbea6ac845b2e70392ed7730ae42cb6101f333dafc6",
+      "serial_sha256": "ababf7f077932fe91425e6968a8f0ba3e3d53b8d1aca0677050e4dbb206705f7",
+      "original_log_sha256": "e7028ee4e5bc4a8e3c127bbea6ac845b2e70392ed7730ae42cb6101f333dafc6",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 896000000 insns in 0.7s wall = 1195.6 Minsn/s; emulated 5.600s (896000000 cycles); 0 exceptions, 11241 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "c6",
+      "example": "Server",
+      "script": "0.5 ble connect\n0.6 ble discover\n1.0 ble read 0x0010\n",
+      "exit_code": 0,
+      "checks": {
+        "Hello World says Neil": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.255737,
+      "wall_to_advertising_s": 0.12293062498793006,
+      "wall_s": 0.28154204203747213,
+      "hashes": {
+        "firmware.elf": "5c695692db1007796f44a894a7bc227415e5e41238533767f71af63241b6d6da",
+        "firmware.factory.bin": "7f4522cf2547e2a8e7ca2f1684c7288e9712db7063bc052ed493ece9710e4c7f"
+      },
+      "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+      "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "log_sha256": "20ceb196fd68167c4332224fe92c43fcfa83d41a7c43a865290f7a3ed56a2e0e",
+      "serial_sha256": "14d8adacc34f8ae9d4020a21b34755d40934cdc0fa1b39f938e5883187837975",
+      "original_log_sha256": "20ceb196fd68167c4332224fe92c43fcfa83d41a7c43a865290f7a3ed56a2e0e",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 208000000 insns in 0.3s wall = 788.1 Minsn/s; emulated 1.300s (208000000 cycles); 0 exceptions, 2614 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "c6",
+      "example": "Notify",
+      "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble subscribe 0x0011\n",
+      "exit_code": 0,
+      "checks": {
+        "notification handle=0x0010": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true,
+        "incrementing_notifications": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.254918,
+      "wall_to_advertising_s": 0.116371416952461,
+      "wall_s": 1.2516487500397488,
+      "hashes": {
+        "firmware.elf": "fd3e9c37e13441fed3e76d571f5a2b70f804e2c18209644d4e7f41215d69b56e",
+        "firmware.factory.bin": "9b99834a4c6aa756680f5a35ab7b3921edbb0254c1ef52f50283b65570cbbb4e"
+      },
+      "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+      "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "log_sha256": "841875832849ecb349f071cd2734a56651662494179f56ae6decd00d1e15afa8",
+      "serial_sha256": "6b3a676f81316d080fa014d8653da518420a8384ea53c7713b1e3c73d9842220",
+      "original_log_sha256": "841875832849ecb349f071cd2734a56651662494179f56ae6decd00d1e15afa8",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 416000000 insns in 1.2s wall = 336.5 Minsn/s; emulated 2.600s (416000000 cycles); 0 exceptions, 5224 interrupts",
+      "notification_values": [
+        "01000000",
+        "02000000",
+        "03000000",
+        "04000000"
+      ]
+    },
+    {
+      "chip": "c6",
+      "example": "Write",
+      "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble write 0x0010 48656c6c6f2066726f6d20686f7374\n0.8 ble read 0x0010\n",
+      "exit_code": 0,
+      "checks": {
+        "New value: Hello from host": true,
+        "text=\"Hello from host\"": true,
+        "clean_stop": true,
+        "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": 0.25576,
+      "wall_to_advertising_s": 0.1296667919959873,
+      "wall_s": 0.267929874942638,
+      "hashes": {
+        "firmware.elf": "2b4b07ebb8a620ac98f99947e0a921fec5da27208776c578c4d6a7479c09fa01",
+        "firmware.factory.bin": "1bd26242c559f22785f78db691d1fa707a0e619522de32a5a528c89d8a2462aa"
+      },
+      "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+      "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "log_sha256": "b7109318f7aa4bb141289524a07a48e789a62426ecce0f343ff716b9c3c666d2",
+      "serial_sha256": "ad7191db7ce6e69cb8a04238ccaead53c7fc0bc04be535d6cdbc1783e7f40134",
+      "original_log_sha256": "b7109318f7aa4bb141289524a07a48e789a62426ecce0f343ff716b9c3c666d2",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 192000000 insns in 0.3s wall = 762.7 Minsn/s; emulated 1.200s (192000000 cycles); 0 exceptions, 2415 interrupts",
+      "notification_values": []
+    },
+    {
+      "chip": "c6",
+      "example": "Scan",
+      "script": "",
+      "exit_code": 0,
+      "checks": {
+        "Name: esp32sim": true,
+        "Devices found: 1": true,
+        "Scan done!": true,
+        "clean_stop": true
+      },
+      "passed": true,
+      "modeled_boot_to_advertising_s": null,
+      "wall_to_advertising_s": null,
+      "wall_s": 1.2289193340111524,
+      "hashes": {
+        "firmware.elf": "c5b02e0032d1f652cf144c8a703fb24659f07e1ba6637f21ca9960a7a68c9924",
+        "firmware.factory.bin": "b18c38be3a3fb64088847a1774c3c310b086e80209e5a5185f7d5060bca78ddb"
+      },
+      "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+      "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "log_sha256": "07df1ecc2af470f4fca83296503760517ee218ab119687c612710ccce8c4be33",
+      "serial_sha256": "bf3987cb16f3c8f85c88c8a95ea9bc47430aecd200f6a4be86801fffa3be015c",
+      "original_log_sha256": "07df1ecc2af470f4fca83296503760517ee218ab119687c612710ccce8c4be33",
+      "capture_order": "stdout then stderr; advertising timed while reading stderr",
+      "stop_summary": "[emu] stop: Halted — 896000000 insns in 1.2s wall = 739.3 Minsn/s; emulated 5.600s (896000000 cycles); 0 exceptions, 11195 interrupts",
+      "notification_values": []
+    }
+  ]
+}
