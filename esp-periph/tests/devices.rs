@@ -318,9 +318,10 @@ impl Device for OptionalProbe {
     fn irq_sources(&self) -> u64 { self.polls.set(self.polls.get() + 1); self.irq }
     fn tick(&mut self, ticks: u64) { self.ticks += ticks; self.irq = 1; if self.stop { self.active = false; } }
 }
-struct OptionalChip { pwm: OptionalProbe, misc: Misc, clock: ClockTree<1> }
+struct OptionalChip { pwm: OptionalProbe, other: Probe, misc: Misc, clock: ClockTree<1> }
 device_set! { OptionalChip; clock: (clock) 240_000_000, [(ClockDomain::Apb, 3)];
     0x01 "PWM" optional (pwm) => [40];
+    0x02 "OTHER" (other) => [7];
 }
 impl DeviceSet for OptionalChip {
     const BASE: u32 = BASE;
@@ -331,18 +332,23 @@ impl DeviceSet for OptionalChip {
 
 #[test]
 fn optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs() {
-    let mut c = OptionalChip { pwm: OptionalProbe::default(), misc: Misc::new(), clock: OptionalChip::new_clock() };
+    let mut c = OptionalChip { pwm: OptionalProbe::default(), other: Probe::default(), misc: Misc::new(), clock: OptionalChip::new_clock() };
     for _ in 0..10 {
         assert!(!Dispatch::tick(&mut c, 15));
         assert_eq!(c.source_status(), [0; 4]);
         assert_eq!(c.cycles_until_deadline(), u32::MAX);
     }
-    assert_eq!(c.pwm.polls.get(), 0);
+    mmio::write32(&mut c, BASE + 0x2000, 1);
+    c.other.irq = 1;
+    assert_eq!(c.source_status(), [1 << 7, 0, 0, 0]);
+    c.other.irq = 0;
+    assert_eq!(c.pwm.polls.get(), 0, "ordinary writes and IRQ scans do not poll optional devices");
     assert_eq!(c.pwm.ticks, 0);
     mmio::write32(&mut c, BASE + 0x1000, 1);
     assert_eq!(c.misc.active_optional, [1]);
+    c.other.domain = Some(ClockDomain::Apb);
     assert!(Dispatch::tick(&mut c, 15));
-    assert_eq!(c.pwm.ticks, 5);
+    assert_eq!((c.pwm.ticks, c.other.ticks), (5, 5), "both devices receive the same clock delta");
     assert_eq!(c.source_status(), [0, 1 << 8, 0, 0]);
     mmio::write32(&mut c, BASE + 0x1000, 3);
     assert_eq!(c.misc.active_optional, [1], "no duplicate registration");

@@ -142,7 +142,6 @@ pub struct Peripherals {
     pub systimer: Systimer,
     pub timg: [TimerGroup; 2],
     pub gpio: Gpio,
-    pub ledc: Ledc,
     pub rtc: RtcCntl,
     pub efuse: Efuse,
     pub system: SystemRegs,
@@ -165,6 +164,7 @@ pub struct Peripherals {
     pub spi2: Box<GpSpi>,
     pub rmt: Box<RmtCompact>,
     pub io_mux: RegRam,
+    pub ledc: Ledc,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).

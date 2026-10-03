@@ -334,8 +334,6 @@ pub struct Peripherals {
     pub gpio: Gpio,
     pub io_mux: RegRam,
     pub i2c: esp_periph::i2c::I2c,
-    pub ledc: Ledc,
-    pub mcpwm: Mcpwm,
     pub efuse: Efuse,
     pub spi0: SpiMemC6,
     pub spi1: SpiMemC6,
@@ -365,6 +363,8 @@ pub struct Peripherals {
     pub spi_exec: bool,
     clock: ClockTree<4>,
     last_status: [u32; 4],
+    pub ledc: Ledc,
+    pub mcpwm: Mcpwm,
 }
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.

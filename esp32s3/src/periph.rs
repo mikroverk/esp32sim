@@ -388,8 +388,6 @@ pub struct Peripherals {
     pub timg: [TimerGroup; 2],
     pub intmatrix: IntMatrix,
     pub gpio: Gpio,
-    pub ledc: Ledc,
-    pub mcpwm: [Mcpwm; 2],
     pub rtc: RtcCntl,
     pub efuse: Efuse,
     pub system: SystemRegs,
@@ -420,6 +418,8 @@ pub struct Peripherals {
     pub spi_exec: bool,       // SPI1 command pending execution against the flash array
     last_status: [u32; 4],
     pub intmatrix_dirty: bool,
+    pub ledc: Ledc,
+    pub mcpwm: [Mcpwm; 2],
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers. Entries for one block are
