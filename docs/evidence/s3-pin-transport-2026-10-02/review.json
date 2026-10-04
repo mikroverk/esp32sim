@@ -1,0 +1,41 @@
+{
+  "source_revision": "8bb9e311dba425d2f60d974f4115183404f0abfb",
+  "checks": [
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit": 0
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit": 0
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=<absolute ROM directory> cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit": 0
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "exit": 0
+    },
+    {
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit": 0
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit": 0
+    }
+  ],
+  "workspace_totals": {
+    "passed": 482,
+    "failed": 0,
+    "ignored": 0
+  },
+  "goldens": "Unchanged; native and WASM checks pass without UPDATE_GOLDENS.",
+  "jit": "No JIT implementation change; no separate JIT suite required.",
+  "mutation": {
+    "chip": "s3",
+    "mutation": "remove FUN_IE",
+    "killed": true
+  }
+}
