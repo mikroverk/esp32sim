@@ -1,0 +1,57 @@
+<!doctype html>
+<!-- The link-preview image (og:image) for the demo pages: 1200×630, rendered to web/assets/social-card.png with
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
+       --window-size=1200,630 --screenshot=web/assets/social-card.png file://$PWD/tools/social-card.html
+     The terminal lines are real output of the Linux-on-ESP32-S3 demo. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>esp32sim social card</title>
+<style>
+  :root { --paper: #f7f5ef; --ink: #171a24; --text: #353a4a; --dim: #5b6070; --link: #2a3d95; --gold: #f2b21b; --stage: #15171d;
+          --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { display: grid; grid-template-columns: 640px 560px; background: var(--paper); color: var(--ink);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .left { padding: 56px 40px 48px 64px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 14px; font-weight: 800; font-size: 30px; letter-spacing: -.03em; }
+  .brand img { width: 52px; height: 52px; }
+  .kicker { margin-top: 44px; color: var(--link); font: 700 17px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin-top: 18px; font-size: 68px; line-height: 1.02; font-weight: 800; letter-spacing: -.035em; }
+  h1 span { color: var(--link); }
+  .sub { margin-top: 24px; font-size: 24px; line-height: 1.4; color: var(--text); max-width: 540px; }
+  .foot { margin-top: auto; display: flex; gap: 14px; align-items: center; font: 600 21px/1 var(--mono); color: var(--dim); }
+  .foot b { color: var(--ink); }
+  .foot .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+  .right { position: relative; background: radial-gradient(circle at 45% 35%, #2b2f3a, var(--stage) 72%); }
+  .device { position: absolute; left: 44px; top: 46px; width: 330px; border-radius: 20px; border: 12px solid #262a33;
+            box-shadow: 0 24px 50px rgba(0,0,0,.55); background: #000; }
+  .device img { display: block; width: 100%; border-radius: 8px; }
+  .term { position: absolute; right: 30px; bottom: 40px; width: 400px; background: #0b0d10; border: 1px solid #2a2e39;
+          border-radius: 12px; box-shadow: 0 20px 44px rgba(0,0,0,.6); overflow: hidden; }
+  .term .bar { display: flex; gap: 7px; padding: 10px 12px; background: #161922; }
+  .term .bar i { width: 10px; height: 10px; border-radius: 50%; background: #3a4050; }
+  .term pre { padding: 12px 16px 16px; color: #d5d9e3; font: 15px/1.5 var(--mono); white-space: pre-wrap; }
+  .term pre b { color: #7ee2b8; font-weight: 600; }
+  .term pre i { color: var(--gold); font-style: normal; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="brand"><img src="../web/assets/esp32sim-logo-icon.png" alt="">esp32sim</div>
+    <div class="kicker">ESP32-S3 · C3 · C6</div>
+    <h1>Real ESP32 firmware.<br><span>In your browser.</span></h1>
+    <p class="sub">The real mask ROM, the real bootloader and your unmodified app, emulated instruction by instruction. Nothing to install.</p>
+    <div class="foot"><span class="dot"></span><b>mikroverk.github.io/esp32sim</b></div>
+  </div>
+  <div class="right">
+    <div class="device"><img src="../web/assets/demo-panel.webp" alt=""></div>
+    <div class="term"><div class="bar"><i></i><i></i><i></i></div><pre>Welcome to Buildroot
+buildroot login: <b>root</b>
+# <b>uname -a</b>
+Linux buildroot 6.11.0-forkbank #1 PREEMPT Sat Sep 5 00:00:00 UTC 2026 <i>xtensa GNU/Linux</i>
+# <b>_</b></pre></div>
+  </div>
+</body>
+</html>
