@@ -305,3 +305,46 @@ Receipts retain revisions, commands, firmware and binary hashes, numeric samples
 aggregate load and anonymous OS/architecture details. No process inventory or
 personal paths are retained. Measurements concern native CPU time, not RF or
 browser performance. Concurrent jobs can still affect timing below the load gate.
+
+
+## Rebase onto the merged pin stack
+
+Rebased published `cb15fe708a03eb15c18aabd57e082710b02a083b` onto upstream main
+`f3cef17d1703cb1ebe22bc0007d0970921ae2df3`. Source checked:
+`06ba9da8814e2fdec250d6e445bdab0de0010d45`.
+Main's generic boxed `Device` replaces the C3-specific implementation. Both C3 interrupt
+refresh paths retain the cached Wi-Fi source, alongside I2C/SPI2/RMT participation.
+`wifi_and_pin_sources_survive_interrupt_refresh` covers assertion and clearing in both paths.
+All external tests now have input-specific ignore reasons. Experiment rows are contiguous.
+
+Both Rust 1.99.0 Clippy commands pass. CI-mode workspace tests: 522 passed, 11 external
+tests filtered. Plain workspace tests with external-input environment variables unset:
+507 passed, 26 ignored. All eight WASM demos and the external C3 station golden pass.
+Existing goldens are unchanged. No JIT code changed. Exact commands and station input hashes:
+[rebase-checks.json](rebase-checks.json).
+
+This continues EX202 with a materially different base: main now includes the pin stack.
+The mechanism and hello workloads are unchanged. Build each source with
+`cargo +1.99.0 build --release --bins`, using separate target directories, then run:
+
+```sh
+python3 docs/evidence/ethernet-c3-2026-10-02/rebase-hello.py \
+  /private/tmp/pr170-rebase-main/target/release \
+  /private/tmp/esp32sim-up-net/target/release \
+  /private/tmp/esp32sim-up-net/web/wasm/fw
+```
+
+Three alternating pairs per demo after one warmup per arm, 30 requested guest seconds:
+
+| Demo | Main median user seconds | Rebased PR median user seconds | Change |
+| --- | ---: | ---: | ---: |
+| hello | 0.259891 | 0.266788 | +2.65% |
+| c3-hello | 2.574753 | 2.565561 | -0.36% |
+| c6-hello | 3.284962 | 3.194451 | -2.76% |
+
+Console hashes and instruction counts match within each demo across both arms, including
+warmups. S3 hello retires 18,788,848 instructions across both cores; C3 and C6 each account for 4,800,000,000.
+One-minute load ranges from 11.31 to 20.76. This short, loaded-machine sample does not
+establish parity or a speedup; the S3 increase and all individual samples are retained.
+No samples were excluded. [Samples, commands and input/binary hashes](rebase-hello.json).
+Only aggregate load is retained, with no process inventory or personal identifiers.
