@@ -51,7 +51,8 @@ impl<S: Soc> Machine<S> {
     pub fn load_input(&mut self, kind: LoadKind, data: &[u8]) -> Result<(), String> {
         match kind {
             LoadKind::Rom => self.load_rom(data),
-            LoadKind::Bootloader | LoadKind::Flash => self.write_flash(0, data),
+            LoadKind::Bootloader => self.write_flash(S::BOOTLOADER_OFFSET, data),
+            LoadKind::Flash => self.write_flash(0, data),
             LoadKind::Partitions => self.write_flash(0x8000, data),
             LoadKind::App => self.write_flash(0x10000, data),
             LoadKind::Symbols => self.add_symbols(data),

@@ -71,6 +71,18 @@ impl Uart {
     }
     pub fn clock_config(&self) -> u32 { self.ram.read(0x78) }
     pub fn rx_pending(&self) -> usize { self.rx.len() }
+    /// Classic ESP32 has a 20-bit divider and selects APB or the 1 MHz reference tick.
+    /// ESP-IDF v5.5.4: components/soc/esp32/register/soc/uart_reg.h
+    /// (UART_CLKDIV, UART_CLKDIV_FRAG, UART_TICK_REF_ALWAYS_ON) and
+    /// components/soc/esp32/include/soc/soc.h (APB_CLK_FREQ, REF_CLK_FREQ).
+    /// These fields match v4.4.8, where uart_reg.h is under include/soc/.
+    /// Uses the nominal 80 MHz APB clock.
+    pub fn classic_baud(&self) -> Option<u32> {
+        let div = self.ram.read(0x14);
+        let divisor = u64::from(div & 0xfffff) * 16 + u64::from((div >> 20) & 15);
+        let source = if self.ram.read(0x20) & (1 << 27) != 0 { 80_000_000u64 } else { 1_000_000 };
+        (divisor != 0).then(|| (source * 16 / divisor) as u32)
+    }
     pub fn read(&mut self, off: u32) -> u32 {
         match off {
             0x0 => self.rx.pop_front().map(|b| b as u32).unwrap_or(0),
@@ -103,6 +115,22 @@ impl Device for Uart {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn classic_baud_uses_its_divider_and_clock_source() {
+        let mut u = Uart::new(UartLayout::S3);
+        u.write(0x14, 0);
+        assert_eq!(u.classic_baud(), None);
+        u.write(0x20, 1 << 27);
+        u.write(0x14, 694);
+        assert_eq!(u.classic_baud(), Some(115273));
+        u.write(0x20, 0);
+        u.write(0x14, (2 << 20) | 104);
+        assert_eq!(u.classic_baud(), Some(9603));
+        u.write(0x20, 1 << 27);
+        u.write(0x14, 1 << 16);
+        assert_eq!(u.classic_baud(), Some(1220));
+    }
+
     /// The Linux esp32_uart driver's receive path: threshold 1, RXFIFO_FULL enabled, count from
     /// STATUS, pop the FIFO, then INT_CLR — and the line must drop only once the FIFO is empty.
     #[test]
