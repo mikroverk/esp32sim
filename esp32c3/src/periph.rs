@@ -313,7 +313,8 @@ impl Peripherals {
     /// Refresh the interrupt matrix; returns true if any source changed.
     pub fn refresh_lines(&mut self) -> bool {
         if self.pin_irqs_enabled { return self.refresh_pin_lines(); }
-        let st = Dispatch::source_status(self);
+        let mut st = Dispatch::source_status(self);
+        st[0] |= self.wifi_irq as u32;
         let changed = st != self.last_status;
         self.last_status = st;
         self.intc.lines.update(&self.intc.map, &st);
@@ -333,6 +334,33 @@ impl Peripherals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wifi_and_pin_sources_survive_interrupt_refresh() {
+        let mut p = Peripherals::new([0; 6]);
+        p.wifi.tx_done(0);
+        p.refresh_work();
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], 1);
+        assert!(!p.refresh_lines());
+
+        p.i2c.int_raw = 1 << 7;
+        p.spi2.int_raw = 1 << 12;
+        p.rmt.rmt.int_raw = 1;
+        for (addr, bit) in [(0x6001_3028, 1 << 7), (0x6002_4034, 1 << 12), (0x6001_6040, 1)] {
+            p.write32(addr, bit);
+        }
+        let pins = (1 << src::I2C_EXT0) | (1 << src::SPI2) | (1 << src::RMT);
+        assert_eq!(p.source_status()[0], pins | 1);
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], pins | 1);
+        p.write32(0x6003_3c40, u32::MAX);
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], pins);
+        for addr in [0x6001_3028, 0x6002_4034, 0x6001_6040] { p.write32(addr, 0); }
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], 0);
+    }
 
     #[test]
     fn pin_interrupt_participation_tracks_enable_registers() {

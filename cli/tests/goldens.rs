@@ -238,6 +238,7 @@ fn external_wifi_station_c6() {
 
 /// C3 build of the same station, with LCD disabled; see examples/c6-wifi-station/README.md.
 #[test]
+#[ignore = "set C3_WIFI_STATION_BUILD to the C3 Wi-Fi station build directory; needs the ESP32-C3 mask ROM ELF"]
 fn external_wifi_station_c3() {
     let b = std::env::var("C3_WIFI_STATION_BUILD").expect("C3_WIFI_STATION_BUILD=/path/to/c3-wifi-station/build is required for this test");
     let rom = rom("esp32c3_rev3");
