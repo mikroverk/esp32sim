@@ -230,7 +230,7 @@ fn output_cycles_include_low_release_and_input_edges_keep_their_timestamp() {
 /// Build docs/evidence/c3-peripherals-2026-10-02/main.cpp with the adjacent
 /// PlatformIO configuration, then supply its build directory and a ROM ELF.
 #[test]
-#[ignore = "set ESP32SIM_TRANSPORT_BUILD to the C3 PlatformIO build directory and ESP32SIM_ROM_DIR to the mask ROM directory"]
+#[ignore = "set ESP32SIM_TRANSPORT_BUILD to the PlatformIO build directory and ESP32SIM_ROM_DIR to the directory containing esp32c3_rev3_rom.elf"]
 fn external_c3_arduino_pin_transport() {
     let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD")
         .expect("ESP32SIM_TRANSPORT_BUILD must name the PlatformIO build directory containing firmware.factory.bin"));
