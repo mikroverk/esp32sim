@@ -142,14 +142,17 @@ fn firmware<S: esp_soc::Soc>(mut m: esp_soc::Machine<S>, chip: &str, pins: &[u8]
 }
 
 #[test]
+#[ignore = "set ADC_FIRMWARE_DIR to the Arduino build directory and ADC_ROM_DIR to the S3 rev0, C3 rev3 and C6 rev0 ROM ELFs"]
 fn external_arduino_s3() {
     firmware(esp32s3::machine([0; 6]), "s3", &[1, 11], &[[(521, 500), (1024, 960), (1068, 1000), (3072, 2765)], [(528, 500), (1024, 944), (1087, 1000), (3072, 2718)]]);
 }
 #[test]
+#[ignore = "set ADC_FIRMWARE_DIR to the Arduino build directory and ADC_ROM_DIR to the S3 rev0, C3 rev3 and C6 rev0 ROM ELFs"]
 fn external_arduino_c3() {
     firmware(esp32c3::machine([0; 6], 4 << 20), "c3", &[0], &[[(722, 500), (1024, 706), (1459, 1000), (3072, 2081)]]);
 }
 #[test]
+#[ignore = "set ADC_FIRMWARE_DIR to the Arduino build directory and ADC_ROM_DIR to the S3 rev0, C3 rev3 and C6 rev0 ROM ELFs"]
 fn external_arduino_c6() {
     firmware(esp32c6::machine([0; 6], 4 << 20), "c6", &[0], &[[(508, 500), (1024, 1008), (1016, 1000), (3072, 3016)]]);
 }
