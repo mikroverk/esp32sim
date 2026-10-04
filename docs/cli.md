@@ -154,6 +154,7 @@ Use handles reported by discovery. `ble subscribe CCC_HANDLE` writes notificatio
 enable to a discovered client configuration descriptor. Commands are validated when
 the script is loaded and require `--ble`. `connect` waits for guest advertising;
 ATT commands wait for the connection and run in order, with one request outstanding.
+At exit, the CLI reports the number of queued or in-flight commands still pending.
 Writes are limited to 20 bytes. A scanning guest sees a virtual
 peripheral named `esp32sim` advertising the Battery Service.
 

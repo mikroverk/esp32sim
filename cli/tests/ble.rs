@@ -1,6 +1,7 @@
 use std::{path::PathBuf, process::Command};
 
 #[test]
+#[ignore = "set ESP32SIM_BLE_FIRMWARE_DIR to the Arduino builds and ESP32SIM_ROM_DIR to the ROM directory"]
 fn external_ble_arduino_examples() {
     let firmware = PathBuf::from(std::env::var_os("ESP32SIM_BLE_FIRMWARE_DIR")
         .expect("set ESP32SIM_BLE_FIRMWARE_DIR to the Arduino builds: CHIP/EXAMPLE/.pio/build/BOARD/firmware.{elf,factory.bin}"));
@@ -35,4 +36,12 @@ fn ble_script_without_enable_exits_unsuccessfully() {
         assert!(String::from_utf8_lossy(&result.stderr).contains("line 1"));
     }
     std::fs::remove_file(script).unwrap();
+}
+
+#[test]
+fn c6_ble_without_elf_names_the_missing_symbol() {
+    let result = Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(["--chip", "c6", "--boot", "app", "--ble", "--max-insns", "1", "--no-dump"])
+        .output().unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("requires ELF symbol esp_bt_controller_init"));
 }

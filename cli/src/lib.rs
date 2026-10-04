@@ -333,6 +333,8 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom", boot == "app");
     let dt = t0.elapsed().as_secs_f64();
     report(&mut m, o, stop, dt);
+    let pending = m.bus.ble_pending_commands();
+    if pending != 0 { eprintln!("[ble] {pending} command(s) still pending at end of run"); }
     if let Some(model) = approximate { eprintln!("[emu] approximate timing totals: {:?}", model.stats()); }
     if let Some(model) = memory_model {
         eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);

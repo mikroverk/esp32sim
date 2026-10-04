@@ -6,7 +6,12 @@ use opcodes::*;
 use std::collections::VecDeque;
 
 /// Complete H4 packets, including the type byte. Time is monotonic guest CPU cycles.
-/// `next_deadline` is the next cycle requiring `advance_to`, or None while idle.
+/// `next_deadline` is the next desired service cycle, or None while idle. The machine
+/// currently services controllers only at guest adapter polls and script commands;
+/// it does not schedule SoC wakeups from this deadline.
+/// `advance_to` must drain the link's `to_controller` queue into controller-owned
+/// state, even for actions deferred until a later connection event. A Session
+/// bounds same-cycle exchanges to 64 rounds; remaining actions wait for the next poll.
 pub trait HciController {
     fn send_h4(&mut self, packet: &[u8]);
     fn poll_h4(&mut self) -> Option<Vec<u8>>;

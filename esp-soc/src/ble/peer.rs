@@ -62,6 +62,7 @@ pub struct Peer {
     commands: VecDeque<Command>,
     advertising: bool,
     connected: bool,
+    connecting: bool,
     guest_central: bool,
     pending: Option<Request>,
     discovery_start: u16,
@@ -75,6 +76,7 @@ impl Peer {
             commands: VecDeque::new(),
             advertising: false,
             connected: false,
+            connecting: false,
             guest_central: false,
             pending: None,
             discovery_start: 1,
@@ -112,6 +114,7 @@ impl Peer {
                 if !self.advertising || self.connected { break; }
                 self.link.borrow_mut().to_controller.push_back(LinkAction::Connect);
                 self.advertising = false;
+                self.connecting = true;
                 self.commands.pop_front();
                 break;
             }
@@ -149,6 +152,7 @@ impl Peer {
                     self.log.push("scan report name=esp32sim service=180f".into());
                 }
                 LinkEvent::Connected(central) => {
+                    self.connecting = false;
                     self.connected = true;
                     self.advertising = false;
                     self.guest_central = central;
@@ -158,11 +162,13 @@ impl Peer {
                     ));
                 }
                 LinkEvent::Disconnected => {
+                    self.connecting = false;
                     self.connected = false;
                     self.pending = None;
                     self.log.push("disconnected".into());
                 }
                 LinkEvent::Reset => {
+                    self.connecting = false;
                     self.connected = false;
                     self.advertising = false;
                     self.pending = None;
@@ -385,7 +391,7 @@ impl Session {
     }
     pub fn advance_to(&mut self, cycles: u64) {
         self.cycles = cycles;
-        loop {
+        for _ in 0..64 {
             self.controller.advance_to(cycles);
             self.peer.poll();
             if self.peer.link.borrow().to_controller.is_empty() { break; }
@@ -403,6 +409,9 @@ impl Session {
         self.peer.command(command)?;
         self.advance_to(self.cycles);
         Ok(())
+    }
+    pub fn pending_commands(&self) -> usize {
+        self.peer.commands.len() + usize::from(self.peer.pending.is_some()) + usize::from(self.peer.connecting)
     }
     pub fn drain_log(&mut self) -> Vec<String> { std::mem::take(&mut self.peer.log) }
     pub fn is_advertising(&self) -> bool { self.peer.advertising }
@@ -425,6 +434,51 @@ mod tests {
         c.command("connect").unwrap();
         while c.pop_packet().is_some() {}
     }
+    #[test]
+    fn deferred_controller_is_bounded_and_pending_commands_survive() {
+        struct Deferred { link: Link, calls: std::rc::Rc<std::cell::Cell<usize>> }
+        impl HciController for Deferred {
+            fn send_h4(&mut self, _: &[u8]) {}
+            fn poll_h4(&mut self) -> Option<Vec<u8>> { None }
+            fn reset(&mut self) {}
+            fn next_deadline(&self) -> Option<u64> { Some(100) }
+            fn advance_to(&mut self, cycles: u64) {
+                self.calls.set(self.calls.get() + 1);
+                if cycles >= 100 {
+                    let mut link = self.link.borrow_mut();
+                    while let Some(action) = link.to_controller.pop_front() {
+                        if matches!(action, LinkAction::Connect) { link.to_peer.push_back(LinkEvent::Connected(false)); }
+                    }
+                }
+            }
+        }
+        let link = Link::default();
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let mut c = Session::new(Box::new(Deferred { link: link.clone(), calls: calls.clone() }), link.clone());
+        c.command("connect").unwrap();
+        assert_eq!(c.pending_commands(), 1);
+        link.borrow_mut().to_peer.push_back(LinkEvent::Advertising(ADV.to_vec(), Vec::new()));
+        calls.set(0);
+        c.advance_to(99);
+        assert_eq!(calls.get(), 64);
+        assert_eq!(c.pending_commands(), 1);
+        assert_eq!(link.borrow().to_controller.len(), 1);
+        c.advance_to(100);
+        assert_eq!(c.pending_commands(), 0);
+        c.command("read 3").unwrap();
+        c.command("write 3 01").unwrap();
+        assert_eq!(c.pending_commands(), 2);
+        link.borrow_mut().to_peer.push_back(LinkEvent::Data(4, vec![0x0b, 42]));
+        c.advance_to(101);
+        assert_eq!(c.pending_commands(), 1);
+        link.borrow_mut().to_peer.push_back(LinkEvent::Data(4, vec![0x13]));
+        c.advance_to(102);
+        assert_eq!(c.pending_commands(), 0);
+        c.command("read 3").unwrap();
+        c.reset();
+        assert_eq!(c.pending_commands(), 0);
+    }
+
     #[test]
     fn initialization_advertising_and_scanning_use_standard_packets() {
         let mut c = Session::default();

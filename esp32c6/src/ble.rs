@@ -62,9 +62,9 @@ pub struct Ble {
 
 impl Ble {
     pub fn enable(&mut self, symbols: &HashMap<String, u32>, init_size: u32, idf_version: &str) -> Result<(), String> {
-        if !supported_idf(idf_version) { return Err(format!("C6 BLE requires esp_app_desc.idf_ver v5.5.x, got {idf_version:?}")); }
         let get = |name: &str| symbols.get(name).copied().ok_or_else(|| format!("BLE requires ELF symbol {name}"));
         let entry = get("esp_bt_controller_init")?;
+        if !supported_idf(idf_version) { return Err(format!("C6 BLE requires esp_app_desc.idf_ver v5.5.x, got {idf_version:?}")); }
         let base = entry.checked_add(3).ok_or("BLE invalid init address")? & !3;
         if !(FLASH_LOW..FLASH_HIGH).contains(&entry)
             || entry.checked_add(init_size).is_none_or(|end| end.saturating_sub(base) < CODE.len() as u32)
@@ -233,6 +233,12 @@ fn init_next(cpu: &mut Cpu, bus: &mut SocBus) {
     }
 }
 fn receive(cpu: &mut Cpu, bus: &mut SocBus, kind: u8, bytes: Vec<u8>) {
+    if bytes.len() > 260 {
+        eprintln!("[ble] native packet exceeds 260 bytes; dropping");
+        bus.ble.receive = Receive::Poll;
+        call(cpu, bus, "vTaskDelay", &[1]);
+        return;
+    }
     if kind == 4 {
         bus.ble.receive = Receive::Event(bytes);
         call(cpu, bus, "malloc", &[260]);
@@ -490,6 +496,33 @@ mod tests {
         cpu.x[2] = SRAM_HIGH - 0x100;
         cpu.x[10] = arg;
         cpu
+    }
+
+    #[test]
+    fn oversized_acl_is_dropped_before_allocation_without_retry() {
+        let (mut bus, symbols) = fixture();
+        bus.ble.status = 2;
+        bus.ble.callback = CALLBACK;
+        let mut cpu = caller(bus.ble.base + TASK_NEXT, 0);
+        receive(&mut cpu, &mut bus, 2, vec![0; 261]);
+        assert_eq!(cpu.x[5], symbols["vTaskDelay"]);
+        assert!(matches!(bus.ble.receive, Receive::Poll));
+        for _ in 0..3 {
+            task_next(&mut cpu, &mut bus);
+            assert_eq!(cpu.x[5], symbols["vTaskDelay"]);
+            assert!(!matches!(bus.ble.receive, Receive::Retry(..)));
+        }
+        receive(&mut cpu, &mut bus, 2, vec![0; 260]);
+        assert_eq!(cpu.x[5], symbols["r_os_msys_get_pkthdr"]);
+        assert!(matches!(bus.ble.receive, Receive::Acl(_)));
+    }
+
+    #[test]
+    fn missing_ble_symbols_precede_version_errors() {
+        let mut ble = Ble::default();
+        for version in ["", "v5.5.4"] {
+            assert_eq!(ble.enable(&HashMap::new(), 0, version).unwrap_err(), "BLE requires ELF symbol esp_bt_controller_init");
+        }
     }
 
     #[test]
