@@ -106,6 +106,22 @@ pushing.
 - Pull requests from a first-time contributor's fork wait until a maintainer approves the CI run.
   After the first merged pull request, CI starts on its own.
 
+## After the review
+
+Reviews here are thorough, and a pull request shouldn't stall on small things, so maintainers may
+finish one themselves:
+
+- **Small, clearly correct fixes** from a review may be pushed straight to your branch, without a
+  round trip. Please leave "Allow edits by maintainers" on; where your fork can't allow it,
+  maintainers use a branch of their own and credit you.
+- **After 14 days** with no reply or push following a review, maintainers may finish the pull
+  request. Small fixes go on your branch. Larger rework is either merged and fixed in a follow-up,
+  or redone in a new pull request that keeps your commits or credits you with a `Co-authored-by:`
+  trailer. Each change gets a note on the pull request saying what changed and why.
+- **After 90 days** with no activity, a pull request is closed with a note. Reopen it whenever you
+  pick it up again.
+- If you need more time, say so on the pull request, and the clock stops.
+
 ## License
 
 esp32sim is released under the [MIT License](LICENSE). By contributing, you agree that your

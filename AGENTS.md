@@ -10,6 +10,13 @@
 - Code not in use costs nothing: with a feature flag off, instruction counts and console output are unchanged. After touching the bus, `device_set!`, interrupt routing or per-tick work, compare median CPU time against main on the hello demos (and pocket-tank for the S3 core) with identical instruction counts; CONTRIBUTING.md has the command.
 - Before adding a shared piece (a register block such as IO_MUX, a `device_set!` entry, a `Board` method), check open pull requests that touch the same files; build on the one that adds it rather than adding a copy.
 
+# Maintaining pull requests
+
+- Small, clearly correct review fixes may go straight onto the contributor's branch (maintainer edits) instead of a review round trip. Add commits; never force-push a contributor's branch.
+- After 14 days with no reply or push following a review, a maintainer may finish the pull request: small fixes on the contributor's branch; larger rework merged and fixed in a follow-up, or redone in a new pull request that keeps their commits or adds a `Co-authored-by:` trailer. Leave a note on the pull request saying what changed and why.
+- After 90 days without activity, close the pull request with a note; it can be reopened. A contributor asking for more time stops the clock.
+- Changes to a contributor's pull request go through the same checks and claim verification as a review.
+
 # Experiment history
 
 - Before proposing, implementing or benchmarking an ESP32-S3 execution, browser-speed or timing experiment, search [docs/experiments.md](docs/experiments.md) by mechanism and aliases.
