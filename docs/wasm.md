@@ -33,7 +33,7 @@ is whoever built it; host them only where you may.
 `.github/workflows/pages.yml` builds the module on every push to `main`, runs
 `tools/fetch-demo-assets.sh` (the mask-ROM ELFs from the Apache-2.0 `espressif/esp-rom-elfs` release,
 xterm.js, the Linux image), and publishes `web/` — so the page at
-**https://joakimeriksson.github.io/esp32sim/** is the emulator, with the demos in
+**https://mikroverk.github.io/esp32sim/** is the emulator, with the demos in
 `web/wasm/fw/demos.json` — hello_world, the Touch-LCD-4B energy panel with its SID player, the Atech
 Pocket Synth, and the C3 and C6 demos — one click away and the file inputs for anyone's own firmware. It
 also runs `tools/fetch-pocket-tank.sh` for the **pocket-tank** demo ([mediacutlet/pocket-tank](https://github.com/mediacutlet/pocket-tank),

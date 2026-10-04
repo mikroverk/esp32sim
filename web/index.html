@@ -10,7 +10,7 @@
 <meta name="description" content="An instruction-level ESP32-S3, C3 and C6 emulator in Rust. Boots the real mask ROM, the real bootloader and unmodified firmware — in this browser tab, or on the command line as a deterministic hardware test bench for coding agents.">
 <meta property="og:title" content="esp32sim — real ESP32 firmware in your browser">
 <meta property="og:description" content="Boot unmodified ESP32-S3, C3 and C6 firmware in a browser tab, or give a coding agent a deterministic board on the command line.">
-<meta property="og:image" content="https://joakimeriksson.github.io/esp32sim/assets/demo-panel.webp">
+<meta property="og:image" content="https://mikroverk.github.io/esp32sim/assets/demo-panel.webp">
 <link rel="icon" href="assets/esp32sim-logo-icon.png">
 <style>
   :root {
@@ -195,8 +195,8 @@
     <a href="#demos">Demos</a>
     <a href="#agents">For coding agents</a>
     <a href="#inside">What's inside</a>
-    <a href="https://github.com/joakimeriksson/esp32sim#readme">Docs</a>
-    <a class="gh" href="https://github.com/joakimeriksson/esp32sim">GitHub ↗</a>
+    <a href="https://github.com/mikroverk/esp32sim#readme">Docs</a>
+    <a class="gh" href="https://github.com/mikroverk/esp32sim">GitHub ↗</a>
     <button class="theme" type="button" title="Light or dark" aria-label="Switch between light and dark" onclick="toggleTheme()"></button>
   </div>
 </nav></header>
@@ -298,11 +298,11 @@ Password:
         <li><b>Fix, run again.</b><span>The same input gives the same run, down to the instruction count, so a failing check stays failing until the fix is real. The project's own golden tests pin console text, WAV hashes and instruction counts.</span></li>
       </ol>
       <div class="links2">
-        <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/cli.md">CLI reference</a>
-        <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/cli.md#action-scripts">action scripts</a>
-        <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/boards.md">boards</a>
-        <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/peripherals.md">peripherals</a>
-        <a href="https://github.com/joakimeriksson/esp32sim/releases">releases</a>
+        <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md">CLI reference</a>
+        <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md#action-scripts">action scripts</a>
+        <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/boards.md">boards</a>
+        <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/peripherals.md">peripherals</a>
+        <a href="https://github.com/mikroverk/esp32sim/releases">releases</a>
       </div>
     </div>
     <div>
@@ -330,7 +330,7 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
 <em>[emu] stop: Halted — core0 231572900 + core1 66167543 insns in 3.0s wall</em>
 <em>      = 100.5 Minsn/s; emulated 8.000s (1920000000 cycles)</em>
 <em>[emu] wrote panel.png</em>        <span class="c"># the second page, as the firmware drew it</span></pre></div>
-      <p style="margin-top:14px;color:#c9d0e6;font-size:14px">Point an agent at <a style="color:#fff" href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/cli.md">docs/cli.md</a> and a board name. Runs are single-process with no daemon and no device, so they parallelise like unit tests, and <code style="background:#1e2a5c;color:#fff">--no-jit</code> is the oracle when a result looks wrong.</p>
+      <p style="margin-top:14px;color:#c9d0e6;font-size:14px">Point an agent at <a style="color:#fff" href="https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md">docs/cli.md</a> and a board name. Runs are single-process with no daemon and no device, so they parallelise like unit tests, and <code style="background:#1e2a5c;color:#fff">--no-jit</code> is the oracle when a result looks wrong.</p>
     </div>
   </div>
 </div></section>
@@ -366,13 +366,13 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
     </dl></div>
   </div>
   <div class="doclinks">
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/architecture.md">architecture</a>
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/peripherals.md">peripheral matrix</a>
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/boards.md">board models</a>
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/wasm.md">WebAssembly build</a>
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/esp32c3.md">C3 status</a>
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/esp32c6.md">C6 status</a>
-    <a href="https://github.com/joakimeriksson/esp32sim/blob/main/docs/decisions.md">decisions</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/architecture.md">architecture</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/peripherals.md">peripheral matrix</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/boards.md">board models</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/wasm.md">WebAssembly build</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32c3.md">C3 status</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32c6.md">C6 status</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/decisions.md">decisions</a>
   </div>
 </div></section>
 
@@ -386,7 +386,7 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
 </main>
 
 <footer><div class="wrap">
-  <div class="row"><a href="https://github.com/joakimeriksson/esp32sim">source</a><a href="https://github.com/joakimeriksson/esp32sim#readme">README</a><a href="https://github.com/joakimeriksson/esp32sim/blob/main/LICENSE">MIT license</a><a href="https://github.com/joakimeriksson/esp32sim/releases">releases</a></div>
+  <div class="row"><a href="https://github.com/mikroverk/esp32sim">source</a><a href="https://github.com/mikroverk/esp32sim#readme">README</a><a href="https://github.com/mikroverk/esp32sim/blob/main/LICENSE">MIT license</a><a href="https://github.com/mikroverk/esp32sim/releases">releases</a></div>
   <p>Third-party pieces on this site: the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs), the Linux flash image (GPL-3.0, svermigo/Linux-on-esp32-S3), Pocket Tank (MIT, mediacutlet/pocket-tank), xterm.js (MIT). The demos run entirely in your browser.</p>
 </div></footer>
 

@@ -140,11 +140,11 @@ acknowledgements, end to end. `web/wasm/fw/c6-rpl-net.json` is that pair; under 
 
 The C6 is in the WebAssembly build too — pick board `esp32c6` on the page, or open it directly:
 
-    https://joakimeriksson.github.io/esp32sim/run.html?fw=c6-hello
-    https://joakimeriksson.github.io/esp32sim/run.html?fw=c6-energy-scan
-    https://joakimeriksson.github.io/esp32sim/run.html?fw=c6-contiki
-    https://joakimeriksson.github.io/esp32sim/run.html?fw=c6-contiki-net
-    https://joakimeriksson.github.io/esp32sim/run.html?fw=c6-rpl-net
+    https://mikroverk.github.io/esp32sim/run.html?fw=c6-hello
+    https://mikroverk.github.io/esp32sim/run.html?fw=c6-energy-scan
+    https://mikroverk.github.io/esp32sim/run.html?fw=c6-contiki
+    https://mikroverk.github.io/esp32sim/run.html?fw=c6-contiki-net
+    https://mikroverk.github.io/esp32sim/run.html?fw=c6-rpl-net
 
 The first is console-only; the second is the energy scanner on the Waveshare board at real time,
 with the panel, the WS2812 and a BOOT button on the page (its firmware is published under

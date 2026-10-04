@@ -136,9 +136,9 @@
     const machineLinks = make('div', 'wb-links');
     if (fw) machineLinks.append(link('manifest ↗', `wasm/fw/${fw}.json`));
     machineLinks.append(
-      link('architecture ↗', 'https://github.com/joakimeriksson/esp32sim/blob/main/docs/architecture.md'),
-      link('board ↗', 'https://github.com/joakimeriksson/esp32sim/blob/main/docs/boards.md'),
-      link('peripherals ↗', 'https://github.com/joakimeriksson/esp32sim/blob/main/docs/peripherals.md'),
+      link('architecture ↗', 'https://github.com/mikroverk/esp32sim/blob/main/docs/architecture.md'),
+      link('board ↗', 'https://github.com/mikroverk/esp32sim/blob/main/docs/boards.md'),
+      link('peripherals ↗', 'https://github.com/mikroverk/esp32sim/blob/main/docs/peripherals.md'),
     );
     machine.append(machineLinks);
 
@@ -146,10 +146,10 @@
     about.append(make('p', 'wb-copy', 'An instruction-level Rust emulator for ESP32-S3, C3, and C6 across Xtensa and RISC-V. It boots unmodified binaries in the browser or as a deterministic local CLI tool.'));
     const aboutLinks = make('div', 'wb-links');
     aboutLinks.append(
-      link('source ↗', 'https://github.com/joakimeriksson/esp32sim'),
-      link('README ↗', 'https://github.com/joakimeriksson/esp32sim#readme'),
-      link('CLI ↗', 'https://github.com/joakimeriksson/esp32sim/blob/main/docs/cli.md'),
-      link('WASM ↗', 'https://github.com/joakimeriksson/esp32sim/blob/main/docs/wasm.md'),
+      link('source ↗', 'https://github.com/mikroverk/esp32sim'),
+      link('README ↗', 'https://github.com/mikroverk/esp32sim#readme'),
+      link('CLI ↗', 'https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md'),
+      link('WASM ↗', 'https://github.com/mikroverk/esp32sim/blob/main/docs/wasm.md'),
     );
     about.append(aboutLinks);
     if (manifest?._source) {
@@ -184,7 +184,7 @@
     };
     renderMachine();
     const localLinks = make('div', 'wb-links');
-    localLinks.append(link('for agents ↗', 'index.html#agents'), link('CLI reference ↗', 'https://github.com/joakimeriksson/esp32sim/blob/main/docs/cli.md'));
+    localLinks.append(link('for agents ↗', 'index.html#agents'), link('CLI reference ↗', 'https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md'));
     local.append(localLinks);
   }
 
