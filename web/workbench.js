@@ -293,7 +293,8 @@
     const updateTelemetry = () => {
       const runtime = document.getElementById('wbRuntime');
       const pace = document.getElementById('wbPace');
-      if (runtime) runtime.textContent = document.getElementById('stat')?.textContent || document.getElementById('netstat')?.textContent || 'starting…';
+      const net = document.getElementById('netpanel')?.style.display === 'none' ? '' : document.getElementById('netstat')?.textContent;
+      if (runtime) runtime.textContent = document.getElementById('stat')?.textContent || net || 'starting…';
       if (pace) pace.textContent = wasmMode ? (document.getElementById('pace')?.textContent || document.getElementById('status')?.textContent || 'loading…') : 'native emulator, over its WebSocket';
     };
     const telemetrySource = [document.getElementById('stat'), document.getElementById('pace'), document.getElementById('netstat'), document.getElementById('status')].filter(Boolean);
