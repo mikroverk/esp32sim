@@ -187,9 +187,10 @@ function editLine(s) {
   }
   return out;
 }
-function addSerial(src, data) { data = data.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\x1b[=>]/g, '');
-  // split into lines, keep partial line per source
-  addSerial.buf = addSerial.buf || {}; let b = (addSerial.buf[src] || '') + data;
+function addSerial(src, data) {
+  // split into lines, keep partial line per source. Escape sequences are dropped after the join: one split
+  // across two chunks (`ESC[?20` + `04l`) matches in neither half, and an unfinished one waits in the buffer.
+  addSerial.buf = addSerial.buf || {}; let b = ((addSerial.buf[src] || '') + data).replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\x1b[=>]/g, '');
   const parts = b.split('\n');
   addSerial.buf[src] = editLine(parts.pop());
   for (const p of parts) { lines.push({src, text: p.replace(/\r$/, '')}); }
