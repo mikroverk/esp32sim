@@ -148,6 +148,7 @@ fn board_devices_can_be_removed_or_moved_without_reset() {
 /// Build the sketch in docs/evidence/gpio-i2c-hooks-2026-10-02, then set
 /// HOOKS_ROM and HOOKS_FIRMWARE (the PlatformIO build directory).
 #[test]
+#[ignore = "set HOOKS_ROM to the S3 mask ROM ELF and HOOKS_FIRMWARE to the GPIO/I2C sketch PlatformIO build directory"]
 fn external_arduino_s3_gpio_and_i2c_detach() {
     use std::{env, fs, path::PathBuf};
     let firmware = PathBuf::from(env::var_os("HOOKS_FIRMWARE").expect("set HOOKS_FIRMWARE to the PlatformIO build directory for docs/evidence/gpio-i2c-hooks-2026-10-02"));
