@@ -1,0 +1,75 @@
+{
+  "experiment": "EX205",
+  "candidate": "smallhot exploratory variant, not the final adopted revision; see scope-patches.json.gz",
+  "command": "sample SIMULATOR_PID 10 1 -file LOCAL_OUTPUT; CLI c3-hello --max-seconds 300, terminated after capture",
+  "note": "Diagnostic inclusive stack samples, not CPU benchmark seconds. Raw captures omitted to remove process/session identities and loaded-image paths. Full tick remains active; existing IRQ scans dominate both captures.",
+  "captures": {
+    "main": {
+      "raw_sha256": "70c65ff8952e209ef2a01d419a241d5f2f7bcef53033097cd0cfec13e134187a",
+      "inclusive_samples": {
+        "Bus4tick": 1268,
+        "refresh_irq": 4147,
+        "next_deadline": 865
+      }
+    },
+    "candidate": {
+      "raw_sha256": "5a5d44b9c8e5f2a57971631141b79f65230738d3948a7ea8e6d9f0cf6e92d518",
+      "inclusive_samples": {
+        "Bus4tick": 1296,
+        "refresh_irq": 4158,
+        "next_deadline": 873
+      }
+    }
+  },
+  "assembly": {
+    "main_tick_stack_bytes": 192,
+    "pre_scoped_fix_tick_stack_bytes": 240,
+    "outlined_trial_tick_stack_bytes": 208,
+    "adopted_tick_stack_bytes": 192,
+    "adopted_next_deadline_stack_bytes": 16,
+    "note": "Apple otool disassembly with Rust 1.99.0 release fat LTO; code generation is toolchain dependent. Inlining is restricted to the C3 device set. No baseline source rescan was skipped."
+  },
+  "final_captures": {
+    "source_revisions": {
+      "main": "ed34b220cd0e261d369a5eee92ca8f1f33cbb0ad",
+      "c3": "2336c5825bd5bee16a771ac582826f4217677228",
+      "uart": "dcf0496a6ef6d61054da2e6defe11fbee1b26795"
+    },
+    "captures": {
+      "main": {
+        "raw_sha256": "9fde7b25f68177422113c75f39b0fa575cd1a7d3b24553605f27503f92cd6edc",
+        "inclusive_samples": {
+          "Bus4tick": 1283,
+          "refresh_irq": 4241,
+          "next_deadline": 896,
+          "tick_with_pins": 0,
+          "receive_uart_input": 0,
+          "refresh_pin_lines": 0
+        }
+      },
+      "c3": {
+        "raw_sha256": "191d8c91839a5200f48fd6b8fe3646774a1fa8581d66716fcba088c15dcd7c34",
+        "inclusive_samples": {
+          "Bus4tick": 1705,
+          "refresh_irq": 4118,
+          "next_deadline": 881,
+          "tick_with_pins": 0,
+          "receive_uart_input": 0,
+          "refresh_pin_lines": 0
+        }
+      },
+      "uart": {
+        "raw_sha256": "0196a6698e4ca15ae9510d3463834b0f2f2dbf47579a86c6953cc1f20e5fd5b6",
+        "inclusive_samples": {
+          "Bus4tick": 1582,
+          "refresh_irq": 4081,
+          "next_deadline": 867,
+          "tick_with_pins": 0,
+          "receive_uart_input": 0,
+          "refresh_pin_lines": 0
+        }
+      }
+    },
+    "note": "Fresh ten-second samples of the exact frozen benchmark binaries after timing completed. New pin/UART helper frames were absent. Samples are statistical observations; participation tests provide deterministic coverage. The first capture attempt lacked profiler permission and produced no accepted capture; retried with access to the script-owned children only."
+  }
+}

@@ -1,0 +1,101 @@
+diff --git a/esp32c3/src/bus.rs b/esp32c3/src/bus.rs
+index 8f11769..6ffd3ff 100644
+--- a/esp32c3/src/bus.rs
++++ b/esp32c3/src/bus.rs
+@@ -149,6 +149,7 @@ impl SocBus {
+             self.board.spi_transfer(2, &transfer.tx, transfer.rx_len)
+         };
+         self.periph.spi2.finish_transfer(transfer, &rx);
++        self.periph.refresh_pin_irqs();
+         self.irq_dirty = true;
+     }
+ 
+diff --git a/esp32c3/src/periph.rs b/esp32c3/src/periph.rs
+index 0b2b45d..ae5f2d6 100644
+--- a/esp32c3/src/periph.rs
++++ b/esp32c3/src/periph.rs
+@@ -162,6 +162,7 @@ pub struct Peripherals {
+     pub spi_exec: bool,
+     clock: ClockTree<4>,
+     last_status: [u32; 4],
++    pin_irqs: u32,
+ }
+ 
+ // Every peripheral, where it sits, and its interrupt source numbers (`src`).
+@@ -216,7 +217,7 @@ impl Peripherals {
+             gdma: Gdma::new(),
+             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
+             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+-            last_status: [0; 4],
++            last_status: [0; 4], pin_irqs: 0,
+         }
+     }
+ 
+@@ -242,13 +243,14 @@ impl Peripherals {
+             self.i2c.set_pins(pins);
+         }
+         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
++        if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) { self.refresh_pin_irqs(); }
+     }
+ 
+     /// Advance every clocked device by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
+     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
+     pub fn tick(&mut self, cycles: u64) {
+         Dispatch::tick(self, cycles);
+-        if self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); }
++        if self.rmt.rmt.is_running() { self.rmt.rmt.tick(cycles); self.refresh_pin_irqs(); }
+     }
+ 
+     pub fn cycles_until_timer(&self) -> u32 {
+@@ -256,14 +258,15 @@ impl Peripherals {
+         if self.rmt.rmt.is_running() { timer.min(31) } else { timer }
+     }
+ 
++    pub(crate) fn refresh_pin_irqs(&mut self) {
++        self.pin_irqs = ((self.i2c.irq() as u32) << src::I2C_EXT0)
++            | ((self.spi2.irq() as u32) << src::SPI2) | ((self.rmt.rmt.irq() as u32) << src::RMT);
++    }
++
+     /// Which interrupt sources are asserted right now.
+     pub fn source_status(&self) -> [u32; 4] {
+         let mut st = Dispatch::source_status(self);
+-        if self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0 {
+-            if self.i2c.irq() { st[0] |= 1 << src::I2C_EXT0; }
+-            if self.spi2.irq() { st[0] |= 1 << src::SPI2; }
+-            if self.rmt.rmt.irq() { st[0] |= 1 << src::RMT; }
+-        }
++        st[0] |= self.pin_irqs;
+         st
+     }
+ 
+diff --git a/esp32c3/tests/pin_transport.rs b/esp32c3/tests/pin_transport.rs
+index 8fa1638..e144929 100644
+--- a/esp32c3/tests/pin_transport.rs
++++ b/esp32c3/tests/pin_transport.rs
+@@ -425,3 +425,26 @@ fn idle_board_does_not_receive_clock_callbacks() {
+     assert!(!m.bus.periph.rmt.rmt.ch.iter().any(|c| c.running));
+     assert!(m.bus.periph.rmt.rmt.done.is_empty());
+ }
++
++#[test]
++fn pin_interrupt_cache_follows_enable_clear_and_spi_completion() {
++    use esp32c3::periph::src;
++    let mut m = esp32c3::machine([0; 6], 4 << 20);
++    let bus = &mut m.bus;
++    bus.periph.i2c.attach(0x42, Box::new(Device(None, 11)));
++    for (base, ena, clr, bit, source) in [
++        (0x6001_3000, 0x28, 0x24, 1 << 7, src::I2C_EXT0),
++        (0x6002_4000, 0x34, 0x38, 1 << 12, src::SPI2),
++    ] {
++        bus.write32(base + ena, bit).unwrap();
++        if source == src::I2C_EXT0 { assert_eq!(read_i2c(bus), (true, 11)); }
++        else { spi(bus); }
++        assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
++        bus.write32(base + ena, 0).unwrap();
++        assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
++        bus.write32(base + ena, bit).unwrap();
++        assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
++        bus.write32(base + clr, bit).unwrap();
++        assert_eq!(bus.periph.source_status()[0] & (1 << source), 0);
++    }
++}

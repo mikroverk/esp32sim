@@ -105,9 +105,10 @@ pub fn write32<P: DeviceSet + Dispatch>(p: &mut P, addr: u32, v: u32) -> WriteEf
 /// `clock` names the `ClockTree` field and the divider table (CPU cycles per tick per domain).
 /// Entries are tried in order, so a range-limited entry goes before the full-block one behind it.
 /// An `alias` entry only dispatches: its device already ticks and reports sources once.
+/// Optional `inline always;` keeps clock/source operations inline when optional service paths add callers.
 #[macro_export]
 macro_rules! device_set {
-    ($P:ident; clock: ($clk:ident) $cpu_hz:expr, [$(($dom:expr, $div:expr)),* $(,)?];
+    ($P:ident; $(inline $hint:ident;)? clock: ($clk:ident) $cpu_hz:expr, [$(($dom:expr, $div:expr)),* $(,)?];
      $( $block:literal $name:literal $($alias:ident)? ($($f:tt)+) $(delta $d:literal)? $(@ $lo:literal ..= $hi:literal)? => [$($src:expr),* $(,)?]; )* ) => {
         impl $P {
             pub const CLOCKS: $crate::__Dividers<{ $crate::__count!($($dom)*) }> = [$(($dom, $div)),*];
@@ -128,7 +129,7 @@ macro_rules! device_set {
                     _ => None,
                 }
             }
-            #[inline]
+            #[inline$(($hint))?]
             fn source_status(&self) -> [u32; 4] {
                 let mut st = [0u32; 4];
                 $( if !(false $(|| stringify!($alias) == "alias")?) {
@@ -137,7 +138,7 @@ macro_rules! device_set {
                 } )*
                 st
             }
-            #[inline]
+            #[inline$(($hint))?]
             fn tick(&mut self, cycles: u64) -> bool {
                 let mut irq_changed = false;
                 let mut deltas = [($crate::__ClockDomain::Cpu, 0u64); 8]; let mut n = 0usize;
@@ -153,7 +154,7 @@ macro_rules! device_set {
                 }
                 irq_changed
             }
-            #[inline]
+            #[inline$(($hint))?]
             fn cycles_until_deadline(&self) -> u32 {
                 let mut best = u64::MAX;
                 $( if !(false $(|| stringify!($alias) == "alias")?) && $crate::Device::has_deadline(&self.$($f)+) {
