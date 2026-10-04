@@ -209,6 +209,7 @@ fn c6_route_rejects_inversion_invalid_pins_and_disabled_output() {
 }
 
 #[test]
+#[ignore = "set ESP32SIM_TRANSPORT_BUILD to the C6 PlatformIO build directory and ESP32SIM_ROM_DIR to the mask ROM directory"]
 fn external_c6_arduino_pin_transport() {
     let build = std::path::PathBuf::from(std::env::var_os("ESP32SIM_TRANSPORT_BUILD")
         .expect("ESP32SIM_TRANSPORT_BUILD must name the PlatformIO build directory containing firmware.factory.bin"));
