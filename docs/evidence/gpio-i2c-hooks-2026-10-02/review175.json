@@ -111,5 +111,91 @@
     "No combined-PR merge was performed. The shared typed field and device block contract removes dependence on merge order; duplicate additions must resolve to one field/registration.",
     "Local adoption only; no push."
   ],
-  "privacy": "Only commands, compact test results and artifact hashes retained. Raw compiler/test logs stay in /tmp; personal paths and machine identifiers omitted. No measured values altered."
+  "privacy": "Only commands, compact test results and artifact hashes retained. Raw compiler/test logs stay in /tmp; personal paths and machine identifiers omitted. No measured values altered.",
+  "rebase_validation_2026_10_04": {
+    "source": "a7e1225c7e5cd70498a14e4ef086eb0a9650c016",
+    "upstream_main": "f3cef17d1703cb1ebe22bc0007d0970921ae2df3",
+    "changes": [
+      "Use main-owned C3/C6 IO_MUX definitions; keep direct gpio_state reads.",
+      "Preserve main I2C pin routing and PR detach methods.",
+      "Ignore all external firmware tests with explicit input requirements.",
+      "Keep experiment table rows contiguous."
+    ],
+    "checks": [
+      {
+        "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+        "result": "passed"
+      },
+      {
+        "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+        "result": "passed"
+      },
+      {
+        "command": "ESP32SIM_ROM_DIR=/private/tmp/esp32sim-up-hooks/web/wasm/fw cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+        "result": "514 passed, 0 failed, 0 ignored, 11 filtered; golden checks unchanged"
+      },
+      {
+        "command": "cargo +1.99.0 test --release --workspace",
+        "result": "499 passed, 0 failed, 26 ignored; no input environment supplied"
+      },
+      {
+        "command": "cargo +1.99.0 test --release -p esp32sim --test gpio_i2c_hooks",
+        "result": "5 passed, 1 ignored"
+      },
+      {
+        "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+        "result": "passed all 8 manifests and JIT handoff"
+      },
+      {
+        "command": "node tools/check-evidence-privacy.mjs",
+        "result": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "result": "passed"
+      }
+    ],
+    "sha256": {
+      "web/wasm/esp32sim.wasm": "ae0e28bd12f82c10f0fceffe71bc1c511a8b9924d6cefbb2c80fe93b29b077a2",
+      "web/wasm/fw/c3-hello.json": "87dfa2297c18be37992657f35e0c62e1d0314fe3827cc8b30ca640965d93cb22",
+      "web/wasm/fw/c6-contiki-net.json": "d0f6b719a1c9bdda04eb5087d6303463be178959541079f1394a376c9bb7f447",
+      "web/wasm/fw/c6-contiki.json": "fe6fd4c7fa5f5ad1a413018db57b765d9ddaa9eeb68466c5f6e64c0564b04f96",
+      "web/wasm/fw/c6-energy-scan.json": "a5ba91a9e8eb4a9a2a92b4e72895116df436ec4a6d8aa65a83aefd0a6a1e7411",
+      "web/wasm/fw/c6-hello.json": "e27476ddb020e09a57d02b05f274b1aa7f02e9e5c5b9f21aa38688da6c5f27e8",
+      "web/wasm/fw/c6-rpl-net.json": "4fb0bd0ee84c151ab84400c3e89e1b23ac4df63d201bca05a0b75547586edf82",
+      "web/wasm/fw/esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "web/wasm/fw/esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "web/wasm/fw/esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "web/wasm/fw/hello.json": "effb7f5d7fb33dcbabbe8ef8310c2b32ae875594553c056cde09c3fa762e5412",
+      "web/wasm/fw/panel.json": "cfc51b851a7a666f66860e5ba6e35ea6abc01c1160eca75b6b90a19f8dd0fb75",
+      "web/wasm/fw/public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+      "web/wasm/fw/public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "web/wasm/fw/public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be",
+      "web/wasm/fw/public/c6-contiki-bootloader.bin": "e0a1599ef9d5f4c8447868c813154af6c2ec4a77c9c28792bdd0c2c555a26da8",
+      "web/wasm/fw/public/c6-contiki-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "web/wasm/fw/public/c6-contiki.bin": "d3057dfa272d74c0b61638b892e2ef89f5f86049615d5a14e6be209881cbe47b",
+      "web/wasm/fw/public/c6-energy-bootloader.bin": "8388ab65141d7a2abb818a114fab747902a8bf6b9f049654e5e4add7d82b4979",
+      "web/wasm/fw/public/c6-energy-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "web/wasm/fw/public/c6-energy_scan.bin": "a1f68b7cc05363d7f9b5408b655647b2886aaa40ee719d212ef321ff938055dd",
+      "web/wasm/fw/public/c6-hello-bootloader.bin": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+      "web/wasm/fw/public/c6-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "web/wasm/fw/public/c6-hello_world.bin": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131",
+      "web/wasm/fw/public/c6-rpl-bootloader.bin": "54d0b4969f68b0dbdb55195c5fb082b3c5b0f02578a428be9e2960b6a8deee8b",
+      "web/wasm/fw/public/c6-rpl-client.bin": "0bdf8c0fcff25b6dc58c10ba8effabf71228b399a91bca660d74605068db89d6",
+      "web/wasm/fw/public/c6-rpl-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "web/wasm/fw/public/c6-rpl-server.bin": "f6cccd2db59bfd559ff26acf2d8692074f1f277892af622602e3999a7c1613b8",
+      "web/wasm/fw/public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+      "web/wasm/fw/public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "web/wasm/fw/public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+      "web/wasm/fw/public/panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+      "web/wasm/fw/public/panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+      "web/wasm/fw/public/panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066"
+    },
+    "limitations": [
+      "External Arduino firmware runs not repeated.",
+      "No JIT code changes; wasm-jit-test.sh not required.",
+      "No performance experiment or speed claim.",
+      "Raw local logs omitted; only compact results and hashes retained. Earlier evidence preserved."
+    ]
+  }
 }
