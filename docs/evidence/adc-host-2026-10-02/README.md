@@ -5,7 +5,7 @@ The same host contract covers S3 ADC2, C3 ADC1/ADC2, and C6 ADC1. Existing volta
 sources and S3 ADC1 transfer behavior remain compatible.
 
 Original implementation revision: `7ce98837b93a90444d3da93c52352b9b664238c2`.
-Base: `0334d422468aa74442ba506bacb4a62f1b66b327`, PR #165, unchanged.
+Original base: `0334d422468aa74442ba506bacb4a62f1b66b327`, PR #165, unchanged in the original run.
 No dependency on classic ESP32 PR #168 or the fork is introduced.
 
 The experiment catalog at the base has no ADC, analog, SAR, or SENS entry. EX207
@@ -65,6 +65,39 @@ tests still cover S3 ADC2 dispatch, reboot carry-over and C3/C6 START edges.
 The WASM build and all eight requested Node demo checks passed. Both automated
 privacy checking and manual review passed. No JIT source changed and no new
 speed or timing claim is made. See `checks.json` for commands and results.
+
+## Rebase follow-up, 2026-10-04
+
+Source revision `86e32f29e02c8bbc0517f86585a542ba5a1a92a4` is rebased on
+upstream/main `f3cef17d1703cb1ebe22bc0007d0970921ae2df3`. PR #165 is merged;
+its waveform-after-`waituart0` fix and the pin stack are retained. The C3 table
+keeps `inline always`, both chips keep IO_MUX and their constructors, and ADC
+uses C3 block 0x40 and C6 block 0x0e. All three ADC and three inherited
+pin-transport external tests now have input-specific ignore attributes.
+
+[Rebase checks](rebase-checks.json): both Rust 1.99.0 Clippy checks pass;
+the CI-style release suite passes 513 tests with zero failures. The plain release
+suite passes 498, ignores 28, and needs no external test inputs. All 13 external
+tests are ignored. The waveform regression and all 16,384 S3 ADC1 calibration
+values pass. Goldens are unchanged. The WASM build and all eight requested demos
+pass. No JIT source changed. The external Arduino runs were not repeated;
+their prior results and hashes remain in `checks.json`.
+
+The required idle-cost comparison extends EX207's measurement quality by comparing
+the rebased device tables against merged main on all three 30-second hello demos.
+Both trees use `cargo +1.99.0 build --release --bins`, one excluded warmup per arm,
+and three alternating pairs per demo with reversed order on even rounds.
+[CPU samples, commands, hashes and work checks](rebase-cpu.json) retain every run.
+Median user CPU time: hello: main 0.394187 s, PR 0.393850 s (-0.09%); c3-hello: main 2.905594 s, PR 2.724621 s (-6.23%); c6-hello: main 3.422984 s, PR 3.421639 s (-0.04%).
+Instruction counts, cycle counts, exceptions, interrupts and console hashes match
+between both trees on every run. These short local samples do not establish a
+speedup or a universal zero-cost guarantee; unrelated machine activity is uncontrolled.
+No S3 core code changed, so the pocket-tank core-change check does not apply.
+
+The existing ADC proposal remains unchanged apart from integration and external-test
+selection. Historical measurements are retained. The new receipts contain aggregate
+results, numeric load and hashes; raw logs and machine identities are omitted.
+Privacy checking and manual review pass.
 
 ## Reproduction
 
