@@ -3,7 +3,7 @@
 - Run what CI runs, with the newest stable Rust (`rustup update stable`): CI lints and tests with it, so an older local toolchain can pass where CI fails. [CONTRIBUTING.md](CONTRIBUTING.md) lists the commands; [.github/workflows/ci.yml](.github/workflows/ci.yml) is the full set.
 - Both Clippy steps must pass with warnings denied: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings`. Clippy runs before the tests in CI, so a lint failure hides every test result.
 - Run the tests as CI does, ignored tests included: `ESP32SIM_ROM_DIR=<roms> cargo test --release --workspace -- --include-ignored --skip external_`.
-- A test that needs inputs only a developer machine has (a local firmware build, an objdump listing, hardware) must be named `external_*` and fail with a message naming what it needs. `#[ignore]` alone is not enough: CI runs ignored tests and skips only `external_*`.
+- A test that needs inputs only a developer machine has (a local firmware build, an objdump listing, hardware) gets both `#[ignore = "<the input it needs>"]` and an `external_*` name, and fails with a message naming what it needs. The ignore keeps a plain `cargo test` green; the name keeps it out of CI, which runs ignored tests and skips only `external_*`. Keep `external` out of every other test's name: `--skip` matches substrings, so CI would skip that test silently.
 - Golden outputs are bit-identical. Regenerate them (`UPDATE_GOLDENS=1`) only for an intentional change, and say in the pull request which goldens changed and why.
 - In the pull request, list the checks you ran and their results.
 

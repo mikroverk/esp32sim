@@ -40,10 +40,12 @@ remaining CI steps are in the workflow file.
 
 [tests/README.md](tests/README.md) describes the test layers. Two rules catch most surprises:
 
-- **Tests that need a developer machine are named `external_*`.** A test that needs a local
-  firmware build, a full objdump listing or hardware must be named `external_…` and fail with a
-  message naming the input it needs. CI runs ignored tests too (`--include-ignored`) and skips only
-  `external_*`, so `#[ignore]` alone makes the test fail in CI.
+- **Tests that need a developer machine are `#[ignore]`d and named `external_*`.** A test that needs
+  a local firmware build, a full objdump listing or hardware needs both: `#[ignore = "set FOO_DIR=…"]`
+  naming its input keeps a plain `cargo test` green on any machine, and the `external_` prefix keeps
+  it out of CI, which runs ignored tests too (`--include-ignored`) and skips only `external_*`. Without
+  its input it fails with a message naming what it needs. Keep `external` out of every other test's
+  name: `--skip` matches substrings, so CI would skip that test silently.
 - **Golden outputs are bit-identical.** The golden-output tests compare console text, audio hashes
   and instruction counts for the committed demo firmware. If a change is meant to alter them,
   regenerate with `UPDATE_GOLDENS=1` and say in the pull request which goldens changed and why.

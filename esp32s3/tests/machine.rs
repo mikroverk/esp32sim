@@ -320,7 +320,7 @@ fn core1_runs_when_released() {
 }
 
 #[test]
-fn browser_external_blocks_are_single_core_scheduler_transactions() {
+fn browser_offchip_blocks_are_single_core_scheduler_transactions() {
     let mut m = machine64();
     park(&mut m, 0, IRAM, &SPIN);
     assert_eq!(m.browser_external_block_budget(0), None);
@@ -336,7 +336,7 @@ fn browser_external_blocks_are_single_core_scheduler_transactions() {
 }
 
 #[test]
-fn browser_external_finish_honors_halt_and_drains_console() {
+fn browser_offchip_finish_honors_halt_and_drains_console() {
     for halt in [false, true] {
         let mut m = machine64();
         park(&mut m, 0, IRAM, &SPIN);
