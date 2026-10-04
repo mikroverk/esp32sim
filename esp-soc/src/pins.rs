@@ -25,12 +25,14 @@ impl PinRoutes<'_> {
     fn mux(&self, pin: usize) -> u32 { self.mux.read(4 + 4 * pin as u32) }
     pub fn function(&self, pin: usize, function: u32) -> bool { self.valid_pin(pin) && self.mux(pin) & (7 << 12) == function << 12 }
     pub fn input_function(&self, pin: usize, function: u32) -> bool { self.function(pin, function) && self.mux(pin) & (1 << 9) != 0 }
-    pub fn matrix_input(&self, signal: usize) -> Option<u8> {
+    /// Matrix input selection and FUN_IE, independent of the output function.
+    pub fn input_pin(&self, signal: usize) -> Option<u8> {
         let sel = self.gpio.func_in_sel[signal];
         let invert = self.chip.input_select >> 1;
         let pin = (sel & (invert - 1)) as usize;
-        (sel & (self.chip.input_select | invert) == self.chip.input_select && self.input_function(pin, 1)).then_some(pin as u8)
+        (sel & (self.chip.input_select | invert) == self.chip.input_select && self.valid_pin(pin) && self.mux(pin) & (1 << 9) != 0).then_some(pin as u8)
     }
+    pub fn matrix_input(&self, signal: usize) -> Option<u8> { self.input_pin(signal).filter(|&pin| self.function(pin as usize, 1)) }
     pub fn matrix_output(&self, pin: usize, signal: u32) -> bool {
         if !self.function(pin, 1) { return false; }
         let sel = self.gpio.func_out_sel[pin];

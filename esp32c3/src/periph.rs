@@ -235,6 +235,17 @@ impl Peripherals {
         }
     }
 
+    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
+        let clock = self.uart[port].clock_config();
+        esp_soc::uart::UartPins::C3.route(port, &self.gpio, &self.io_mux,
+            self.uart[port].baud(clock, 20_000_000))
+    }
+
+    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
+        let routes: [_; 2] = std::array::from_fn(|port| self.uart_route(port));
+        esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
+    }
+
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
     pub fn write32(&mut self, addr: u32, v: u32) {

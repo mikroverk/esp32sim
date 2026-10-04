@@ -15,6 +15,7 @@ pub const PERIPH_END: u32 = 0x600D_0000;
 pub const SRC_GPIO: usize = 16;
 pub const SRC_UART0: usize = 27;
 pub const SRC_UART1: usize = 28;
+pub const SRC_UART2: usize = 29;
 pub const SRC_SPI2: usize = 21;
 pub const SRC_PCNT: usize = 41;
 pub const SRC_AES: usize = 77;
@@ -421,7 +422,7 @@ pub struct Peripherals {
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), (ClockDomain::Apb, 3), (ClockDomain::RtcSlow, 1600), (ClockDomain::Cpu, 1)];
     0x00 "UART0" (uart[0]) => [SRC_UART0];
     0x10 "UART1" (uart[1]) => [SRC_UART1];
-    0x2e "UART2" (uart[2]) => [];
+    0x2e "UART2" (uart[2]) => [SRC_UART2];
     0x38 "USB_SERIAL_JTAG" (usb) => [SRC_USB_SERIAL_JTAG];
     0x23 "SYSTIMER" (systimer) => [SRC_SYSTIMER_T0, SRC_SYSTIMER_T1, SRC_SYSTIMER_T2];
     0x1f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1];
@@ -500,6 +501,17 @@ impl Peripherals {
             0xc0 => "SYSTEM", 0xc1 => "SENSITIVE", 0xc2 => "INTERRUPT", 0xc4 => "EXTMEM", 0xc5 => "MMU", 0xce => "ASSIST_DEBUG", 0xcf => "ASSIST_DEBUG2", 0xd0 => "WCL",
             _ => "?",
         }
+    }
+
+    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
+        let clock = self.uart[port].clock_config();
+        esp_soc::uart::UartPins::S3.route(port, &self.gpio, &self.io_mux,
+            self.uart[port].baud(clock, 20_000_000))
+    }
+
+    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
+        let routes: [_; 3] = std::array::from_fn(|port| self.uart_route(port));
+        esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
     }
 
     pub fn read32(&mut self, addr: u32) -> u32 {

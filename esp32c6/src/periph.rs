@@ -445,6 +445,17 @@ impl Peripherals {
         }
     }
 
+    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
+        let clock = self.pcr.read(4 + port as u32 * 12);
+        esp_soc::uart::UartPins::C6.route(port, &self.gpio, &self.io_mux,
+            self.uart[port].baud(clock, 20_000_000))
+    }
+
+    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
+        let routes: [_; 2] = std::array::from_fn(|port| self.uart_route(port));
+        esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
+    }
+
     pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
 
     fn i2c_pin(&self, signal: usize) -> Option<u8> {
