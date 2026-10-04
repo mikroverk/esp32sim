@@ -35,7 +35,7 @@ impl BoardModel for Endpoint {
 }
 
 macro_rules! check_chip {
-    ($name:ident, $machine:expr, $uart:expr, $gpio:expr, $mux:expr, $clock:expr, $signal:expr, $input_select:expr, $native_tx:expr, $native_rx:expr, $native_func:expr) => {
+    ($name:ident, $machine:expr, $uart:expr, $gpio:expr, $mux:expr, $clock:expr, $signal:expr, $input_select:expr, $native_tx:expr, $native_rx:expr, $native_func:expr, $rc_div:expr, $rc_baud:expr) => {
         #[test]
         fn $name() {
             let mut machine = $machine;
@@ -104,10 +104,10 @@ macro_rules! check_chip {
             assert_ne!(bus.periph.uart[1].int_raw & esp_periph::uart::INT_FRM_ERR, 0);
             assert_eq!(bus.periph.uart[1].rx_pending(), 0);
             bus.write32($uart + 0x10, u32::MAX).unwrap();
-            // RC_FAST is 20 MHz on all three chips: 20 MHz / 173.625 = 115190.
+            // RC_FAST / fractional divider gives approximately 115200 baud.
             bus.write32($clock, 2 << 20).unwrap();
-            bus.write32($uart + 0x14, 173 | 10 << 20).unwrap();
-            assert_eq!(bus.periph.uart_route(1).baud, Some(115190));
+            bus.write32($uart + 0x14, $rc_div).unwrap();
+            assert_eq!(bus.periph.uart_route(1).baud, Some($rc_baud));
             bus.periph.uart_pin_input(&UartInput::new(4, 115200, vec![42]));
             assert_eq!(bus.periph.uart[1].int_raw & esp_periph::uart::INT_FRM_ERR, 0);
             assert_eq!(bus.read32($uart).unwrap(), 42);
@@ -159,7 +159,9 @@ check_chip!(
     0x80,
     43u32,
     44u32,
-    0
+    0,
+    151 | 14 << 20,
+    115226
 );
 check_chip!(
     c3,
@@ -172,7 +174,9 @@ check_chip!(
     0x40,
     21u32,
     20u32,
-    0
+    0,
+    151 | 14 << 20,
+    115226
 );
 check_chip!(
     c6,
@@ -185,7 +189,9 @@ check_chip!(
     0x80,
     16u32,
     17u32,
-    0
+    0,
+    173 | 10 << 20,
+    115190
 );
 
 #[test]

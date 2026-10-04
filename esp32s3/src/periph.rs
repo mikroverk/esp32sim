@@ -505,9 +505,12 @@ impl Peripherals {
     }
 
     pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
+        // ESP-IDF v5.5.4 components/soc/esp32s3/include/soc/clk_tree_defs.h:
+        // UART_SCLK_RTC = SOC_MOD_CLK_RC_FAST, SOC_CLK_RC_FAST_FREQ_APPROX = 17.5 MHz.
+        // IDF 4.4 used 20 MHz (RTC_CLK_FREQ).
         let clock = self.uart[port].clock_config();
         esp_soc::uart::UartPins::S3.route(port, &self.gpio, &self.io_mux,
-            self.uart[port].baud(clock, 20_000_000))
+            self.uart[port].baud(clock, 17_500_000))
     }
 
     pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
