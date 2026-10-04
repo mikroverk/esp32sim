@@ -151,6 +151,7 @@ impl esp_soc::SocBus for SocBus {
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.rtc.analog.set(pin, src); }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let old_input = self.periph.gpio.input;
         self.periph.gpio.set_input(pin, level);

@@ -730,3 +730,22 @@ fn zero_display_rate_is_safe() {
     assert!(matches!(m.run(8192), Stop::MaxInsns));
     assert!(calls.load(Ordering::Relaxed) > 0);
 }
+
+/// A waveform after `waituart0` plays from when it is applied: the wait moves its event, and the
+/// first sample has to move with it instead of starting at the cycle the script was parsed for.
+#[test]
+fn waveform_after_waituart0_starts_at_the_shifted_time() {
+    let mut m = machine();
+    park(&mut m, 0, IRAM, &SPIN);
+    m.script.log = false;
+    let ramp: Vec<f32> = (0..1000).map(|i| i as f32 / 1000.0).collect();
+    let wave = esp_periph::AnalogSource::Wave { samples: std::sync::Arc::new(ramp), rate_hz: 100_000.0, start_cycles: 0 };
+    m.script.events = vec![(0, ScriptAction::WaitUart0("never printed".into(), 1000, 0)), (0, ScriptAction::Analog(1, wave))];
+    m.max_cycles = 2_000_000;   // past the 1 ms recheck that ends the timed-out wait
+    m.run(u64::MAX);
+    assert_eq!(m.script.pos, 2, "the wait timed out and the waveform was applied");
+    let applied = m.script.events[1].0;
+    assert!(applied > 0, "the wait moved the waveform's event");
+    assert_eq!(m.bus.periph.rtc.analog.volts(1, applied), 0.0, "the first sample plays at the moved start");
+    assert_eq!(m.bus.periph.rtc.analog.volts(1, applied + 2400), 0.001, "and advances one sample per 10 µs (2400 cycles) from there");
+}
