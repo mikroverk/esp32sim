@@ -124,6 +124,7 @@ select ADC1 and GPIO5 selects ADC2; C6 GPIO0–6 select ADC1.
 `waituart0 <timeout_s> <text>` holds later actions until UART0 prints the text or
 the timeout expires. Raw counts and completed-conversion observations are exposed
 through the [host ADC API](peripherals.md#host-adc-inputs), with no CLI equivalent.
+
 ## Virtual BLE
 
 `--ble --elf firmware.elf` substitutes the controller lifecycle and legacy VHCI

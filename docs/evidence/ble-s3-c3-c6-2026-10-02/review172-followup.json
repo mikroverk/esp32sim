@@ -1,0 +1,556 @@
+{
+  "experiment": "EX200",
+  "date": "2026-10-04",
+  "published_head": "81533f8faa67370fa9ab9291941c5960792be774",
+  "upstream_main": "f3cef17d1703cb1ebe22bc0007d0970921ae2df3",
+  "source_revision": "066eba4f5a387693efd6a891f64fd73f26d301db",
+  "changes": [
+    "Document guest-poll servicing instead of scheduling controller deadlines.",
+    "Document controller-owned deferred actions and cap Session exchanges at 64 rounds.",
+    "Check the C6 init symbol before IDF version.",
+    "Report queued and in-flight commands at CLI exit.",
+    "Drop packets above 260 bytes before allocating C6 receive buffers.",
+    "Retain main offchip test names and ignore all external tests with required inputs."
+  ],
+  "tools": {
+    "rustc": "1.99.0 (b940084d7 2026-09-28)",
+    "node": "v22.23.1"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "result": "pass"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": "pass"
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=/private/tmp/esp32sim-up-ble/web/wasm/fw cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "result": {
+        "passed": 547,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "result": {
+        "passed": 532,
+        "failed": 0,
+        "ignored": 26
+      }
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "ESP32SIM_BLE_FIRMWARE_DIR=/tmp/up-ble-firmware ESP32SIM_ROM_DIR=/private/tmp/esp32sim-up-ble/web/wasm/fw cargo +1.99.0 test --release -p esp32sim --test ble external_ble_arduino_examples -- --ignored",
+      "result": "pass; all twelve examples"
+    }
+  ],
+  "new_tests": [
+    "deferred_controller_is_bounded_and_pending_commands_survive",
+    "missing_ble_symbols_precede_version_errors",
+    "oversized_acl_is_dropped_before_allocation_without_retry",
+    "c6_ble_without_elf_names_the_missing_symbol"
+  ],
+  "goldens": "Bit-identical; no golden files changed. Both the ignored golden suite and all eight WASM demos passed.",
+  "wasm_sha256": "58352e98f0427d4a121f4f8b3c0683eb672878edd00c9a291b1631c2c8776a2c",
+  "pending_report": {
+    "script": "0 ble connect\n0 ble discover\n",
+    "runs": [
+      {
+        "chip": "s3",
+        "command": [
+          "/private/tmp/esp32sim-up-ble/target/release/esp32sim",
+          "--chip",
+          "s3",
+          "--boot",
+          "rom",
+          "--rom",
+          "/private/tmp/esp32sim-up-ble/web/wasm/fw/esp32s3_rev0_rom.elf",
+          "--flash-mb",
+          "8",
+          "--flash-image",
+          "/tmp/up-ble-firmware/s3/Server/.pio/build/esp32-s3-devkitc-1/firmware.factory.bin",
+          "--elf",
+          "/tmp/up-ble-firmware/s3/Server/.pio/build/esp32-s3-devkitc-1/firmware.elf",
+          "--ble",
+          "--script",
+          "/tmp/pr172-checks/pending.script",
+          "--max-insns",
+          "100",
+          "--no-dump"
+        ],
+        "exit_code": 0,
+        "expected": "[ble] 2 command(s) still pending at end of run",
+        "passed": true,
+        "inputs_sha256": {
+          "firmware.elf": "1c7ff0672f1ed91092cd3c6eb4fcb55549601a58d63dc301b3631e297f789ef8",
+          "firmware.factory.bin": "56e1c2b891723741a411127e1948064dbebce91e346781b32693e6ad2e787c9d",
+          "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "pending.script": "6f01719446c1298c8160c6e8601951519bc7e13f1d57048194d13861027f5a24"
+        }
+      },
+      {
+        "chip": "c3",
+        "command": [
+          "/private/tmp/esp32sim-up-ble/target/release/esp32sim",
+          "--chip",
+          "c3",
+          "--boot",
+          "rom",
+          "--rom",
+          "/private/tmp/esp32sim-up-ble/web/wasm/fw/esp32c3_rev3_rom.elf",
+          "--flash-mb",
+          "8",
+          "--flash-image",
+          "/tmp/up-ble-firmware/c3/Server/.pio/build/esp32-c3-devkitm-1/firmware.factory.bin",
+          "--elf",
+          "/tmp/up-ble-firmware/c3/Server/.pio/build/esp32-c3-devkitm-1/firmware.elf",
+          "--ble",
+          "--script",
+          "/tmp/pr172-checks/pending.script",
+          "--max-insns",
+          "100",
+          "--no-dump"
+        ],
+        "exit_code": 0,
+        "expected": "[ble] 2 command(s) still pending at end of run",
+        "passed": true,
+        "inputs_sha256": {
+          "firmware.elf": "b3980df8c4c1f5ad79495341f201753e3352d061e6cad071573136467650631b",
+          "firmware.factory.bin": "18d6ad705d6d0338b426d48363c5a8dfd1a0beb1965171d8dcf19cbd57471921",
+          "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+          "pending.script": "6f01719446c1298c8160c6e8601951519bc7e13f1d57048194d13861027f5a24"
+        }
+      },
+      {
+        "chip": "c6",
+        "command": [
+          "/private/tmp/esp32sim-up-ble/target/release/esp32sim",
+          "--chip",
+          "c6",
+          "--boot",
+          "rom",
+          "--rom",
+          "/private/tmp/esp32sim-up-ble/web/wasm/fw/esp32c6_rev0_rom.elf",
+          "--flash-mb",
+          "8",
+          "--flash-image",
+          "/tmp/up-ble-firmware/c6/Server/.pio/build/esp32-c6-devkitc-1/firmware.factory.bin",
+          "--elf",
+          "/tmp/up-ble-firmware/c6/Server/.pio/build/esp32-c6-devkitc-1/firmware.elf",
+          "--ble",
+          "--script",
+          "/tmp/pr172-checks/pending.script",
+          "--max-insns",
+          "100",
+          "--no-dump"
+        ],
+        "exit_code": 0,
+        "expected": "[ble] 2 command(s) still pending at end of run",
+        "passed": true,
+        "inputs_sha256": {
+          "firmware.elf": "5c695692db1007796f44a894a7bc227415e5e41238533767f71af63241b6d6da",
+          "firmware.factory.bin": "7f4522cf2547e2a8e7ca2f1684c7288e9712db7063bc052ed493ece9710e4c7f",
+          "esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+          "pending.script": "6f01719446c1298c8160c6e8601951519bc7e13f1d57048194d13861027f5a24"
+        }
+      }
+    ]
+  },
+  "arduino": {
+    "emulator_sha256": "cd76a4ab24d8866d6c7b09a11657a76efd32d4f2754cc1fcf5936c47e2305a2a",
+    "runs": [
+      {
+        "chip": "s3",
+        "example": "Server",
+        "script": "0.5 ble connect\n0.6 ble discover\n1.0 ble read 0x0010\n",
+        "exit_code": 0,
+        "checks": {
+          "Hello World says Neil": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.258738,
+        "wall_to_advertising_s": 0.5665359999984503,
+        "wall_s": 0.652941667009145,
+        "hashes": {
+          "firmware.elf": "1c7ff0672f1ed91092cd3c6eb4fcb55549601a58d63dc301b3631e297f789ef8",
+          "firmware.factory.bin": "56e1c2b891723741a411127e1948064dbebce91e346781b32693e6ad2e787c9d"
+        },
+        "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+        "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "log_sha256": "89b150adea5a825607524d6e7d0f8e7fc037553ac1a6b72af996980e1cec4555",
+        "serial_sha256": "f99b3e95b2bfb40c5e9a997463cdc2b0cbc1951d2650ead63c4a6ede37741b19",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "89b150adea5a825607524d6e7d0f8e7fc037553ac1a6b72af996980e1cec4555",
+        "stop_summary": "[emu] stop: Halted \u2014 core0 9682631 + core1 2932774 insns in 0.2s wall = 61.6 Minsn/s; emulated 1.300s (312000000 cycles); 28804 exceptions, 4087 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "s3",
+        "example": "Notify",
+        "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble subscribe 0x0011\n",
+        "exit_code": 0,
+        "checks": {
+          "notification handle=0x0010": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true,
+          "incrementing_notifications": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.25681,
+        "wall_to_advertising_s": 0.14433929196093231,
+        "wall_s": 1.4035434579709545,
+        "hashes": {
+          "firmware.elf": "2f161863689698c559f3e35daeb9caaac30e8a086e51db2308a0fd1502af62bf",
+          "firmware.factory.bin": "ebb406bc4cea5679f91f733f1a25577eb5c592c9ebadf66c2d8d4463466e5998"
+        },
+        "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+        "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "log_sha256": "eab89268cc4c7b4de30478f2059ce0c31514a14134c71bb8ff545a92f26deb9e",
+        "serial_sha256": "6cb252e4ef5762f4f498158fb89fedf1e9f16ad7e79fd3e9191d508668f28e17",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "eab89268cc4c7b4de30478f2059ce0c31514a14134c71bb8ff545a92f26deb9e",
+        "stop_summary": "[emu] stop: Halted \u2014 core0 13955280 + core1 63707081 insns in 1.4s wall = 56.5 Minsn/s; emulated 2.600s (624000000 cycles); 47036 exceptions, 7994 interrupts",
+        "notification_values": [
+          "01000000",
+          "02000000",
+          "03000000",
+          "04000000"
+        ]
+      },
+      {
+        "chip": "s3",
+        "example": "Write",
+        "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble write 0x0010 48656c6c6f2066726f6d20686f7374\n0.8 ble read 0x0010\n",
+        "exit_code": 0,
+        "checks": {
+          "New value: Hello from host": true,
+          "text=\"Hello from host\"": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.258744,
+        "wall_to_advertising_s": 0.1582899170462042,
+        "wall_s": 0.2577119580237195,
+        "hashes": {
+          "firmware.elf": "92e2a4386ea508167bb2af6ad3eaba65ff64d513874b82174e4539c1e30b93c4",
+          "firmware.factory.bin": "263e15fcf046c9d0f62a9913ec56417625b305225712c32ead3f4db5e112e9c5"
+        },
+        "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+        "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "log_sha256": "e452561c3f00db9f4a61fb735e7fe935ae879ab8770316497b31487144738907",
+        "serial_sha256": "e247f202e3a7ab2bf30f85d3134dc102a2d45b801d9f1038f62198b87826e76a",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "e452561c3f00db9f4a61fb735e7fe935ae879ab8770316497b31487144738907",
+        "stop_summary": "[emu] stop: Halted \u2014 core0 9424171 + core1 2820139 insns in 0.2s wall = 52.6 Minsn/s; emulated 1.200s (288000000 cycles); 27694 exceptions, 3789 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "s3",
+        "example": "Scan",
+        "script": "",
+        "exit_code": 0,
+        "checks": {
+          "Name: esp32sim": true,
+          "Devices found: 1": true,
+          "Scan done!": true,
+          "clean_stop": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": null,
+        "wall_to_advertising_s": null,
+        "wall_s": 0.7423562080366537,
+        "hashes": {
+          "firmware.elf": "ea2bdd6b959c8e27c16e2b749f14eb7f72a410090a5e4dbe5fb9c051ce9717f0",
+          "firmware.factory.bin": "fa93e65805e64c80c71e5c77f9cec6f9cc3ed99ea6a7617343869c34281364cd"
+        },
+        "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+        "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "log_sha256": "b75fea3caa158e60d9dd1f4b0562f728a62c21ec02148c2e6dbedd26cd23bb74",
+        "serial_sha256": "4486fe98269b3e6ce6c5c7eda30430019822ca11157891ba41af1d74d25c9f83",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "b75fea3caa158e60d9dd1f4b0562f728a62c21ec02148c2e6dbedd26cd23bb74",
+        "stop_summary": "[emu] stop: Halted \u2014 core0 23362505 + core1 7790698 insns in 0.7s wall = 43.3 Minsn/s; emulated 5.600s (1344000000 cycles); 87186 exceptions, 16950 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "c3",
+        "example": "Server",
+        "script": "0.5 ble connect\n0.6 ble discover\n1.0 ble read 0x0010\n",
+        "exit_code": 0,
+        "checks": {
+          "Hello World says Neil": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.267993,
+        "wall_to_advertising_s": 0.12955779198091477,
+        "wall_s": 0.32251529197674245,
+        "hashes": {
+          "firmware.elf": "b3980df8c4c1f5ad79495341f201753e3352d061e6cad071573136467650631b",
+          "firmware.factory.bin": "18d6ad705d6d0338b426d48363c5a8dfd1a0beb1965171d8dcf19cbd57471921"
+        },
+        "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+        "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "log_sha256": "b6b8f8f96e0d83b4394735780f8bc6d1f63625c9018933bba9d3fedda045acf8",
+        "serial_sha256": "531c8d182f2e795f346fb60d170de124470bc38df5545c587802731a4426f1bf",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "b6b8f8f96e0d83b4394735780f8bc6d1f63625c9018933bba9d3fedda045acf8",
+        "stop_summary": "[emu] stop: Halted \u2014 208000000 insns in 0.3s wall = 695.5 Minsn/s; emulated 1.300s (208000000 cycles); 0 exceptions, 2672 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "c3",
+        "example": "Notify",
+        "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble subscribe 0x0011\n",
+        "exit_code": 0,
+        "checks": {
+          "notification handle=0x0010": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true,
+          "incrementing_notifications": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.266153,
+        "wall_to_advertising_s": 0.12727633398026228,
+        "wall_s": 1.3818333339877427,
+        "hashes": {
+          "firmware.elf": "3380e947cee68a70bd1ec08a536d46bfe55a63414cd77f104b62f50b7bab4144",
+          "firmware.factory.bin": "25a82f4f102a5b9be0e784ef12eb3ce067f1c7137cca63f6aa2ccc608e45be3c"
+        },
+        "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+        "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "log_sha256": "11a4c8abac4881610fc272c5a3230f96d5c465909b39b6e1a444b1d969ec2e92",
+        "serial_sha256": "2e4004168b9e649d00d7e3439abfb0c556ed36876bd648dcf2f604c420f2e075",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "11a4c8abac4881610fc272c5a3230f96d5c465909b39b6e1a444b1d969ec2e92",
+        "stop_summary": "[emu] stop: Halted \u2014 416000000 insns in 1.4s wall = 305.6 Minsn/s; emulated 2.600s (416000000 cycles); 0 exceptions, 5282 interrupts",
+        "notification_values": [
+          "01000000",
+          "02000000",
+          "03000000",
+          "04000000"
+        ]
+      },
+      {
+        "chip": "c3",
+        "example": "Write",
+        "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble write 0x0010 48656c6c6f2066726f6d20686f7374\n0.8 ble read 0x0010\n",
+        "exit_code": 0,
+        "checks": {
+          "New value: Hello from host": true,
+          "text=\"Hello from host\"": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.268008,
+        "wall_to_advertising_s": 0.12908879201859236,
+        "wall_s": 0.43816324998624623,
+        "hashes": {
+          "firmware.elf": "2b65c1263b3adba1dd16873e9cffbb6d2adbc95338e9a159f0368ee62e401560",
+          "firmware.factory.bin": "a66e94a7056ff3ddcc71c2a5c74234329bd716055e0275c4d8cf801ced684b5e"
+        },
+        "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+        "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "log_sha256": "8cd2bb4243ac7efcf5010c5bbb4067c77c17ba0c323329acef4f8d10e2b030cb",
+        "serial_sha256": "f853fba11a7625da30715f64fd14aabcce7d2083c88bad42f66307210343c490",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "8cd2bb4243ac7efcf5010c5bbb4067c77c17ba0c323329acef4f8d10e2b030cb",
+        "stop_summary": "[emu] stop: Halted \u2014 192000000 insns in 0.4s wall = 481.8 Minsn/s; emulated 1.200s (192000000 cycles); 0 exceptions, 2473 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "c3",
+        "example": "Scan",
+        "script": "",
+        "exit_code": 0,
+        "checks": {
+          "Name: esp32sim": true,
+          "Devices found: 1": true,
+          "Scan done!": true,
+          "clean_stop": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": null,
+        "wall_to_advertising_s": null,
+        "wall_s": 1.9459382080240175,
+        "hashes": {
+          "firmware.elf": "e6cad5ac64df8e68f374e8e6649a2014d36667ce9c7fe300fde16d364a755d16",
+          "firmware.factory.bin": "d4668baf85824df08c209e74cd817aff626ddfc781f09f5f64d189be14907393"
+        },
+        "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+        "rom_sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "log_sha256": "9a91258b7b41a17e5a73a7266c1e02c11952529f0cf4a81f9af9a6bfc484717d",
+        "serial_sha256": "ababf7f077932fe91425e6968a8f0ba3e3d53b8d1aca0677050e4dbb206705f7",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "9a91258b7b41a17e5a73a7266c1e02c11952529f0cf4a81f9af9a6bfc484717d",
+        "stop_summary": "[emu] stop: Halted \u2014 896000000 insns in 1.9s wall = 465.6 Minsn/s; emulated 5.600s (896000000 cycles); 0 exceptions, 11241 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "c6",
+        "example": "Server",
+        "script": "0.5 ble connect\n0.6 ble discover\n1.0 ble read 0x0010\n",
+        "exit_code": 0,
+        "checks": {
+          "Hello World says Neil": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.255737,
+        "wall_to_advertising_s": 0.3532867090543732,
+        "wall_s": 0.7993313750484958,
+        "hashes": {
+          "firmware.elf": "5c695692db1007796f44a894a7bc227415e5e41238533767f71af63241b6d6da",
+          "firmware.factory.bin": "7f4522cf2547e2a8e7ca2f1684c7288e9712db7063bc052ed493ece9710e4c7f"
+        },
+        "sketch_sha256": "ebb7ba07b385799db98652fa30697c0ff30d934f67e4f1c8b01e798fa1d7956c",
+        "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+        "log_sha256": "4bf7365c0f80c882a0460ad71967ec78b00c88dba84750fdad9630ed4f043b38",
+        "serial_sha256": "14d8adacc34f8ae9d4020a21b34755d40934cdc0fa1b39f938e5883187837975",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "4bf7365c0f80c882a0460ad71967ec78b00c88dba84750fdad9630ed4f043b38",
+        "stop_summary": "[emu] stop: Halted \u2014 208000000 insns in 0.6s wall = 357.0 Minsn/s; emulated 1.300s (208000000 cycles); 0 exceptions, 2614 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "c6",
+        "example": "Notify",
+        "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble subscribe 0x0011\n",
+        "exit_code": 0,
+        "checks": {
+          "notification handle=0x0010": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true,
+          "incrementing_notifications": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.254918,
+        "wall_to_advertising_s": 0.1849331670673564,
+        "wall_s": 2.1486625000834465,
+        "hashes": {
+          "firmware.elf": "fd3e9c37e13441fed3e76d571f5a2b70f804e2c18209644d4e7f41215d69b56e",
+          "firmware.factory.bin": "9b99834a4c6aa756680f5a35ab7b3921edbb0254c1ef52f50283b65570cbbb4e"
+        },
+        "sketch_sha256": "4104a310fcb7a5413721fbebf01c650978efbfea4a7740975adf050b640c1543",
+        "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+        "log_sha256": "cce818533ba7d8c44609f48d2eb6ca47928b8693cc8be31df80adbfd714dbfda",
+        "serial_sha256": "6b3a676f81316d080fa014d8653da518420a8384ea53c7713b1e3c73d9842220",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "cce818533ba7d8c44609f48d2eb6ca47928b8693cc8be31df80adbfd714dbfda",
+        "stop_summary": "[emu] stop: Halted \u2014 416000000 insns in 2.1s wall = 195.6 Minsn/s; emulated 2.600s (416000000 cycles); 0 exceptions, 5224 interrupts",
+        "notification_values": [
+          "01000000",
+          "02000000",
+          "03000000",
+          "04000000"
+        ]
+      },
+      {
+        "chip": "c6",
+        "example": "Write",
+        "script": "0.5 ble connect\n0.6 ble discover\n0.7 ble write 0x0010 48656c6c6f2066726f6d20686f7374\n0.8 ble read 0x0010\n",
+        "exit_code": 0,
+        "checks": {
+          "New value: Hello from host": true,
+          "text=\"Hello from host\"": true,
+          "clean_stop": true,
+          "uuid=4fafc201-1fb5-459e-8fcc-c5c9c331914b": true,
+          "name=\"": true,
+          "connected handle=0x0001 guest=peripheral": true,
+          "discovery complete": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": 0.25576,
+        "wall_to_advertising_s": 0.15536058298312128,
+        "wall_s": 0.49696266592945904,
+        "hashes": {
+          "firmware.elf": "2b4b07ebb8a620ac98f99947e0a921fec5da27208776c578c4d6a7479c09fa01",
+          "firmware.factory.bin": "1bd26242c559f22785f78db691d1fa707a0e619522de32a5a528c89d8a2462aa"
+        },
+        "sketch_sha256": "e7d5d8bb03f12194e8ea84c6b607b295916650de8b03cacff04a7c8fb736c6c8",
+        "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+        "log_sha256": "02ff95c592af631732085d8671a9dbb7e2fff0ee2b3931ac8e0c937add7da90e",
+        "serial_sha256": "ad7191db7ce6e69cb8a04238ccaead53c7fc0bc04be535d6cdbc1783e7f40134",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "02ff95c592af631732085d8671a9dbb7e2fff0ee2b3931ac8e0c937add7da90e",
+        "stop_summary": "[emu] stop: Halted \u2014 192000000 insns in 0.5s wall = 404.8 Minsn/s; emulated 1.200s (192000000 cycles); 0 exceptions, 2415 interrupts",
+        "notification_values": []
+      },
+      {
+        "chip": "c6",
+        "example": "Scan",
+        "script": "",
+        "exit_code": 0,
+        "checks": {
+          "Name: esp32sim": true,
+          "Devices found: 1": true,
+          "Scan done!": true,
+          "clean_stop": true
+        },
+        "passed": true,
+        "modeled_boot_to_advertising_s": null,
+        "wall_to_advertising_s": null,
+        "wall_s": 2.121954167028889,
+        "hashes": {
+          "firmware.elf": "c5b02e0032d1f652cf144c8a703fb24659f07e1ba6637f21ca9960a7a68c9924",
+          "firmware.factory.bin": "b18c38be3a3fb64088847a1774c3c310b086e80209e5a5185f7d5060bca78ddb"
+        },
+        "sketch_sha256": "90502d0863416af26e3d0787ea5cd3524acb764ca0feaf7a3f65994c5844e1dc",
+        "rom_sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+        "log_sha256": "9477cfba10776b5fabd0510960cbc76a1533c872579b6fdd857c1825285b3c92",
+        "serial_sha256": "bf3987cb16f3c8f85c88c8a95ea9bc47430aecd200f6a4be86801fffa3be015c",
+        "capture_order": "stdout then stderr; advertising timed while reading stderr",
+        "original_log_sha256": "9477cfba10776b5fabd0510960cbc76a1533c872579b6fdd857c1825285b3c92",
+        "stop_summary": "[emu] stop: Halted \u2014 896000000 insns in 2.1s wall = 426.5 Minsn/s; emulated 5.600s (896000000 cycles); 0 exceptions, 11195 interrupts",
+        "notification_values": []
+      }
+    ]
+  },
+  "limitations": "Correctness checks only. Arduino wall samples include concurrent validation and compiler load; no throughput or physical radio timing claim. JIT source unchanged, so wasm-jit-test.sh was not required. Controllers still need guest polls to advance.",
+  "retention": "Retained revisions, commands, scripts, input/output hashes, checks and numeric samples. Arduino commands are reproduced by the recorded external test and run.py at source_revision. Omitted redundant per-example command arrays containing temporary session paths and raw console captures. No personal identity or process inventory retained. Historical receipts and hashes are unchanged.",
+  "adoption": "Local review fixes; no push or GitHub comment."
+}
