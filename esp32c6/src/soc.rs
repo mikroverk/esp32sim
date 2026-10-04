@@ -35,7 +35,9 @@ impl Soc for C6 {
 impl esp_soc::SocBus for SocBus {
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
-        match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }
+        let timer = match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) };
+        let board = self.board.next_deadline().map(|at| at.saturating_sub(self.cycles).max(1));
+        timer.into_iter().chain(board).min()
     }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
     fn refresh_irq(&mut self) -> bool { self.periph.refresh_lines(); true }
@@ -100,6 +102,7 @@ impl esp_soc::SocBus for SocBus {
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;
+        self.attach_board_devices();
         cause
     }
     fn sw_reset(&self) -> bool { self.periph.lpsys.sw_reset }
