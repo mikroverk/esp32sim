@@ -112,6 +112,12 @@ pub struct Cpu {
     pub cpenable: u32,
     pub prid: u32,
     pub threadptr: u32,
+    /// LX6 DFP accelerator context registers (F64R_LO, F64R_HI, F64S).
+    /// ESP-IDF v4.4.8 and v5.5.4: components/xtensa/esp32/include/xtensa/config/tie.h, UR 234-236.
+    pub f64: [u32; 3],
+    /// ESP-IDF v4.4.8 and v5.5.4: components/xtensa/{esp32,esp32s3}/include/xtensa/config/core-isa.h
+    /// sets XCHAL_HAVE_DFP_ACCEL to 1 on ESP32 and 0 on S3. Defaults to S3.
+    pub lx6: bool,
     pub misc: [u32; 4],
     pub icount: u32,
     pub icountlevel: u32,
@@ -210,7 +216,7 @@ impl Cpu {
             interrupt: 0, intenable: 0, ccount: 0, approximate_cpi: 1, approximate_pie_mode: 0, approximate_pie_events: 0, approximate_pie_cycles: 0, ccompare: [0; 3],
             #[cfg(target_arch = "wasm32")]
             event_at: u32::MAX,
-            cpenable: 0, prid, threadptr: 0, misc: [0; 4],
+            cpenable: 0, prid, threadptr: 0, f64: [0; 3], lx6: false, misc: [0; 4],
             icount: 0, icountlevel: 0, ibreakenable: 0, ibreaka: [0; 2], dbreaka: [0; 2], dbreakc: [0; 2], memctl: 0, atomctl: 0, ddr: 0,
             configid: [0xC2ECFAFE, 0x22F86EDF],   // reported by real S3 (informational)
             fr: [0; 16], fcr: 0, fsr: 0,

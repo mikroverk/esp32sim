@@ -437,7 +437,7 @@ pub fn ur_name(n: u32) -> Option<&'static str> {
         0 => "accx_0", 1 => "accx_1", 2 => "qacc_h_0", 3 => "qacc_h_1", 4 => "qacc_h_2", 5 => "qacc_h_3", 6 => "qacc_h_4",
         7 => "qacc_l_0", 8 => "qacc_l_1", 9 => "qacc_l_2", 10 => "qacc_l_3", 11 => "qacc_l_4", 12 => "gpio_out",
         13 => "sar_byte", 14 => "fft_bit_width", 15 => "ua_state_0", 16 => "ua_state_1", 17 => "ua_state_2", 18 => "ua_state_3",
-        231 => "threadptr", 232 => "fcr", 233 => "fsr",
+        231 => "threadptr", 232 => "fcr", 233 => "fsr", 234 => "f64r_lo", 235 => "f64r_hi", 236 => "f64s",
         _ => return None,
     })
 }

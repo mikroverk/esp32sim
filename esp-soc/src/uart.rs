@@ -13,6 +13,10 @@ pub struct UartRoute {
     pub baud: Option<u32>,
 }
 impl UartRoute {
+    /// Route decoded by a chip with its own GPIO matrix and IO_MUX layout.
+    pub fn new(port: usize, tx_pins: u64, rx_pin: Option<u8>, baud: Option<u32>) -> Self {
+        Self { port, tx_pins, rx_pin, baud }
+    }
     /// Three percent tolerance for divider rounding and oscillator error.
     pub fn matches_baud(&self, baud: u32) -> bool {
         baud != 0 && self.baud.is_some_and(|actual| actual.abs_diff(baud) as u64 * 100 <= baud as u64 * 3)
