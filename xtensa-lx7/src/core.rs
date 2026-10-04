@@ -113,7 +113,7 @@ mod tests {
     use crate::state::{exc, sr, TIMER_INTERRUPT};
 
     #[test]
-    fn external_lines_preserve_core_interrupts_and_track_levels() {
+    fn offchip_lines_preserve_core_interrupts_and_track_levels() {
         use crate::state::{INTTYPE_LEVEL, INTTYPE_PROFILING, INTTYPE_SOFTWARE, INTTYPE_TIMER};
         let mut cpu = crate::Cpu::new(0);
         let internal = INTTYPE_SOFTWARE | INTTYPE_TIMER | INTTYPE_PROFILING;
@@ -128,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn external_edges_latch_until_cleared_and_require_a_new_rising_edge() {
+    fn offchip_edges_latch_until_cleared_and_require_a_new_rising_edge() {
         use crate::state::{sr, INTTYPE_EDGE};
         let mut cpu = crate::Cpu::new(0);
         cpu.set_irq(INTTYPE_EDGE);
@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn reset_rearms_external_edge_detection() {
+    fn reset_rearms_offchip_edge_detection() {
         use crate::state::{INTTYPE_EDGE, INTTYPE_NMI};
         let mut cpu = crate::Cpu::new(0);
         let edges = INTTYPE_EDGE | INTTYPE_NMI;
