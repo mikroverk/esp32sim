@@ -425,7 +425,7 @@ impl Peripherals {
         Peripherals {
             adc: esp_periph::sar_adc::SarAdc::new(true, CPU_HZ),
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87, 8),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87, 8),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6

@@ -51,3 +51,96 @@ fn mcpwm_matrix_clock_reset_and_block_wiring() {
         assert!(b.pwm_output(4).is_none());
     }
 }
+
+#[test]
+fn ledc_clock_gate_resumes_interrupt_after_reboot() {
+    let mut m = esp32s3::machine([0; 6]);
+    for boot in 0..2 {
+        if boot != 0 { m.reboot(); }
+        let p = &mut m.bus.periph;
+        let source = 35;
+        let mask = 1 << (source % 32);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x800);
+        p.write32(0x600190d0, 0x3);
+        p.write32(0x600190a0, 0x2001008);
+        p.write32(0x600190c8, 0x1);
+        p.tick(4096);
+        assert_ne!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600190cc, 1);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x0);
+        p.tick(4096);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x800);
+        p.tick(4096);
+        assert_ne!(p.source_status()[source / 32] & mask, 0, "clock gate must resume interrupts, boot {boot}");
+        p.write32(0x600c0020, 0x800);
+        assert_eq!(p.source_status()[source / 32] & mask, 0, "reset must clear cached interrupt");
+        p.write32(0x600c0020, 0x0);
+        p.tick(4096);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+    }
+}
+
+#[test]
+fn mcpwm0_clock_gate_resumes_interrupt_after_reboot() {
+    let mut m = esp32s3::machine([0; 6]);
+    for boot in 0..2 {
+        if boot != 0 { m.reboot(); }
+        let p = &mut m.bus.periph;
+        let source = 31;
+        let mask = 1 << (source % 32);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x20000);
+        p.write32(0x6001e004, 0x6300);
+        p.write32(0x6001e008, 0xa);
+        p.write32(0x6001e110, 0x8);
+        p.tick(4096);
+        assert_ne!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x6001e11c, 8);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x0);
+        p.tick(4096);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x20000);
+        p.tick(4096);
+        assert_ne!(p.source_status()[source / 32] & mask, 0, "clock gate must resume interrupts, boot {boot}");
+        p.write32(0x600c0020, 0x20000);
+        assert_eq!(p.source_status()[source / 32] & mask, 0, "reset must clear cached interrupt");
+        p.write32(0x600c0020, 0x0);
+        p.tick(4096);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+    }
+}
+
+#[test]
+fn mcpwm1_clock_gate_resumes_interrupt_after_reboot() {
+    let mut m = esp32s3::machine([0; 6]);
+    for boot in 0..2 {
+        if boot != 0 { m.reboot(); }
+        let p = &mut m.bus.periph;
+        let source = 32;
+        let mask = 1 << (source % 32);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x100000);
+        p.write32(0x6002c004, 0x6300);
+        p.write32(0x6002c008, 0xa);
+        p.write32(0x6002c110, 0x8);
+        p.tick(4096);
+        assert_ne!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x6002c11c, 8);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x0);
+        p.tick(4096);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+        p.write32(0x600c0018, 0x100000);
+        p.tick(4096);
+        assert_ne!(p.source_status()[source / 32] & mask, 0, "clock gate must resume interrupts, boot {boot}");
+        p.write32(0x600c0020, 0x100000);
+        assert_eq!(p.source_status()[source / 32] & mask, 0, "reset must clear cached interrupt");
+        p.write32(0x600c0020, 0x0);
+        p.tick(4096);
+        assert_eq!(p.source_status()[source / 32] & mask, 0);
+    }
+}
