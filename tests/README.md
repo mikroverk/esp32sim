@@ -55,6 +55,6 @@ output is left next to the golden as `*.actual` for diffing.
 | `cooja-nullnet-c6.ndjson` (`external_`) | the same peer around Contiki-NG on ESP-IDF (`CONTIKI_C6_DIR` = esp32-contiki's `build-nullnet`): the periodic broadcasts as `tx` events at their `TX_START`, an injected broadcast reaching the driver after its air time and Contiki's nullnet callback, two sessions byte-identical |
 | `atech-script1` with observers | the same run with `--profile-blocks --coverage --irq-latency --vcd` attached must be byte-identical and produce every report |
 
-CI ([workflow](../.github/workflows/ci.yml)) downloads the ROM ELFs from espressif/esp-rom-elfs
-and runs the hermetic and golden tests on every push and pull request. It excludes tests named
+CI ([workflow](../.github/workflows/ci.yml)) gets the ROM ELFs with `tools/fetch-rom-elfs.sh`, which pins
+the espressif/esp-rom-elfs release and each ELF's SHA-256 (the same script fills `web/wasm/fw/`), and runs the hermetic and golden tests on every push and pull request. It excludes tests named
 `external_*`; it does not rerun hardware comparisons or full external objdump listings.

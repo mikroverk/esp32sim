@@ -22,17 +22,14 @@ jobs:
           node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs
           node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs
           node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs
+      # Pinned by release and SHA-256 in the script, which is also the cache key: a cached roms/ is
+      # re-verified and costs no download, and nothing here goes through the GitHub API.
+      - uses: actions/cache@v4
+        with:
+          path: roms
+          key: rom-elfs-${{ hashFiles('tools/fetch-rom-elfs.sh') }}
       - name: Fetch the ESP32-S3, ESP32-C3 and ESP32-C6 mask ROM ELFs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          url=$(gh api repos/espressif/esp-rom-elfs/releases/latest --jq '.assets | map(select(.name | endswith(".tar.gz"))) | first | .browser_download_url')
-          test -n "$url" && test "$url" != null
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "$url" -o rom.tar.gz
-          mkdir -p roms && tar -xzf rom.tar.gz -C roms --wildcards '*esp32s3_rev0_rom.elf' '*esp32c3_rev3_rom.elf' '*esp32c6_rev0_rom.elf'
-          find roms -mindepth 2 -name '*.elf' -exec mv {} roms/ \;
-          ls -la roms/*.elf
+        run: tools/fetch-rom-elfs.sh roms && ls -la roms/*.elf
       - name: Build
         run: cargo build --release --workspace
       - name: Clippy
