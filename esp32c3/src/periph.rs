@@ -2,13 +2,13 @@
 //!
 //! The C3 and the S3 share most of their peripheral IP — UART, USB-Serial/JTAG, systimer, timer
 //! groups, GPIO, the SPI flash controller, GDMA, SHA/AES/RSA are the same blocks with the same
-//! register layouts — so the models come from `esp-periph` and only the address map, the cache
-//! controller and the interrupt controller are written here.
+//! register layouts apart from C3 GDMA. The models come from `esp-periph`; the C3 GDMA adapter,
+//! address map, cache controller and interrupt controller live here.
 
 use esp_periph::{i2c::I2c, rmt_compact::RmtCompact, GpSpi};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect, NO_SOURCE};
-use esp_periph::{Aes, Efuse, Gdma, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
+use esp_periph::{Aes, Efuse, Gpio, RegRam, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
 
 pub const CPU_HZ: u64 = 160_000_000;
 pub const PERIPH_BASE: u32 = 0x6000_0000;
@@ -149,7 +149,7 @@ pub struct Peripherals {
     pub intc: Intc,
     pub spi0: SpiMem,
     pub spi1: SpiMem,
-    pub gdma: Gdma,
+    pub gdma: crate::gdma::Gdma,
     pub sha: Sha,
     pub aes: Aes,
     pub rsa: Rsa,
@@ -157,6 +157,8 @@ pub struct Peripherals {
     /// register RAM behind unmodelled blocks, first-touch logging, pc attribution
     pub misc: Misc,
     pub spi_exec: bool,
+    pub work_pending: bool,
+    wifi_irq: bool, // cached source 0; updated with feature work, not polled by each interrupt scan
     clock: ClockTree<4>,
     last_status: [u32; 4],
     pin_irqs_enabled: bool,
@@ -164,11 +166,19 @@ pub struct Peripherals {
     pub spi2: Box<GpSpi>,
     pub rmt: Box<RmtCompact>,
     pub io_mux: RegRam,
+    pub wifi: Box<crate::wifi::WifiMac>,
+    pub fe_iq: crate::wifi::FeIq,
+    pub i2c_mst: crate::wifi::I2cMst,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
     0x40 "APB_SARADC" (adc) => [];
+    0x06 "FE_IQ" (fe_iq) @ 0x140..=0x177 => [];
+    0x33 "WIFI_MAC" (wifi) => [];
+    0x34 "WIFI_MAC2" (wifi) delta 0x1000 => [];
+    0x35 "WDEV" (wifi) delta 0x2000 => [];
+    0x0e "I2C_MST" (i2c_mst) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x10 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI1" (spi1) => [];
@@ -204,6 +214,8 @@ impl DeviceSet for Peripherals {
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
         if block == 0x40 { self.adc.now_cycles = self.clock.cycles(); }
+        if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
+        if block == 0x06 { self.fe_iq.now_cycles = self.clock.cycles(); }
         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
     }
 }
@@ -213,14 +225,15 @@ impl Peripherals {
         Peripherals {
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
+            wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
-            gdma: Gdma::new(),
+            gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+            misc: Misc::new(), spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
             last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
@@ -253,7 +266,9 @@ impl Peripherals {
         esp_soc::uart::uart_pin_input(&mut self.uart, input, &routes);
     }
 
-    pub fn read32(&mut self, addr: u32) -> u32 { mmio::read32(self, addr) }
+    pub fn read32(&mut self, addr: u32) -> u32 {
+        mmio::read32(self, addr)
+    }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
         if addr == 0x6001_3004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
@@ -264,14 +279,19 @@ impl Peripherals {
         if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
             self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
         }
+        self.refresh_work();
+    }
+
+    /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
+    pub fn refresh_work(&mut self) {
+        self.wifi_irq = self.wifi.irq();
+        self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.ap.is_some();
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz
     /// RTC slow clock), with delivered-tick accounting so a slow clock never drifts.
     #[inline(always)]
-    pub fn tick(&mut self, cycles: u64) {
-        Dispatch::tick(self, cycles);
-    }
+    pub fn tick(&mut self, cycles: u64) { Dispatch::tick(self, cycles); }
 
     #[inline(always)]
     pub fn cycles_until_timer(&self) -> u32 {
@@ -286,13 +306,15 @@ impl Peripherals {
             if self.spi2.irq() { st[0] |= 1 << src::SPI2; }
             if self.rmt.rmt.irq() { st[0] |= 1 << src::RMT; }
         }
+        st[0] |= self.wifi_irq as u32;
         st
     }
 
     /// Refresh the interrupt matrix; returns true if any source changed.
     pub fn refresh_lines(&mut self) -> bool {
         if self.pin_irqs_enabled { return self.refresh_pin_lines(); }
-        let st = Dispatch::source_status(self);
+        let mut st = Dispatch::source_status(self);
+        st[0] |= self.wifi_irq as u32;
         let changed = st != self.last_status;
         self.last_status = st;
         self.intc.lines.update(&self.intc.map, &st);
@@ -312,6 +334,33 @@ impl Peripherals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wifi_and_pin_sources_survive_interrupt_refresh() {
+        let mut p = Peripherals::new([0; 6]);
+        p.wifi.tx_done(0);
+        p.refresh_work();
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], 1);
+        assert!(!p.refresh_lines());
+
+        p.i2c.int_raw = 1 << 7;
+        p.spi2.int_raw = 1 << 12;
+        p.rmt.rmt.int_raw = 1;
+        for (addr, bit) in [(0x6001_3028, 1 << 7), (0x6002_4034, 1 << 12), (0x6001_6040, 1)] {
+            p.write32(addr, bit);
+        }
+        let pins = (1 << src::I2C_EXT0) | (1 << src::SPI2) | (1 << src::RMT);
+        assert_eq!(p.source_status()[0], pins | 1);
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], pins | 1);
+        p.write32(0x6003_3c40, u32::MAX);
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], pins);
+        for addr in [0x6001_3028, 0x6002_4034, 0x6001_6040] { p.write32(addr, 0); }
+        assert!(p.refresh_lines());
+        assert_eq!(p.last_status[0], 0);
+    }
 
     #[test]
     fn pin_interrupt_participation_tracks_enable_registers() {

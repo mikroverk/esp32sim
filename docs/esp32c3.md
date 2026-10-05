@@ -127,14 +127,30 @@ $OD -d examples/hello_world-c3/build/hello_world.elf > /tmp/app.dis
 RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release
 ```
 
+## Wi-Fi station
+
+`--wifi ssid=esp32sim` attaches the shared virtual AP and network. Add
+`,psk=esp32sim-pass` for WPA2-PSK. Native runs use the existing NAT by default;
+`--net none` keeps only the virtual subnet. The browser supports the same AP and
+subnet, with optional host Ethernet transport through `SocBus` and the WASM ABI.
+
+The C3 adapter models the MAC at `0x60033000`, 12-bit DMA descriptor lengths,
+48-byte RX metadata, analog register handshakes and AES through the C3 GDMA
+register layout. It reuses `esp-soc` for association, WPA2, DHCP, DNS, SNTP and NAT.
+The radio and calibration results are idealized; this is one station on an open
+or WPA2 AP, without Bluetooth, WPA3, roaming or RF simulation.
+
+Arduino-ESP32 3.3.8 connects and receives an HTTP body through NAT with both open
+and WPA2 configurations. See the [validation receipt](evidence/ethernet-c3-2026-10-02/README.md)
+for firmware hashes, commands and limits. No physical C3 Wi-Fi comparison was run.
+
 ## Not there yet
 
 - **Watchdogs.** The [timer-group watchdogs](../esp-periph/src/timg.rs) are register RAM and never fire. The [RTC watchdog](../esp-periph/src/rtc_cntl.rs) supports reset stages, feed and write protection at the C3 register offsets; its interrupt stage sets raw status but does not interrupt the CPU.
 - **`--boot app`** (skipping the ROM and bootloader). The C3 has one 128-entry MMU table shared by
   the data and instruction buses, and software keeps their page ranges disjoint; a direct app boot
   needs the bootloader's split, which is not modelled. The flag fails with that message.
-- **WiFi/BLE** — nothing of the C3 radio is modelled. (The S3's blob-level WiFi work does not
-  carry over: different MAC, and the C3's is not the one that was reverse-engineered.)
+- **Bluetooth** is not modelled.
 - **No board yet.** The C3 target is a bare module (`NoBoard`): console only. `BoardModel` lives
   in `esp-soc` now, so a C3 board is an `impl BoardModel` plus its devices; nothing else changes.
 - (superseded) `BoardModel` is an S3 concept
