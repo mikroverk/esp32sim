@@ -245,7 +245,7 @@ impl SocBus {
     /// (`StationLink::next_rx`).
     fn wifi_air_step(&mut self) {
         let now_us = self.now_us();
-        if self.periph.wifi_mac.link.rx_gap(now_us) { return; }
+        if self.periph.wifi_mac.link.rx_idle(now_us) { return; }
         let last_desc = self.periph.wifi_mac.link.last_rx_desc;
         let busy = last_desc != 0 && self.sram32(last_desc) & (1 << 30) != 0;
         if let Some(frame) = self.periph.wifi_mac.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }

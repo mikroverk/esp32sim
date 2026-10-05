@@ -418,6 +418,15 @@ impl StationLink {
     /// True while the last received frame's airtime lasts: no frame is due, whatever the ring holds.
     pub fn rx_gap(&self, now_us: u64) -> bool { now_us.wrapping_sub(self.last_rx_us) < RX_GAP_US }
 
+    /// True when `next_rx` has nothing to deliver at `now_us`, whatever the ring holds: within the
+    /// airtime gap, or with nothing queued at the access point, no beacon due and nothing from the
+    /// network. The access point's `step` changes nothing then, so skipping it is exact. The bus
+    /// asks this every scheduling round while WiFi is on, before it reads the ring.
+    #[inline]
+    pub fn rx_idle(&self, now_us: u64) -> bool {
+        self.rx_gap(now_us) || self.ap.as_ref().is_none_or(|ap| ap.queue.is_empty() && now_us < ap.next_beacon_us && self.eth_rx.is_empty())
+    }
+
     /// The next frame for the station's receive ring, if one is due: the access point's beacons
     /// and responses, then what the network sends. `ring_busy` says the last delivered descriptor
     /// still has data. The library's RX path only indicates a frame up the 802.11 stack while the

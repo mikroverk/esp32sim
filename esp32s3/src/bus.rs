@@ -548,7 +548,7 @@ impl SocBus {
     /// The virtual air: beacons/responses from the AP and frames from the network backend land in the RX ring.
     fn wifi_air_step(&mut self) {
         let now_us = self.cycles / (crate::periph::CPU_HZ / 1_000_000);
-        if self.periph.wifi.link.rx_gap(now_us) { return; }
+        if self.periph.wifi.link.rx_idle(now_us) { return; }
         let busy = { let d = self.periph.wifi.link.last_rx_desc; d != 0 && self.read32_unpriced(d).unwrap_or(0) & (1 << 30) != 0 };
         if let Some(frame) = self.periph.wifi.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }
     }
