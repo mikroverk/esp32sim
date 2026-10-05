@@ -231,8 +231,8 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     if let Some(spec) = &o.wifi {
-        let (ap, net) = wifi_network(spec, o, m.bus.debug.has("wifi-frames"), m.bus.debug.has("net"));
-        m.bus.attach_wifi(ap, net).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
+        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
+        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
     }
     if let Some(p) = &o.cam_image { match esp_soc::picture::load(p) { Ok(pic) => { eprintln!("[emu] camera picture {} ({}x{})", p, pic.w, pic.h); m.bus.board.set_camera_picture(pic); } Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2); } } }
     m.bus.periph.lcd_cam.frame_cycles = (esp32s3::periph::CPU_HZ as f64 / o.cam_fps) as u64;
@@ -263,20 +263,16 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     m
 }
 
-/// `--wifi SPEC` with `--net`: the virtual access point and the network behind it, the same for
-/// every chip.
-fn wifi_network(spec: &str, o: &Opts, frames_log: bool, net_log: bool) -> (esp_soc::wifi::VirtualAp, esp_soc::net::VirtualNet) {
+/// `--wifi SPEC` with `--net`: the virtual access point's configuration and, for `--net nat`,
+/// the NAT to the host, the same for every chip.
+fn wifi_config(spec: &str, nat: bool, net_log: bool) -> (esp_soc::wifi::ApConfig, Option<esp_soc::nat::Nat>) {
     let cfg = esp_soc::wifi::ApConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
     eprintln!("[emu] virtual AP '{}' bssid {} channel {} ({})", cfg.ssid, esp_soc::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
-    let ap = esp_soc::wifi::VirtualAp::new(cfg, frames_log);
-    let mut net = esp_soc::net::VirtualNet::new(net_log);
-    if o.net == "nat" || o.net == "user" {
-        let nat = esp_soc::nat::Nat::new(net_log);
-        eprintln!("[emu] NAT to the host network enabled (DNS via {}.{}.{}.{})", nat.resolver[0], nat.resolver[1], nat.resolver[2], nat.resolver[3]);
-        net.nat = Some(nat);
-    }
+    let nat = nat.then(|| esp_soc::nat::Nat::new(net_log));
+    if let Some(nat) = &nat { eprintln!("[emu] NAT to the host network enabled (DNS via {}.{}.{}.{})", nat.resolver[0], nat.resolver[1], nat.resolver[2], nat.resolver[3]); }
+    let net = esp_soc::net::VirtualNet::new(false);   // its fixed addresses, for the line below
     eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
-    (ap, net)
+    (cfg, nat)
 }
 
 fn setup_c3(o: &Opts) -> esp32c3::Machine {
@@ -284,8 +280,8 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
     m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);   // the JEDEC capacity follows the size
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     if let Some(spec) = &o.wifi {
-        let (ap, net) = wifi_network(spec, o, m.bus.debug.has("wifi-frames"), m.bus.debug.has("net"));
-        m.bus.attach_wifi(ap, net).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
+        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
+        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
     }
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
@@ -301,8 +297,8 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
     match esp32c6::board::make_board(name) { Some(b) => m.bus.board = b, None => { eprintln!("--board {}: none or waveshare-c6-lcd147 on the C6", name); std::process::exit(2) } }
     m.bus.attach_board_devices();
     if let Some(spec) = &o.wifi {
-        let (ap, net) = wifi_network(spec, o, m.bus.debug.has("wifi-frames"), m.bus.debug.has("net"));
-        m.bus.attach_wifi(ap, net).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
+        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
+        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
     }
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C6", flag); std::process::exit(2); }

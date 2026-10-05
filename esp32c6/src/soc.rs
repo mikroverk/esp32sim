@@ -39,8 +39,8 @@ impl esp_soc::SocBus for SocBus {
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles) }
-    fn attach_wifi(&mut self, ap: esp_soc::wifi::VirtualAp, net: esp_soc::net::VirtualNet) -> Result<(), String> {
-        self.periph.wifi_mac.link.ap = Some(ap); self.periph.wifi_mac.link.net = Some(net);
+    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi_mac.link.attach_new(cfg, nat, &self.debug);
         Ok(())
     }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
@@ -51,7 +51,7 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi_mac.link.take_relay_frames()
     }
     fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
-        self.periph.wifi_mac.link.relay_receive(frame)
+        self.periph.wifi_mac.link.receive_relay_frame(frame)
     }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
@@ -121,7 +121,7 @@ impl esp_soc::SocBus for SocBus {
         p.spi1.0.jedec = old.spi1.0.jedec;
         p.gpio.strap = old.gpio.strap;      // strapping pins are board wiring, not chip state
         // The access point and the network behind it are the world outside the chip.
-        p.wifi_mac.link = old.wifi_mac.link.after_reboot(); p.wifi_mac.log = old.wifi_mac.log;
+        p.wifi_mac.link = old.wifi_mac.link.surviving_reboot(); p.wifi_mac.log = old.wifi_mac.log;
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;
@@ -192,7 +192,7 @@ impl esp_soc::SocBus for SocBus {
         if self.periph.radio.scans > 0 { r.push(format!("[emu] 802.15.4: {} energy scans, last channel {} = {} dBm", self.periph.radio.scans, self.periph.radio.channel(), self.periph.radio.ed_rss)); }
         let b = self.board.report(); if !b.is_empty() { r.push(b); }
         let wifi = self.periph.wifi_mac.link.report();
-        if !wifi.is_empty() { r.push(wifi.trim_end().to_string()); }
+        if !wifi.is_empty() { r.push(wifi); }
         r.join("\n")
     }
 }

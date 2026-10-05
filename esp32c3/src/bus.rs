@@ -251,6 +251,8 @@ impl SocBus {
         self.irq_dirty = true;
     }
 
+    fn now_us(&self) -> u64 { self.cycles / (crate::periph::CPU_HZ / 1_000_000) }
+
     /// WiFi MAC transmit: fetch the queued frames from their DMA descriptors and complete them.
     fn wifi_tx_step(&mut self) {
         let pending = std::mem::take(&mut self.periph.wifi.tx_pending);
@@ -261,28 +263,28 @@ impl SocBus {
             if self.periph.wifi.log || self.debug.has("wifi-frames") { eprintln!("[wifi] TX slot {} desc {:#010x} pkt {:#010x} {}", slot, desc, pkt, esp_soc::wifi::describe(&frame)); }
             self.periph.wifi.tx_done(slot);
             self.irq_dirty = true;
-            let now_us = self.cycles / (crate::periph::CPU_HZ / 1_000_000);
+            let now_us = self.now_us();
             self.periph.wifi.link.station_tx(&frame, now_us);
         }
     }
 
     /// The virtual air: beacons/responses from the AP and frames from the network backend land in the RX ring.
     fn wifi_air_step(&mut self) {
-        let now_us = self.cycles / (crate::periph::CPU_HZ / 1_000_000);
-        if self.periph.wifi.link.rx_idle(now_us) { return; }
-        let busy = { let d = self.periph.wifi.link.last_rx_desc; d != 0 && self.sram32(d) & (1 << 30) != 0 };
+        let now_us = self.now_us();
+        if self.periph.wifi.link.nothing_due(now_us) { return; }
+        let busy = { let d = self.periph.wifi.link.last_rx_desc(); d != 0 && self.sram32(d) & esp_soc::wifi::RX_DESC_HAS_DATA != 0 };
         if let Some(frame) = self.periph.wifi.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }
     }
 
     /// Write one received frame into the next RX descriptor (rx_ctrl header + frame + FCS) and raise the RX event.
     fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64) {
-        if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.rx_dropped += 1; return; }
+        if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.drop_rx(); return; }
         let desc = self.periph.wifi.rx_next | esp_periph::DMA_ADDR_BASE;
         let dw0 = self.sram32(desc); let buf = self.sram32(desc.wrapping_add(4)); let next = self.sram32(desc.wrapping_add(8));
         let size = (dw0 & 0xfff) as usize;
         let total = 48 + frame.len() + 4;
-        if dw0 & (3 << 30) != 1 << 31 || buf == 0 || size < total { self.periph.wifi.link.rx_dropped += 1; return; }
-        let (chan, log) = { let ap = self.periph.wifi.link.ap.as_ref().unwrap(); (ap.cfg.channel as u32, ap.log) };
+        if dw0 & (3 << 30) != 1 << 31 || buf == 0 || size < total { self.periph.wifi.link.drop_rx(); return; }
+        let (chan, log) = { let ap = self.periph.wifi.link.ap().unwrap(); (ap.cfg.channel as u32, ap.log) };
         let mut b = Vec::with_capacity(total);
         let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
         // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
@@ -294,7 +296,7 @@ impl SocBus {
         let w11: u32 = (frame.len() + 4) as u32 & 0xfff;                    // sig_len (incl. FCS), rx_state OK
         for w in [w0, 0, w2, now_us as u32, 0, w5, 0, 0, 0, 0, 0, w11] { b.extend_from_slice(&w.to_le_bytes()); }
         b.extend_from_slice(frame); b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
-        if !self.sram_store(buf, &b) { self.periph.wifi.link.rx_dropped += 1; return; }
+        if !self.sram_store(buf, &b) { self.periph.wifi.link.drop_rx(); return; }
         let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (S3-derived, checked with C3 firmware only)
         self.sram_store(desc, &ndw0.to_le_bytes());
         let w = &mut self.periph.wifi;
@@ -325,7 +327,7 @@ impl SocBus {
         if self.periph.spi_exec { self.run_spi(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
-        if self.periph.wifi.link.ap.is_some() { self.wifi_air_step(); self.periph.wifi.link.net_step(self.cycles / (crate::periph::CPU_HZ / 1_000_000)); }
+        if self.periph.wifi.link.ap().is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
         self.periph.refresh_work();
     }
 

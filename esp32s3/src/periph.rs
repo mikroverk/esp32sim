@@ -151,7 +151,7 @@ impl WifiMac {
     }
     /// Hardware finished sending the frame in `queue`.
     pub fn tx_done(&mut self, queue: u8) {
-        self.txq_complete |= 1 << queue; self.events |= 1 << 7; self.link.tx_frames += 1;
+        self.txq_complete |= 1 << queue; self.events |= 1 << 7;
         let o = 0xd08 - 8 * queue as u32; let v = self.ram.read(o); self.ram.write(o, v & !(3 << 30));
         // result word (hal_mac_get_txq_pmd): bits 15:12 = status code, 0 = success (3 would trap the blob)
         let r = 0x320 - 76 * queue as u32; let w = self.ram2.read(r); self.ram2.write(r, w & !(0xf << 12));
@@ -480,7 +480,7 @@ impl DeviceSet for Peripherals {
             0xc2 if !write => self.intmatrix.status = self.source_status(),   // INTERRUPT_*_STATUS reads the live sources
             0x35 => self.wifi.now_cycles = self.clock.cycles(),               // TSF timestamps
             0x08 => self.rtc.now_cycles = self.clock.cycles(),                // SENS ADC samples analog sources at this time
-            0x06 => self.fe.done = self.wifi.link.ap.is_some(),                    // IQ estimation completes once there is an AP
+            0x06 => self.fe.done = self.wifi.link.ap().is_some(),                    // IQ estimation completes once there is an AP
             _ => {}
         }
     }

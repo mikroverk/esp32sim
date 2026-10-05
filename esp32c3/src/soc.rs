@@ -36,8 +36,8 @@ impl esp_soc::SocBus for SocBus {
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
-    fn attach_wifi(&mut self, ap: esp_soc::wifi::VirtualAp, net: esp_soc::net::VirtualNet) -> Result<(), String> {
-        self.periph.wifi.link.ap = Some(ap); self.periph.wifi.link.net = Some(net);
+    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         self.periph.refresh_work();
         Ok(())
     }
@@ -50,11 +50,11 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi.link.take_relay_frames()
     }
     fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
-        self.periph.wifi.link.relay_receive(frame)
+        self.periph.wifi.link.receive_relay_frame(frame)
     }
     fn cycles(&self) -> u64 { self.cycles }
     fn report(&self) -> String {
-        self.periph.wifi.link.report().trim_end().to_string()
+        self.periph.wifi.link.report()
     }
     fn next_deadline(&self) -> Option<u64> {
         if self.pins_active { return self.pin_deadline(); }
@@ -112,7 +112,7 @@ impl esp_soc::SocBus for SocBus {
         let cause = self.periph.rtc.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
-        p.wifi.link = old.wifi.link.after_reboot(); p.wifi.log = old.wifi.log;
+        p.wifi.link = old.wifi.link.surviving_reboot(); p.wifi.log = old.wifi.log;
         p.refresh_work();
         p.efuse = old.efuse;
         p.adc.analog = old.adc.analog;

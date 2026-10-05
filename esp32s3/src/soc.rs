@@ -54,8 +54,9 @@ impl esp_soc::SocBus for SocBus {
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
-    fn attach_wifi(&mut self, ap: esp_soc::wifi::VirtualAp, net: esp_soc::net::VirtualNet) -> Result<(), String> {
-        self.periph.wifi.link.ap = Some(ap); self.periph.wifi.link.net = Some(net);
+    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.flush_ticks();
+        self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         self.refresh_tick_budget();
         Ok(())
     }
@@ -70,7 +71,7 @@ impl esp_soc::SocBus for SocBus {
     }
     fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
         self.flush_ticks();
-        self.periph.wifi.link.relay_receive(frame)
+        self.periph.wifi.link.receive_relay_frame(frame)
     }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> { Some(SocBus::next_deadline(self)) }
@@ -144,7 +145,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         // The host AP and network survive a guest reboot; only the MAC and relay queues reset.
-        p.wifi.link = old.wifi.link.after_reboot(); p.wifi.log = old.wifi.log;
+        p.wifi.link = old.wifi.link.surviving_reboot(); p.wifi.log = old.wifi.log;
         p.efuse = old.efuse;
         p.rtc.analog = old.rtc.analog;
         p.gpio.strap = old.gpio.strap;
@@ -206,7 +207,7 @@ impl esp_soc::SocBus for SocBus {
         let p = &self.periph;
         let mut s = format!("[emu] i2s frames out: {} (i2s0 @ {} Hz) {} (i2s1 @ {} Hz)\n", p.i2s0.frames_out, p.i2s0.sample_rate, p.i2s1.frames_out, p.i2s1.sample_rate);
         { let r = self.board.report(); if !r.is_empty() { s += &r; s += "\n"; } }
-        s += &p.wifi.link.report();
+        { let w = p.wifi.link.report(); if !w.is_empty() { s += &w; s += "\n"; } }
         { let (a, sh, r) = (&p.aes, &p.sha, &p.rsa);
           if a.blocks + sh.blocks + r.ops > 0 { s += &format!("[emu] crypto: {} AES blocks, {} SHA blocks, {} RSA/MPI operations\n", a.blocks, sh.blocks, r.ops); } }
         if p.lcd_cam.lcd_frames > 0 { s += &format!("[emu] lcd: {} RGB frames\n", p.lcd_cam.lcd_frames); }

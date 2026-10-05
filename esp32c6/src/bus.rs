@@ -245,9 +245,9 @@ impl SocBus {
     /// (`StationLink::next_rx`).
     fn wifi_air_step(&mut self) {
         let now_us = self.now_us();
-        if self.periph.wifi_mac.link.rx_idle(now_us) { return; }
-        let last_desc = self.periph.wifi_mac.link.last_rx_desc;
-        let busy = last_desc != 0 && self.sram32(last_desc) & (1 << 30) != 0;
+        if self.periph.wifi_mac.link.nothing_due(now_us) { return; }
+        let last_desc = self.periph.wifi_mac.link.last_rx_desc();
+        let busy = last_desc != 0 && self.sram32(last_desc) & esp_soc::wifi::RX_DESC_HAS_DATA != 0;
         if let Some(frame) = self.periph.wifi_mac.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }
     }
 
@@ -261,13 +261,13 @@ impl SocBus {
     fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64) {
         const RX_CTRL: usize = 92;
         let mac = &self.periph.wifi_mac;
-        if mac.rx_next == 0 { self.periph.wifi_mac.link.rx_dropped += 1; return; }
+        if mac.rx_next == 0 { self.periph.wifi_mac.link.drop_rx(); return; }
         let desc = mac.addr(mac.rx_next);
-        let log = mac.link.ap.as_ref().is_some_and(|ap| ap.log);
+        let log = mac.link.ap().is_some_and(|ap| ap.log);
         let (dw0, buf, next) = (self.sram32(desc), self.sram32(desc.wrapping_add(4)), self.sram32(desc.wrapping_add(8)));
         let total = RX_CTRL + frame.len() + 4;
         // hardware-owned, empty, and big enough (size is the low 14 bits)
-        if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.link.rx_dropped += 1; return; }
+        if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.link.drop_rx(); return; }
         let group = frame.len() >= 5 && frame[4] & 1 == 1;
         let mut words = [0u32; RX_CTRL / 4];
         words[0] = 0xd8 | 1 << 28 | if group { 0 } else { 1 << 29 };   // rssi -40 dBm, 1 Mbps legacy; match 0, and match 1 for our own address
@@ -278,7 +278,7 @@ impl SocBus {
         let mut b: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
         b.extend_from_slice(frame);
         b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
-        if !self.sram_store(buf, &b) { self.periph.wifi_mac.link.rx_dropped += 1; return; }
+        if !self.sram_store(buf, &b) { self.periph.wifi_mac.link.drop_rx(); return; }
         let filled = (dw0 & !(0x3fff << 14)) | (total as u32) << 14 | 1 << 30;           // length, has_data; size and owner stay
         self.sram_store(desc, &filled.to_le_bytes());
         self.periph.wifi_mac.rx_filled(desc, next);
@@ -431,7 +431,7 @@ impl SocBus {
         if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_tx(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi_mac.tx_pending.is_empty() { self.wifi_tx_step(); }
-        if self.periph.wifi_mac.link.ap.is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi_mac.link.net_step(now_us); }
+        if self.periph.wifi_mac.link.ap().is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi_mac.link.net_step(now_us); }
         self.deliver_board_events();
     }
 }

@@ -146,7 +146,6 @@ impl WifiMac {
     pub fn tx_done(&mut self, queue: u8) {
         self.txq_complete |= 1 << queue;
         self.events |= 1 << 7;
-        self.link.tx_frames += 1;
         let o = 0xd08 - 8 * queue as u32;
         let v = self.ram.read(o);
         self.ram.write(o, v & !(3 << 30));

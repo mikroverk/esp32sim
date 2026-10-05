@@ -84,12 +84,6 @@ impl MachineKind {
     pub fn s3_mut(&mut self) -> Option<&mut esp32s3::Machine> {
         match self { Self::S3(m) => Some(m), _ => None }
     }
-    pub fn c3_mut(&mut self) -> Option<&mut esp32c3::Machine> {
-        match self { Self::C3(m) => Some(m), _ => None }
-    }
-    pub fn c6_mut(&mut self) -> Option<&mut esp32c6::Machine> {
-        match self { Self::C6(m) => Some(m), _ => None }
-    }
 }
 
 impl std::ops::Deref for MachineKind {

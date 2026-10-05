@@ -125,7 +125,7 @@ impl WifiMac {
     }
     /// The hardware sent the frame in `queue`.
     pub fn tx_done(&mut self, queue: u8) {
-        self.txq_complete |= 1 << queue; self.events |= EVENT_TX_DONE; self.link.tx_frames += 1;
+        self.txq_complete |= 1 << queue; self.events |= EVENT_TX_DONE;
         let off = TXQ0 - TXQ_STRIDE * queue as u32;
         let v = self.ram.read(off); self.ram.write(off, v & !(3 << 30));
     }
@@ -142,7 +142,7 @@ impl Device for WifiMac {
             MAC_EVENTS => self.events,
             RX_BASE => self.rx_base & 0xf_ffff, RX_NEXT => self.rx_next & 0xf_ffff, RX_LAST => self.rx_last,
             TXQ_COMPLETE => self.txq_complete,
-            ADDR_HIGH => if self.link.last_rx_desc != 0 { self.link.last_rx_desc } else { SRAM_HIGH },
+            ADDR_HIGH => if self.link.last_rx_desc() != 0 { self.link.last_rx_desc() } else { SRAM_HIGH },
             TXQ_COMPLETE_CLR => 0,
             _ => self.ram.read(off),
         };
