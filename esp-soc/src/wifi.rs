@@ -363,3 +363,14 @@ pub fn fcs(data: &[u8]) -> u32 {
     for &b in data { crc ^= b as u32; for _ in 0..8 { crc = if crc & 1 != 0 { (crc >> 1) ^ 0xedb8_8320 } else { crc >> 1 }; } }
     !crc
 }
+
+/// The end-of-run lines for a chip's WiFi: what the station sent and received, what the access
+/// point saw, and what the network behind it answered. Empty when the station never used the radio
+/// and there is no network.
+pub fn report(tx_frames: u64, rx_frames: u64, rx_dropped: u64, ap: Option<&VirtualAp>, net: Option<&crate::net::VirtualNet>) -> String {
+    let mut s = String::new();
+    if tx_frames + rx_frames > 0 { s += &format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor){}\n", tx_frames, rx_frames, rx_dropped, ap.map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state))); }
+    if let Some(n) = net { s += &format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored\n", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled);
+        if let Some(t) = &n.nat { s += &format!("[emu] nat: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in\n", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest); } }
+    s
+}

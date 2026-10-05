@@ -193,6 +193,9 @@ impl esp_soc::SocBus for SocBus {
         if self.periph.rmt.rmt.tx_count > 0 { r.push(format!("[emu] rmt: {} transmissions", self.periph.rmt.rmt.tx_count)); }
         if self.periph.radio.scans > 0 { r.push(format!("[emu] 802.15.4: {} energy scans, last channel {} = {} dBm", self.periph.radio.scans, self.periph.radio.channel(), self.periph.radio.ed_rss)); }
         let b = self.board.report(); if !b.is_empty() { r.push(b); }
+        let w = &self.periph.wifi_mac;
+        let wifi = esp_soc::wifi::report(w.tx_frames, w.rx_frames, w.rx_dropped, w.ap.as_ref(), w.net.as_ref());
+        if !wifi.is_empty() { r.push(wifi.trim_end().to_string()); }
         r.join("\n")
     }
 }
