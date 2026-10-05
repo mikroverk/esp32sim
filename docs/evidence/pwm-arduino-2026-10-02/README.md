@@ -364,4 +364,4 @@ system CPU time separately, and checks instruction counts, cycles and console ha
 It waits for `uptime` one-minute load below 3 and rejects runs ending at load 3 or
 higher. The main Speed example names C3; C6 uses the same options with its executable
 and manifest files. Pocket-tank uses its manifest's board, PSRAM and model image.
-CPU acceptance remains pending a qualifying quiet window; no parity claim on this base.
+CPU comparisons were blocked after 42.0 minutes of retries: 85 one-minute load samples ranged from 3.07 to 21.13, all above the required 3. No warmup or measured round ran; C6 and pocket-tank ±1% parity remain unverified. See the [load gate receipt](c6-idle-load-gate.json).
