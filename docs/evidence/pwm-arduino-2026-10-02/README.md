@@ -365,3 +365,51 @@ It waits for `uptime` one-minute load below 3 and rejects runs ending at load 3 
 higher. The main Speed example names C3; C6 uses the same options with its executable
 and manifest files. Pocket-tank uses its manifest's board, PSRAM and model image.
 CPU comparisons were blocked after 42.0 minutes of retries: 85 one-minute load samples ranged from 3.07 to 21.13, all above the required 3. No warmup or measured round ran; C6 and pocket-tank ±1% parity remain unverified. See the [load gate receipt](c6-idle-load-gate.json).
+
+
+## C6 idle USER-time follow-up
+
+The load restriction was removed for this comparison. The PCR reset-clock guess
+was not the cause: the reset test and earlier every-tick assertion establish that
+unused PWM remains unscheduled. Ten-second samples of both binaries place most
+samples in IRQ refresh, tick and deadline handling, with none in optional ticking.
+Disassembly identifies the remaining optional-list check and cached IRQ merge;
+C6 tick grows from 2346 static instructions on main to 2353 at `696a92f`.
+
+The adopted change sizes clock-delta scratch storage to `Self::CLOCKS.len()`.
+`ClockTree::advance` emits at most once per declared clock, so no entry is lost.
+This removes eight scalar initialization stores in C6 tick and reduces its frame
+from 496 to 448 bytes (2345 static instructions). The oversized scratch array also
+exists on main: this saving offsets the added optional bookkeeping; it does not
+remove the optional-list check or IRQ merge. Clock gates, configuration-triggered
+registration, interrupt caching and tick order are unchanged.
+
+Boxing C6 PWM state reduced the peripheral structure from 8544 to 8280 bytes
+(main: 8224), but its initial +0.61% result did not confirm (+1.92%). Marking
+optional ticking cold measured +1.11%. Both alternatives were rejected; their
+patches and measurements are retained in the [receipt](c6-idle-user-time.json).
+
+The unmodified supplied harness measured C6 at −0.11%; a confirmation copy measured
++0.20%, S3 hello −0.83%, C3 hello −1.10%, and pocket-tank −0.20%.
+Instruction counts match in both arms for every workload. Each comparison uses nine alternating
+rounds after one excluded warmup per arm and median child USER CPU time. Main is
+`5ab228fa`, with separate release target directories and Rust 1.99.0. Background
+load was uncontrolled; no task builds overlapped measurement. These measurements
+supersede the earlier blocked comparison, not its historical load samples.
+
+Reproduce the confirmation with the retained copy (only paths parameterized):
+
+```sh
+python3 docs/evidence/pwm-arduino-2026-10-02/benchmark-user-time.py --fw ROM_AND_FW_DIR --model MODEL_Q4_BIN --main MAIN_TARGET/release --pr PR_TARGET/release
+```
+
+The receipt retains every printed round, instruction counts, input and binary
+hashes, rejected measurements and function-level profile counts. Original rounds
+were printed to 0.01 seconds; the confirmation prints six decimals. Raw profiler
+headers and process/binary inventories are omitted; raw hashes are retained.
+Redaction does not change the reported function counts. No browser-speed or
+hardware-timing claim follows from these local native measurements.
+
+Validation on the adopted change: both Clippy commands pass; 544 CI-style tests
+and 529 plain tests pass (29 ignored); all eight WASM demos pass. Goldens remain
+bit-identical. No JIT code changed. Exact commands are in the receipt.
