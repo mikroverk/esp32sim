@@ -180,6 +180,8 @@ $OD -d examples/hello_world-c6/build/hello_world.elf > /tmp/app.dis
 RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release -- --ignored external_
 ```
 
+LEDC models low-speed timers, static duty latching and GPIO-matrix frequency/duty observation through `--pwm PIN`. Hardware fades and sampled PWM edges are not modelled.
+
 ## The 802.15.4 MAC (`esp32c6/src/radio.rs`)
 
 The `IEEE802154` block at `0x600A3000`, with the register layout of IDF's
@@ -340,8 +342,8 @@ machine wants to see, as the Xtensa block interpreter always did.
 
 ## Not there yet
 
-- **TF card, backlight PWM.** The SD slot on SPI2 has nothing behind it; the LEDC backlight is
-  register RAM (the panel is shown regardless).
+- **TF card, backlight rendering.** The SD slot on SPI2 has nothing behind it. LEDC frequency and duty
+  are modelled, but the panel is shown regardless of backlight duty.
 - **The PHY's baseband calibration** (above): a stub, not a model.
 - **`--boot app`** maps the image through the unified MMU and jumps to it, but the system
   registers the bootloader would have set up are not preset; ROM boot is the tested path.
@@ -356,7 +358,7 @@ machine wants to see, as the Xtensa block interpreter always did.
   as on the S3, without NAT); the example's README has the local manifest for it.
 - **BLE, the LP core** — nothing of that radio or the second core is modelled. The
   802.15.4 MAC sends, receives, acknowledges and filters (above); enhanced ACKs and security are not there.
-- **Peripherals on demand**: GDMA, I2C, SPI2, LEDC, RMT, ADC, TWAI, PARL_IO. Each shows up as an
+- **Peripherals on demand**: GDMA, I2C, SPI2, RMT, ADC, TWAI, PARL_IO. Each shows up as an
   unknown register with `--log-periph` the moment a firmware wants it. The registers hello_world
   still touches without a model are PMU, IO_MUX, HP_SYSTEM, APB_SARADC and a few LP blocks —
   all of them configuration the firmware only writes and reads back.

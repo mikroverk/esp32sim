@@ -2,7 +2,7 @@
 //! S3-only blocks (interrupt matrix, WiFi MAC, PCNT, GP-SPI, LCD_CAM, EXTMEM, WDEV, regi2c) and
 //! the `Peripherals` set whose one table (`ENTRIES`) drives dispatch, sources, ticks and deadlines.
 use emu_core::{ClockDomain, ClockTree};
-use esp_periph::GpSpi;
+use esp_periph::{GpSpi, Ledc, LedcLayout, Mcpwm};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect};
 pub use esp_periph::{read_desc, reset_cause_name, Aes, DirtyMem, DmaDesc, Efuse, Gdma, GdmaInCh, GdmaOutCh, Gpio, I2s, RegRam, Rmt, RmtTxCh, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, Timer, TimerGroup, Uart, UartLayout, UsbSerialJtag,
                     APB_HZ, DMA_ADDR_BASE, GDMA_CHANNELS, GDMA_CH_STRIDE, RMT_MEM_WORDS, RST_POWERON, RST_RTCWDT_CPU, RST_RTCWDT_RTC, RST_RTCWDT_SYS, RST_SW_CPU, RST_SW_SYS, RTC_SLOW_HZ, SYSTIMER_HZ, XTAL_HZ};
@@ -17,6 +17,9 @@ pub const SRC_UART0: usize = 27;
 pub const SRC_UART1: usize = 28;
 pub const SRC_UART2: usize = 29;
 pub const SRC_SPI2: usize = 21;
+pub const SRC_PWM0: usize = 31;
+pub const SRC_PWM1: usize = 32;
+pub const SRC_LEDC: usize = 35;
 pub const SRC_PCNT: usize = 41;
 pub const SRC_AES: usize = 77;
 pub const SRC_LCD_CAM: usize = 24;
@@ -415,6 +418,8 @@ pub struct Peripherals {
     pub spi_exec: bool,       // SPI1 command pending execution against the flash array
     last_status: [u32; 4],
     pub intmatrix_dirty: bool,
+    pub ledc: Ledc,
+    pub mcpwm: [Mcpwm; 2],
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers. Entries for one block are
@@ -427,6 +432,9 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), 
     0x23 "SYSTIMER" (systimer) => [SRC_SYSTIMER_T0, SRC_SYSTIMER_T1, SRC_SYSTIMER_T2];
     0x1f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1];
     0x20 "TIMG1" (timg[1]) => [SRC_TG1_T0, SRC_TG1_T1];
+    0x19 "LEDC" optional (ledc) => [SRC_LEDC];
+    0x1e "MCPWM0" optional (mcpwm[0]) => [SRC_PWM0];
+    0x2c "MCPWM1" optional (mcpwm[1]) => [SRC_PWM1];
     0xc2 "INTERRUPT" (intmatrix) => [];
     0x04 "GPIO" (gpio) => [SRC_GPIO];
     0x08 "RTC" (rtc) => [];
@@ -481,7 +489,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             usb: UsbSerialJtag::new(CPU_HZ), uart: [Uart::new(UartLayout::S3), Uart::new(UartLayout::S3), Uart::new(UartLayout::S3)], systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], intmatrix: IntMatrix::new(), gpio: Gpio::new(), rtc: RtcCntl::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], intmatrix: IntMatrix::new(), gpio: Gpio::new(), ledc: Ledc::new(LedcLayout::S3), mcpwm: [Mcpwm::new(160, 9), Mcpwm::new(166, 9)], rtc: RtcCntl::new(),
             efuse: Efuse::new(mac), system: SystemRegs::new(0x30), extmem: Extmem::new(), spi0: SpiMem::new(false), spi1: SpiMem::new(true),
             i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()], lcd_cam: LcdCam::new(), spi2: GpSpi::new(), pcnt: Pcnt::new(), wifi: WifiMac::new(), fe: FeIq { word: 0, done: false },
             aes: Aes::new(), rsa: Rsa::new(), sha: Sha::new(), wdev: Wdev::new(), i2c_mst: I2cMst::new(), gdma: Gdma::new(), i2s0: I2s::new(CPU_HZ), i2s1: I2s::new(CPU_HZ), rmt: Rmt::new(CPU_HZ),
@@ -533,9 +541,18 @@ impl Peripherals {
                 self.i2c[bus].set_pins(pins);
             }
         }
+        if addr == PERIPH_BASE + 0xc0020 && v & (1 << 11) != 0 { self.ledc = Ledc::new(LedcLayout::S3); }
+        if addr == PERIPH_BASE + 0xc0020 {
+            for (group, bit) in [17, 20].iter().enumerate() { if v & (1 << bit) != 0 { self.mcpwm[group] = Mcpwm::new(160 + group as u32 * 6, 9); } }
+        }
         let fx = mmio::write32(self, addr, v);
         if fx.contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if fx.contains(WriteEffect::INTMAP) { self.intmatrix_dirty = true; }
+        if addr == PERIPH_BASE + 0xc0018 || addr == PERIPH_BASE + 0xc0020 {
+            for (group, bit) in [17, 20].iter().enumerate() { self.mcpwm[group].clock_enabled = self.system.read(0x18) & (1 << bit) != 0 && self.system.read(0x20) & (1 << bit) == 0; }
+            self.ledc.clock_enabled = self.system.read(0x18) & (1 << 11) != 0 && self.system.read(0x20) & (1 << 11) == 0;
+            for block in [0x19, 0x1e, 0x2c] { self.refresh_optional(block); }
+        }
     }
 
     /// Returns the number of words applied.

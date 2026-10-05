@@ -133,3 +133,9 @@ fn ble_scripts_validate_commands_and_require_enable_at_parse_time() {
         assert!(!error.contains("--ble"), "syntax must be checked independently of enable state");
     }
 }
+
+#[test]
+fn pwm_pins_are_observation_options() {
+    let o = parse(&["esp32sim".into(), "--pwm".into(), "4".into(), "--pwm".into(), "21".into()], "s3");
+    assert_eq!(o.pwm_pins, [4, 21]);
+}

@@ -1,0 +1,575 @@
+{
+  "base": "5ab228fadf92e385d1b175b4d12f48f57aa22c8d",
+  "parent": "696a92f7711362a9db052769bb247d20e9265323",
+  "source": "fbfaea07fb92b120484e465d9da301625ddb4c36",
+  "method": "Original /tmp/bench167/run.py, nine alternating rounds after one excluded warmup per arm; order main/pr on odd rounds, pr/main on even rounds. Median child USER CPU seconds from resource.getrusage. No load gate. Confirmation copy adds S3 hello, C3 hello and pocket-tank and prints six decimal places. Main target directory left unchanged. No concurrent task builds during measurements.",
+  "original_harness_sha256": "86559e74c29b63d57f87dc3a15c9b1db8a721eb0c0cf6b1b846c24e7ec742e49",
+  "original_harness_result": {
+    "c6-hello": {
+      "instructions": {
+        "main": [
+          4800000000
+        ],
+        "pr": [
+          4800000000
+        ]
+      },
+      "ending_load": [
+        3.171875,
+        3.2001953125,
+        3.72412109375
+      ],
+      "sample_precision_seconds": 0.01,
+      "arms": {
+        "main": {
+          "rounds_user_seconds": [
+            3.23,
+            3.26,
+            3.34,
+            3.24,
+            3.22,
+            3.23,
+            3.27,
+            3.27,
+            3.28
+          ],
+          "reported_median_user_seconds": 3.264
+        },
+        "pr": {
+          "rounds_user_seconds": [
+            3.26,
+            3.25,
+            3.23,
+            3.26,
+            3.23,
+            3.26,
+            3.27,
+            3.3,
+            3.3
+          ],
+          "reported_median_user_seconds": 3.26
+        }
+      },
+      "reported_delta_percent": -0.11
+    }
+  },
+  "confirmation": {
+    "c6-hello": {
+      "instructions": {
+        "main": [
+          4800000000
+        ],
+        "pr": [
+          4800000000
+        ]
+      },
+      "ending_load": [
+        2.99755859375,
+        3.12646484375,
+        3.63720703125
+      ],
+      "sample_precision_seconds": 1e-06,
+      "arms": {
+        "main": {
+          "rounds_user_seconds": [
+            3.223412,
+            3.223742,
+            3.237713,
+            3.239308,
+            3.241556,
+            3.242239,
+            3.237186,
+            3.278506,
+            3.215931
+          ],
+          "reported_median_user_seconds": 3.238
+        },
+        "pr": {
+          "rounds_user_seconds": [
+            3.247027,
+            3.238375,
+            3.244133,
+            3.284527,
+            3.21353,
+            3.235717,
+            3.26389,
+            3.229334,
+            3.291651
+          ],
+          "reported_median_user_seconds": 3.244
+        }
+      },
+      "reported_delta_percent": 0.2
+    },
+    "s3-hello": {
+      "instructions": {
+        "main": [
+          6798360
+        ],
+        "pr": [
+          6798360
+        ]
+      },
+      "ending_load": [
+        3.23779296875,
+        3.173828125,
+        3.65087890625
+      ],
+      "sample_precision_seconds": 1e-06,
+      "arms": {
+        "main": {
+          "rounds_user_seconds": [
+            0.257552,
+            0.258844,
+            0.261347,
+            0.258366,
+            0.264069,
+            0.259177,
+            0.256702,
+            0.255427,
+            0.255292
+          ],
+          "reported_median_user_seconds": 0.258
+        },
+        "pr": {
+          "rounds_user_seconds": [
+            0.253914,
+            0.256333,
+            0.252997,
+            0.261445,
+            0.254308,
+            0.253528,
+            0.256552,
+            0.256209,
+            0.258549
+          ],
+          "reported_median_user_seconds": 0.256
+        }
+      },
+      "reported_delta_percent": -0.83
+    },
+    "c3-hello": {
+      "instructions": {
+        "main": [
+          4800000000
+        ],
+        "pr": [
+          4800000000
+        ]
+      },
+      "ending_load": [
+        4.05322265625,
+        3.369140625,
+        3.693359375
+      ],
+      "sample_precision_seconds": 1e-06,
+      "arms": {
+        "main": {
+          "rounds_user_seconds": [
+            2.480406,
+            2.468541,
+            2.479181,
+            2.475839,
+            2.473386,
+            2.490771,
+            2.456788,
+            2.468351,
+            2.469575
+          ],
+          "reported_median_user_seconds": 2.473
+        },
+        "pr": {
+          "rounds_user_seconds": [
+            2.446095,
+            2.454032,
+            2.436011,
+            2.449735,
+            2.477243,
+            2.41969,
+            2.423183,
+            2.444658,
+            2.466941
+          ],
+          "reported_median_user_seconds": 2.446
+        }
+      },
+      "reported_delta_percent": -1.1
+    },
+    "pocket-tank": {
+      "instructions": {
+        "main": [
+          5627653686
+        ],
+        "pr": [
+          5627653686
+        ]
+      },
+      "ending_load": [
+        3.74658203125,
+        3.05029296875,
+        3.2802734375
+      ],
+      "sample_precision_seconds": 1e-06,
+      "arms": {
+        "main": {
+          "rounds_user_seconds": [
+            37.591242,
+            36.316148,
+            36.153441,
+            36.451784,
+            36.092111,
+            36.308712,
+            36.456336,
+            36.356061,
+            36.274071
+          ],
+          "reported_median_user_seconds": 36.316
+        },
+        "pr": {
+          "rounds_user_seconds": [
+            36.629738,
+            36.380403,
+            36.11242,
+            36.237759,
+            36.051624,
+            36.540287,
+            36.242805,
+            36.268292,
+            36.196436
+          ],
+          "reported_median_user_seconds": 36.243
+        }
+      },
+      "reported_delta_percent": -0.2
+    }
+  },
+  "reported_starting_result": {
+    "source": "696a92f",
+    "main_median_user_seconds": 3.333,
+    "pr_median_user_seconds": 3.376,
+    "delta_percent": 1.3,
+    "provenance": "Supplied by the orchestrator; raw rounds were not supplied."
+  },
+  "rejected": {
+    "boxed_c6_pwm": {
+      "patch": "c6-boxed-pwm.patch",
+      "first": {
+        "c6-hello": {
+          "instructions": {
+            "main": [
+              4800000000
+            ],
+            "pr": [
+              4800000000
+            ]
+          },
+          "ending_load": [
+            3.0869140625,
+            3.79248046875,
+            4.35302734375
+          ],
+          "sample_precision_seconds": 0.01,
+          "arms": {
+            "main": {
+              "rounds_user_seconds": [
+                3.25,
+                3.33,
+                3.36,
+                3.34,
+                3.35,
+                3.3,
+                3.28,
+                3.32,
+                3.28
+              ],
+              "reported_median_user_seconds": 3.316
+            },
+            "pr": {
+              "rounds_user_seconds": [
+                3.28,
+                3.33,
+                3.34,
+                3.38,
+                3.38,
+                3.3,
+                3.33,
+                3.34,
+                3.39
+              ],
+              "reported_median_user_seconds": 3.336
+            }
+          },
+          "reported_delta_percent": 0.61
+        }
+      },
+      "confirmation": {
+        "c6-hello": {
+          "instructions": {
+            "main": [
+              4800000000
+            ],
+            "pr": [
+              4800000000
+            ]
+          },
+          "ending_load": [
+            3.13720703125,
+            3.52685546875,
+            4.17578125
+          ],
+          "sample_precision_seconds": 1e-06,
+          "arms": {
+            "main": {
+              "rounds_user_seconds": [
+                3.322919,
+                3.286972,
+                3.229794,
+                3.275873,
+                3.294041,
+                3.319618,
+                3.260703,
+                3.248978,
+                3.285679
+              ],
+              "reported_median_user_seconds": 3.286
+            },
+            "pr": {
+              "rounds_user_seconds": [
+                3.320165,
+                3.325851,
+                3.351886,
+                3.348876,
+                3.31873,
+                3.364289,
+                3.354887,
+                3.290863,
+                3.351412
+              ],
+              "reported_median_user_seconds": 3.349
+            }
+          },
+          "reported_delta_percent": 1.92
+        },
+        "s3-hello": {
+          "instructions": {
+            "main": [
+              6798360
+            ],
+            "pr": [
+              6798360
+            ]
+          },
+          "ending_load": [
+            3.2060546875,
+            3.53466796875,
+            4.17431640625
+          ],
+          "sample_precision_seconds": 1e-06,
+          "arms": {
+            "main": {
+              "rounds_user_seconds": [
+                0.260383,
+                0.259021,
+                0.263194,
+                0.255761,
+                0.261919,
+                0.255651,
+                0.266872,
+                0.261299,
+                0.260051
+              ],
+              "reported_median_user_seconds": 0.26
+            },
+            "pr": {
+              "rounds_user_seconds": [
+                0.264943,
+                0.261488,
+                0.261544,
+                0.261126,
+                0.258691,
+                0.264519,
+                0.261257,
+                0.262185,
+                0.263205
+              ],
+              "reported_median_user_seconds": 0.262
+            }
+          },
+          "reported_delta_percent": 0.45
+        }
+      },
+      "decision": "Rejected; initial +0.61% did not confirm (+1.92%)."
+    },
+    "cold_optional_tick": {
+      "patch": "c6-cold-optional-tick.patch",
+      "result": {
+        "c6-hello": {
+          "instructions": {
+            "main": [
+              4800000000
+            ],
+            "pr": [
+              4800000000
+            ]
+          },
+          "ending_load": [
+            4.13916015625,
+            3.56201171875,
+            4.05615234375
+          ],
+          "sample_precision_seconds": 0.01,
+          "arms": {
+            "main": {
+              "rounds_user_seconds": [
+                3.22,
+                3.28,
+                3.23,
+                3.25,
+                3.24,
+                3.25,
+                3.27,
+                3.24,
+                3.24
+              ],
+              "reported_median_user_seconds": 3.243
+            },
+            "pr": {
+              "rounds_user_seconds": [
+                3.27,
+                3.26,
+                3.29,
+                3.25,
+                3.28,
+                3.27,
+                3.31,
+                3.33,
+                3.32
+              ],
+              "reported_median_user_seconds": 3.279
+            }
+          },
+          "reported_delta_percent": 1.11
+        }
+      },
+      "decision": "Rejected at +1.11%."
+    }
+  },
+  "profile": {
+    "main": {
+      "total_leaf_samples": 8340,
+      "leaf_samples": {
+        "irq_refresh": 3949,
+        "bus_tick": 1381,
+        "next_deadline": 1201,
+        "optional_tick": 0
+      },
+      "raw_sha256": "bd3a7c14a7ee32b26aee54c629c55d2cf2ef952bad95529a2b50576387539c20"
+    },
+    "pr": {
+      "total_leaf_samples": 8355,
+      "leaf_samples": {
+        "irq_refresh": 4010,
+        "bus_tick": 1423,
+        "next_deadline": 1200,
+        "optional_tick": 0
+      },
+      "raw_sha256": "88ec2e58538d4898d323adb64c879a5e8b68fa693013213bb556fd3008428261"
+    }
+  },
+  "profile_method": "sample PID 10 -file RAW for each task-owned c6-hello process, extending max-seconds to 300 so sampling covers steady state. 1 ms nominal sample interval; diagnostic samples are not benchmark timings.",
+  "codegen": {
+    "main": {
+      "tick_instructions": 2346,
+      "tick_frame_bytes": 496,
+      "irq_instructions": 474
+    },
+    "parent": {
+      "tick_instructions": 2353,
+      "tick_frame_bytes": 496,
+      "irq_instructions": 477
+    },
+    "final": {
+      "tick_instructions": 2345,
+      "tick_frame_bytes": 448,
+      "irq_instructions": 477
+    },
+    "removed_work": "Eight scalar scratch initialization stores per C6 tick. Scratch capacity is the configured domain count (four), not eight. ClockTree::advance emits at most one item per declared domain. Optional-list check and cached IRQ merge remain; no PWM activation, ordering, gating or clock accounting changes. The oversized scratch buffer also exists on main; removing redundant initialization offsets the added optional-dispatch work.",
+    "layout_control": {
+      "main_peripherals_bytes": 8224,
+      "parent_peripherals_bytes": 8544,
+      "boxed_peripherals_bytes": 8280
+    },
+    "command": "xcrun llvm-objdump --demangle --disassemble BINARY; inspect C6 Bus::tick and SocBus::refresh_irq. Counts are static, not retired instructions."
+  },
+  "host": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "arch": "arm64"
+  },
+  "toolchain": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "build": "CARGO_TARGET_DIR=/tmp/bench167/t-pr cargo +1.99.0 build --release --bins after each change; use orchestrator-provided /tmp/bench167/t-main without rebuilding it.",
+  "binaries": {
+    "main": {
+      "esp32sim": "df715e9a4f4c6299c22064b75bbe83da6339de3175d13a8431a44e92283c992e",
+      "esp32sim-c3": "fceb9ed9b1f734b24526536ab0fa5bae28ee5ee5e7d58135e071f1fc9eaa6d37",
+      "esp32sim-c6": "223d0d22aa62b2808262d250805a04ab804de5dcc766d6baebd8d21729fed986"
+    },
+    "pr": {
+      "esp32sim": "c4f1aa8aa238da2ee9cd2f83bed639f466ac22f4ccf3a398d1960f7593030007",
+      "esp32sim-c3": "d73b4eb856e92691f8de11203ff9eeef396f9e1f943b485d18c98bf3197e8bb9",
+      "esp32sim-c6": "72eeff86c6b8ede1ba78792f80c509d1087f32359d219e5cf339d54e82c85350"
+    }
+  },
+  "privacy": "Retain function-level sample counts and hashes only. Omit raw sample headers, paths, process/thread IDs, machine identity and binary inventories. Raw private profiles are not committed. This removes incidental host metadata, not the reported numeric function counts.",
+  "limitations": [
+    "Local macOS arm64 CPU comparison using Rust 1.99.0; no browser or hardware timing claim.",
+    "Original harness prints rounds to 0.01 s and medians to 0.001 s. Its reported deltas use full internal precision. Confirmation rounds are printed to 0.000001 s.",
+    "Background load was not controlled; alternating arms and user CPU time follow the requested protocol."
+  ],
+  "inputs": {
+    "esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "public/c6-hello-bootloader.bin": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+    "public/c6-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c6-hello_world.bin": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131",
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+    "public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+    "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be",
+    "public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "local/model_q4.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=/private/tmp/esp32sim-ledc/web/wasm/fw cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "result": "544 passed; goldens bit-identical"
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "result": "529 passed, 29 ignored, without external inputs"
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "result": "all eight passed"
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "result": "passed; new evidence also reviewed manually"
+    }
+  ],
+  "jit": "No JIT code changed; separate JIT suite not required.",
+  "goldens": "No golden files changed."
+}

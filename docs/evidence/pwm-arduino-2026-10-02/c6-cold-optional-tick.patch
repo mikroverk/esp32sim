@@ -1,0 +1,12 @@
+diff --git a/esp-periph/src/mmio.rs b/esp-periph/src/mmio.rs
+index 09930baa..c27f67d7 100644
+--- a/esp-periph/src/mmio.rs
++++ b/esp-periph/src/mmio.rs
+@@ -198,6 +198,7 @@ macro_rules! device_set {
+                 }
+                 irq_changed
+             }
++            #[cold]
+             #[inline(never)]
+             fn tick_optional(&mut self, deltas: &[($crate::__ClockDomain, u64)]) -> bool {
+                 let mut irq_changed = false;
