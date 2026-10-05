@@ -70,6 +70,23 @@ pub trait Soc: 'static {
     fn core_state(_bus: &Self::Bus, _core: usize) -> CoreState { CoreState::Running }
 }
 
+/// Programmed GPIO state, not the resolved electrical level or peripheral-matrix output.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct GpioState {
+    pub output: bool,
+    pub output_enable: bool,
+    pub pull_up: bool,
+    pub pull_down: bool,
+}
+
+impl GpioState {
+    /// Construct a snapshot of the output latch, output enable and programmed pulls.
+    pub const fn new(output: bool, output_enable: bool, pull_up: bool, pull_down: bool) -> Self {
+        Self { output, output_enable, pull_up, pull_down }
+    }
+}
+
 pub trait SocBus: Bus {
     fn cycles(&self) -> u64;
     /// CPU cycles from the current device horizon to the next transition that may wake a core.
@@ -120,6 +137,9 @@ pub trait SocBus: Bus {
     /// Deliver host touch at the bus's current time horizon.
     fn touch_input(&mut self, x: u16, y: u16, down: bool) { self.board().touch(x, y, down); }
     fn gpio_input(&self) -> u64;
+    /// GPIO latch, enable and IO_MUX pulls. None for an unavailable pin or unsupported chip.
+    /// Pulls describe the programmed bits; they do not change the input level.
+    fn gpio_state(&self, _pin: u8) -> Option<GpioState> { None }
     /// Start/stop recording GPIO edges (outputs as they reach the board, inputs as they are set).
     fn observe_gpio(&mut self, on: bool);
     /// (cycle, pin, level) edges recorded since the last call.

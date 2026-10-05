@@ -30,4 +30,4 @@ pub use debug::DebugFlags;
 pub use load::LoadKind;
 pub use machine::{Console, Debug, Machine, Realtime, Script, ScriptAction};
 pub use observe::{Ctx, Observer, Wants};
-pub use soc::{CoreState, RunUntil, Soc, SocBus, Stop};
+pub use soc::{CoreState, GpioState, RunUntil, Soc, SocBus, Stop};
