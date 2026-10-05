@@ -1,0 +1,33 @@
+{
+  "command": [
+    "target/release/esp32sim",
+    "--chip",
+    "esp32c6",
+    "--flash-mb",
+    "8",
+    "--boot",
+    "rom",
+    "--rom",
+    "/Users/alice/.platformio/packages/tool-esp-rom-elfs/esp32c6_rev0_rom.elf",
+    "--flash-image",
+    "/tmp/up-ble-firmware/c6/Server/.pio/build/esp32-c6-devkitc-1/firmware.factory.bin",
+    "--elf",
+    "/tmp/up-ble-firmware/c6/Server/.pio/build/esp32-c6-devkitc-1/firmware.elf",
+    "--ble",
+    "--max-seconds",
+    "1.3",
+    "--no-dump",
+    "--script",
+    "target/ble-c6/reboot.script"
+  ],
+  "script": "0.6 poke 600b1034 80000000\n",
+  "exit_code": 0,
+  "advertisements": [
+    "[ble] t=0.255737s advertising service=4fafc201-1fb5-459e-8fcc-c5c9c331914b name=\"BLE Server Example\" data=02010611074b9131c3c9c5cc8f9e45b51f01c2af4f051206001200",
+    "[ble] t=0.854780s advertising service=4fafc201-1fb5-459e-8fcc-c5c9c331914b name=\"BLE Server Example\" data=02010611074b9131c3c9c5cc8f9e45b51f01c2af4f051206001200"
+  ],
+  "passed": true,
+  "wall_s": 0.30138437496498227,
+  "log_sha256": "a5c316ee4c6e47f76dfac6b7c108e69096527bfb99bc722226e78f27459c43a9",
+  "original_log_sha256": "6f698dfa1f357d84d88fc3d21ca3814280586e5a275166c6d7222ce8aa001968"
+}

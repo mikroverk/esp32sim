@@ -67,6 +67,9 @@ pub trait Soc: 'static {
     fn boot_core(core: &mut Self::Core, entry: u32);
     /// The interrupt input of every core, from the bus's current source state.
     fn irqs(bus: &Self::Bus, out: &mut [<Self::Core as Core>::Irq]);
+    /// Optional function-entry substitutions, resolved from a guest ELF by the chip.
+    fn function_hooks(_bus: &Self::Bus) -> &[u32] { &[] }
+    fn function_hook(_core: &mut Self::Core, _bus: &mut Self::Bus) -> bool { false }
     fn core_state(_bus: &Self::Bus, _core: usize) -> CoreState { CoreState::Running }
 }
 
@@ -88,6 +91,10 @@ impl GpioState {
 }
 
 pub trait SocBus: Bus {
+    fn enable_ble(&mut self, _elf: &crate::elf::Elf) -> Result<(), String> { Err("BLE is unsupported on this chip".into()) }
+    fn ble_enabled(&self) -> bool { false }
+    fn ble_pending_commands(&self) -> usize { 0 }
+    fn ble_command(&mut self, _command: &str) -> Result<(), String> { Err("BLE is not enabled".into()) }
     /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }

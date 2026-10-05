@@ -42,6 +42,7 @@ const _: () = {
 };
 
 pub struct SocBus {
+    pub ble: esp_soc::ble::vhci::Ble,
     pub sram: Vec<u8>,
     pub irom: Vec<u8>,
     pub drom: Vec<u8>,
@@ -143,6 +144,7 @@ impl SocBus {
     pub fn new(flash_size: usize, psram_size: usize, mac: [u8; 6]) -> Self { Self::with_sizes(flash_size, psram_size, mac) }
     pub fn with_sizes(flash_size: usize, psram_size: usize, mac: [u8; 6]) -> Self {
         let bus_uninit = SocBus {
+            ble: Default::default(),
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), uart_pins: false, cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
@@ -611,6 +613,11 @@ impl SocBus {
         w.rx_last = (desc & 0xf_ffff) | (1 << 24); w.rx_next = next & 0xf_ffff; w.last_rx_desc = desc; w.rx_frames += 1; w.events |= (1 << 14) | (1 << 24);   // RX data (wDev_ProcessFiq tests 0x1004000)   // registers hold masked descriptor addrs; rx_last has a 0x01 prefix (silicon)
         if log { let d = crate::wifi::describe(frame); if d.contains("auth")||d.contains("assoc") { eprintln!("[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}", desc, buf, d); } else { eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d); } }
         self.irq_dirty = true;
+    }
+
+    pub(crate) fn flash_off(&mut self, addr: u32) -> Option<usize> {
+        let e = self.lookup(addr)?;
+        (e.src as u8 == SRC_FLASH).then_some(e.off as usize + (addr - e.lo) as usize)
     }
 
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {

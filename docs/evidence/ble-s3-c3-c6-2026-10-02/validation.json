@@ -1,0 +1,39 @@
+{
+  "implementation_commit": "b8c5295535348f2fbafdde9e7389052994af5caa",
+  "checks": {
+    "cargo build --release": {
+      "passed": true,
+      "log_sha256": "c76bf7d7e4bc88580a4a6379e938840c9214d4c2a03bf4636c325cf430196c2b"
+    },
+    "cargo test --workspace": {
+      "passed": true,
+      "log_sha256": "8dc5cb111ccd5acc6e8b4188614755e783bf35cfc3a7848e21c5601520c54767",
+      "passed_count": 477,
+      "failed_count": 0,
+      "ignored_count": 22
+    },
+    "tools/wasm-build.sh": {
+      "passed": true,
+      "log_sha256": "7558141b3f1c477930ea374400ba58f14bfc6e4041eec0815da597812b55473f"
+    },
+    "git diff --check": {
+      "passed": true
+    },
+    "node tools/check-evidence-privacy.mjs": {
+      "passed": true,
+      "tracked_files_checked": 1480,
+      "gzip_files_checked": 15,
+      "log_sha256": "20a9cc2005d2dbe20f09e41281e0b02323ad7e274dcb175af3970034d4674939"
+    }
+  },
+  "artifacts": {
+    "native_sha256": "5f960f8c3a6b7e5f951effd75015ab339c4d56d1a6f4508edf1d594a889c3af7",
+    "wasm_sha256": "f99e42a9bf2de1c2127b9e34814aaa8f614a0207dcb9721f330f8e6245aec7b0"
+  },
+  "focused_tests": {
+    "protocol": 4,
+    "s3_adapter": 5,
+    "c3_adapter": 6,
+    "cli": 1
+  }
+}

@@ -20,6 +20,8 @@ impl Soc for C3 {
     const IDLE_CHUNK: u64 = 64;
     const ROM_DATA_TABLE: &'static [&'static str] = &["_data_end_btdm_rom", "_data_start"];
     fn new_core(_i: usize) -> Cpu { Cpu::new() }
+    fn function_hooks(bus: &SocBus) -> &[u32] { &bus.ble.hooks }
+    fn function_hook(core: &mut Cpu, bus: &mut SocBus) -> bool { crate::ble::intercept(core, bus) }
     fn reset_core(c: &mut Cpu, _i: usize) { Cpu::reset(c); }
     fn boot_core(c: &mut Cpu, entry: u32) {
         Cpu::reset(c);
@@ -30,6 +32,10 @@ impl Soc for C3 {
 }
 
 impl esp_soc::SocBus for SocBus {
+    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> { self.ble.enable(&elf.by_name, elf.symbol_sizes.get("esp_bt_controller_init").copied().unwrap_or(0), &<Self as esp_soc::ble::vhci::VhciBus>::abi()) }
+    fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
+    fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
+    fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         let mac = &mut self.periph.wifi;
         if mac.relay != enabled { mac.eth_tx.clear(); mac.eth_rx.clear(); mac.relay = enabled; }
@@ -99,6 +105,8 @@ impl esp_soc::SocBus for SocBus {
     }
     /// Digital peripherals re-created, SRAM kept.
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
+        if let Some((off, original)) = self.ble.original_flash.take() { self.flash[off..off + original.len()].copy_from_slice(&original); }
+        self.ble.reset();
         let cause = self.periph.rtc.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;

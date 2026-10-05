@@ -1,0 +1,88 @@
+{
+  "initial_end_to_end_failures": [
+    {
+      "chip": "s3",
+      "example": "Write",
+      "checks": {
+        "New value: Hello from host": true,
+        "text=\"Hello from host\"": true,
+        "service=4fafc201-1fb5-459e-8fcc-c5c9c331914b": false,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "log_sha256": "113dfe48a5cb358c3149125a80b48d977a367ea503d6900bdd1f926d27a6b530",
+      "modeled_boot_to_advertising_s": 0.240755,
+      "wall_to_advertising_s": 0.09332808299222961
+    },
+    {
+      "chip": "c3",
+      "example": "Write",
+      "checks": {
+        "New value: Hello from host": true,
+        "text=\"Hello from host\"": true,
+        "service=4fafc201-1fb5-459e-8fcc-c5c9c331914b": false,
+        "name=\"": true,
+        "connected handle=0x0001 guest=peripheral": true,
+        "discovery complete": true
+      },
+      "log_sha256": "6b2265b6d9ec48d383cd2dcf1869679205db7f787dd8a28a078f56bee181f39a",
+      "modeled_boot_to_advertising_s": 0.250018,
+      "wall_to_advertising_s": 0.09589420905103907
+    },
+    {
+      "chip": "c3",
+      "example": "Scan",
+      "checks": {
+        "Name: esp32sim": false,
+        "Devices found: 1": false,
+        "Scan done!": true
+      },
+      "log_sha256": "73f5fbf012af444230d1d19137db7dab53417c06b682d193a710e89a68759150",
+      "modeled_boot_to_advertising_s": null,
+      "wall_to_advertising_s": null
+    }
+  ],
+  "resolutions": {
+    "Write": "The unchanged example advertises MyESP32 without a service UUID. Require the UUID in actual GATT discovery, and check the advertised name separately. Guest onWrite and readback passed in the initial run.",
+    "C3 Scan": "Initial task drained command-complete and both scan reports before yielding; the unchanged sketch returned Devices found: 0. Yielding one tick after each received packet lets the host finish scan-enable. Final runs find one device."
+  },
+  "other_errors": [
+    {
+      "command": "pio run -d /tmp/up-ble-firmware/s3/Server",
+      "error": "PermissionError: [Errno 1] Operation not permitted: '/Users/alice/.platformio/platforms.lock'",
+      "resolution": "One authorized cache-access retry succeeded."
+    },
+    {
+      "command": "S3 Server --ble startup",
+      "error": "BLE controller BSS is too small or outside DRAM",
+      "resolution": "Classic reserved 2048 bytes; S3/C3 have 692/704. Use 512 bytes for bounded H4 packets."
+    },
+    {
+      "command": "S3 Server --ble startup after buffer correction",
+      "error": "BLE requires ELF symbol esp_bt_controller_get_status",
+      "resolution": "NimBLE does not link that function. The hook is optional; required VHCI hooks remain mandatory."
+    },
+    {
+      "command": "C3 Server --ble startup",
+      "error": "BLE controller init has no room for the guest task trampoline",
+      "resolution": "Function entry 0x4201d45e is halfword-aligned. Align the trampoline/literals within validated function bounds and retain the original hook address."
+    },
+    {
+      "command": "RV32 trampoline assembler",
+      "error": "illegal operands `lw t1,4-(1b-start)(t0)'",
+      "resolution": "Use explicit section offsets and NOP padding. CPU execution tests verify the bytes."
+    },
+    {
+      "command": "early build checks",
+      "error": "E0433 cannot find module or crate esp_soc; E0753 inner doc placement; E0599 no method get_ar on riscv_rv32::Cpu",
+      "resolution": "Corrected moved module references/doc ordering and the ported test register accessor; retry passed."
+    },
+    {
+      "command": "early Server launches while release build was pending",
+      "error": "no such file or directory: target/release/esp32sim; BLE is unsupported on this chip from stale executable",
+      "resolution": "Await build completion before recorded validation."
+    }
+  ],
+  "limitations": "Intermediate source was uncommitted. Earlier failed functional runs are retained as diagnostic outcomes, not controlled timing comparisons. Initial normalized log hashes remain historical; final normalized captures have distinct hashes."
+}

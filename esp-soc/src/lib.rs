@@ -3,6 +3,7 @@
 //! `Machine<S>`, which owns the scheduler, device time, console, action scripts, the web UI
 //! protocol, real-time pacing, the image loaders and the board model. `devices` holds the
 //! chip-neutral models a board is built from.
+pub mod ble;
 pub mod board;
 mod console;
 pub mod debug;

@@ -1,0 +1,4 @@
+--- a/esp32c6/src/ble.rs
++++ b/esp32c6/src/ble.rs
+@@ -283 +282,0 @@
+-            bus.load_bytes(heap + 10, &[2]).unwrap();

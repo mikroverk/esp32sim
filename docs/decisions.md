@@ -355,3 +355,22 @@ removes false register-window exceptions (hello and reboot counts, four reboot t
 the Atech counts and the remainder of the panel count. Existing audio hashes are unchanged.
 The native performance follow-up changes no goldens; exact-PC observers are now separately
 opted into so ordinary trap analysis need not pay their fragmentation cost.
+
+
+## BLE controller substitution
+
+BLE currently substitutes the guest controller API behind opt-in `--ble`. The
+S3/C3 VHCI adapters and the C6 native NimBLE adapter exchange H4 packets with
+`esp_soc::ble::HciController`. The boxed controller has reset and cycle-based
+advance/deadline methods. A separate peer owns scripts, ATT and the Battery
+Service and exchanges packets over `ble::Link`; a replacement controller must
+bridge that link, leaving scripts unchanged.
+
+WiFi follows "emulate the MAC, do not shim" because its modeled registers and
+DMA descriptors let the unchanged guest driver run. BLE has no equivalent
+baseband model here. Substitution exercises the unchanged host stack and Arduino
+sketches now, with guest tasks and allocators retaining their calling conventions.
+It does not claim RF or connection-event timing, pairing, encryption sessions or
+controller register fidelity. A fuller HCI controller can replace this one; a
+future baseband model can remove the substitution. C6's native mbuf/NPL ABI is
+restricted to IDF 5.5.x at enable time. The disabled path installs no hooks.
