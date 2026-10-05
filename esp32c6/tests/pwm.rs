@@ -149,3 +149,38 @@ fn mcpwm_clock_gate_resumes_interrupt_after_reboot() {
         assert_eq!(p.source_status()[source / 32] & mask, 0);
     }
 }
+
+#[test]
+fn reset_pwm_stays_unscheduled_with_clocks_enabled() {
+    use esp_periph::{Device, Dispatch};
+    let mut m = esp32c6::machine([0; 6], 4 << 20);
+    for boot in 0..2 {
+        if boot != 0 { m.reboot(); }
+        let p = &mut m.bus.periph;
+        assert_eq!(p.ledc.clock(), None);
+        assert_eq!(p.mcpwm.clock(), None);
+        assert!(p.misc.active_optional.is_empty());
+        for addr in [0x60096034, 0x60096038, 0x6009609c, 0x600960a0] {
+            let reset = p.read32(addr);
+            p.write32(addr, reset);
+            assert!(p.misc.active_optional.is_empty());
+        }
+        // Exercise both gates even if the reset clock source changes.
+        for (addr, value) in [(0x60096034, 1), (0x60096038, 0x500000),
+                              (0x6009609c, 1), (0x600960a0, 0x500000)] {
+            p.write32(addr, value);
+            assert!(p.misc.active_optional.is_empty());
+        }
+        assert_ne!(p.ledc.external_clock_hz, 0);
+        assert!(p.mcpwm.clock_enabled);
+        p.refresh_optional(0x07);
+        p.refresh_optional(0x14);
+        assert_eq!(p.ledc.clock(), None);
+        assert_eq!(p.mcpwm.clock(), None);
+        assert!(p.misc.active_optional.is_empty());
+        p.tick(160_000_000);
+        assert!(p.misc.active_optional.is_empty());
+        assert_eq!(p.ledc.read(0xc0), 0);
+        assert_eq!(p.mcpwm.read(0x114), 0);
+    }
+}

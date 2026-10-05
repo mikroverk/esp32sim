@@ -368,7 +368,7 @@ pub struct Peripherals {
 }
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
-device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
     0x04 "I2C0" (i2c) => [src::I2C_EXT0];
     0x0e "APB_SARADC" (adc) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
