@@ -1,0 +1,47 @@
+ADC A pin=0 raw=722 mv=500
+ADC DONE
+c3 phase=0 pin=0 generation=2 raw=722
+ADC B pin=0 raw=1024 mv=706
+ADC DONE
+c3 phase=1 pin=0 generation=4 raw=1024
+ADC C pin=0 raw=1459 mv=1000
+ADC DONE
+c3 phase=2 pin=0 generation=6 raw=1459
+ADC D pin=0 raw=3072 mv=2081
+ADC DONE
+c3 phase=3 pin=0 generation=8 raw=3072
+c3 work insns=7000000 cycles=7000000
+ADC A pin=0 raw=508 mv=500
+ADC DONE
+c6 phase=0 pin=0 generation=2 raw=508
+ADC B pin=0 raw=1024 mv=1008
+ADC DONE
+c6 phase=1 pin=0 generation=4 raw=1024
+ADC C pin=0 raw=1016 mv=1000
+ADC DONE
+c6 phase=2 pin=0 generation=6 raw=1016
+ADC D pin=0 raw=3072 mv=3016
+ADC DONE
+c6 phase=3 pin=0 generation=8 raw=3072
+c6 work insns=8000000 cycles=8000000
+ADC A pin=1 raw=521 mv=500
+ADC A pin=11 raw=528 mv=500
+ADC DONE
+s3 phase=0 pin=1 generation=2 raw=521
+s3 phase=0 pin=11 generation=2 raw=528
+ADC B pin=1 raw=1024 mv=960
+ADC B pin=11 raw=1024 mv=944
+ADC DONE
+s3 phase=1 pin=1 generation=4 raw=1024
+s3 phase=1 pin=11 generation=4 raw=1024
+ADC C pin=1 raw=1068 mv=1000
+ADC C pin=11 raw=1087 mv=1000
+ADC DONE
+s3 phase=2 pin=1 generation=6 raw=1068
+s3 phase=2 pin=11 generation=6 raw=1087
+ADC D pin=1 raw=3072 mv=2765
+ADC D pin=11 raw=3072 mv=2718
+ADC DONE
+s3 phase=3 pin=1 generation=8 raw=3072
+s3 phase=3 pin=11 generation=8 raw=3072
+s3 work insns=4408065 cycles=8000000

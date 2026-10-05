@@ -102,3 +102,24 @@ One action per line, `<seconds> <cmd> [args]`; buttons/encoder are active low.
 `hw/wsdrive.py [port] [seconds]` drives the same inputs over the UI's WebSocket and reports
 real-time keep-up (push gaps, lag, audio delivered); `hw/wsaudio.py [port] [seconds]` listens to the
 UI's audio stream and reports sample counts/peak (how to check sound without listening).
+
+### ADC inputs
+
+Scripts accept `adc <gpio> <volts>` for a constant voltage and
+`adcwave <gpio> <file> <rate_hz>` for voltage samples separated by whitespace or
+commas. The waveform starts at the action's emulated time. A later input replaces
+the previous source. S3 GPIO1–10 select ADC1 and GPIO11–20 select ADC2; C3 GPIO0–4
+select ADC1 and GPIO5 selects ADC2; C6 GPIO0–6 select ADC1.
+
+```
+0 adc 1 0.5
+0 waituart0 10 ADC READY
+0 uart0 A
+1 adc 1 1.0
+1 uart0 C
+2 adcwave 1 /tmp/adc-volts.txt 1000
+```
+
+`waituart0 <timeout_s> <text>` holds later actions until UART0 prints the text or
+the timeout expires. Raw counts and completed-conversion observations are exposed
+through the [host ADC API](peripherals.md#host-adc-inputs), with no CLI equivalent.

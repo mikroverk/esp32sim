@@ -1,0 +1,388 @@
+{
+  "experiment": "EX207",
+  "base_revision": "f3cef17d1703cb1ebe22bc0007d0970921ae2df3",
+  "implementation_revision": "86e32f29e02c8bbc0517f86585a542ba5a1a92a4",
+  "method": "Rust 1.99.0 cargo build --release --bins in separate trees. One excluded warmup per arm then three alternating pairs per demo, reversing order in even rounds. User CPU seconds from RUSAGE_CHILDREN deltas. All runs retained; no benchmark runs overlap builds or validation launched by this task.",
+  "environment": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "architecture": "arm64"
+  },
+  "limits": "Local short-run comparison, three pairs per demo; unrelated machine activity is uncontrolled. No browser or hardware timing claim. Only numeric load, hashes and exact work counts retained; raw console and machine identities omitted.",
+  "demos": {
+    "hello": {
+      "command": [
+        "BINARY",
+        "--chip",
+        "s3",
+        "--board",
+        "none",
+        "--boot",
+        "rom",
+        "--flash-mb",
+        "8",
+        "--mac",
+        "00:00:00:00:00:00",
+        "--max-seconds",
+        "30",
+        "--no-dump",
+        "--psram-mb",
+        "2",
+        "--rom",
+        "FW/esp32s3_rev0_rom.elf",
+        "--bootloader",
+        "FW/public/hello-bootloader.bin",
+        "--ptable",
+        "FW/public/hello-ptable.bin",
+        "--app",
+        "FW/public/hello_world.bin"
+      ],
+      "inputs": {
+        "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+        "public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9"
+      },
+      "binary_sha256": {
+        "main": "313334931ed0edcb82a7e3712e608e5b3252e73c69cc09e53dabbfb07066973d",
+        "pr": "18a3eb9968d73afbf86c922e5a270ae3a07b34a4d4cdcbaa6de3437a8c8c9609"
+      },
+      "samples": [
+        {
+          "round": 0,
+          "warmup": true,
+          "arm": "pr",
+          "user_seconds": 0.41117699999999996,
+          "system_seconds": 0.017073,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 0,
+          "warmup": true,
+          "arm": "main",
+          "user_seconds": 0.392315,
+          "system_seconds": 0.010429,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 1,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 0.39391300000000007,
+          "system_seconds": 0.008952999999999996,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 1,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 0.3938499999999998,
+          "system_seconds": 0.009937000000000001,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 2,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 0.3932150000000001,
+          "system_seconds": 0.010740999999999994,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 2,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 0.39418700000000007,
+          "system_seconds": 0.009586999999999998,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 3,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 0.39961199999999986,
+          "system_seconds": 0.009575,
+          "load_before": 42.37109375,
+          "load_after": 42.37109375
+        },
+        {
+          "round": 3,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 0.3955709999999999,
+          "system_seconds": 0.011973999999999999,
+          "load_before": 42.37109375,
+          "load_after": 42.50146484375
+        }
+      ],
+      "work_and_output": {
+        "stop": "Halted",
+        "instructions": "core0 11990488 + core1 6798360",
+        "emulated_seconds": "30.000",
+        "cycles": "7200000000",
+        "exceptions": "27229",
+        "interrupts": "6030",
+        "stdout_sha256": "119a1216fb34a8e1d99331ebc42de3b9a1e9bb1e36b8851cc6f5b734fb35fb88"
+      },
+      "median_user_seconds": {
+        "main": 0.39418700000000007,
+        "pr": 0.3938499999999998
+      },
+      "delta_percent": -0.0854924185729744
+    },
+    "c3-hello": {
+      "command": [
+        "BINARY",
+        "--chip",
+        "c3",
+        "--board",
+        "none",
+        "--boot",
+        "rom",
+        "--flash-mb",
+        "4",
+        "--mac",
+        "00:00:00:00:00:00",
+        "--max-seconds",
+        "30",
+        "--no-dump",
+        "--rom",
+        "FW/esp32c3_rev3_rom.elf",
+        "--bootloader",
+        "FW/public/c3-hello-bootloader.bin",
+        "--ptable",
+        "FW/public/c3-hello-ptable.bin",
+        "--app",
+        "FW/public/c3-hello_world.bin"
+      ],
+      "inputs": {
+        "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+        "public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be"
+      },
+      "binary_sha256": {
+        "main": "313334931ed0edcb82a7e3712e608e5b3252e73c69cc09e53dabbfb07066973d",
+        "pr": "18a3eb9968d73afbf86c922e5a270ae3a07b34a4d4cdcbaa6de3437a8c8c9609"
+      },
+      "samples": [
+        {
+          "round": 0,
+          "warmup": true,
+          "arm": "pr",
+          "user_seconds": 3.682354,
+          "system_seconds": 0.016757000000000008,
+          "load_before": 42.50146484375,
+          "load_after": 42.701171875
+        },
+        {
+          "round": 0,
+          "warmup": true,
+          "arm": "main",
+          "user_seconds": 3.6509490000000007,
+          "system_seconds": 0.019727999999999996,
+          "load_before": 42.701171875,
+          "load_after": 42.701171875
+        },
+        {
+          "round": 1,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 2.905593999999999,
+          "system_seconds": 0.01047999999999999,
+          "load_before": 42.701171875,
+          "load_after": 40.32275390625
+        },
+        {
+          "round": 1,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 2.724620999999999,
+          "system_seconds": 0.007088000000000011,
+          "load_before": 40.32275390625,
+          "load_after": 37.494140625
+        },
+        {
+          "round": 2,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 2.7123360000000005,
+          "system_seconds": 0.006626999999999994,
+          "load_before": 37.494140625,
+          "load_after": 37.494140625
+        },
+        {
+          "round": 2,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 2.7638740000000013,
+          "system_seconds": 0.009000000000000008,
+          "load_before": 37.494140625,
+          "load_after": 34.9716796875
+        },
+        {
+          "round": 3,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 2.9171650000000007,
+          "system_seconds": 0.009170999999999985,
+          "load_before": 34.9716796875,
+          "load_after": 34.9716796875
+        },
+        {
+          "round": 3,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 2.7377409999999998,
+          "system_seconds": 0.008878000000000025,
+          "load_before": 34.9716796875,
+          "load_after": 32.5712890625
+        }
+      ],
+      "work_and_output": {
+        "stop": "Halted",
+        "instructions": "4800000000",
+        "emulated_seconds": "30.000",
+        "cycles": "4800000000",
+        "exceptions": "0",
+        "interrupts": "3028",
+        "stdout_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd"
+      },
+      "median_user_seconds": {
+        "main": 2.905593999999999,
+        "pr": 2.724620999999999
+      },
+      "delta_percent": -6.2284338417548994
+    },
+    "c6-hello": {
+      "command": [
+        "BINARY",
+        "--chip",
+        "c6",
+        "--board",
+        "none",
+        "--boot",
+        "rom",
+        "--flash-mb",
+        "4",
+        "--mac",
+        "00:00:00:00:00:00",
+        "--max-seconds",
+        "30",
+        "--no-dump",
+        "--rom",
+        "FW/esp32c6_rev0_rom.elf",
+        "--bootloader",
+        "FW/public/c6-hello-bootloader.bin",
+        "--ptable",
+        "FW/public/c6-hello-ptable.bin",
+        "--app",
+        "FW/public/c6-hello_world.bin"
+      ],
+      "inputs": {
+        "esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+        "public/c6-hello-bootloader.bin": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+        "public/c6-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "public/c6-hello_world.bin": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131"
+      },
+      "binary_sha256": {
+        "main": "313334931ed0edcb82a7e3712e608e5b3252e73c69cc09e53dabbfb07066973d",
+        "pr": "18a3eb9968d73afbf86c922e5a270ae3a07b34a4d4cdcbaa6de3437a8c8c9609"
+      },
+      "samples": [
+        {
+          "round": 0,
+          "warmup": true,
+          "arm": "pr",
+          "user_seconds": 3.4773099999999992,
+          "system_seconds": 0.007648999999999989,
+          "load_before": 32.5712890625,
+          "load_after": 32.5712890625
+        },
+        {
+          "round": 0,
+          "warmup": true,
+          "arm": "main",
+          "user_seconds": 3.406526000000003,
+          "system_seconds": 0.008488999999999997,
+          "load_before": 32.5712890625,
+          "load_after": 30.36328125
+        },
+        {
+          "round": 1,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 3.4128849999999957,
+          "system_seconds": 0.010331000000000007,
+          "load_before": 30.36328125,
+          "load_after": 28.412109375
+        },
+        {
+          "round": 1,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 3.411900000000003,
+          "system_seconds": 0.007861000000000007,
+          "load_before": 28.412109375,
+          "load_after": 26.697265625
+        },
+        {
+          "round": 2,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 3.428539999999998,
+          "system_seconds": 0.008597999999999995,
+          "load_before": 26.697265625,
+          "load_after": 26.697265625
+        },
+        {
+          "round": 2,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 3.5029850000000025,
+          "system_seconds": 0.008705999999999992,
+          "load_before": 26.697265625,
+          "load_after": 25.52001953125
+        },
+        {
+          "round": 3,
+          "warmup": false,
+          "arm": "main",
+          "user_seconds": 3.4229839999999996,
+          "system_seconds": 0.006632999999999972,
+          "load_before": 25.52001953125,
+          "load_after": 23.71630859375
+        },
+        {
+          "round": 3,
+          "warmup": false,
+          "arm": "pr",
+          "user_seconds": 3.421638999999999,
+          "system_seconds": 0.007333000000000034,
+          "load_before": 23.71630859375,
+          "load_after": 23.71630859375
+        }
+      ],
+      "work_and_output": {
+        "stop": "Halted",
+        "instructions": "4800000000",
+        "emulated_seconds": "30.000",
+        "cycles": "4800000000",
+        "exceptions": "0",
+        "interrupts": "3029",
+        "stdout_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+      },
+      "median_user_seconds": {
+        "main": 3.4229839999999996,
+        "pr": 3.421638999999999
+      },
+      "delta_percent": -0.03929320148737814
+    }
+  }
+}
