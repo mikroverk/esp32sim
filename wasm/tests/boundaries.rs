@@ -106,3 +106,29 @@ fn complete_stub_specs_and_wifi_report_invalid_configuration() {
         esp32sim_net_delete(net);
     }
 }
+
+#[test]
+fn ethernet_relay_validates_frames_on_every_chip() {
+    for board in ["none", "esp32c3", "esp32c6"] {
+        // SAFETY: uniquely owned emulator and buffers live for each call.
+        unsafe {
+            let e = esp32sim_new(board.as_ptr(), board.len(), 1, 0);
+            assert!(!e.is_null());
+            assert_eq!(esp32sim_ethernet_take(e), 0);
+            assert!(esp32sim_ethernet_ptr(e, 0).is_null());
+            assert_eq!(esp32sim_ethernet_len(e, usize::MAX), 0);
+            assert_eq!(esp32sim_ethernet_relay(e, 1), 0);
+            assert_eq!(esp32sim_ethernet_receive(e, [0; 14].as_ptr(), 14), 1);
+            assert_eq!(esp32sim_wifi(e, std::ptr::null(), 0), 0);
+            for len in [0, 13, 1519, usize::MAX] {
+                assert_eq!(esp32sim_ethernet_receive(e, std::ptr::null(), len), 1);
+            }
+            assert_eq!(esp32sim_ethernet_receive(e, std::ptr::null(), 14), 1);
+            for _ in 0..64 { assert_eq!(esp32sim_ethernet_receive(e, [0; 14].as_ptr(), 14), 0); }
+            assert_eq!(esp32sim_ethernet_receive(e, [0; 14].as_ptr(), 14), 1);
+            assert_eq!(esp32sim_ethernet_relay(e, 0), 0);
+            assert_eq!(esp32sim_ethernet_receive(e, [0; 14].as_ptr(), 14), 1);
+            esp32sim_delete(e);
+        }
+    }
+}

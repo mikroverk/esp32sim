@@ -6,6 +6,7 @@ use esp_soc::{Machine, Soc, SocBus, Stop};
 
 /// The chip-neutral operations the ABI uses.
 pub(super) trait MachineApi {
+    fn bus(&mut self) -> &mut dyn SocBus;
     fn load(&mut self, kind: u32, d: &[u8]) -> Result<(), String>;
     fn write_flash(&mut self, off: usize, d: &[u8]) -> Result<(), String>;
     fn boot(&mut self, app_direct: bool) -> Result<(), String>;
@@ -23,6 +24,7 @@ pub(super) trait MachineApi {
 }
 
 impl<S: Soc> MachineApi for Machine<S> {
+    fn bus(&mut self) -> &mut dyn SocBus { &mut self.bus }
     fn load(&mut self, kind: u32, d: &[u8]) -> Result<(), String> {
         self.load_input(esp_soc::LoadKind::try_from(kind)?, d)
     }
@@ -81,6 +83,9 @@ pub(super) enum MachineKind {
 impl MachineKind {
     pub fn s3_mut(&mut self) -> Option<&mut esp32s3::Machine> {
         match self { Self::S3(m) => Some(m), _ => None }
+    }
+    pub fn c3_mut(&mut self) -> Option<&mut esp32c3::Machine> {
+        match self { Self::C3(m) => Some(m), _ => None }
     }
     pub fn c6_mut(&mut self) -> Option<&mut esp32c6::Machine> {
         match self { Self::C6(m) => Some(m), _ => None }

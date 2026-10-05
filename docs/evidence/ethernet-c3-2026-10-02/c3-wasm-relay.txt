@@ -1,0 +1,22 @@
+ESP-ROM:esp32c3-api1-20210207
+Build:Feb  7 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fcd5820,len:0x110c
+load:0x403cbf10,len:0xb54
+ESP-ROM:esp32c3-api1-20210207
+Build:Feb  7 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fcd5820,len:0x110c
+load:0x403cbf10,len:0xb54
+load:0x403ce710,len:0x2f8c
+load:0x403ce710,len:0x2f8c
+entry 0x403cbf10
+entry 0x403cbf10
+NET start
+NET open status=3 ip=10.0.2.15
+
+{"chip":"c3","discovers":1,"requests":1,"injected":2,"cycles":284481788,"insns":284481788,"pass":true}

@@ -1,0 +1,31 @@
+{
+  "source": "b4acf2366a602dcd78f6b5738756a2c1fd1b5cea",
+  "environment": {
+    "os": "macOS 26.6.2",
+    "architecture": "arm64",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "node": "22.23.1",
+    "platformio": "6.1.19",
+    "arduino_esp32": "3.3.8",
+    "platform": "https://github.com/pioarduino/platform-espressif32.git#55.03.38-1"
+  },
+  "checks": {
+    "cargo build --release": "pass",
+    "cargo test --workspace": {
+      "passed": 466,
+      "failed": 0,
+      "ignored": 22
+    },
+    "tools/wasm-build.sh": "pass",
+    "cargo test -p esp32c3 --test wifi": "2 passed",
+    "cargo test -p esp32sim --test ethernet": "2 passed",
+    "wasm/tests/boundaries.rs": "6 passed including Ethernet ABI bounds on three chips",
+    "git diff --check": "pass",
+    "node tools/check-evidence-privacy.mjs": "pass: 1484 tracked evidence files, 15 gzip files; manual review completed"
+  },
+  "limitations": [
+    "Existing ignored tests require external assets or tools; none newly ignored.",
+    "No physical Wi-Fi hardware comparison or timing benchmark.",
+    "C6 uses bb_init=0 and logs PLL calibration warnings."
+  ]
+}
