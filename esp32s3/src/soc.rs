@@ -54,24 +54,23 @@ impl esp_soc::SocBus for SocBus {
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
+    fn attach_wifi(&mut self, ap: esp_soc::wifi::VirtualAp, net: esp_soc::net::VirtualNet) -> Result<(), String> {
+        self.periph.wifi.link.ap = Some(ap); self.periph.wifi.link.net = Some(net);
+        self.refresh_tick_budget();
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.flush_ticks();
-        let mac = &mut self.periph.wifi;
-        if mac.relay != enabled { mac.eth_tx.clear(); mac.eth_rx.clear(); mac.relay = enabled; }
+        self.periph.wifi.link.set_relay(enabled);
         Ok(())
     }
     fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> {
         self.flush_ticks();
-        if self.periph.wifi.relay { std::mem::take(&mut self.periph.wifi.eth_tx) } else { Vec::new() }
+        self.periph.wifi.link.take_relay_frames()
     }
     fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
         self.flush_ticks();
-        let mac = &mut self.periph.wifi;
-        if !mac.relay || mac.ap.is_none() { return Err("Ethernet relay requires relay mode and a virtual AP".into()); }
-        if !(14..=1518).contains(&frame.len()) { return Err("Ethernet frame must be 14..=1518 bytes without FCS".into()); }
-        if mac.eth_rx.len() >= 64 { return Err("Ethernet receive queue full".into()); }
-        mac.eth_rx.push(frame.to_vec());
-        Ok(())
+        self.periph.wifi.link.relay_receive(frame)
     }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> { Some(SocBus::next_deadline(self)) }
@@ -145,7 +144,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         // The host AP and network survive a guest reboot; only the MAC and relay queues reset.
-        p.wifi.ap = old.wifi.ap; p.wifi.net = old.wifi.net; p.wifi.log = old.wifi.log; p.wifi.relay = old.wifi.relay;
+        p.wifi.link = old.wifi.link.after_reboot(); p.wifi.log = old.wifi.log;
         p.efuse = old.efuse;
         p.rtc.analog = old.rtc.analog;
         p.gpio.strap = old.gpio.strap;
@@ -207,7 +206,7 @@ impl esp_soc::SocBus for SocBus {
         let p = &self.periph;
         let mut s = format!("[emu] i2s frames out: {} (i2s0 @ {} Hz) {} (i2s1 @ {} Hz)\n", p.i2s0.frames_out, p.i2s0.sample_rate, p.i2s1.frames_out, p.i2s1.sample_rate);
         { let r = self.board.report(); if !r.is_empty() { s += &r; s += "\n"; } }
-        { let w = &p.wifi; s += &crate::wifi::report(w.tx_frames, w.rx_frames, w.rx_dropped, w.ap.as_ref(), w.net.as_ref()); }
+        s += &p.wifi.link.report();
         { let (a, sh, r) = (&p.aes, &p.sha, &p.rsa);
           if a.blocks + sh.blocks + r.ops > 0 { s += &format!("[emu] crypto: {} AES blocks, {} SHA blocks, {} RSA/MPI operations\n", a.blocks, sh.blocks, r.ops); } }
         if p.lcd_cam.lcd_frames > 0 { s += &format!("[emu] lcd: {} RGB frames\n", p.lcd_cam.lcd_frames); }
