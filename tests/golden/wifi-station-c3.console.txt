@@ -3,12 +3,11 @@ Build:Feb  7 2021
 rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
 SPIWP:0xee
 mode:DIO, clock div:1
-load:0x3fcd5830,len:0x1584
-load:0x403cbf10,len:0xc44
+load:0x3fcd5830,len:0x1564
+load:0x403cbf10,len:0xc20
 load:0x403ce710,len:0x2ff8
 entry 0x403cbf1a
 I (3) boot: ESP-IDF v5.5.4 2nd stage bootloader
-I (4) boot: compile time Oct  5 2026 21:12:08
 I (4) boot: chip revision: v0.4
 I (4) boot: efuse block revision: v1.3
 I (4) boot.esp32c3: SPI Speed      : 80MHz
@@ -21,12 +20,12 @@ I (4) boot:  0 nvs              WiFi data        01 02 00009000 00006000
 I (4) boot:  1 phy_init         RF data          01 01 0000f000 00001000
 I (4) boot:  2 factory          factory app      00 00 00010000 00177000
 I (4) boot: End of partition table
-I (5) esp_image: segment 0: paddr=00010020 vaddr=3c090020 size=18338h ( 99128) map
-I (11) esp_image: segment 1: paddr=00028360 vaddr=3fc94400 size=030ach ( 12460) load
-I (13) esp_image: segment 2: paddr=0002b414 vaddr=40380000 size=04c04h ( 19460) load
-I (14) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=86330h (549680) map
-I (51) esp_image: segment 4: paddr=000b6358 vaddr=40384c04 size=0f5f0h ( 62960) load
-I (56) esp_image: segment 5: paddr=000c5950 vaddr=50000000 size=00020h (    32) load
+I (4) esp_image: segment 0: paddr=00010020 vaddr=3c090020 size=18310h ( 99088) map
+I (11) esp_image: segment 1: paddr=00028338 vaddr=3fc94400 size=030ach ( 12460) load
+I (13) esp_image: segment 2: paddr=0002b3ec vaddr=40380000 size=04c2ch ( 19500) load
+I (14) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=862f0h (549616) map
+I (51) esp_image: segment 4: paddr=000b6318 vaddr=40384c2c size=0f5c8h ( 62920) load
+I (56) esp_image: segment 5: paddr=000c58e8 vaddr=50000000 size=00020h (    32) load
 I (60) boot: Loaded app from partition at offset 0x10000
 I (60) boot: Disabling RNG early entropy source...
 I (61) cpu_start: Unicore app
@@ -35,8 +34,7 @@ I (69) cpu_start: cpu freq: 160000000 Hz
 I (69) app_init: Application information:
 I (69) app_init: Project name:     c6_wifi_station
 I (69) app_init: App version:      1
-I (69) app_init: Compile time:     Oct  5 2026 21:12:03
-I (69) app_init: ELF file SHA256:  7e0ce2a63...
+I (69) app_init: ELF file SHA256:  1fe82a3fa...
 I (69) app_init: ESP-IDF:          v5.5.4
 I (69) efuse_init: Min chip rev:     v0.3
 I (69) efuse_init: Max chip rev:     v1.99 
@@ -47,7 +45,7 @@ I (69) heap_init: At 3FCC0000 len 0001C710 (113 KiB): Retention RAM
 I (69) heap_init: At 3FCDC710 len 00002950 (10 KiB): Retention RAM
 I (69) heap_init: At 50000020 len 00001FC8 (7 KiB): RTCRAM
 I (69) spi_flash: detected chip: generic
-I (70) spi_flash: flash io: dio
+I (69) spi_flash: flash io: dio
 I (70) sleep_gpio: Configure to isolate all GPIO pins in sleep state
 I (70) sleep_gpio: Enable automatic switching of GPIO sleep configuration
 I (70) main_task: Started on CPU0
