@@ -1,0 +1,16 @@
+diff --git a/esp32c6/src/periph.rs b/esp32c6/src/periph.rs
+--- a/esp32c6/src/periph.rs
++++ b/esp32c6/src/periph.rs
+@@ -366,2 +366,2 @@
+-    pub ledc: Ledc,
+-    pub mcpwm: Mcpwm,
++    pub ledc: Box<Ledc>,
++    pub mcpwm: Box<Mcpwm>,
+@@ -428 +428 @@
+-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87, 8),
++            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Box::new(Ledc::new(LedcLayout::C6)), mcpwm: Box::new(Mcpwm::new(87, 8)),
+@@ -478,2 +478,2 @@
+-        if addr == PERIPH_BASE + 0x96034 && v & 2 != 0 { self.ledc = Ledc::new(LedcLayout::C6); }
+-        if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { self.mcpwm = Mcpwm::new(87, 8); }
++        if addr == PERIPH_BASE + 0x96034 && v & 2 != 0 { *self.ledc = Ledc::new(LedcLayout::C6); }
++        if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { *self.mcpwm = Mcpwm::new(87, 8); }

@@ -127,6 +127,8 @@ $OD -d examples/hello_world-c3/build/hello_world.elf > /tmp/app.dis
 RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release
 ```
 
+LEDC models low-speed timers, static duty latching and GPIO-matrix frequency/duty observation through `--pwm PIN`. Hardware fades and sampled PWM edges are not modelled.
+
 ## Wi-Fi station
 
 `--wifi ssid=esp32sim` attaches the shared virtual AP and network. Add
@@ -155,7 +157,7 @@ for firmware hashes, commands and limits. No physical C3 Wi-Fi comparison was ru
   in `esp-soc` now, so a C3 board is an `impl BoardModel` plus its devices; nothing else changes.
 - (superseded) `BoardModel` is an S3 concept
   today; a C3 board would need it lifted out.
-- **Peripherals on demand**: I2C, SPI2 master, LEDC, RMT, ADC, TWAI. Each shows up as an unknown
+- **Peripherals on demand**: I2C, SPI2 master, RMT, ADC, TWAI. Each shows up as an unknown
   register with `--log-periph` the moment a firmware wants it.
 - **`Saved PC`** on a non-power-on reset: the ROM reads a PC the previous reset stashed in RTC
   memory, which the emulator does not write.

@@ -1,0 +1,141 @@
+{
+  "experiment": "EX204",
+  "date": "2026-10-04",
+  "source_revision": "23b37cb604db8628b44167e8fcf183b8f0d220cb",
+  "published_head": "36f81a9bf31a4ec06e605cae7c8497a00763ff4e",
+  "upstream_main": "f3cef17d1703cb1ebe22bc0007d0970921ae2df3",
+  "changes": [
+    "Reset C6 output-matrix selections to 0x80, as on C3; test an output-enabled never-routed pin with an active LEDC channel.",
+    "Test interrupt resumption after S3 SYSTEM and C6 PCR clock gating, without PWM writes between gate-off and resumed interrupt; repeat after machine reboot; check reset clears cached interrupts.",
+    "Retain main inline hints and pin wiring with optional devices and cached PWM interrupts.",
+    "Ignore three inherited external Arduino pin-transport tests and retain input-specific failure messages.",
+    "Keep all experiment table rows contiguous."
+  ],
+  "checks": [
+    {
+      "name": "clippy",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "name": "clippy-wasm",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "name": "workspace-inputs",
+      "command": "ESP32SIM_ROM_DIR=<absolute path to web/wasm/fw> cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit_code": 0,
+      "totals": {
+        "passed": 531,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "name": "workspace-plain",
+      "command": "env -u ESP32SIM_ROM_DIR -u ESP32SIM_TRANSPORT_BUILD cargo +1.99.0 test --release --workspace",
+      "exit_code": 0,
+      "totals": {
+        "passed": 516,
+        "failed": 0,
+        "ignored": 25
+      }
+    },
+    {
+      "name": "wasm",
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit_code": 0
+    },
+    {
+      "name": "privacy",
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0
+    }
+  ],
+  "mutations": [
+    {
+      "mutation": "s3-refresh",
+      "command": "cargo +1.99.0 test --release -p esp32s3 --test pwm clock_gate_resumes",
+      "result": "killed by assertion",
+      "change": "Remove the S3 SYSTEM-write refresh_optional loop for blocks 0x19, 0x1e and 0x2c."
+    },
+    {
+      "mutation": "c6-ledc-refresh",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm ledc_clock_gate_resumes",
+      "result": "killed by assertion",
+      "change": "Remove C6 PCR-write refresh_optional(0x07)."
+    },
+    {
+      "mutation": "c6-mcpwm-refresh",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm mcpwm_clock_gate_resumes",
+      "result": "killed by assertion",
+      "change": "Remove C6 PCR-write refresh_optional(0x14)."
+    },
+    {
+      "mutation": "c6-unrouted",
+      "command": "cargo +1.99.0 test --release -p esp32c6 --test pwm ledc_matrix_clock_reset",
+      "result": "killed by assertion",
+      "change": "Change the C6 func_out_sel reset fill from 128 to 256."
+    }
+  ],
+  "goldens": "Bit-identical; no golden files changed.",
+  "jit": "No JIT code changed; separate tools/wasm-jit-test.sh not required.",
+  "performance": {
+    "status": "skipped",
+    "reason": "One-minute load never below the required 3 at sampled checks.",
+    "load_1m_samples": [
+      43.77099609375,
+      49.60107421875,
+      47.83056640625,
+      41.1484375,
+      26.697265625,
+      13.09130859375
+    ],
+    "requested_harness_sha256": "07b761535cba40c89364ad8971a6f5c405fbd7064ddcea2b04f7cc6f9e0555c8",
+    "measurement_change": "Revalidate EX204 on main with the merged pin stack; no optimization variant.",
+    "limits": "No CPU-parity conclusion for this rebased revision. No benchmark arms were built or measured because the load precondition failed."
+  },
+  "environment": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "node": "v22.23.1"
+  },
+  "firmware_sha256": {
+    "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "public/atech-bootloader.bin": "876f58f4c5e2b2a3eae9e025b29096f034af99f6617edae3676817306d306dcf",
+    "public/atech-firmware.bin": "8f6561133b844bc918da71b43875c6b4ed421c96e9bbd7e0622f7dbde3148e6f",
+    "public/atech-ptable.bin": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+    "public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be",
+    "public/c6-contiki-bootloader.bin": "e0a1599ef9d5f4c8447868c813154af6c2ec4a77c9c28792bdd0c2c555a26da8",
+    "public/c6-contiki-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c6-contiki.bin": "d3057dfa272d74c0b61638b892e2ef89f5f86049615d5a14e6be209881cbe47b",
+    "public/c6-energy-bootloader.bin": "8388ab65141d7a2abb818a114fab747902a8bf6b9f049654e5e4add7d82b4979",
+    "public/c6-energy-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c6-energy_scan.bin": "a1f68b7cc05363d7f9b5408b655647b2886aaa40ee719d212ef321ff938055dd",
+    "public/c6-hello-bootloader.bin": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+    "public/c6-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c6-hello_world.bin": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131",
+    "public/c6-rpl-bootloader.bin": "54d0b4969f68b0dbdb55195c5fb082b3c5b0f02578a428be9e2960b6a8deee8b",
+    "public/c6-rpl-client.bin": "0bdf8c0fcff25b6dc58c10ba8effabf71228b399a91bca660d74605068db89d6",
+    "public/c6-rpl-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/c6-rpl-server.bin": "f6cccd2db59bfd559ff26acf2d8692074f1f277892af622602e3999a7c1613b8",
+    "public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+    "public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+    "public/panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+    "public/panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+    "public/panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066",
+    "public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113"
+  },
+  "wasm_sha256": "842770a8b6f4e6ea1e23a406d33efb6496431dbedbfb696f3ca676d6ff5729ea",
+  "privacy": "Only aggregate load, source/input/artifact hashes and curated outcomes retained. Raw build logs and process/session details omitted; no measured values redacted."
+}

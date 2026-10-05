@@ -1,0 +1,31 @@
+diff --git a/esp-periph/src/mmio.rs b/esp-periph/src/mmio.rs
+index 09930baa..748114bb 100644
+--- a/esp-periph/src/mmio.rs
++++ b/esp-periph/src/mmio.rs
+@@ -164,21 +164,14 @@ macro_rules! device_set {
+             #[inline$(($hint))?]
+             fn source_status(&self) -> [u32; 4] {
+                 let mut st = [0u32; 4];
+-                $( if !(false $(|| matches!(stringify!($alias), "alias" | "optional"))?) {
++                $( if $crate::__optional!($($alias)?) {
++                    $( if $src != $crate::NO_SOURCE {
++                        st[$src / 32] |= $crate::DeviceSet::misc(self).optional_sources[$src / 32] & (1 << ($src % 32));
++                    } )*
++                } else if !(false $(|| stringify!($alias) == "alias")?) {
+                     let bits = $crate::Device::irq_sources(&self.$($f)+);
+                     if bits != 0 { let mut b = 0u32; $( if $src != $crate::NO_SOURCE && bits & (1u64 << b) != 0 { st[$src / 32] |= 1 << ($src % 32); } b += 1; )* let _ = b; }
+                 } )*
+-                // Preserve known-zero source bits so the matrix can eliminate unused routes.
+-                const OPTIONAL_SOURCES: [u32; 4] = {
+-                    let mut words = [0; 4];
+-                    $( if $crate::__optional!($($alias)?) {
+-                        $( if $src != $crate::NO_SOURCE { words[$src / 32] |= 1 << ($src % 32); } )*
+-                    } )*
+-                    words
+-                };
+-                for word in 0..4 {
+-                    if OPTIONAL_SOURCES[word] != 0 { st[word] |= $crate::DeviceSet::misc(self).optional_sources[word] & OPTIONAL_SOURCES[word]; }
+-                }
+                 st
+             }
+             #[inline$(($hint))?]

@@ -74,7 +74,7 @@ pub struct Opts {
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
-    pub trace: bool, pub trace_from: u64, pub breaks: Vec<u32>, pub watch: Option<u32>, pub peeks: Vec<(u32, usize)>, pub disasms: Vec<(u32, usize)>,
+    pub trace: bool, pub trace_from: u64, pub breaks: Vec<u32>, pub watch: Option<u32>, pub peeks: Vec<(u32, usize)>, pub pwm_pins: Vec<u8>, pub disasms: Vec<(u32, usize)>,
     pub profile: bool, pub profile_blocks: bool, pub coverage: Option<Option<String>>, pub irq_latency: bool, pub vcd: Option<String>,
     pub regstat: Option<String>, pub regtrace: Option<String>, pub regtrace_max: u64, pub regtrace_from_pc: Option<u32>,
     pub stubs: Vec<String>, pub trace_fns: Vec<String>, pub stop_exc: u64, pub log_periph: bool, pub no_jit: bool, pub debug: Vec<String>,
@@ -136,6 +136,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--break" => o.breaks.push(hex(&next(), "break")),
             "--watch" => o.watch = Some(hex(&next(), "watch")),
             "--peek" => o.peeks.push(pair(&next(), 8)),
+            "--pwm" => o.pwm_pins.push(next().parse().unwrap_or_else(|_| usage_error("--pwm: expected a pin number in 0..255"))),
             "--disasm" => o.disasms.push(pair(&next(), 16)),
             "--profile" => o.profile = true,
             "--profile-blocks" => o.profile_blocks = true,
@@ -464,6 +465,12 @@ fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Stop, dt: f64) {
     }
     if let Some((a, w)) = m.bus.last_fault() { eprintln!("[emu] last bus fault: {} {:#010x}", if w { "write" } else { "read" }, a); }
     for &(a, n) in &o.peeks { eprintln!("[peek after run]\n{}", m.peek(a, n)); }
+    for &pin in &o.pwm_pins {
+        match m.bus.pwm_output(pin) {
+            Some((hz, duty)) => eprintln!("[pwm] GPIO{}: {:.3} Hz, {:.2}% duty", pin, hz, duty as f64 * 100.0 / 65535.0),
+            None => eprintln!("[pwm] GPIO{}: no supported running PWM", pin),
+        }
+    }
     for &(a, n) in &o.disasms { eprintln!("[disasm {:#010x}]\n{}", a, m.disasm(a, n)); }
     { let r = m.reports(); if !r.is_empty() { eprintln!("{}", r); } }
     eprintln!("{}", m.irq_report());
