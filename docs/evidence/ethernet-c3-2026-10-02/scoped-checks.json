@@ -1,0 +1,29 @@
+{
+  "source": "143114f",
+  "toolchain": "1.99.0",
+  "results": {
+    "clippy_workspace": "passed",
+    "clippy_release_wasm_jit_tests": "passed",
+    "workspace_release": {
+      "passed": 482,
+      "failed": 0,
+      "ignored": 0,
+      "external_filtered": 14
+    },
+    "wasm_manifests": [
+      "hello",
+      "c3-hello",
+      "c6-hello",
+      "c6-energy-scan",
+      "c6-contiki",
+      "c6-contiki-net",
+      "c6-rpl-net",
+      "panel"
+    ],
+    "external_wifi_station_c3": "passed; WPA2, DHCP, five gateway pings; no golden regeneration",
+    "existing_goldens": "bit-identical",
+    "jit_implementation": "unchanged; standalone JIT suite not required",
+    "evidence_privacy": "passed; 1499 tracked evidence files, 15 gzip; manually reviewed new receipts, patches and scripts",
+    "whitespace": "passed"
+  }
+}

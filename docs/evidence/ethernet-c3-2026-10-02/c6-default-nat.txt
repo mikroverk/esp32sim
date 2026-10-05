@@ -1,0 +1,8 @@
+NET start
+error: pll_cal exceeds 2ms!!!
+error: pll_cal exceeds 2ms!!!
+error: pll_cal exceeds 2ms!!!
+NET open status=3 ip=10.0.2.15
+NET http=200 body=upstream-net-ok
+NET done
+[emu] stop: Halted — 1600000000 insns in 1.5s wall = 1084.7 Minsn/s; emulated 10.000s (1600000000 cycles); 0 exceptions, 10507 interrupts

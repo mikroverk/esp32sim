@@ -235,3 +235,19 @@ fn external_wifi_station_c6() {
     assert!(station.contains("GOT_IP ip=10.0.2.15") && station.contains("PING done sent=5 received=5"), "the station did not get through:\n{}\n{}", station, r.stderr);
     expect_text("wifi-station-c6.station.txt", &station);
 }
+
+/// C3 build of the same station, with LCD disabled; see examples/c6-wifi-station/README.md.
+#[test]
+#[ignore = "set C3_WIFI_STATION_BUILD to the C3 Wi-Fi station build directory; needs the ESP32-C3 mask ROM ELF"]
+fn external_wifi_station_c3() {
+    let b = std::env::var("C3_WIFI_STATION_BUILD").expect("C3_WIFI_STATION_BUILD=/path/to/c3-wifi-station/build is required for this test");
+    let rom = rom("esp32c3_rev3");
+    let r = run(BIN_C3, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{b}/bootloader/bootloader.bin"), "--ptable", &format!("{b}/partition_table/partition-table.bin"),
+        "--app", &format!("{b}/c6_wifi_station.bin"), "--elf", &format!("{b}/c6_wifi_station.elf"),
+        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "14"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let station: String = r.stdout.lines().filter_map(|l| l.split_once("station: ").map(|(_, rest)| rest.trim_end_matches("\u{1b}[0m"))).map(|l| format!("{l}\n")).collect();
+    assert!(station.contains("GOT_IP ip=10.0.2.15") && station.contains("PING done sent=5 received=5"), "the station did not get through:\n{}\n{}", station, r.stderr);
+    expect_text("wifi-station-c3.station.txt", &station);
+}

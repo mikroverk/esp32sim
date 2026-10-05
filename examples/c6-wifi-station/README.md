@@ -96,6 +96,32 @@ hardware). The unmodified WiFi library then does what it does on the board:
 scan, so the landscape text is sideways in it. `external_wifi_station_c6` in
 `cli/tests/goldens.rs` pins this run (`C6_WIFI_STATION_BUILD` names the build directory).
 
+## C3 regression input
+
+The same station source also builds for ESP32-C3 with ESP-IDF 5.5.4. Disable the
+C6 board display and select C3 in a separate configuration:
+
+```sh
+printf 'CONFIG_IDF_TARGET="esp32c3"\nCONFIG_STATION_LCD=n\n' > /tmp/c3-station.defaults
+idf.py -B build-c3 -DIDF_TARGET=esp32c3 -DSDKCONFIG=sdkconfig.c3 \
+  '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;/tmp/c3-station.defaults' build
+```
+
+From the repository root, run the WPA2 scan/join/DHCP/five-ping golden test:
+
+```sh
+C3_WIFI_STATION_BUILD="$PWD/examples/c6-wifi-station/build-c3" \
+  cargo +1.99.0 test --release -p esp32sim --test goldens external_wifi_station_c3 -- --exact
+```
+
+Set `ESP32SIM_ROM_DIR` to the directory containing `esp32c3_rev3_rom.elf` if it is
+not installed with ESP-IDF. The build keeps the project's `c6_wifi_station.bin`
+and `.elf` names; only the target changes. No stub or board model is needed.
+The test fails with the required input name when its build directory is missing;
+CI excludes it with `--skip external_`. Its station lines are pinned in
+`tests/golden/wifi-station-c3.station.txt`. This is firmware validation, not a
+comparison with a physical C3 radio.
+
 ## In the browser
 
 The WebAssembly build runs it too, on the page's Waveshare panel. The firmware is not committed,

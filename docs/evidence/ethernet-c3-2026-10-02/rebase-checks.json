@@ -1,0 +1,49 @@
+{
+  "source": "06ba9da8814e2fdec250d6e445bdab0de0010d45",
+  "upstream_main": "f3cef17d1703cb1ebe22bc0007d0970921ae2df3",
+  "published_head": "cb15fe708a03eb15c18aabd57e082710b02a083b",
+  "checks": [
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=/private/tmp/esp32sim-up-net/web/wasm/fw cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "result": "522 passed; 0 failed; 0 ignored; 11 external tests filtered"
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "result": "507 passed; 0 failed; 26 ignored; all 11 external tests ignored; input environment variables unset"
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "result": "passed: eight demos and the shared-memory JIT handoff smoke check"
+    },
+    {
+      "command": "C3_WIFI_STATION_BUILD=/private/tmp/pr170-station-input ESP32SIM_ROM_DIR=/private/tmp/esp32sim-up-net/web/wasm/fw cargo +1.99.0 test --release -p esp32sim --test goldens external_wifi_station_c3 -- --ignored --exact",
+      "result": "1 passed; unchanged station golden"
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "station_input_sha256": {
+    "bootloader/bootloader.bin": "ebc994ccf8c0936754e4c303313350cc04cfbaef3994f24421f0b1559146c466",
+    "partition_table/partition-table.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "c6_wifi_station.bin": "91f39b1f9600505a3bb47fe6ee097372adef6600d9eebd1b0d071a110ec9a176",
+    "c6_wifi_station.elf": "f760dd815c59eff00a8757b95cd9972530e117ad8baeb9d7eb837c453b26823f"
+  },
+  "goldens": "No existing golden changed; native golden comparisons pass.",
+  "jit": "No JIT code changed; tools/wasm-jit-test.sh not required.",
+  "privacy": "Only commands, source/input hashes, aggregate load, numeric samples and correctness checks retained; no process inventories or personal identifiers.",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)"
+}

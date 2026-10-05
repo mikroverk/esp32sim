@@ -1,0 +1,55 @@
+{
+  "candidate_revision": "df0f5c118c6f33ba2eca25c12d88397a58e0ce51",
+  "baseline_revision": "6feac19acfb2128e50ae1fb1a2f56eb1df4131ef",
+  "firmware_build": {
+    "platform": "pioarduino espressif32 55.3.39+sha.cbc3349",
+    "esp_idf": "5.5.4",
+    "riscv_gcc": "14.2.0+20260121",
+    "board": "esp32-c3-devkitm-1",
+    "sdkconfig_defaults": "CONFIG_IDF_TARGET=\"esp32c3\"\nCONFIG_ESPTOOLPY_FLASHSIZE_4MB=y\nCONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y\nCONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_WIFI_SOFTAP_SUPPORT=n\nCONFIG_STATION_LCD=n\n"
+  },
+  "firmware_and_source_sha256": {
+    "c6_wifi_station.bin": "91f39b1f9600505a3bb47fe6ee097372adef6600d9eebd1b0d071a110ec9a176",
+    "c6_wifi_station.elf": "f760dd815c59eff00a8757b95cd9972530e117ad8baeb9d7eb837c453b26823f",
+    "partition_table/partition-table.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "bootloader/bootloader.bin": "ebc994ccf8c0936754e4c303313350cc04cfbaef3994f24421f0b1559146c466",
+    "examples/c6-wifi-station/CMakeLists.txt": "bfe86a4d86fde91fe0ebc025eca21efaeaa0a268088258e6f86b8209a6be8653",
+    "examples/c6-wifi-station/main/station.c": "c5a3babca6d8e0d82770316f6cac13ed944badd99506d70417a7e896652735bd",
+    "examples/c6-wifi-station/main/CMakeLists.txt": "a99fb6011698b156b9f735c925b288228896c2d7d8d2857f87f226ac4c993def",
+    "examples/c6-wifi-station/main/Kconfig.projbuild": "01b97a17a49a0cb82f3dc6db4894cfacee697e8edb897816d1594adb9abbe393",
+    "examples/c6-wifi-station/main/lcd_text.c": "8a1c69f52d7609917e17adce943b25256e2f364f9ecc918249dbc2d7929ee1f1"
+  },
+  "checks": {
+    "workspace": {
+      "passed": 480,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 14
+    },
+    "clippy_native": "pass",
+    "clippy_wasm_jit_tests": "pass",
+    "wasm_manifests": [
+      "hello",
+      "c3-hello",
+      "c6-hello",
+      "c6-energy-scan",
+      "c6-contiki",
+      "c6-contiki-net",
+      "c6-rpl-net",
+      "panel"
+    ],
+    "external_wifi_station_c3": "pass; WPA2, DHCP, five of five pings; golden verified without UPDATE_GOLDENS",
+    "existing_goldens": "all unchanged",
+    "mutations_killed": [
+      "C3 GDMA IN DONE/SUC_EOF bit swap",
+      "S3 relay RX drains all frames",
+      "C3 relay RX drains all frames",
+      "C6 relay RX drains all frames"
+    ]
+  },
+  "environment": {
+    "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "node": "v22.23.1"
+  },
+  "privacy": "Only aggregate load, anonymous OS/CPU configuration, hashes and measured results retained. No process inventory or host paths in this receipt."
+}

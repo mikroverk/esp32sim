@@ -1,0 +1,44 @@
+{
+  "baseline_revision": "6feac19acfb2128e50ae1fb1a2f56eb1df4131ef",
+  "conditions": "Three sequential before runs, then three after runs later. After CPU samples drifted strongly; follow-up uses alternating pairs. No machine-load sample was retained for this batch.",
+  "measurement": "resource.getrusage(RUSAGE_CHILDREN), user + system CPU seconds",
+  "before": [
+    {
+      "run": 1,
+      "cpu_seconds": 2.560053,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns in 2.6s wall = 1874.4 Minsn/s; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts"
+    },
+    {
+      "run": 2,
+      "cpu_seconds": 2.4695489999999998,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns in 2.5s wall = 1945.4 Minsn/s; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts"
+    },
+    {
+      "run": 3,
+      "cpu_seconds": 2.5781989999999997,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns in 2.6s wall = 1860.2 Minsn/s; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts"
+    }
+  ],
+  "after": [
+    {
+      "run": 1,
+      "cpu_seconds": 3.534965,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns in 4.2s wall = 1151.0 Minsn/s; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts"
+    },
+    {
+      "run": 2,
+      "cpu_seconds": 3.142974,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns in 3.2s wall = 1510.8 Minsn/s; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts"
+    },
+    {
+      "run": 3,
+      "cpu_seconds": 2.754620000000001,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns in 2.8s wall = 1744.5 Minsn/s; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts"
+    }
+  ],
+  "binary_sha256": {
+    "before": "3bd623280503f296a19a821209ed149b4e9e17479617e071518e1db629f157c8",
+    "after": "86b64142edb90a664782a57279e8513f9ac62df18dacb54e0aba4c6cb822514f"
+  },
+  "candidate_note": "Initial review changes, before preserving odd-cycle APB edge alignment; superseded by final candidate."
+}
