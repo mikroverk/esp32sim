@@ -325,3 +325,43 @@ polling, shared clock deltas, activation, one-shot removal, stopped pending IRQs
 and clear. Existing SoC tests cover gates and resets. JIT code is unchanged.
 Privacy validation after staging the new receipts passed: 1492 tracked evidence files,
 19 gzip files, no configured patterns. Manual review included the JSON and decompressed patches.
+
+
+## C6 idle review on main 5ab228fa
+
+EX204 follow-up on `5ab228fadf92e385d1b175b4d12f48f57aa22c8d`; fix
+`f3eb0b69e6e9fa8a20f4d4cf887def777b5e2f6d`. This checks C6 IRQ code generation
+on the new main revision, extending the earlier C3 idle work rather than changing
+timer scheduling. The existing LEDC/MCPWM clock methods already reject unconfigured
+timers. A diagnostic build asserted an empty optional-device schedule on every tick
+of the 30-second c6-hello workload: 4.8 billion instructions/cycles, zero exceptions.
+The hermetic `reset_pwm_stays_unscheduled_with_clocks_enabled` test also covers
+reset PCR values, explicitly enabled gates, and reboot.
+
+The C6 dispatcher lacked the existing C3 `inline always` hint. With cached PWM IRQ
+sources, the compiled C6 IRQ refresh had an unconditional 128-byte stack frame and
+497 instructions, versus main's 474. Applying the hint restores the entry without
+that frame and reduces the function to 477 instructions. Main and the fix both
+retain a conditional 48-byte frame elsewhere in the function. Moving cache merging
+earlier or into individual table entries did not remove the unconditional frame;
+these two alternatives were rejected without timing. Their patches are retained.
+This establishes the code-generation difference, not a measured CPU-time delta.
+
+[Code generation and diagnostic reproduction](c6-idle-codegen.json),
+[checks](c6-idle-checks.json), [cache-first attempt](c6-cache-first.patch),
+[per-entry attempt](c6-cache-entry.patch).
+
+Both release builds use Rust 1.99.0 and separate `CARGO_TARGET_DIR`s with
+`cargo +1.99.0 build --release --bins`. Reproduce each five-round comparison using:
+
+```sh
+python3 docs/evidence/pwm-arduino-2026-10-02/benchmark-review3.py c6-hello c6.json main=MAIN_TARGET/release after=PR_TARGET/release --fw web/wasm/fw
+python3 docs/evidence/pwm-arduino-2026-10-02/benchmark-review3.py pocket-tank pocket.json main=MAIN_TARGET/release after=PR_TARGET/release --fw web/wasm/fw
+```
+
+The script warms each arm once, reverses arm order in even rounds, captures user and
+system CPU time separately, and checks instruction counts, cycles and console hashes.
+It waits for `uptime` one-minute load below 3 and rejects runs ending at load 3 or
+higher. The main Speed example names C3; C6 uses the same options with its executable
+and manifest files. Pocket-tank uses its manifest's board, PSRAM and model image.
+CPU acceptance remains pending a qualifying quiet window; no parity claim on this base.

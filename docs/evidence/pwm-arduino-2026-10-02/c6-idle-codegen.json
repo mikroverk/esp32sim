@@ -1,0 +1,48 @@
+{
+  "upstream_main": "5ab228fadf92e385d1b175b4d12f48f57aa22c8d",
+  "before": "a840377ab3b98c1d3c920cf4eae0c6a4cc6cbf2a",
+  "after": "f3eb0b69e6e9fa8a20f4d4cf887def777b5e2f6d",
+  "toolchain": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "method": "xcrun llvm-objdump --demangle --disassemble BINARY; extract C6 SocBus::refresh_irq. Static instruction counts, not retired host instructions. Entry stack frames are unconditional. Main and inline retain a conditional 48-byte frame on another path; neither allocates it at function entry.",
+  "arms": {
+    "main": {
+      "instructions": 474,
+      "disassembly_sha256": "70dadd93a6ca428180c4a3738bcf82c81eaecb5c0d09302703f1feaa0feec6cc",
+      "binary_sha256": "8a49cdd29b3c1a688284debd27ba9b822d8e64632a37e68e715ac356bc587e38",
+      "entry_stack_frame_bytes": 0
+    },
+    "branch": {
+      "instructions": 497,
+      "disassembly_sha256": "c9d912429b34c7babde397e1f83922ecbc4a92a1d73d6201447d42539f2ce1be",
+      "binary_sha256": "f347d657ade594fabb07efe0702789dd474a29a9913db44217549164e20e4d24",
+      "entry_stack_frame_bytes": 128
+    },
+    "candidate": {
+      "instructions": 495,
+      "disassembly_sha256": "55155cd5c0509c58c0c97ab8c7e667e9d40559f33fffaaf337daf63f23013450",
+      "entry_stack_frame_bytes": 128
+    },
+    "entry": {
+      "instructions": 500,
+      "disassembly_sha256": "9cf9a36c40c90c054521c1fb432786d155eba440ae1040b272454e97f47396d5",
+      "entry_stack_frame_bytes": 128
+    },
+    "inline": {
+      "instructions": 477,
+      "disassembly_sha256": "cc6cd11478705f42b7ed6a8e0efbd9999a957e30ec1e32b33f7596e2710fc1bf",
+      "binary_sha256": "906f0da136b1f98cde81beaa8c23a306e10c5de05edd6e291dbf51097e0da849",
+      "entry_stack_frame_bytes": 0
+    }
+  },
+  "rejected": {
+    "candidate": "Move cached IRQ merge before static sources; 128-byte stack frame remains. Not timed or adopted.",
+    "entry": "Merge cached IRQ bits per device-table entry; 128-byte stack frame remains. Not timed or adopted."
+  },
+  "probe": {
+    "revision": "a840377ab3b98c1d3c920cf4eae0c6a4cc6cbf2a",
+    "patch": "In esp32c6/src/periph.rs Peripherals::tick, assert!(self.misc.active_optional.is_empty()) before Dispatch::tick.",
+    "command": "esp32sim-c6 --boot rom --rom FW/esp32c6_rev0_rom.elf --flash-mb 4 --bootloader FW/public/c6-hello-bootloader.bin --ptable FW/public/c6-hello-ptable.bin --app FW/public/c6-hello_world.bin --max-seconds 30 --no-dump",
+    "result": "Passed at every tick; 4,800,000,000 instructions and cycles, 0 exceptions, 3029 interrupts. No PWM devices scheduled before the fix. This was a correctness run, not a CPU measurement.",
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "source": "f3eb0b69e6e9fa8a20f4d4cf887def777b5e2f6d",
+  "base": "5ab228fadf92e385d1b175b4d12f48f57aa22c8d",
+  "checks": {
+    "clippy": {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    "wasm_clippy": {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": "passed"
+    },
+    "ci_tests": {
+      "command": "ESP32SIM_ROM_DIR=$PWD/web/wasm/fw cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "result": "passed",
+      "counts": {
+        "passed": 544,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "plain_tests": {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "result": "passed",
+      "counts": {
+        "passed": 529,
+        "failed": 0,
+        "ignored": 29
+      }
+    },
+    "wasm_build": {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "result": "passed"
+    },
+    "wasm_tests": {
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "result": "passed",
+      "demos": 8
+    }
+  },
+  "goldens": "unchanged and bit-identical",
+  "jit": "No JIT source changes; separate differential suite not required.",
+  "test_inputs": "CI ROM path was the absolute worktree web/wasm/fw directory. No external firmware variables supplied. All external_ tests retain input-specific ignores.",
+  "privacy": "New evidence contains only code, source/binary/disassembly hashes, commands and numeric results. No process inventories, host identity or private captures retained."
+}
