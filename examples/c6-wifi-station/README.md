@@ -102,22 +102,28 @@ The same source builds for the ESP32-S3, C3 and C6, and the three builds are com
 `wifi_station_s3`, `wifi_station_c3` and `wifi_station_c6` in `cli/tests/goldens.rs` run them in
 CI: the station lines (the same on all three chips), the console, the end-of-run frame and
 interrupt counts, and the instruction count. They are the regression bar for the WiFi models.
-The builds have the emulator's default network and no display (`sdkconfig.ci.defaults`); from
-this directory, with ESP-IDF 5.5.4:
+The builds have the emulator's default network, no display and a reproducible build
+(`sdkconfig.ci.defaults`: no compile time, source paths mapped to `/IDF`), so the same ESP-IDF
+gives the same bytes in any directory. From this directory, with ESP-IDF 5.5.4:
 
 ```sh
 for t in esp32s3 esp32c3 esp32c6; do
   idf.py -B build-$t -DIDF_TARGET=$t -DSDKCONFIG=sdkconfig.$t \
     '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ci.defaults' build
+  c=${t#esp32}; P=../../web/wasm/fw/public
+  cp build-$t/bootloader/bootloader.bin $P/$c-wifi-bootloader.bin
+  cp build-$t/partition_table/partition-table.bin $P/$c-wifi-ptable.bin
+  cp build-$t/c6_wifi_station.bin $P/$c-wifi_station.bin
 done
 ```
 
 The build keeps the project's `c6_wifi_station.bin` name on every target. The ELFs are not
-committed, so the C6 test stubs `bb_init` by address: after a rebuild,
+committed, so the C6 test stubs `bb_init` by address: after a rebuild that changes the code,
 `riscv32-esp-elf-nm build-esp32c6/c6_wifi_station.elf | grep ' bb_init$'` gives the new one for
-`wifi_station_c6`. A rebuild changes the console (compile time, ELF hash), so regenerate the
-goldens with `UPDATE_GOLDENS=1` and check that the station lines and counts stay the same. This
-is firmware validation, not a comparison with a physical radio.
+`wifi_station_c6`. Then regenerate the goldens with `UPDATE_GOLDENS=1` and check that the station
+lines and the WiFi and network counts stay the same. The licences of what the binaries contain
+are in `web/wasm/fw/public/wifi-station-NOTICE.txt`. This is firmware validation, not a
+comparison with a physical radio.
 
 ## In the browser
 

@@ -252,4 +252,4 @@ fn wifi_station_c3() { wifi_station("c3", BIN_C3, "esp32c3_rev3", &[]); }
 /// `bb_init` is the PHY's baseband calibration, which wants analog the emulator does not have;
 /// without the ELF it is stubbed by address (`riscv32-esp-elf-nm`, see the example's README).
 #[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
-fn wifi_station_c6() { wifi_station("c6", BIN_C6, "esp32c6_rev0", &["--stub", "0x4207df7e=0"]); }
+fn wifi_station_c6() { wifi_station("c6", BIN_C6, "esp32c6_rev0", &["--stub", "0x4207df40=0"]); }
