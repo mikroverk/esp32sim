@@ -184,8 +184,8 @@ macro_rules! device_set {
             #[inline$(($hint))?]
             fn tick(&mut self, cycles: u64) -> bool {
                 let mut irq_changed = false;
-                let mut deltas = [($crate::__ClockDomain::Cpu, 0u64); 8]; let mut n = 0usize;
-                self.$clk.advance(&Self::CLOCKS, cycles, |d, t| { if n < 8 { deltas[n] = (d, t); n += 1; } });
+                let mut deltas = [($crate::__ClockDomain::Cpu, 0u64); Self::CLOCKS.len()]; let mut n = 0usize;
+                self.$clk.advance(&Self::CLOCKS, cycles, |d, t| { deltas[n] = (d, t); n += 1; });
                 if !$crate::DeviceSet::misc(self).active_optional.is_empty() { irq_changed |= self.tick_optional(&deltas[..n]); }
                 for &(d, t) in &deltas[..n] {
                     $( if !(false $(|| matches!(stringify!($alias), "alias" | "optional"))?) && $crate::Device::clock(&self.$($f)+) == Some(d) {
