@@ -1,0 +1,155 @@
+{
+  "input_sequence": [
+    "0.5 V",
+    1024,
+    "1.0 V",
+    3072
+  ],
+  "samples": [
+    {
+      "chip": "c3",
+      "phase": 0,
+      "pin": 0,
+      "generation": 2,
+      "raw": 722,
+      "millivolts": 500
+    },
+    {
+      "chip": "c3",
+      "phase": 1,
+      "pin": 0,
+      "generation": 4,
+      "raw": 1024,
+      "millivolts": 706
+    },
+    {
+      "chip": "c3",
+      "phase": 2,
+      "pin": 0,
+      "generation": 6,
+      "raw": 1459,
+      "millivolts": 1000
+    },
+    {
+      "chip": "c3",
+      "phase": 3,
+      "pin": 0,
+      "generation": 8,
+      "raw": 3072,
+      "millivolts": 2081
+    },
+    {
+      "chip": "c6",
+      "phase": 0,
+      "pin": 0,
+      "generation": 2,
+      "raw": 508,
+      "millivolts": 500
+    },
+    {
+      "chip": "c6",
+      "phase": 1,
+      "pin": 0,
+      "generation": 4,
+      "raw": 1024,
+      "millivolts": 1008
+    },
+    {
+      "chip": "c6",
+      "phase": 2,
+      "pin": 0,
+      "generation": 6,
+      "raw": 1016,
+      "millivolts": 1000
+    },
+    {
+      "chip": "c6",
+      "phase": 3,
+      "pin": 0,
+      "generation": 8,
+      "raw": 3072,
+      "millivolts": 3016
+    },
+    {
+      "chip": "s3",
+      "phase": 0,
+      "pin": 1,
+      "generation": 2,
+      "raw": 521,
+      "millivolts": 500
+    },
+    {
+      "chip": "s3",
+      "phase": 0,
+      "pin": 11,
+      "generation": 2,
+      "raw": 528,
+      "millivolts": 500
+    },
+    {
+      "chip": "s3",
+      "phase": 1,
+      "pin": 1,
+      "generation": 4,
+      "raw": 1024,
+      "millivolts": 960
+    },
+    {
+      "chip": "s3",
+      "phase": 1,
+      "pin": 11,
+      "generation": 4,
+      "raw": 1024,
+      "millivolts": 944
+    },
+    {
+      "chip": "s3",
+      "phase": 2,
+      "pin": 1,
+      "generation": 6,
+      "raw": 1068,
+      "millivolts": 1000
+    },
+    {
+      "chip": "s3",
+      "phase": 2,
+      "pin": 11,
+      "generation": 6,
+      "raw": 1087,
+      "millivolts": 1000
+    },
+    {
+      "chip": "s3",
+      "phase": 3,
+      "pin": 1,
+      "generation": 8,
+      "raw": 3072,
+      "millivolts": 2765
+    },
+    {
+      "chip": "s3",
+      "phase": 3,
+      "pin": 11,
+      "generation": 8,
+      "raw": 3072,
+      "millivolts": 2718
+    }
+  ],
+  "work": {
+    "c3": {
+      "instructions": 7000000,
+      "cycles": 7000000
+    },
+    "c6": {
+      "instructions": 8000000,
+      "cycles": 8000000
+    },
+    "s3": {
+      "instructions": 4408065,
+      "cycles": 8000000
+    }
+  },
+  "completed_conversions": 32,
+  "correctness": "exact raw, calibrated mV, last raw, and generation delta 2 per analogRead + analogReadMilliVolts pair",
+  "timing_claim": false
+}

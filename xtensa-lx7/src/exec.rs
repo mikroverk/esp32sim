@@ -174,7 +174,7 @@ impl Cpu {
         Some(match n {
             0 | 1 => self.accx[n as usize], 2..=6 => self.qacc_h[(n - 2) as usize], 7..=11 => self.qacc_l[(n - 7) as usize], 12 => self.gpio_out,
             13 => self.sar_byte, 14 => self.fft_bit_width, 15..=18 => self.ua_state[(n - 15) as usize],
-            231 => self.threadptr, 232 => self.fcr, 233 => self.fsr,
+            231 => self.threadptr, 232 => self.fcr, 233 => self.fsr, 234..=236 if self.lx6 => self.f64[(n - 234) as usize],
             _ => return None,
         })
     }
@@ -183,9 +183,24 @@ impl Cpu {
             0 | 1 => self.accx[n as usize] = v, 2..=6 => self.qacc_h[(n - 2) as usize] = v, 7..=11 => self.qacc_l[(n - 7) as usize] = v, 12 => self.gpio_out = v,
             13 => self.sar_byte = v, 14 => self.fft_bit_width = v, 15..=18 => self.ua_state[(n - 15) as usize] = v,
             231 => self.threadptr = v, 232 => self.fcr = v & 0x7f, 233 => self.fsr = v & 0xfff80,
+            234..=236 if self.lx6 => self.f64[(n - 234) as usize] = v,
             _ => return None,
         }
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cpu;
+
+    #[test]
+    fn lx6_dfp_context_registers_round_trip() {
+        let mut cpu = Cpu { lx6: true, ..Cpu::default() };
+        for (register, value) in (234..=236).zip([0x1234, 0x5678, 0x9abc]) {
+            assert_eq!(cpu.write_ur(register, value), Some(()));
+            assert_eq!(cpu.read_ur(register), Some(value));
+        }
     }
 }
 
@@ -824,4 +839,24 @@ fn exec_mac16<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
     }
     cpu.pc = cpu.pc.wrapping_add(3);
     Ok(())
+}
+
+#[cfg(test)]
+mod lx6_config_tests {
+    use super::*;
+    #[test]
+    fn dfp_user_register_instructions_are_illegal_on_s3() {
+        for lx6 in [false, true] {
+            for register in 234..=236 {
+                for op in [Op::Rur, Op::Wur] {
+                    let mut cpu = Cpu { lx6, ..Cpu::default() };
+                    let mut bus = crate::bus::FlatRam::new(0, 4096);
+                    let insn = Insn { op, r: 2, s: 0, t: 3, imm: register, imm2: 0, len: 3, raw: 0 };
+                    let result = exec_insn(&mut cpu, &mut bus, &insn);
+                    if lx6 { assert!(result.is_ok()); }
+                    else { assert_eq!(result, Err(Trap::Exception(exc::ILLEGAL))); }
+                }
+            }
+        }
+    }
 }

@@ -171,7 +171,7 @@ pub unsafe extern "C" fn esp32sim_delete(e: *mut Emu) {
     }
 }
 
-/// kind: 0 mask-ROM ELF, 1 bootloader (flash 0x0), 2 partition table (0x8000), 3 app (0x10000),
+/// kind: 0 mask-ROM ELF, 1 bootloader (chip-specific offset), 2 partition table (0x8000), 3 app (0x10000),
 /// 4 ELF for symbols, 5 whole flash image (0x0), 6 script text, 7 camera picture (BMP/PPM).
 /// Returns 0, or 1 with the reason logged.
 ///

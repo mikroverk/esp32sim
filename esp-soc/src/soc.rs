@@ -44,6 +44,8 @@ pub trait Soc: 'static {
     type Core: Core;
     type Bus: SocBus;
     const NAME: &'static str;
+    /// Flash offset for a separately supplied bootloader image.
+    const BOOTLOADER_OFFSET: usize = 0;
     /// The mask ROM ELF's file name in espressif/esp-rom-elfs.
     const ROM_ELF: &'static str;
     const CPU_HZ: u64;
@@ -123,9 +125,15 @@ pub trait SocBus: Bus {
     fn serial_input(&mut self, data: &[u8]);
     /// Bytes from the host into UART `n`'s receive FIFO (a terminal on the chip's UART0 pins).
     fn uart_input(&mut self, n: usize, data: &[u8]);
+    /// Release a host drive so the chip can resolve its pad pulls again.
+    fn gpio_release_input(&mut self, _pin: u8) {}
     fn gpio_set_input(&mut self, pin: u8, level: bool);
     /// Drive an analog pad (script `adc` / `adcwave`); chips without an ADC model ignore it.
     fn analog_set(&mut self, _pin: u8, _src: esp_periph::AnalogSource) {}
+    /// Set a post-attenuation 12-bit ADC input; false for unsupported pins or counts above 4095.
+    fn adc_set_raw(&mut self, _pin: u8, _raw: u16) -> bool { false }
+    /// Completed conversions for an ADC pad, or None for an unsupported pin. Generation wraps at u64::MAX.
+    fn adc_observation(&self, _pin: u8) -> Option<esp_periph::AdcObservation> { None }
     /// Deliver host touch at the bus's current time horizon.
     fn touch_input(&mut self, x: u16, y: u16, down: bool) { self.board().touch(x, y, down); }
     fn gpio_input(&self) -> u64;

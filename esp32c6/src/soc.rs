@@ -85,6 +85,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         p.efuse = old.efuse;
+        p.adc.analog = old.adc.analog;
         p.misc.log_unknown = old.misc.log_unknown;
         p.usb.connected = old.usb.connected;
         // The LP domain is not reset by a CPU or system reset: the STORE registers, the RTC
@@ -120,6 +121,11 @@ impl esp_soc::SocBus for SocBus {
         let before = u.irq();
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
+    }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.adc.analog.set(pin, src); }
+    fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { pin <= 6 && self.periph.adc.analog.set_raw(pin, raw) }
+    fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
+        (pin <= 6).then(|| self.periph.adc.analog.observation(pin))
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let before = self.periph.gpio.input;

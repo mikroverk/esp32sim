@@ -1,0 +1,96 @@
+{
+  "experiment": "EX207",
+  "implementation_revision": "86e32f29e02c8bbc0517f86585a542ba5a1a92a4",
+  "base_revision": "f3cef17d1703cb1ebe22bc0007d0970921ae2df3",
+  "published_revision": "e35c090f224512bb62330d80f9cacf72979b2d00",
+  "platform": {
+    "os": "Darwin",
+    "arch": "arm64",
+    "rustc": "1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "1.99.0 (5f94df478 2026-08-27)"
+  },
+  "changes": "Rebase onto merged ADC1 and pin stack, preserve C3 inline always and both IO_MUX constructors, add ADC alongside existing devices, keep EX207 contiguous, restore input-specific ignores on three ADC and three pin-transport external tests.",
+  "checks": [
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=\"$PWD/web/wasm/fw\" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit_code": 0,
+      "passed": 513,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "exit_code": 0,
+      "passed": 498,
+      "failed": 0,
+      "ignored": 28,
+      "external_tests_ignored": 13
+    },
+    {
+      "command": "cargo +1.99.0 build --release --bins",
+      "exit_code": 0,
+      "trees": [
+        "upstream/main",
+        "PR"
+      ]
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit_code": 0,
+      "demos_passed": 8
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "correctness": [
+    "Committed console, audio and instruction-count goldens passed unchanged.",
+    "All 16384 S3 ADC1 raw/attenuation combinations pass the IDF 4.4 regression fingerprints.",
+    "waveform_after_waituart0_starts_at_the_shifted_time passed.",
+    "All 13 external test functions have input-specific ignore attributes.",
+    "EX207 immediately follows EX206 in the table."
+  ],
+  "limits": [
+    "No JIT source changed; tools/wasm-jit-test.sh is not required.",
+    "External Arduino firmware tests were not rerun; their prior measurements remain in checks.json.",
+    "ROMs and firmware were copied from the sibling worktree and remain untracked."
+  ],
+  "privacy": "Only aggregate results, public input hashes and executable hashes retained. Raw build, test and console logs are omitted. No private captures or machine identities retained.",
+  "artifacts": {
+    "target/release/esp32sim": {
+      "sha256": "18a3eb9968d73afbf86c922e5a270ae3a07b34a4d4cdcbaa6de3437a8c8c9609",
+      "bytes": 2152296
+    },
+    "web/wasm/esp32sim.wasm": {
+      "sha256": "b9d7912ec97e77591a8187ad82d44b74e6b05e612d0333ade205bdcee4eb3012",
+      "bytes": 2324849
+    }
+  },
+  "inputs": {
+    "esp32s3_rev0_rom.elf": {
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+      "bytes": 949552
+    },
+    "esp32c3_rev3_rom.elf": {
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "bytes": 556332
+    },
+    "esp32c6_rev0_rom.elf": {
+      "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+      "bytes": 489768
+    }
+  }
+}

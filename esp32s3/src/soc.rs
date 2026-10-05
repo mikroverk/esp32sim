@@ -118,6 +118,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         p.efuse = old.efuse;
+        p.rtc.analog = old.rtc.analog;
         p.gpio.strap = old.gpio.strap;
         p.misc.log_unknown = old.misc.log_unknown; p.spi1.log = old.spi1.log;
         p.spi0.jedec = old.spi0.jedec; p.spi1.jedec = old.spi1.jedec;   // the flash chip is not reset: its ID keeps the --flash-mb capacity
@@ -152,6 +153,10 @@ impl esp_soc::SocBus for SocBus {
         self.irq_dirty |= before != u.irq();
     }
     fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.rtc.analog.set(pin, src); }
+    fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { (1..=20).contains(&pin) && self.periph.rtc.analog.set_raw(pin, raw) }
+    fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
+        ((1..=20).contains(&pin)).then(|| self.periph.rtc.analog.observation(pin))
+    }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let old_input = self.periph.gpio.input;
         self.periph.gpio.set_input(pin, level);

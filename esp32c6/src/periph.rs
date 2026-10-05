@@ -325,6 +325,7 @@ pub fn efuse_c6(mac: [u8; 6], rev_major: u32, rev_minor: u32, pkg: u32, blk_majo
 }
 
 pub struct Peripherals {
+    pub adc: esp_periph::sar_adc::SarAdc,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
     pub systimer: Systimer,
@@ -366,6 +367,7 @@ pub struct Peripherals {
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
     0x04 "I2C0" (i2c) => [src::I2C_EXT0];
+    0x0e "APB_SARADC" (adc) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x01 "UART1" (uart[1]) => [src::UART1];
     0x02 "SPI0" (spi0) => [];
@@ -407,6 +409,7 @@ impl DeviceSet for Peripherals {
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+        if block == 0x0e { self.adc.now_cycles = self.clock.cycles(); }
         if block == 0xb2 { self.rng.now = self.clock.cycles() as u32; }
         if block == 0xa3 { self.radio.log_unknown = self.misc.log_unknown; }
     }
@@ -415,6 +418,7 @@ impl DeviceSet for Peripherals {
 impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
+            adc: esp_periph::sar_adc::SarAdc::new(true, CPU_HZ),
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
