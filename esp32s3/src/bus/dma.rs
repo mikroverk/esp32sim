@@ -432,7 +432,7 @@ impl SocBus {
         let v = (dw0 & !(0xfff << 12) & !(3 << 30)) | (r.buf_pos << 12) | if eof { 1 << 30 } else { 0 };
         if self.write32_unpriced(r.desc, v).is_err() { return false; }
         r.int_raw |= 1 << 0;                                                  // IN_DONE
-        if eof { r.int_raw |= 1 << 1; r.eof_desc = r.desc; }                  // IN_SUC_EOF
+        if eof { r.int_raw |= 1 << 1; r.eof_desc = r.desc; r.rx_eof_pos = 0; }                  // IN_SUC_EOF
         r.desc = next; r.buf_pos = 0;
         true
     }
@@ -515,18 +515,60 @@ impl SocBus {
         }
     }
 
-    /// Camera engine: when a sensor frame is due, push it through the GDMA IN channel bound to CAM (trigger 5).
+    /// Sensor VSYNC precedes capture, allowing the driver to arm GDMA during blanking.
+    /// CAM_VSYNC_INT bit 2, CAM_START bit 29 and CAM_VS_EOF_EN bit 8:
+    /// ESP-IDF v5.5.4 components/soc/esp32s3/register/soc/lcd_cam_reg.h,
+    /// unchanged in v4.4.8 components/soc/esp32s3/include/soc/lcd_cam_reg.h.
     pub(super) fn dma_cam_step(&mut self, cycles: u64) {
-        if !self.periph.lcd_cam.frame_due(cycles) { return; }
-        let Some(ch) = self.periph.gdma.in_channel_for(5) else { self.periph.lcd_cam.dropped += 1; return };
-        let Some((_w, _h, frame)) = self.board.camera_frame() else { self.periph.lcd_cam.dropped += 1; return };
-        if self.scatter_dma_in(ch, &frame).is_err() {
-            self.fail_dma_in(ch);
-            self.periph.lcd_cam.dropped += 1;
+        if !self.periph.lcd_cam.cam_clock_active() { return; }
+        let before = self.periph.lcd_cam.acc;
+        if self.periph.lcd_cam.frame_due(cycles) {
+            if self.periph.lcd_cam.cam_ctrl() & (1 << 8) != 0 {
+                if let Some(ch) = self.periph.gdma.in_channel_for(5) {
+                    self.camera_dma_in(ch, &[], None, true);
+                }
+            }
+            let frame = if self.periph.lcd_cam.cam_active() { self.board.camera_frame().map(|(_, _, frame)| frame) } else { None };
+            let cam = &mut self.periph.lcd_cam;
+            cam.set_cam_frame(frame);
+            cam.frame_dropped = false;
+            if cam.cam_frame().is_some() {
+                cam.int_raw |= 1 << 2;
+                cam.frames += 1;
+                self.irq_dirty = true;
+            }
             return;
         }
-        self.periph.lcd_cam.int_raw |= 1 << 2;                                                  // CAM_VSYNC_INT
-        self.periph.lcd_cam.frames += 1;
+        let cam = &mut self.periph.lcd_cam;
+        if !cam.running() { return; }
+        let Some(frame) = cam.cam_frame().cloned() else { return };
+        // Approximate DVP: 5% blanking, then half a period of active pixels.
+        let position = |phase: u64| ((phase.saturating_sub(cam.frame_start.saturating_add(cam.frame_cycles / 20)) * frame.len() as u64 * 2) / cam.frame_cycles.max(1)).min(frame.len() as u64) as usize;
+        let (start, end) = (position(before), position(cam.acc));
+        if start == end { return; }
+        // IDF v5.5.4 soc/lcd_cam_reg.h: BIT_ORDER bit 6, 2BYTE_EN bit 24,
+        // VH_DE_MODE_EN bit 28, REC_DATA_BYTELEN bits 0..15 (encoded length - 1).
+        // These bits also match IDF v4.4.8 soc/lcd_cam_reg.h.
+        let ch = self.periph.gdma.in_channel_for(5);
+        if cam.cam_ctrl1 & ((1 << 24) | (1 << 28)) != 0 || ch.is_none() {
+            if !cam.frame_dropped { cam.dropped += 1; cam.frame_dropped = true; }
+            return;
+        }
+        let eof = (cam.cam_ctrl() & (1 << 8) == 0).then_some((cam.cam_ctrl1 & 0xffff) + 1);
+        let reversed;
+        let bytes = if cam.cam_ctrl() & (1 << 6) != 0 {
+            reversed = frame[start..end].iter().map(|b| b.reverse_bits()).collect::<Vec<_>>();
+            &reversed[..]
+        } else { &frame[start..end] };
+        self.camera_dma_in(ch.unwrap(), bytes, eof, false);
+    }
+
+    fn camera_dma_in(&mut self, ch: usize, bytes: &[u8], eof: Option<u32>, finish: bool) {
+        if self.scatter_dma_in(ch, bytes, eof, finish).is_err() {
+            let r = &mut self.periph.gdma.inp[ch];
+            if r.desc != 0 { r.int_raw |= 1 << 3; }
+            r.running = false;
+        }
         self.irq_dirty = true;
     }
 
@@ -617,33 +659,44 @@ impl SocBus {
     }
 
     /// Shared camera/crypto receive path. A malformed destination never reports successful EOF.
-    fn scatter_dma_in(&mut self, ch: usize, data: &[u8]) -> Result<(), ()> {
+    fn scatter_dma_in(&mut self, ch: usize, data: &[u8], eof_bytes: Option<u32>, finish: bool) -> Result<(), ()> {
         let mut pos = 0usize;
         let mut walk = DescriptorWalk::new(GDMA_DESCRIPTOR_STEP_BUDGET);
-        while pos < data.len() {
+        while pos < data.len() || (finish && self.periph.gdma.inp[ch].rx_eof_pos != 0) {
             let mut r = self.periph.gdma.inp[ch];
-            if r.desc == 0 { return Err(()); }
+            // IDF v5.5.4 soc/gdma_reg.h: IN_DSCR_EMPTY bit 4, CHECK_OWNER bit 12.
+            if r.desc == 0 { self.periph.gdma.inp[ch].int_raw |= 1 << 4; return Err(()); }
             let (control, d) = walk.read(self, r.desc).map_err(|_| ())?;
-            if (r.conf1 & (1 << 12) != 0 && !d.owner_dma) || d.size == 0 { return Err(()); }
-            let n = (d.size as usize).min(data.len() - pos);
-            let end = d.buf.checked_add(n as u32).ok_or(())?;
-            // DMA buffers are memory, never MMIO. The word-copy fast path must preserve the
-            // byte bus's rejection of peripheral destinations instead of triggering devices.
-            if Self::is_periph(d.buf) || Self::is_periph(end - 1) { return Err(()); }
+            if (r.conf1 & (1 << 12) != 0 && !d.owner_dma) || d.size == 0 || r.buf_pos > d.size { return Err(()); }
+            let until_eof = eof_bytes.unwrap_or(u32::MAX).checked_sub(r.rx_eof_pos).filter(|n| *n != 0).ok_or(())?;
+            let n = (d.size - r.buf_pos).min(until_eof) as usize;
+            let n = n.min(data.len() - pos);
+            let dest = d.buf.checked_add(r.buf_pos).ok_or(())?;
+            let end = dest.checked_add(n as u32).ok_or(())?;
+            // DMA buffers are memory, never MMIO.
+            if n != 0 && (Self::is_periph(dest) || Self::is_periph(end - 1)) { return Err(()); }
             let mut i = 0;
+            while i < n && (dest + i as u32) & 3 != 0 {
+                self.write8_unpriced(dest + i as u32, data[pos + i]).map_err(|_| ())?;
+                i += 1;
+            }
             while i + 4 <= n {
                 let word = u32::from_le_bytes(data[pos + i..pos + i + 4].try_into().unwrap());
-                self.write32_unpriced(d.buf.wrapping_add(i as u32), word).map_err(|_| ())?;
+                self.write32_unpriced(dest + i as u32, word).map_err(|_| ())?;
                 i += 4;
             }
             while i < n {
-                self.write8_unpriced(d.buf.wrapping_add(i as u32), data[pos + i]).map_err(|_| ())?;
+                self.write8_unpriced(dest + i as u32, data[pos + i]).map_err(|_| ())?;
                 i += 1;
             }
             pos += n;
-            r.buf_pos = n as u32;
-            if !self.dma_close_in(&mut r, control, d.next, pos == data.len()) { return Err(()); }
-            if r.desc == 0 { r.running = false; }
+            r.buf_pos += n as u32;
+            r.rx_eof_pos += n as u32;
+            let eof = eof_bytes == Some(r.rx_eof_pos) || finish;
+            // Keep a final full descriptor pending in VS_EOF mode until VSYNC marks it.
+            if (eof || (r.buf_pos == d.size && (eof_bytes.is_some() || pos < data.len())))
+                && !self.dma_close_in(&mut r, control, d.next, eof) { return Err(()); }
+            if r.desc == 0 { r.running = false; r.int_raw |= 1 << 4; }
             self.periph.gdma.inp[ch] = r;
         }
         Ok(())
@@ -686,7 +739,7 @@ impl SocBus {
             eprintln!("[aes] dma block_mode={} num_blocks={} mode={} bytes={}", self.periph.aes.block_mode, self.periph.aes.num_blocks, self.periph.aes.mode, input.len());
         }
         let output = self.periph.aes.transform_blocks(&input);
-        if self.scatter_dma_in(in_ch, &output).is_err() {
+        if self.scatter_dma_in(in_ch, &output, Some(output.len() as u32), false).is_err() {
             self.fail_dma_in(in_ch); self.periph.aes.state = 0; return;
         }
         self.periph.aes.state = 2;                                              // DONE

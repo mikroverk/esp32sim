@@ -222,3 +222,265 @@ fn crypto_owner_check_is_controlled_by_conf1() {
         }
     }
 }
+
+use std::sync::Arc;
+const FIRST_DESC: u32 = DRAM_LOW + 0x1000;
+const M2M_DST: u32 = DRAM_LOW + 0x2000;
+fn m2m_desc(bus: &mut SocBus, addr: u32, control: u32, buffer: u32, next: u32) {
+    for (offset, word) in [(0, control), (4, buffer), (8, next)] { bus.write32(addr + offset, word).unwrap(); }
+}
+
+struct CameraBoard(Option<Arc<Vec<u8>>>);
+impl crate::board::BoardModel for CameraBoard {
+    fn name(&self) -> &'static str { "camera-test" }
+    fn camera_frame(&mut self) -> Option<(u32, u32, Arc<Vec<u8>>)> {
+        self.0.clone().map(|frame| (4, 1, frame))
+    }
+}
+
+#[test]
+fn camera_untouched_lcd_cam_does_no_work() {
+    struct NoCameraWork;
+    impl crate::board::BoardModel for NoCameraWork {
+        fn name(&self) -> &'static str { "no-camera-work" }
+        fn camera_frame(&mut self) -> Option<(u32, u32, Arc<Vec<u8>>)> {
+            panic!("untouched LCD_CAM must not query the board");
+        }
+    }
+    let mut bus = SocBus::new(4 << 20, 0, [1, 2, 3, 4, 5, 6]);
+    bus.board = Box::new(NoCameraWork);
+    for cycles in [1, 1000, bus.periph.lcd_cam.frame_cycles, u64::MAX] {
+        bus.dma_cam_step(cycles);
+        assert_eq!(bus.periph.lcd_cam.acc, 0);
+        assert_eq!(bus.periph.lcd_cam.frames, 0);
+        assert_eq!(bus.periph.lcd_cam.int_raw, 0);
+        assert!(bus.periph.lcd_cam.cam_frame().is_none());
+    }
+    bus.periph.lcd_cam.write(0x64, 1 << 2);
+    bus.periph.lcd_cam.write(0x64, 0);
+    bus.dma_cam_step(u64::MAX);
+    assert_eq!(bus.periph.lcd_cam.acc, 0, "disabling VSYNC before a frame returns to idle");
+}
+
+#[test]
+fn camera_vsync_starts_capture_and_streams_partial_descriptors() {
+    for (reverse, vsync_eof) in [(false, false), (true, true)] {
+        let mut bus = SocBus::new(4 << 20, 0, [1, 2, 3, 4, 5, 6]);
+        bus.board = Box::new(CameraBoard(Some(Arc::new(vec![1, 2, 3, 4, 5, 6, 7, 8]))));
+        bus.periph.lcd_cam.set_clock_enabled(true);
+    bus.periph.lcd_cam.write(0x04, 1 << 29);
+    bus.periph.lcd_cam.frame_cycles = 1000;
+        bus.periph.lcd_cam.write(0x64, 1 << 2);
+        assert!(bus.cadence_active());
+        for _ in 0..3 {
+            bus.periph.lcd_cam.write(0x08, 0);
+            bus.periph.lcd_cam.write(0x70, u32::MAX);
+            bus.dma_cam_step(1000 - bus.periph.lcd_cam.acc);
+            assert!(bus.periph.lcd_cam.irq(), "VSYNC before CAM_START or GDMA");
+            bus.periph.lcd_cam.write(0x70, 1 << 2);
+            m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 3, M2M_DST, FIRST_DESC + 12);
+            m2m_desc(&mut bus, FIRST_DESC + 12, (1 << 31) | 5, M2M_DST + 3, 0);
+            bus.periph.gdma.write(0x48, 5);
+            bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+            bus.periph.lcd_cam.write(0x04, (1 << 29) | (u32::from(reverse) << 6) | (u32::from(vsync_eof) << 8));
+            bus.periph.lcd_cam.write(0x08, (1 << 29) | 7);
+            bus.dma_cam_step(50);
+            assert_eq!(bus.periph.gdma.inp[0].buf_pos, 0, "blanking");
+            bus.dma_cam_step(125);
+            assert_eq!(bus.periph.gdma.inp[0].buf_pos, 2);
+            assert_eq!(bus.read32(FIRST_DESC).unwrap() >> 31, 1);
+            bus.dma_cam_step(375);
+            if vsync_eof { bus.dma_cam_step(450); }
+            assert_eq!(bus.read32(FIRST_DESC).unwrap(), 3 | (3 << 12));
+            assert_eq!(bus.read32(FIRST_DESC + 12).unwrap(), 5 | (5 << 12) | (1 << 30));
+            assert_eq!(bus.periph.gdma.inp[0].int_raw & 3, 3);
+            assert_eq!(bus.periph.gdma.inp[0].eof_desc, FIRST_DESC + 12);
+            for i in 0..8 {
+                let byte = (i + 1) as u8;
+                assert_eq!(bus.read8(M2M_DST + i).unwrap(), if reverse { byte.reverse_bits() } else { byte });
+            }
+        }
+    }
+}
+
+#[test]
+fn camera_sensor_clock_survives_stop_reset_and_dma_failure() {
+    let mut bus = SocBus::new(4 << 20, 0, [1, 2, 3, 4, 5, 6]);
+    bus.periph.lcd_cam.set_clock_enabled(true);
+    bus.periph.lcd_cam.write(0x04, 1 << 29);
+    bus.periph.lcd_cam.frame_cycles = 1000;
+    bus.periph.lcd_cam.write(0x64, 1 << 2);
+    bus.dma_cam_step(1000);
+    assert_eq!(bus.periph.lcd_cam.int_raw, 0, "no sensor frame");
+    bus.board = Box::new(CameraBoard(Some(Arc::new(vec![42; 8]))));
+    bus.dma_cam_step(500);
+    bus.periph.lcd_cam.write(0x08, 1 << 30);
+    bus.dma_cam_step(500);
+    assert_eq!(bus.periph.lcd_cam.int_raw, 1 << 2);
+    bus.periph.lcd_cam.write(0x70, 1 << 2);
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 7);
+    bus.periph.gdma.write(0x48, 5);
+    m2m_desc(&mut bus, FIRST_DESC, 1 << 31, M2M_DST, FIRST_DESC);
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.dma_cam_step(550);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw & (1 << 3), 1 << 3);
+    bus.dma_cam_step(450);
+    assert_eq!(bus.periph.lcd_cam.int_raw, 1 << 2, "DMA fault must not stop VSYNC");
+    bus.periph.lcd_cam.write(0x08, 0);
+    bus.periph.lcd_cam.write(0x70, 1 << 2);
+    bus.dma_cam_step(1000);
+    assert_eq!(bus.periph.lcd_cam.int_raw, 1 << 2);
+}
+
+#[test]
+fn camera_stopped_capture_does_not_pause_or_replay_sensor_bytes() {
+    let mut bus = SocBus::new(4 << 20, 0, [1, 2, 3, 4, 5, 6]);
+    bus.board = Box::new(CameraBoard(Some(Arc::new(vec![1, 2, 3, 4, 5, 6, 7, 8]))));
+    bus.periph.lcd_cam.set_clock_enabled(true);
+    bus.periph.lcd_cam.write(0x04, 1 << 29);
+    bus.periph.lcd_cam.frame_cycles = 1000;
+    bus.periph.lcd_cam.write(0x64, 1 << 2);
+    m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 8, M2M_DST, 0);
+    bus.periph.gdma.write(0x48, 5);
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.dma_cam_step(1000);
+    bus.periph.lcd_cam.write(0x64, 0); // The published frame still advances with capture stopped.
+    bus.dma_cam_step(175);
+    assert_eq!(bus.periph.gdma.inp[0].buf_pos, 0);
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 7);
+    bus.dma_cam_step(125);
+    assert_eq!(bus.read16(M2M_DST).unwrap(), 0x0403);
+    bus.periph.lcd_cam.write(0x08, 0);
+    bus.dma_cam_step(250);
+    assert_eq!(bus.periph.gdma.inp[0].buf_pos, 2);
+    bus.board = Box::new(CameraBoard(None));
+    bus.periph.lcd_cam.write(0x70, 1 << 2);
+    bus.dma_cam_step(450);
+    assert_eq!(bus.periph.lcd_cam.int_raw, 0);
+    assert!(bus.periph.lcd_cam.cam_frame().is_none());
+}
+
+
+fn camera_bus(bytes: Vec<u8>) -> SocBus {
+    let mut bus = SocBus::new(4 << 20, 0, [0; 6]);
+    bus.board = Box::new(CameraBoard(Some(Arc::new(bytes))));
+    bus.write32(0x600c_001c, 1 << 8).unwrap();
+    bus.write32(0x600c_0024, 0).unwrap();
+    bus.periph.lcd_cam.write(0x04, 1 << 29);
+    bus.periph.lcd_cam.write(0x64, 1 << 2);
+    bus.periph.lcd_cam.frame_cycles = 1000;
+    bus.periph.gdma.write(0x48, 5);
+    bus
+}
+
+#[test]
+fn camera_vsync_eof_realigns_a_mid_frame_start() {
+    let mut bus = camera_bus((1..=8).collect());
+    bus.periph.lcd_cam.write(0x04, (1 << 29) | (1 << 8));
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 1); // byte count must be ignored
+    for i in 0..3 {
+        m2m_desc(&mut bus, FIRST_DESC + i * 12, (1 << 31) | 16, M2M_DST + i * 16, FIRST_DESC + ((i + 1) % 3) * 12);
+    }
+    bus.dma_cam_step(1000);
+    bus.dma_cam_step(300); // blanking + four bytes before DMA is armed
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.dma_cam_step(250);
+    assert_eq!(bus.periph.gdma.inp[0].rx_eof_pos, 4);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw & 2, 0, "VS_EOF waits for VSYNC");
+    bus.dma_cam_step(450);
+    assert_eq!(bus.read32(FIRST_DESC).unwrap(), 16 | (4 << 12) | (1 << 30));
+    assert_eq!(bus.periph.gdma.inp[0].rx_eof_pos, 0);
+    assert_eq!(bus.read32(M2M_DST).unwrap(), 0x08070605);
+    for i in 1..3 {
+        bus.dma_cam_step(550);
+        bus.dma_cam_step(450);
+        assert_eq!(bus.read32(FIRST_DESC + i * 12).unwrap(), 16 | (8 << 12) | (1 << 30));
+        assert_eq!(bus.read32(M2M_DST + i * 16).unwrap(), 0x04030201);
+        assert_eq!(bus.read32(M2M_DST + i * 16 + 4).unwrap(), 0x08070605);
+    }
+}
+
+#[test]
+fn camera_ring_has_multiple_eofs_per_frame_and_resets_each_counter() {
+    let mut bus = camera_bus((1..=12).collect());
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 2);
+    for i in 0..4 { m2m_desc(&mut bus, FIRST_DESC + i * 12, (1 << 31) | 8, M2M_DST + i * 8, FIRST_DESC + ((i + 1) % 4) * 12); }
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    for _ in 0..2 {
+        bus.dma_cam_step(1000 - bus.periph.lcd_cam.acc);
+        bus.dma_cam_step(50);
+        for i in 0..4 {
+            bus.periph.gdma.write(0x14, u32::MAX);
+            bus.dma_cam_step(125);
+            assert_eq!(bus.periph.gdma.inp[0].int_raw & 3, 3);
+            assert_eq!(bus.periph.gdma.inp[0].eof_desc, FIRST_DESC + i * 12);
+            assert_eq!(bus.periph.gdma.inp[0].rx_eof_pos, 0);
+            assert_eq!(bus.read32(FIRST_DESC + i * 12).unwrap(), 8 | (3 << 12) | (1 << 30));
+            for j in 0..3 { assert_eq!(bus.read8(M2M_DST + i * 8 + j).unwrap(), (i * 3 + j + 1) as u8); }
+        }
+    }
+    for reset in [false, true] {
+        bus.dma_cam_step(1000 - bus.periph.lcd_cam.acc);
+        bus.dma_cam_step(100); // one received byte, no EOF
+        assert_eq!(bus.periph.gdma.inp[0].rx_eof_pos, 1);
+        if reset { bus.periph.gdma.write(0, 1); }
+        else { bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22)); }
+        assert_eq!(bus.periph.gdma.inp[0].rx_eof_pos, 0);
+        assert_eq!(bus.periph.gdma.inp[0].buf_pos, 0);
+    }
+}
+
+#[test]
+fn camera_blanking_owner_modes_clock_reset_and_idle() {
+    let mut bus = camera_bus(vec![42; 40]);
+    m2m_desc(&mut bus, FIRST_DESC, 40, M2M_DST, 0); // CPU-owned
+    bus.periph.gdma.write(4, 1 << 12);
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 39);
+    bus.dma_cam_step(1000);
+    bus.dma_cam_step(50); // would produce four bytes without blanking
+    assert_eq!(bus.periph.gdma.inp[0].int_raw, 0);
+    bus.dma_cam_step(50);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw & (1 << 3), 1 << 3);
+    assert_eq!(bus.read32(M2M_DST).unwrap(), 0);
+    for mode in [24, 28] {
+        m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 40, M2M_DST, 0);
+        bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+        bus.periph.lcd_cam.write(0x08, (1 << 29) | (1 << mode) | 39);
+        bus.dma_cam_step(1000 - bus.periph.lcd_cam.acc);
+        let dropped = bus.periph.lcd_cam.dropped;
+        bus.dma_cam_step(300); bus.dma_cam_step(250);
+        assert_eq!(bus.periph.lcd_cam.dropped, dropped + 1);
+        assert_eq!(bus.read32(M2M_DST).unwrap(), 0);
+    }
+    bus.periph.lcd_cam.write(0x08, (1 << 30) | (1 << 29));
+    assert!(!bus.periph.lcd_cam.running(), "CAM_RESET stops capture without resetting the sensor clock");
+    assert_eq!(bus.periph.lcd_cam.read(8) & (1 << 29), 0);
+    for (addr, value) in [(0x6004_1004, 0), (0x600c_001c, 0)] {
+        bus.write32(addr, value).unwrap();
+        let before = bus.periph.lcd_cam.acc;
+        bus.dma_cam_step(1000);
+        assert_eq!(bus.periph.lcd_cam.acc, before, "gated sensor clock");
+        bus.write32(addr, if addr == 0x6004_1004 { 1 << 29 } else { 1 << 8 }).unwrap();
+    }
+    bus.periph.lcd_cam.write(0x64, 0);
+    bus.dma_cam_step(1000);
+    assert!(!bus.periph.lcd_cam.cam_clock_active());
+    let before = bus.periph.lcd_cam.acc;
+    bus.dma_cam_step(999);
+    assert_eq!(bus.periph.lcd_cam.acc, before, "stopped sensor returns to idle");
+}
+
+#[test]
+fn camera_partial_slices_resume_unaligned_and_report_ring_exhaustion() {
+    let mut bus = camera_bus((0..40).collect());
+    m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 40, M2M_DST, 0);
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 39);
+    bus.dma_cam_step(1007); bus.dma_cam_step(50); bus.dma_cam_step(63);
+    assert_eq!(bus.periph.gdma.inp[0].buf_pos, 5);
+    bus.dma_cam_step(437);
+    for i in 0..40 { assert_eq!(bus.read8(M2M_DST + i).unwrap(), i as u8); }
+    assert_eq!(bus.periph.gdma.inp[0].int_raw & 0x13, 0x13);
+    assert!(!bus.periph.gdma.inp[0].running);
+}
