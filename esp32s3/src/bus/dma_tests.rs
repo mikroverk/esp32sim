@@ -533,7 +533,7 @@ fn camera_blanking_owner_modes_clock_reset_and_idle() {
     for (addr, value) in [(0x6004_1004, 0), (0x600c_001c, 0)] {
         bus.write32(addr, value).unwrap();
         let before = bus.periph.lcd_cam.acc;
-        bus.dma_cam_step(1000);
+        bus.dma_cam_step(333);
         assert_eq!(bus.periph.lcd_cam.acc, before, "gated sensor clock");
         bus.write32(addr, if addr == 0x6004_1004 { 1 << 29 } else { 1 << 8 }).unwrap();
     }

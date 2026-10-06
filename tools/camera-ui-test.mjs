@@ -16,6 +16,11 @@ const context = vm.createContext({
 vm.runInContext(html.slice(html.indexOf('// ---- camera source'), html.indexOf('</script>', html.indexOf('// ---- camera source'))), context);
 vm.runInContext(html.slice(html.indexOf('function setEmulatorStatus'), html.indexOf('function connect()')), context);
 assert.equal(calls, 0);
+vm.runInContext(html.slice(html.indexOf('function handleMessage'), html.indexOf('function setEmulatorStatus')), context);
+element('#campanel').style.display = 'none';
+vm.runInContext("handleMessage(JSON.stringify({ t: 'camera-error', message: 'no camera on this board' }))", context);
+assert.equal(element('#campanel').style.display, '');
+assert.equal(element('#camstat').textContent, 'no camera on this board');
 for (const status of ['stopped: code 1', 'boot failed: test', 'disconnected']) {
   await element('#camwebcam').onclick();
   assert.equal(track.stopped, false);
@@ -37,4 +42,4 @@ resolve({ getTracks: () => [track] });
 await pending;
 assert.equal(track.stopped, true);
 assert.equal(timer, null);
-console.log('PASS: click-only webcam; stop, boot failure, disconnect and pending permission cleanup; insecure-origin message');
+console.log('PASS: visible board rejection; click-only webcam; stop, boot failure, disconnect and pending permission cleanup; insecure-origin message');

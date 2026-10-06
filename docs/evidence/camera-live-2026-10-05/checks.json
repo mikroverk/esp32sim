@@ -1,0 +1,60 @@
+{
+  "source_commit": "58ab02b85eed9267c99bd26da2977b67bda55e97",
+  "rust": "1.99.0",
+  "clippy_native": "pass, warnings denied",
+  "clippy_wasm": "pass, warnings denied",
+  "goldens": "unchanged; no regeneration",
+  "wasm_smoke": [
+    "ok   wasm JIT handoff: shared-memory block committed at a scheduler boundary",
+    "ok   hello: board none, 4.3 M insns in 0.3 s wall (17.2 Minsn/s), 129 console lines, 0 binary frames",
+    "ok   c3-hello: board none, 480.0 M insns in 0.6 s wall (816.3 Minsn/s), 125 console lines, 0 binary frames",
+    "ok   c6-hello: board none, 480.0 M insns in 0.8 s wall (617.0 Minsn/s), 121 console lines, 0 binary frames",
+    "ok   c6-energy-scan: board waveshare-c6-lcd147, 480.0 M insns in 4.3 s wall (111.5 Minsn/s), 149 console lines, 141 binary frames",
+    "ok   c6-contiki: board waveshare-c6-lcd147, 1920.0 M insns in 4.6 s wall (414.0 Minsn/s), 181 console lines, 17 binary frames",
+    "ok   c6-contiki-net: 2 nodes, n0 tx 5/rx 5, n1 tx 5/rx 5, 30 s simulated in 5.2 s wall (6x real time)",
+    "ok   c6-rpl-net: 2 nodes, n0 tx 27/rx 27, n1 tx 27/rx 27, 90 s simulated in 14.5 s wall (6x real time)",
+    "ok   panel: board waveshare-lcd4b, 142.5 M insns in 5.5 s wall (25.9 Minsn/s), 193 console lines, 254 binary frames"
+  ],
+  "native_fifo": "PASS: FIFO without writer boots and exits at max-seconds; no web server",
+  "camera_ui": "PASS: visible board rejection; click-only webcam; stop, boot failure, disconnect and pending permission cleanup; insecure-origin message",
+  "browser": {
+    "browser": "154.0.8037.95",
+    "noPermissionBeforeClick": true,
+    "fakeWebcamStreams": true,
+    "stopReleasesTracks": true,
+    "denialAllowsRetry": true,
+    "pageErrors": []
+  },
+  "native_stream": {
+    "stdinRgb24": true,
+    "latestCompleteFrame": "blue",
+    "truncatedFrameRejected": true,
+    "consoleOptionAccepted": true,
+    "preview": [
+      320,
+      240
+    ]
+  },
+  "wasm_jit_suite": "not required: no JIT implementation changes",
+  "release_include_ignored": {
+    "passed": 616,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 14
+  },
+  "release_plain": {
+    "passed": 598,
+    "failed": 0,
+    "ignored": 32,
+    "measured": 0,
+    "filtered": 0
+  },
+  "validation_files_sha256": {
+    "esp32s3/src/bus/dma_tests.rs": "1f299bf7cbc06eb0b8b4cb1f20437a330f0e1fbe446486c840b7c7637e61f138",
+    "web/run.html": "5f5d131469390b95dd87764b4f2828c2269f374c2582e40f5050ec2529e9b16d",
+    "tools/camera-ui-test.mjs": "c274272273024f4783cf4b10d4b85a42334f5fe40ab17f2bc217ba0fc6377dd2"
+  },
+  "validation_note": "Final validation includes the clock-gating assertion and visible board-rejection error in this receipt commit; emulator production code is unchanged from source_commit.",
+  "evidence_privacy": "pass: 1636 tracked evidence files, including 20 gzip files"
+}

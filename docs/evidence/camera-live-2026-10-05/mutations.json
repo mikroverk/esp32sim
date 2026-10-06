@@ -1,0 +1,110 @@
+{
+  "source_commit": "58ab02b85eed9267c99bd26da2977b67bda55e97",
+  "command": "cargo +1.99.0 test -p esp32s3 --lib camera",
+  "procedure": "Apply each first-occurrence replacement separately; run the command; restore the file before the next case. A compile failure does not count as a killed mutation.",
+  "cases": [
+    {
+      "mutation": "EOF reset",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_ring_has_multiple_eofs_per_frame_and_resets_each_counter",
+        "bus::dma_tests::camera_vsync_eof_realigns_a_mid_frame_start"
+      ],
+      "path": "esp32s3/src/bus/dma.rs",
+      "replace_first": "r.eof_desc = r.desc; r.rx_eof_pos = 0;",
+      "with_text": "r.eof_desc = r.desc;"
+    },
+    {
+      "mutation": "IN_RST reset",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_ring_has_multiple_eofs_per_frame_and_resets_each_counter"
+      ],
+      "path": "esp-periph/src/gdma.rs",
+      "replace_first": "r.desc = 0; r.buf_pos = 0; r.rx_eof_pos = 0;",
+      "with_text": "r.desc = 0; r.buf_pos = 0;"
+    },
+    {
+      "mutation": "link reset",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_ring_has_multiple_eofs_per_frame_and_resets_each_counter"
+      ],
+      "path": "esp-periph/src/gdma.rs",
+      "replace_first": "r.buf_pos = 0; r.rx_eof_pos = 0; r.running = true;",
+      "with_text": "r.buf_pos = 0; r.running = true;"
+    },
+    {
+      "mutation": "VS_EOF",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_vsync_eof_realigns_a_mid_frame_start"
+      ],
+      "path": "esp32s3/src/bus/dma.rs",
+      "replace_first": "(cam.cam_ctrl() & (1 << 8) == 0).then_some",
+      "with_text": "true.then_some"
+    },
+    {
+      "mutation": "owner check",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_blanking_owner_modes_clock_reset_and_idle"
+      ],
+      "path": "esp32s3/src/bus/dma.rs",
+      "replace_first": "(r.conf1 & (1 << 12) != 0 && !d.owner_dma)",
+      "with_text": "false"
+    },
+    {
+      "mutation": "blanking",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_blanking_owner_modes_clock_reset_and_idle",
+        "bus::dma_tests::camera_ring_has_multiple_eofs_per_frame_and_resets_each_counter",
+        "bus::dma_tests::camera_partial_slices_resume_unaligned_and_report_ring_exhaustion"
+      ],
+      "path": "esp32s3/src/bus/dma.rs",
+      "replace_first": "cam.frame_start.saturating_add(cam.frame_cycles / 20)",
+      "with_text": "cam.frame_start"
+    },
+    {
+      "mutation": "SCCB reset",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_host_frames_follow_sccb_configuration_into_dma_memory"
+      ],
+      "path": "esp32s3/src/i2c.rs",
+      "replace_first": "self.regs.retain(|r, _| [0x300a, 0x300b, 0x302a].contains(r));",
+      "with_text": ""
+    },
+    {
+      "mutation": "window sync",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_host_frames_follow_sccb_configuration_into_dma_memory"
+      ],
+      "path": "esp32s3/src/i2c.rs",
+      "replace_first": "(0x3800..=0x380b).contains",
+      "with_text": "(0x3808..=0x380b).contains"
+    },
+    {
+      "mutation": "2-byte mode",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_blanking_owner_modes_clock_reset_and_idle"
+      ],
+      "path": "esp32s3/src/bus/dma.rs",
+      "replace_first": "((1 << 24) | (1 << 28))",
+      "with_text": "(1 << 28)"
+    },
+    {
+      "mutation": "return to idle",
+      "killed": true,
+      "failed_tests": [
+        "bus::dma_tests::camera_blanking_owner_modes_clock_reset_and_idle"
+      ],
+      "path": "esp32s3/src/bus/dma.rs",
+      "replace_first": "if self.periph.lcd_cam.cam_active() { self.board.camera_frame().map(|(_, _, frame)| frame) } else { None }",
+      "with_text": "self.board.camera_frame().map(|(_, _, frame)| frame)"
+    }
+  ]
+}

@@ -328,7 +328,7 @@ function handleMessage(data) {
       });
     }
     else if (m.t === 'ring') { ringLeds = m.leds; drawRing(); if (m.leds.length === 1) { const [r, g, b] = m.leds[0]; paintLed($('#lcdled'), r, g, b); } }
-    else if (m.t === 'camera-error') { stopWebcam(); $('#camstat').textContent = m.message; }
+    else if (m.t === 'camera-error') { stopWebcam(); $('#campanel').style.display = ''; $('#camstat').textContent = m.message; }
     else if (m.t === 'stat') { $('#stat').textContent = `t = ${m.time.toFixed(2)} s · ${(m.insns/1e6).toFixed(1)} M insns · ${m.frames} frames` + (m.speed == null ? '' : m.speed < 0.95 ? ` · ⚠ ${Math.floor(m.speed * 100)}% of real time` : ' · real time') + (m.resyncs ? ` · ${m.resyncs} resync` : '') + (m.cam ? ` · ${m.cam} camera frames` : ''); $('#stat').style.color = m.speed != null && m.speed < 0.95 ? '#f66' : ''; }
 }
 function setEmulatorStatus(status) {

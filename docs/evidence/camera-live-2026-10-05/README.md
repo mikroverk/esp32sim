@@ -27,7 +27,20 @@ counter resets, blanking, unsupported capture modes, clock gating and idle retur
 stop, failed boot, disconnect, delayed permission and insecure-origin errors.
 The WASM ABI test sends type-3 input to S3, C3 and C6 and checks board rejection.
 Parser tests include malformed RGBA dimensions and crop windows.
-No physical webcam or silicon timing comparison is claimed.
+The [mutation results](mutations.json) include the exact isolated substitutions
+and command; all ten cause test failures. [Check results](checks.json) include
+the synthetic Chrome webcam run. No physical webcam or silicon timing comparison
+is claimed.
+
+Rebuild the firmware with the driver receipt’s helper, then run the live commit:
+
+```sh
+python3 docs/evidence/camera-start-2026-10-02/external_camera.py \
+  --emulator target/release/esp32sim --firmware "$FIRMWARE" \
+  --rom web/wasm/fw/esp32s3_rev0_rom.elf --output "$OUTPUT" --expect frames
+```
+
+[Driver results](driver.json) record the seven captures and executable hash.
 
 ```sh
 cargo +1.99.0 clippy --workspace --all-targets -- -D warnings
@@ -61,3 +74,27 @@ is not a sub-percent precision claim. The review's M5 Max results motivated
 moving camera state to the end of LCD_CAM, placing EOF progress on the receive
 channel, and checking capture state before pixel work. The comparison here uses
 an Apple M5 Pro, macOS arm64, Rust 1.99.0. The default toolchain is unchanged.
+
+User CPU seconds; seven measured pairs after one warmup. Main `cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc`; measured code `58ab02b85eed9267c99bd26da2977b67bda55e97`.
+
+| Workload | Main median (range) | Branch median (range) | Median change | Instructions |
+| --- | ---: | ---: | ---: | ---: |
+| S3 hello | 26.147 (25.328–31.347) | 25.844 (25.215–27.421) | -1.2% | 1,789,819,657 |
+| Pocket Tank | 36.562 (36.176–37.286) | 36.576 (35.938–37.069) | +0.0% | 10,073,833,775 |
+| C3 hello | 2.509 (2.479–2.532) | 2.514 (2.502–2.541) | +0.2% | 4,800,000,000 |
+| C6 hello | 3.338 (3.290–3.467) | 3.357 (3.291–3.465) | +0.6% | 4,800,000,000 |
+
+Every round below is main / branch, in user CPU seconds. Warmup is excluded from medians. Order alternates B→M for warmup, then M→B, B→M; M = main, B = branch.
+
+| Pair | Order | S3 hello | Pocket Tank | C3 hello | C6 hello |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Warmup | B→M | 25.330 / 25.196 | 37.683 / 37.586 | 2.566 / 2.587 | 3.324 / 3.330 |
+| 1 | M→B | 25.328 / 25.215 | 36.176 / 37.069 | 2.508 / 2.541 | 3.290 / 3.324 |
+| 2 | B→M | 25.558 / 25.782 | 36.562 / 36.492 | 2.509 / 2.502 | 3.329 / 3.291 |
+| 3 | M→B | 31.347 / 27.421 | 37.286 / 36.720 | 2.489 / 2.534 | 3.352 / 3.369 |
+| 4 | B→M | 27.529 / 26.599 | 36.421 / 36.563 | 2.522 / 2.513 | 3.338 / 3.357 |
+| 5 | M→B | 27.078 / 25.844 | 37.107 / 36.746 | 2.479 / 2.503 | 3.364 / 3.438 |
+| 6 | B→M | 26.147 / 25.974 | 37.214 / 36.576 | 2.521 / 2.517 | 3.337 / 3.332 |
+| 7 | M→B | 25.919 / 25.650 | 36.465 / 35.938 | 2.532 / 2.514 | 3.467 / 3.465 |
+
+Instruction counts (including each S3 core) and console hashes are identical in every run. The ranges overlap; these samples do not resolve sub-percent costs or establish a precise speedup. They do not reproduce the reviewer’s separated +3–4% S3 hello ranges on an M5 Max. Raw samples and input/executable hashes are in [speed.json](speed.json).
