@@ -91,6 +91,7 @@ pub struct Machine<S: Soc> {
     pub console: Console,
     /// live web UI
     pub web: Option<WebServer>,
+    pub camera_input: Option<std::sync::Arc<std::sync::Mutex<Option<crate::picture::Picture>>>>,
     /// The page's Restart (`reset` on the WebSocket) is honoured: the front-end sets this when it
     /// can bring the machine back up after the reset. Otherwise the message is ignored, so a run
     /// that stops at a chip reset is not ended from the page.
@@ -153,7 +154,7 @@ impl<S: Soc> Machine<S> {
             exceptions: 0, interrupts: 0, irq_hist: vec![[0; 32]; S::CORES],
             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0, uart0_seen: Vec::new(), wait_mark: None }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
-            web: None, ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
+            camera_input: None, web: None, ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_accesses: Vec::new(), approximate_jit_timing: None, approximate_jit_frontiers: false, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
@@ -1054,6 +1055,7 @@ impl<S: Soc> Machine<S> {
     #[cold]
     #[inline(never)]
     fn rt_pace(&mut self) {
+        self.poll_camera_input();
         {
             self.rt.last_check = self.bus.cycles();
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);

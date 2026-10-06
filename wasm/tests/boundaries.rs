@@ -33,7 +33,7 @@ fn single_and_network_loads_accept_the_same_input_kinds() {
         let cases: &[(u32, &[u8], u32)] = &[
             (6, b"0.1 gpio 2 1\n", 0),
             (6, &[0xff], 1),
-            (7, b"P6\n1 1\n255\n\xff\x00\x00", 0),
+            (7, b"P6\n1 1\n255\n\xff\x00\x00", 1),
             (7, b"bad picture", 1),
             (8, b"", 1),
         ];

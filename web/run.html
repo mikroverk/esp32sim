@@ -328,13 +328,18 @@ function handleMessage(data) {
       });
     }
     else if (m.t === 'ring') { ringLeds = m.leds; drawRing(); if (m.leds.length === 1) { const [r, g, b] = m.leds[0]; paintLed($('#lcdled'), r, g, b); } }
+    else if (m.t === 'camera-error') { stopWebcam(); $('#camstat').textContent = m.message; }
     else if (m.t === 'stat') { $('#stat').textContent = `t = ${m.time.toFixed(2)} s · ${(m.insns/1e6).toFixed(1)} M insns · ${m.frames} frames` + (m.speed == null ? '' : m.speed < 0.95 ? ` · ⚠ ${Math.floor(m.speed * 100)}% of real time` : ' · real time') + (m.resyncs ? ` · ${m.resyncs} resync` : '') + (m.cam ? ` · ${m.cam} camera frames` : ''); $('#stat').style.color = m.speed != null && m.speed < 0.95 ? '#f66' : ''; }
 }
+function setEmulatorStatus(status) {
+  $('#status').textContent = status;
+  if (/^(stopped|boot failed|disconnected|error)/i.test(status)) stopWebcam();
+}
 function connect() {
-  if (window.EmuLink) { link = window.EmuLink.connect(handleMessage, (s) => $('#status').textContent = s); return; }
+  if (window.EmuLink) { link = window.EmuLink.connect(handleMessage, setEmulatorStatus); return; }
   ws = new WebSocket(`ws://${location.host}/ws`); ws.binaryType = 'arraybuffer';
   ws.onopen = () => $('#status').textContent = 'connected';
-  ws.onclose = () => { $('#status').textContent = 'disconnected — retrying'; link = null; setTimeout(connect, 1000); };
+  ws.onclose = () => { setEmulatorStatus('disconnected — retrying'); link = null; setTimeout(connect, 1000); };
   ws.onmessage = ev => handleMessage(ev.data);
   link = { send: (d) => { if (ws.readyState === 1) ws.send(d); } };
 }
@@ -377,7 +382,7 @@ window.recordTouchTrace = (entry) => {
 installTouchInput($('#lcd'), linkSend, { intervalMs: +(new URLSearchParams(location.search).get('touchms') ?? 8), trace: touchTrace ? window.recordTouchTrace : null, rotation: () => lcdRotation });
 $('#lcdrot').onchange = (e) => setLcdRotation(e.target.value);
 // ---- camera source (waveshare-cam): send RGBA frames as binary type 3
-const camCanvas = $('#camcanvas'), camCtx = camCanvas.getContext('2d'); let camStream = null, camTimer = null;
+const camCanvas = $('#camcanvas'), camCtx = camCanvas.getContext('2d'); let camStream = null, camTimer = null, camGeneration = 0;
 function sendCamFrame() {
   if (!link) return;
   const w = camCanvas.width, h = camCanvas.height; const img = camCtx.getImageData(0, 0, w, h);
@@ -385,10 +390,21 @@ function sendCamFrame() {
 }
 $('#camfile').onchange = (e) => { const f = e.target.files[0]; if (!f) return; const im = new Image(); im.onload = () => { camCtx.drawImage(im, 0, 0, camCanvas.width, camCanvas.height); sendCamFrame(); $('#camstat').textContent = `picture ${im.width}×${im.height} sent`; URL.revokeObjectURL(im.src); }; im.src = URL.createObjectURL(f); };
 $('#camwebcam').onclick = async () => {
-  try { camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } }); } catch (e) { $('#camstat').textContent = 'webcam: ' + e.message; return; }
+  if (camStream || $('#camwebcam').disabled) return;
+  if (!navigator.mediaDevices?.getUserMedia) { $('#camstat').textContent = 'Webcam requires HTTPS or localhost and a browser with camera support.'; return; }
+  const generation = camGeneration;
+  $('#camwebcam').disabled = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    if (generation !== camGeneration) { stream.getTracks().forEach(t => t.stop()); return; }
+    camStream = stream;
+  } catch (e) { $('#camstat').textContent = 'webcam: ' + e.message; return; }
+  finally { $('#camwebcam').disabled = false; }
   const v = $('#camvideo'); v.srcObject = camStream; $('#camwebcam').style.display = 'none'; $('#camstop').style.display = '';
   camTimer = setInterval(() => { if (v.videoWidth) { camCtx.drawImage(v, 0, 0, camCanvas.width, camCanvas.height); sendCamFrame(); $('#camstat').textContent = 'webcam live'; } }, 250);
 };
-$('#camstop').onclick = () => { clearInterval(camTimer); if (camStream) camStream.getTracks().forEach(t => t.stop()); camStream = null; $('#camwebcam').style.display = ''; $('#camstop').style.display = 'none'; $('#camstat').textContent = 'webcam stopped (last frame stays)'; };
+function stopWebcam() { camGeneration++; clearInterval(camTimer); if (camStream) camStream.getTracks().forEach(t => t.stop()); camStream = null; $('#camwebcam').style.display = ''; $('#camstop').style.display = 'none'; $('#camvideo').srcObject = null; $('#camstat').textContent = 'webcam stopped (last frame stays)'; }
+$('#camstop').onclick = stopWebcam;
+window.addEventListener('pagehide', stopWebcam);
 </script>
 </body></html>

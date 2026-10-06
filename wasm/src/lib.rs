@@ -379,7 +379,10 @@ pub unsafe extern "C" fn esp32sim_in_bin(e: *mut Emu, ptr: *const u8, len: usize
     let e = unsafe { &mut *e };
     // SAFETY: The caller provides a readable input buffer for this call.
     let input = unsafe { bytes(ptr, len) };
-    if let Some(w) = e.m.web() { w.push_incoming_bin(input.to_vec()); }
+    if let Some(w) = e.m.web() {
+        if input.len() > 8 << 20 { w.send_text(r#"{"t":"camera-error","message":"input exceeds 8 MiB"}"#); }
+        else { w.push_incoming_bin(input.to_vec()); }
+    }
 }
 
 /// Enable or disable the scheduler-integrated block JIT. The interpreter remains available.

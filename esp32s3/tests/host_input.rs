@@ -7,7 +7,7 @@ struct InputBoard(Arc<Mutex<Vec<Picture>>>);
 impl BoardModel for InputBoard {
     fn name(&self) -> &'static str { "input-test" }
     fn encoder(&self) -> Option<(u8, u8)> { Some((1, 2)) }
-    fn set_camera_picture(&mut self, picture: Picture) { self.0.lock().unwrap().push(picture); }
+    fn set_camera_picture(&mut self, picture: Picture) -> Result<(), &'static str> { self.0.lock().unwrap().push(picture); Ok(()) }
 }
 
 fn fixture() -> (esp32s3::Machine, WebServer, Arc<Mutex<Vec<Picture>>>) {
@@ -83,4 +83,15 @@ fn ordinary_knob_deltas_preserve_edges_spacing_and_queue_order() {
         assert_eq!(*cycle, phase * step);
         assert!(matches!(action, ScriptAction::Gpio(pin, level) if *pin == expected_pin && *level == expected_level));
     }
+}
+
+#[test]
+fn camera_plain_input_channel_needs_no_web_server() {
+    let (mut machine, _, pictures) = fixture();
+    machine.web = None;
+    machine.camera_input = Some(Arc::new(Mutex::new(Some(Picture { w: 1, h: 1, rgb: vec![1, 2, 3] }))));
+    machine.run(0);
+    assert_eq!(pictures.lock().unwrap()[0].rgb, [1, 2, 3]);
+    assert!(machine.camera_input.as_ref().unwrap().lock().unwrap().is_none());
+    assert!(machine.web.is_none());
 }

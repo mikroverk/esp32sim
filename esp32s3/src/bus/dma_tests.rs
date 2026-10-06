@@ -360,6 +360,80 @@ fn camera_stopped_capture_does_not_pause_or_replay_sensor_bytes() {
     assert!(bus.periph.lcd_cam.cam_frame().is_none());
 }
 
+#[test]
+fn camera_host_frames_follow_sccb_configuration_into_dma_memory() {
+    use esp_soc::{board::BoardModel, web::WebServer};
+    let mut machine = crate::machine([1, 2, 3, 4, 5, 6]);
+    let mut board = crate::board::waveshare_cam::WaveshareCam::new();
+    let mut devices = board.i2c_devices();
+    let sensor = &mut devices.iter_mut().find(|(_, addr, _)| *addr == 0x3c).unwrap().2;
+    let write = |sensor: &mut Box<dyn crate::i2c::I2cDevice>, reg: u16, value| {
+        sensor.start(false);
+        for b in reg.to_be_bytes().into_iter().chain([value]) { sensor.write(b); }
+        sensor.stop();
+    };
+    for (r, v) in [(0x3808, 0), (0x3809, 2), (0x380a, 0), (0x380b, 1), (0x3008, 2)] { write(sensor, r, v); }
+    write(sensor, 0x4300, 0x61);
+    assert_eq!(*board.camera_frame().unwrap().2, [0; 4], "black frames allow initialization before a host connects");
+    machine.bus.board = Box::new(board);
+    let web = WebServer::queued();
+    machine.web = Some(web.clone());
+    machine.bus.periph.lcd_cam.set_clock_enabled(true);
+    machine.bus.periph.lcd_cam.write(0x04, 1 << 29);
+    machine.bus.periph.lcd_cam.frame_cycles = 1000;
+    machine.bus.periph.lcd_cam.write(0x64, 1 << 2);
+    machine.bus.dma_cam_step(1000);
+    assert_ne!(machine.bus.periph.lcd_cam.int_raw & (1 << 2), 0, "VSYNC before host input");
+    // Two live inputs, then format changes at identical dimensions must invalidate the cache.
+    for (index, (format, rgba, expected)) in [
+        (0x61, [255, 0, 0, 255, 0, 255, 0, 255], vec![248, 0, 7, 224]),
+        (0x61, [0, 0, 255, 0, 255, 255, 255, 0], vec![0, 31, 255, 255]),
+        (0x10, [0, 0, 255, 0, 255, 255, 255, 0], vec![29, 255]),
+        (0x30, [0, 0, 255, 0, 255, 255, 255, 0], vec![29, 191, 255, 117]),
+    ].into_iter().enumerate() {
+        write(sensor, 0x4300, format);
+        let mut message = vec![3, 2, 0, 1, 0];
+        message.extend_from_slice(&rgba);
+        if index < 2 { web.push_incoming_bin(message); }
+        machine.run(0);
+        let bus = &mut machine.bus;
+        bus.dma_cam_step(1000 - bus.periph.lcd_cam.acc);
+        m2m_desc(bus, FIRST_DESC, (1 << 31) | expected.len() as u32, M2M_DST, 0);
+        bus.periph.gdma.write(0x48, 5);
+        bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+        bus.periph.lcd_cam.write(0x08, (1 << 29) | (expected.len() as u32 - 1));
+        bus.dma_cam_step(550);
+        let actual: Vec<_> = (0..expected.len()).map(|i| bus.read8(M2M_DST + i as u32).unwrap()).collect();
+        assert_eq!(actual, expected, "format {format:#x}");
+        assert_eq!(bus.periph.gdma.inp[0].int_raw & 3, 3);
+    }
+    // Crop the right half of the array: only the white source pixel remains.
+    for (reg, value) in [(0x3800, 5), (0x3801, 32), (0x3802, 0), (0x3803, 0),
+        (0x3804, 10), (0x3805, 63), (0x3806, 7), (0x3807, 159), (0x4300, 0x61)] {
+        write(sensor, reg, value);
+    }
+    assert_eq!(*machine.bus.board.camera_frame().unwrap().2, [255; 4]);
+    write(sensor, 0x3801, 0);
+    write(sensor, 0x3800, 0); // change only the window, keeping size and format
+    assert_eq!(*machine.bus.board.camera_frame().unwrap().2, [0, 31, 255, 255]);
+    write(sensor, 0x3800, 5); write(sensor, 0x3801, 32);
+    write(sensor, 0x3809, 1);
+    assert_eq!(*machine.bus.board.camera_frame().unwrap().2, [255; 2]);
+    write(sensor, 0x3008, 0x42);
+    assert!(machine.bus.board.camera_frame().is_none());
+    write(sensor, 0x3008, 2);
+    assert!(machine.bus.board.camera_frame().is_some());
+    write(sensor, 0x3821, 0x20);
+    assert!(machine.bus.board.camera_frame().is_none(), "unsupported JPEG must not emit YUV bytes");
+    write(sensor, 0x3821, 0);
+    assert!(machine.bus.board.camera_frame().is_some());
+    write(sensor, 0x3008, 0x82);
+    assert!(machine.bus.board.camera_frame().is_none(), "reset clears output geometry");
+    for (r, v) in [(0x3809, 2), (0x380b, 1), (0x4300, 0x61), (0x3008, 2)] { write(sensor, r, v); }
+    assert!(machine.bus.board.camera_frame().is_some());
+    machine.bus.board.i2c_devices();
+    assert!(machine.bus.board.camera_frame().is_none(), "reboot resets the shared sensor state too");
+}
 
 fn camera_bus(bytes: Vec<u8>) -> SocBus {
     let mut bus = SocBus::new(4 << 20, 0, [0; 6]);
