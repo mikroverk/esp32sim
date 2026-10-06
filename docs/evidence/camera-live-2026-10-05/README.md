@@ -1,5 +1,8 @@
 # EX212: Live camera input and idle cost
 
+Current adoption: [inline u128 camera progress](review-3.md), with fresh measurements
+and CLI diagnostic checks. Earlier campaigns below retain their measured outcomes.
+
 Base `cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc`. The review retains the public
 OV5640 SCCB state and the still-image path. RGB24 streaming uses one pending
 picture, without a web server. FIFO opening happens on the reader thread.

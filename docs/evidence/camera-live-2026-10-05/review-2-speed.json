@@ -5,7 +5,7 @@
   "seconds": 30,
   "hello_seconds": 3000,
   "base_revision": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
-  "candidate_revision": "commit containing review-2.md; source hashes in review-2.json",
+  "candidate_revision": "68068d9838fd6761106619f9ff74666d49b7f4fa",
   "commands": {
     "hello": [
       "esp32sim",

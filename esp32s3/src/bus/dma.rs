@@ -543,8 +543,9 @@ impl SocBus {
         if !cam.running() { return; }
         let Some(frame) = cam.cam_frame().cloned() else { return };
         // Approximate DVP: 5% blanking, then half a period of active pixels.
-        let position = |phase| camera_byte_position(phase, cam.frame_start, cam.frame_cycles, frame.len());
+        let position = |phase: u64| ((phase.saturating_sub(cam.frame_start.saturating_add(cam.frame_cycles / 20)) as u128 * frame.len() as u128 * 2) / cam.frame_cycles.max(1) as u128).min(frame.len() as u128) as usize;
         let end = position(cam.acc);
+        // Belt-and-braces: u128 progress is monotonic, so start already cannot exceed end.
         let start = position(before).min(end);
         if start == end { return; }
         // IDF v5.5.4 soc/lcd_cam_reg.h: BIT_ORDER bit 6, 2BYTE_EN bit 24,
@@ -668,6 +669,7 @@ impl SocBus {
             // IDF v5.5.4 soc/gdma_reg.h: IN_DSCR_EMPTY bit 4 means data remains
             // but there is no more inlink; CHECK_OWNER is bit 12.
             if r.desc == 0 {
+                // Belt-and-braces: a live receive with no descriptor must still have data left.
                 if pos < data.len() { self.periph.gdma.inp[ch].int_raw |= 1 << 4; }
                 return Err(());
             }
@@ -752,11 +754,4 @@ impl SocBus {
         self.irq_dirty = true;
     }
 
-}
-
-// Keep wide division out of the shared tick body when the camera is unused.
-#[inline(never)]
-fn camera_byte_position(phase: u64, frame_start: u64, frame_cycles: u64, bytes: usize) -> usize {
-    ((phase.saturating_sub(frame_start.saturating_add(frame_cycles / 20)) as u128 * bytes as u128 * 2)
-        / frame_cycles.max(1) as u128).min(bytes as u128) as usize
 }

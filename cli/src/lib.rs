@@ -180,6 +180,7 @@ fn find_rom(name: &str) -> Option<PathBuf> {
 pub fn run_cli(default_chip: &str) {
     let args: Vec<String> = std::env::args().collect();
     let mut o = parse(&args, default_chip);
+    if o.cam_stream.is_some() != o.cam_size.is_some() { usage_error("--cam-stream and --cam-size must be supplied together"); }
     validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
     if o.cooja { return run_cooja(&mut o); }
@@ -224,10 +225,10 @@ fn run_cooja(o: &mut Opts) {
 }
 
 fn setup_s3(o: &Opts) -> esp32s3::Machine {
+    let size_error = o.cam_size.as_deref().and_then(|s| camera::size(s).err());
     for (message, invalid) in [
-        ("--cam-stream and --cam-size must be supplied together", o.cam_stream.is_some() != o.cam_size.is_some()),
         ("--cam-stream requires --board waveshare-cam", o.cam_stream.is_some() && o.board != "waveshare-cam"),
-        ("--cam-size requires nonzero decimal WIDTHxHEIGHT fitting the 8 MiB host input limit", o.cam_size.as_deref().is_some_and(|s| camera::size(s).is_err())),
+        (size_error.as_deref().unwrap_or(""), size_error.is_some()),
     ] {
         if invalid { usage_error(message); }
     }

@@ -7,10 +7,14 @@ try {
     [['--cam-stream', '-'], /must be supplied together/],
     [['--cam-size', '2x2'], /must be supplied together/],
     [['--cam-stream', '-', '--cam-size', '2x2'], /requires --board waveshare-cam/],
-    [['--board', 'waveshare-cam', '--cam-stream', '-', '--cam-size', '+2x+2'], /nonzero decimal WIDTHxHEIGHT/],
-    [['--board', 'waveshare-cam', '--cam-stream', '-', '--cam-size', '4096x4096'], /8 MiB/],
-    [['--chip', 'c3', '--cam-stream', '-'], /--cam-stream is not available on the C3/],
-    [['--chip', 'c6', '--cam-size', '2x2'], /--cam-size is not available on the C6/],
+    [['--board', 'waveshare-cam', '--cam-stream', '-', '--cam-size', '12'], /--cam-size requires WIDTHxHEIGHT/],
+    [['--board', 'waveshare-cam', '--cam-stream', '-', '--cam-size', '0x0'], /camera frame must be nonempty and fit the 8 MiB host input limit/],
+    [['--board', 'waveshare-cam', '--cam-stream', '-', '--cam-size', '+2x+2'], /--cam-size requires unsigned decimal WIDTHxHEIGHT/],
+    [['--board', 'waveshare-cam', '--cam-stream', '-', '--cam-size', '4096x4096'], /camera frame must be nonempty and fit the 8 MiB host input limit/],
+    [['--cooja', '--cam-stream', '-'], /must be supplied together/],
+    [['--chip', 'c6', '--cooja', '--cam-stream', '-'], /must be supplied together/],
+    [['--chip', 'c3', '--cam-stream', '-', '--cam-size', '2x2'], /--cam-stream is not available on the C3/],
+    [['--chip', 'c6', '--cam-stream', '-', '--cam-size', '2x2'], /--cam-stream is not available on the C6/],
   ]) {
     const result = spawnSync('target/release/esp32sim', flags, { encoding: 'utf8', timeout: 10000 });
     assert.equal(result.status, 2, result.stderr);

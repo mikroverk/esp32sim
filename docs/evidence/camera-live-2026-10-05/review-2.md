@@ -1,6 +1,6 @@
 # EX212 receive completion and bounded camera progress
 
-The candidate is the commit containing this receipt, on parent
+The historical helper candidate is `68068d9838fd6761106619f9ff74666d49b7f4fa`, on parent
 `fb97f45059d9aa4e100629124a1c7ffc2a4edd5d`. Main remains
 `cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc`.
 The source hashes in `review-2.json` identify the measured files. This follows
@@ -10,8 +10,9 @@ interrupt; the earlier idle-layout results remain in the main receipt.
 DSCR_EMPTY means receive data remains without an inlink, per ESP-IDF v5.5.4
 `components/soc/esp32s3/register/soc/gdma_reg.h`. An exactly fitting AES or camera
 receive reports `0x3`; a short camera destination reports `0x11`. Progress uses
-u128 and ordered slice bounds. Wide division stays in a non-inlined helper,
-so it does not enlarge the shared tick body. The 16 MB, 2^40-cycle reproduction failed before
+u128 and ordered slice bounds. The non-inlined helper was rejected after the
+maintainer measured regressions on M5 Max; [inline adoption](review-3.md)
+records the current decision. The 16 MB, 2^40-cycle reproduction failed before
 the fix with slice start 14399999 greater than end 822783. Still-image validation
 uses the same 8 MiB RGBA-equivalent limit as streaming.
 
@@ -40,7 +41,7 @@ and three YUYV frames, including re-init and reboot, with unchanged hashes.
 ```sh
 python3 docs/evidence/camera-live-2026-10-05/speed.py "$MAIN_BIN" target/release \
   --base-revision cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc \
-  --candidate-revision 'commit containing review-2.md; source hashes in review-2.json' \
+  --candidate-revision 68068d9838fd6761106619f9ff74666d49b7f4fa \
   --workloads hello pocket-tank --output "$OUTPUT"
 ```
 
@@ -71,9 +72,9 @@ Raw samples, commands and executable/input hashes: [review-2-speed.json](review-
 ## Inlined wide-division variant
 
 The same u128 calculation inlined into the shared tick body measured S3 hello
-−1.5% and Pocket Tank +2.8% by median. The separate helper above is the adopted
-variant. Apply [review-2-inline.patch](review-2-inline.patch) with
-`git apply --unidiff-zero` to this commit to reproduce the inlined source; its hashes and all samples are in
+−1.5% and Pocket Tank +2.8% by median on M5 Pro. This is a retained negative
+result for that machine, not grounds to prefer the helper on other machines. Apply [review-2-inline.patch](review-2-inline.patch) with
+`git apply --unidiff-zero` to `68068d9838fd6761106619f9ff74666d49b7f4fa` to reproduce the inlined source; its hashes and all samples are in
 [review-2-speed-inline.json](review-2-speed-inline.json). Both campaigns used the
 same base executable. Their paired comparisons have overlapping ranges; they
 do not establish the helper's isolated effect independently of measurement noise.

@@ -1,5 +1,5 @@
 {
-  "candidate": "commit containing this receipt",
+  "candidate": "68068d9838fd6761106619f9ff74666d49b7f4fa",
   "parent": "fb97f45059d9aa4e100629124a1c7ffc2a4edd5d",
   "base": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
   "source_sha256": {
