@@ -1,0 +1,3 @@
+52647 exceptions, 3938 interrupts
+[emu] wifi: 46 frames sent by the station, 165 received (0 dropped: no descriptor); AP: 136 beacons, 17 probe responses, 14 data frames from the station, state Associated
+[emu] net: 1 DHCP leases, 1 ARP replies, 0 DNS answers, 0 NTP answers, 0 TCP refused, 5 pings, 0 frames ignored

@@ -216,38 +216,40 @@ fn external_energy_scan_c6() {
     expect_u64("energy-scan-c6.insns", r.insns);
 }
 
-/// The WiFi station on the ESP32-C6 (`examples/c6-wifi-station`, built with ESP-IDF 5.5.4;
-/// `C6_WIFI_STATION_BUILD` points at a build directory, the one with the emulator's default network):
-/// the unmodified WiFi library scans, finds the virtual access point, joins it through the WPA2
-/// four-way handshake, takes a DHCP lease and gets five of five gateway pings answered. The
-/// station's own lines are pinned — what the board prints against a real network, with this
-/// network's addresses — not the library's debug chatter, which differs between configurations.
-#[test] #[ignore = "set C6_WIFI_STATION_BUILD=examples/c6-wifi-station/build-emu (built for esp32c6); needs the ESP32-C6 mask ROM ELF"]
-fn external_wifi_station_c6() {
-    let b = std::env::var("C6_WIFI_STATION_BUILD").expect("C6_WIFI_STATION_BUILD=/path/to/c6-wifi-station/build is required for this test");
-    let rom = rom("esp32c6_rev0");
-    let r = run(BIN_C6, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--board", "waveshare-c6-lcd147", "--console", "usb", "--no-dump",
-        "--bootloader", &format!("{b}/bootloader/bootloader.bin"), "--ptable", &format!("{b}/partition_table/partition-table.bin"),
-        "--app", &format!("{b}/c6_wifi_station.bin"), "--elf", &format!("{b}/c6_wifi_station.elf"), "--stub", "bb_init=0",
-        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "14"]);
+/// The WiFi station (`examples/c6-wifi-station`, built with ESP-IDF 5.5.4 for each chip with the
+/// emulator's default network and no display, `sdkconfig.ci.defaults`): the unmodified WiFi
+/// library scans, finds the virtual access point, joins it through the WPA2 four-way handshake,
+/// takes a DHCP lease and gets five of five gateway pings answered. The station's own lines are
+/// the same on every chip and are what the board prints against a real network; the console and
+/// the instruction count pin the run bit for bit, and the end-of-run counts pin the radio traffic
+/// and the interrupts (on the C3 and C6 the instruction count is the cycle count, so a change in
+/// the WiFi model's timing shows only in the interrupt count). This is the bar for changes to the
+/// WiFi model.
+fn wifi_station(chip: &str, bin: &str, rom_name: &str, extra: &[&str]) {
+    let rom = rom(rom_name);
+    let mut args = vec!["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--console", "usb", "--no-dump"];
+    let (bl, pt, app) = (format!("{FW}/{chip}-wifi-bootloader.bin"), format!("{FW}/{chip}-wifi-ptable.bin"), format!("{FW}/{chip}-wifi_station.bin"));
+    args.extend(["--bootloader", &bl, "--ptable", &pt, "--app", &app, "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "14"]);
+    args.extend(extra);
+    let r = run(bin, &args);
     assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
     let station: String = r.stdout.lines().filter_map(|l| l.split_once("station: ").map(|(_, rest)| rest.trim_end_matches("\u{1b}[0m"))).map(|l| format!("{l}\n")).collect();
     assert!(station.contains("GOT_IP ip=10.0.2.15") && station.contains("PING done sent=5 received=5"), "the station did not get through:\n{}\n{}", station, r.stderr);
-    expect_text("wifi-station-c6.station.txt", &station);
+    expect_text(&format!("wifi-station-{chip}.station.txt"), &station);
+    expect_text(&format!("wifi-station-{chip}.console.txt"), &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("[emu] wifi:") || l.starts_with("[emu] net:"))).map(|l| format!("{l}\n")).collect();
+    expect_text(&format!("wifi-station-{chip}.report.txt"), &report);
+    expect_u64(&format!("wifi-station-{chip}.insns"), r.insns);
 }
 
-/// C3 build of the same station, with LCD disabled; see examples/c6-wifi-station/README.md.
-#[test]
-#[ignore = "set C3_WIFI_STATION_BUILD to the C3 Wi-Fi station build directory; needs the ESP32-C3 mask ROM ELF"]
-fn external_wifi_station_c3() {
-    let b = std::env::var("C3_WIFI_STATION_BUILD").expect("C3_WIFI_STATION_BUILD=/path/to/c3-wifi-station/build is required for this test");
-    let rom = rom("esp32c3_rev3");
-    let r = run(BIN_C3, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--console", "usb", "--no-dump",
-        "--bootloader", &format!("{b}/bootloader/bootloader.bin"), "--ptable", &format!("{b}/partition_table/partition-table.bin"),
-        "--app", &format!("{b}/c6_wifi_station.bin"), "--elf", &format!("{b}/c6_wifi_station.elf"),
-        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "14"]);
-    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
-    let station: String = r.stdout.lines().filter_map(|l| l.split_once("station: ").map(|(_, rest)| rest.trim_end_matches("\u{1b}[0m"))).map(|l| format!("{l}\n")).collect();
-    assert!(station.contains("GOT_IP ip=10.0.2.15") && station.contains("PING done sent=5 received=5"), "the station did not get through:\n{}\n{}", station, r.stderr);
-    expect_text("wifi-station-c3.station.txt", &station);
-}
+#[test] #[ignore = "needs the ESP32-S3 mask ROM ELF"]
+fn wifi_station_s3() { wifi_station("s3", BIN, "esp32s3_rev0", &["--board", "none"]); }
+
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF"]
+fn wifi_station_c3() { wifi_station("c3", BIN_C3, "esp32c3_rev3", &[]); }
+
+/// `bb_init` is the PHY's baseband calibration, which wants analog the emulator does not have;
+/// without the ELF it is stubbed by address (`riscv32-esp-elf-nm`, see the example's README).
+#[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
+fn wifi_station_c6() { wifi_station("c6", BIN_C6, "esp32c6_rev0", &["--stub", "0x4207df40=0"]); }

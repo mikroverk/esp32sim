@@ -54,6 +54,10 @@ impl esp_soc::SocBus for SocBus {
         Ok(())
     }
     fn cycles(&self) -> u64 { self.cycles }
+    fn report(&self) -> String {
+        let w = &self.periph.wifi;
+        esp_soc::wifi::report(w.tx_frames, w.rx_frames, w.rx_dropped, w.ap.as_ref(), w.net.as_ref()).trim_end().to_string()
+    }
     fn next_deadline(&self) -> Option<u64> {
         if self.pins_active { return self.pin_deadline(); }
         match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }

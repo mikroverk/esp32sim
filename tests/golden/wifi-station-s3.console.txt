@@ -1,0 +1,116 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+configspi:0x00000008
+SPIWP:0x00
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1510
+load:0x403c8700,len:0xccc
+load:0x403cb700,len:0x2efc
+entry 0x403c891c
+I (7) boot: ESP-IDF v5.5.4 2nd stage bootloader
+I (7) boot: Multicore bootloader
+I (7) boot: chip revision: v0.0
+I (7) boot: efuse block revision: v1.0
+I (7) boot.esp32s3: Boot SPI Speed : 80MHz
+I (7) boot.esp32s3: SPI Mode       : DIO
+I (7) boot.esp32s3: SPI Flash Size : 4MB
+I (7) boot: Enabling RNG early entropy source...
+I (7) boot: Partition Table:
+I (7) boot: ## Label            Usage          Type ST Offset   Length
+I (7) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (7) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (7) boot:  2 factory          factory app      00 00 00010000 00177000
+I (8) boot: End of partition table
+I (8) esp_image: segment 0: paddr=00010020 vaddr=3c080020 size=18e68h (101992) map
+I (14) esp_image: segment 1: paddr=00028e90 vaddr=3fc9a000 size=04cbch ( 19644) load
+I (16) esp_image: segment 2: paddr=0002db54 vaddr=40374000 size=024c4h (  9412) load
+I (17) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=77164h (487780) map
+I (48) esp_image: segment 4: paddr=000a718c vaddr=403764c4 size=13ab4h ( 80564) load
+I (55) esp_image: segment 5: paddr=000bac48 vaddr=50000000 size=00020h (    32) load
+I (59) boot: Loaded app from partition at offset 0x10000
+I (59) boot: Disabling RNG early entropy source...
+I (59) cpu_start: Multicore app
+I (68) cpu_start: Pro cpu start user code
+I (68) cpu_start: cpu freq: 160000000 Hz
+I (68) app_init: Application information:
+I (68) app_init: Project name:     c6_wifi_station
+I (68) app_init: App version:      1
+I (68) app_init: ELF file SHA256:  c87e402ad...
+I (68) app_init: ESP-IDF:          v5.5.4
+I (68) efuse_init: Min chip rev:     v0.0
+I (68) efuse_init: Max chip rev:     v0.99 
+I (68) efuse_init: Chip rev:         v0.0
+I (68) heap_init: Initializing. RAM available for dynamic allocation:
+I (68) heap_init: At 3FCA2C88 len 00046A88 (282 KiB): RAM
+I (68) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (68) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (68) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM
+I (68) spi_flash: detected chip: generic
+I (69) spi_flash: flash io: dio
+I (69) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (69) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (69) main_task: Started on CPU0
+I (69) main_task: Calling app_main()
+I (69) pp: pp rom version: e7ae62f
+I (69) net80211: net80211 rom version: e7ae62f
+I (79) wifi:wifi driver task: 3fcee050, prio:23, stack:6656, core=0
+I (79) wifi:wifi firmware version: 0947e8b
+I (79) wifi:wifi certification version: v7.0
+I (79) wifi:config NVS flash: enabled
+I (79) wifi:config nano formatting: disabled
+I (79) wifi:Init data frame dynamic rx buffer num: 32
+I (79) wifi:Init static rx mgmt buffer num: 5
+I (79) wifi:Init management short buffer num: 32
+I (79) wifi:Init dynamic tx buffer num: 32
+I (79) wifi:Init static tx FG buffer num: 2
+I (79) wifi:Init static rx buffer size: 1600
+I (79) wifi:Init static rx buffer num: 10
+I (79) wifi:Init dynamic rx buffer num: 32
+I (79) wifi_init: rx ba win: 6
+I (79) wifi_init: accept mbox: 6
+I (79) wifi_init: tcpip mbox: 32
+I (79) wifi_init: udp mbox: 6
+I (79) wifi_init: tcp mbox: 6
+I (79) wifi_init: tcp tx win: 5760
+I (79) wifi_init: tcp rx win: 5760
+I (79) wifi_init: tcp mss: 1440
+I (79) wifi_init: WiFi IRAM OP enabled
+I (79) wifi_init: WiFi RX IRAM OP enabled
+I (79) phy_init: phy_version 711,97bcf0a2,Aug 25 2025,19:04:10
+W (79) phy_init: failed to load RF calibration data (0x1102), falling back to full calibration
+I (79) phy: error: pll_cal exceeds 2ms!!!
+I (79) phy: error: pll_cal exceeds 2ms!!!
+I (79) phy: error: pll_cal exceeds 2ms!!!
+I (89) phy: error: pll_cal exceeds 2ms!!!
+I (89) phy: error: pll_cal exceeds 2ms!!!
+I (89) phy: error: pll_cal exceeds 2ms!!!
+I (89) phy_init: Saving new calibration data due to checksum failure or outdated calibration data, mode(2)
+I (89) wifi:mode : sta (44:1b:f6:75:dc:e0)
+I (89) wifi:enable tsf
+I (89) station: STARTED
+I (2589) station: SCAN found=1
+I (2589) station: SCAN 1 ssid="esp32sim" channel=6 rssi=-40 auth=WPA2 bssid=02:53:49:4d:00:01
+I (2589) station: CONNECT attempt=1 ssid="esp32sim" ESP_OK
+I (3219) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0
+I (3219) wifi:state: init -> auth (0xb0)
+I (3219) wifi:state: auth -> assoc (0x0)
+I (3219) wifi:state: assoc -> run (0x10)
+I (3249) wifi:connected with esp32sim, aid = 1, channel 6, BW20, bssid = 02:53:49:4d:00:01
+I (3249) wifi:security: WPA2-PSK, phy: bg, rssi: -40, cipher(pairwise:0x3, group:0x3), pmf:0
+I (3249) wifi:pm start, type: 1
+
+I (3249) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us
+I (3249) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000
+I (3249) station: CONNECTED channel=6 bssid=02:53:49:4d:00:01
+I (3319) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+I (4249) esp_netif_handlers: sta ip: 10.0.2.15, mask: 255.255.255.0, gw: 10.0.2.2
+I (4249) station: GOT_IP ip=10.0.2.15 mask=255.255.255.0 gw=10.0.2.2
+I (7589) station: STATUS state=connected rssi=-40 channel=6
+I (7589) station: PING seq=1 time=0 ms
+I (8589) station: PING seq=2 time=0 ms
+I (9589) station: PING seq=3 time=0 ms
+I (10589) station: PING seq=4 time=0 ms
+I (11589) station: PING seq=5 time=0 ms
+I (12589) station: PING done sent=5 received=5
+I (12589) station: STATUS state=connected rssi=-40 channel=6

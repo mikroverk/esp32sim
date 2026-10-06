@@ -93,39 +93,42 @@ hardware). The unmodified WiFi library then does what it does on the board:
 `--debug net` the DHCP, ARP and ICMP behind it; `--wifi ssid=esp32sim` alone is an open network
 (build with an empty passphrase for that). Without `--wifi` there is no network and the run ends in
 `DISCONNECTED reason=201 NO_AP_FOUND`, as on the board. The PNG is the panel's native portrait
-scan, so the landscape text is sideways in it. `external_wifi_station_c6` in
-`cli/tests/goldens.rs` pins this run (`C6_WIFI_STATION_BUILD` names the build directory).
+scan, so the landscape text is sideways in it.
 
-## C3 regression input
+## The CI firmware
 
-The same station source also builds for ESP32-C3 with ESP-IDF 5.5.4. Disable the
-C6 board display and select C3 in a separate configuration:
-
-```sh
-printf 'CONFIG_IDF_TARGET="esp32c3"\nCONFIG_STATION_LCD=n\n' > /tmp/c3-station.defaults
-idf.py -B build-c3 -DIDF_TARGET=esp32c3 -DSDKCONFIG=sdkconfig.c3 \
-  '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;/tmp/c3-station.defaults' build
-```
-
-From the repository root, run the WPA2 scan/join/DHCP/five-ping golden test:
+The same source builds for the ESP32-S3, C3 and C6, and the three builds are committed as
+`web/wasm/fw/public/{s3,c3,c6}-wifi-{bootloader,ptable}.bin` and `{s3,c3,c6}-wifi_station.bin`.
+`wifi_station_s3`, `wifi_station_c3` and `wifi_station_c6` in `cli/tests/goldens.rs` run them in
+CI: the station lines (the same on all three chips), the console, the end-of-run frame and
+interrupt counts, and the instruction count. They are the regression bar for the WiFi models.
+The builds have the emulator's default network, no display and a reproducible build
+(`sdkconfig.ci.defaults`: no compile time, source paths mapped to `/IDF`), so the same ESP-IDF
+gives the same bytes in any directory. From this directory, with ESP-IDF 5.5.4:
 
 ```sh
-C3_WIFI_STATION_BUILD="$PWD/examples/c6-wifi-station/build-c3" \
-  cargo +1.99.0 test --release -p esp32sim --test goldens external_wifi_station_c3 -- --exact
+for t in esp32s3 esp32c3 esp32c6; do
+  idf.py -B build-$t -DIDF_TARGET=$t -DSDKCONFIG=sdkconfig.$t \
+    '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ci.defaults' build
+  c=${t#esp32}; P=../../web/wasm/fw/public
+  cp build-$t/bootloader/bootloader.bin $P/$c-wifi-bootloader.bin
+  cp build-$t/partition_table/partition-table.bin $P/$c-wifi-ptable.bin
+  cp build-$t/c6_wifi_station.bin $P/$c-wifi_station.bin
+done
 ```
 
-Set `ESP32SIM_ROM_DIR` to the directory containing `esp32c3_rev3_rom.elf` if it is
-not installed with ESP-IDF. The build keeps the project's `c6_wifi_station.bin`
-and `.elf` names; only the target changes. No stub or board model is needed.
-The test fails with the required input name when its build directory is missing;
-CI excludes it with `--skip external_`. Its station lines are pinned in
-`tests/golden/wifi-station-c3.station.txt`. This is firmware validation, not a
-comparison with a physical C3 radio.
+The build keeps the project's `c6_wifi_station.bin` name on every target. The ELFs are not
+committed, so the C6 test stubs `bb_init` by address: after a rebuild that changes the code,
+`riscv32-esp-elf-nm build-esp32c6/c6_wifi_station.elf | grep ' bb_init$'` gives the new one for
+`wifi_station_c6`. Then regenerate the goldens with `UPDATE_GOLDENS=1` and check that the station
+lines and the WiFi and network counts stay the same. The licences of what the binaries contain
+are in `web/wasm/fw/public/wifi-station-NOTICE.txt`. This is firmware validation, not a
+comparison with a physical radio.
 
 ## In the browser
 
-The WebAssembly build runs it too, on the page's Waveshare panel. The firmware is not committed,
-so this is a local manifest (`web/wasm/fw/` ignores everything but the public demos): copy the
+The WebAssembly build runs it too, on the page's Waveshare panel. The committed CI build has no
+display, so this is a local manifest (`web/wasm/fw/` ignores everything but the public demos): copy the
 three parts of `build-emu` to `web/wasm/fw/local/` as `c6-wifi-bootloader.bin`,
 `c6-wifi-ptable.bin` and `c6-wifi_station.bin`, and write `web/wasm/fw/c6-wifi-station.json`:
 
