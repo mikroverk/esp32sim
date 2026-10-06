@@ -45,3 +45,19 @@ fn c6_ble_without_elf_names_the_missing_symbol() {
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("requires ELF symbol esp_bt_controller_init"));
 }
+
+#[test]
+fn full_ble_mode_is_c3_only_and_excludes_hci() {
+    for args in [vec!["--chip", "s3", "--ble", "full"], vec!["--chip", "c6", "--ble", "full"], vec!["--chip", "c3", "--ble", "--ble", "full"], vec!["--chip", "c3", "--ble", "full", "--ble"]] {
+        let result = Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(args).output().unwrap();
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("mutually exclusive"));
+    }
+}
+
+#[test]
+fn passive_observer_requires_full_ble() {
+    let result = Command::new(env!("CARGO_BIN_EXE_esp32sim-c3")).arg("--ble-observe").output().unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("--ble-observe requires --ble full"));
+}

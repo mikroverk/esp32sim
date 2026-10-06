@@ -324,6 +324,10 @@ impl SocBus {
 
     #[inline(never)]
     fn pending_work(&mut self) {
+        if self.periph.ble_lc.enabled() {
+            self.periph.ble_lc.service(&mut self.sram);
+            esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x31);
+        }
         if self.periph.spi_exec { self.run_spi(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }

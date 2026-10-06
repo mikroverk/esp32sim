@@ -1,5 +1,31 @@
 //! Scriptable central and Battery Service peripheral on the packet link.
 use super::*;
+
+/// Iterate complete AD structures; zero padding or a truncated structure ends the list.
+pub fn ad_structures(mut data: &[u8]) -> impl Iterator<Item = (u8, &[u8])> {
+    std::iter::from_fn(move || {
+        let len = *data.first()? as usize;
+        if len == 0 || len + 1 > data.len() { data = &[]; return None }
+        let field = (data[1], &data[2..len + 1]);
+        data = &data[len + 1..];
+        Some(field)
+    })
+}
+
+/// Decode the name and service UUID fields shared by HCI and radio observers.
+pub fn advertising_fields(data: &[u8]) -> Vec<String> {
+    let mut fields = Vec::new();
+    for (kind, v) in ad_structures(data) {
+        match kind {
+            8 | 9 => fields.push(format!("name={:?}", String::from_utf8_lossy(v))),
+            2 | 3 => { for u in v.as_chunks::<2>().0 { fields.push(format!("service={}", uuid(u))); } }
+            6 | 7 => { for u in v.as_chunks::<16>().0 { fields.push(format!("service={}", uuid(u))); } }
+            _ => {}
+        }
+    }
+    fields
+}
+
 const ADV: &[u8] = b"\x02\x01\x06\x03\x03\x0f\x18\x09\x09esp32sim";
 fn hex(b: &[u8]) -> String { b.iter().map(|v| format!("{v:02x}")).collect() }
 fn uuid(b: &[u8]) -> String {
@@ -84,22 +110,7 @@ impl Peer {
         }
     }
     fn advertisement(&mut self, adv: Vec<u8>, scan_response: Vec<u8>) {
-        let mut fields = Vec::new();
-        for source in [&adv, &scan_response] {
-            let mut data = source.as_slice();
-            while !data.is_empty() {
-                let len = data[0] as usize;
-                if len == 0 || len + 1 > data.len() { break; }
-                let v = &data[2..len + 1];
-                match data[1] {
-                    8 | 9 => fields.push(format!("name={:?}", String::from_utf8_lossy(v))),
-                    2 | 3 => { for u in v.as_chunks::<2>().0 { fields.push(format!("service={}", uuid(u))); } }
-                    6 | 7 => { for u in v.as_chunks::<16>().0 { fields.push(format!("service={}", uuid(u))); } }
-                    _ => {}
-                }
-                data = &data[len + 1..];
-            }
-        }
+        let fields: Vec<_> = [&adv, &scan_response].into_iter().flat_map(|data| advertising_fields(data)).collect();
         self.log.push(format!("advertising {} data={}", fields.join(" "), hex(&adv)));
     }
     pub fn command(&mut self, command: &str) -> Result<(), String> {

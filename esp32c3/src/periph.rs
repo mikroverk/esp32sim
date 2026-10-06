@@ -136,6 +136,7 @@ impl Device for Extmem {
 pub use esp_periph::Rng;
 
 pub struct Peripherals {
+    pub ble_lc: crate::ble_lc::BleLc,
     pub adc: esp_periph::sar_adc::SarAdc,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
@@ -174,6 +175,8 @@ pub struct Peripherals {
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+    // IDF v5.5.5 components/soc/esp32c3/include/soc/interrupts.h: ETS_RWBLE_INTR_SOURCE = 8.
+    0x31 "BLE_LC" optional (ble_lc) => [8];
     0x40 "APB_SARADC" (adc) => [];
     0x06 "FE_IQ" (fe_iq) @ 0x140..=0x177 => [];
     0x33 "WIFI_MAC" (wifi) => [];
@@ -225,6 +228,7 @@ impl DeviceSet for Peripherals {
 impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
+            ble_lc: Default::default(),
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
             wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
@@ -292,7 +296,7 @@ impl Peripherals {
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
         self.wifi_irq = self.wifi.irq();
-        self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some();
+        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some();
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz

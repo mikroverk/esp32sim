@@ -12,6 +12,8 @@ use esp_soc::{Machine, Soc, SocBus};
 mod machine;
 mod network;
 mod ethernet;
+mod ble;
+pub use ble::*;
 pub use ethernet::*;
 mod s3;
 #[cfg(target_arch = "wasm32")]
@@ -44,6 +46,7 @@ pub struct Emu {
     /// the last drained outbox: (1 text | 2 binary, payload), addressed by index from JS
     out: Vec<(u8, Vec<u8>)>,
     ethernet_out: Vec<Vec<u8>>,
+    ble_out: String,
     booted: bool,
     #[cfg(target_arch = "wasm32")]
     jit: BrowserJit,
@@ -147,7 +150,7 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
     }
     Box::into_raw(Box::new(Emu {
         m,
-        out: Vec::new(), ethernet_out: Vec::new(),
+        out: Vec::new(), ethernet_out: Vec::new(), ble_out: String::new(),
         booted: false,
         #[cfg(target_arch = "wasm32")]
         jit: BrowserJit::default(),
