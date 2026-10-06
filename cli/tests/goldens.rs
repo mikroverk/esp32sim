@@ -253,3 +253,25 @@ fn wifi_station_c3() { wifi_station("c3", BIN_C3, "esp32c3_rev3", &[]); }
 /// without the ELF it is stubbed by address (`riscv32-esp-elf-nm`, see the example's README).
 #[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
 fn wifi_station_c6() { wifi_station("c6", BIN_C6, "esp32c6_rev0", &["--stub", "0x4207df40=0"]); }
+
+/// The guest controller owns the advertising schedule and handles every END IRQ.
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF fetched by CI"]
+fn ble_advertiser_c3() {
+    let rom = rom("esp32c3_rev3");
+    let r = run(BIN_C3, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--no-dump",
+        "--bootloader", &format!("{FW}/c3-ble-bootloader.bin"), "--ptable", &format!("{FW}/c3-ble-ptable.bin"),
+        "--app", &format!("{FW}/c3-ble-advertiser.bin"), "--ble", "full", "--ble-observe", "--max-seconds", "2"]);
+    assert!(r.stdout.contains("advertiser: STARTED"), "{}", r.stdout);
+    assert!(!r.stdout.contains("assert") && !r.stderr.contains("[ble-error]"), "{}\n{}", r.stdout, r.stderr);
+    assert!(r.stderr.contains("0 exceptions"), "{}", r.stderr);
+    let packets: Vec<_> = r.stderr.lines().filter(|line| line.starts_with("[ble-air]")).collect();
+    assert!(packets.len() >= 51 && packets.len().is_multiple_of(3), "must wrap the 16-entry event table");
+    for event in packets.as_chunks::<3>().0 {
+        for (line, channel) in event.iter().zip([37, 38, 39]) {
+            assert!(line.contains(&format!("channel={channel} type=ADV_SCAN_IND")), "{line}");
+            assert!(line.contains("name=\"esp32sim\"") && line.contains("service=180f"), "{line}");
+        }
+    }
+    expect_text("ble-advertiser-c3.observer.txt", &(packets.join("\n") + "\n"));
+    expect_u64("ble-advertiser-c3.insns", r.insns);
+}
