@@ -1,5 +1,5 @@
 # Firmware for local wasm demos is not committed — except the public demos below, whose code is
-# ours (hello_world from ESP-IDF for both the S3 and the C3, the Touch-LCD-4B panel built with
+# ours (hello_world from ESP-IDF for the S3, C3 and C6, the Touch-LCD-4B panel built with
 # placeholder secrets, and the Atech Pocket Synth) and the manifests that describe them; public/ also
 # holds pocket-tank's bootloader, partition table and app (MIT, with its LICENSE), whose model is fetched,
 # and the WiFi station built for the S3, C3 and C6 (the WiFi goldens' input, with its NOTICE).

@@ -144,7 +144,10 @@ or WPA2 AP, without Bluetooth, WPA3, roaming or RF simulation.
 
 Arduino-ESP32 3.3.8 connects and receives an HTTP body through NAT with both open
 and WPA2 configurations. See the [validation receipt](evidence/ethernet-c3-2026-10-02/README.md)
-for firmware hashes, commands and limits. No physical C3 Wi-Fi comparison was run.
+for firmware hashes, commands and limits. No physical C3 Wi-Fi comparison was run. In CI the
+`wifi_station_c3` golden runs the committed build of `examples/c6-wifi-station` for the C3
+(`web/wasm/fw/public/c3-wifi-*`): scan, WPA2, DHCP and five pings, with the console, the WiFi
+counts and the interrupt count pinned.
 
 ## Not there yet
 

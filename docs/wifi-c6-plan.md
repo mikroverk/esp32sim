@@ -186,7 +186,7 @@ polling the AP on every emulated CPU cycle. Preserve deterministic ordering when
 completion, RX frame, and 802.15.4 event become due together.
 
 Add `--wifi` parsing for the C6 only after this phase passes. Keep the option rejected on C3 and
-other unsupported targets. The C6 option should accept the same basic `ssid`, `chan`, `bssid`,
+other unsupported targets (since done: the C3 gained WiFi in #170). The C6 option should accept the same basic `ssid`, `chan`, `bssid`,
 and `psk` syntax as S3 so test scripts can switch targets without changing their network setup.
 
 ## Phase 3: reuse the virtual AP and WPA2 implementation

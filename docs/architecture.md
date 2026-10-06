@@ -23,6 +23,10 @@ esp-soc/      Machine<S: Soc>, written once for every chip: the scheduler (256-i
               the web UI protocol, real-time pacing, ROM/app image loading, reboot; the
               Soc/SocBus traits a chip implements; the BoardModel trait; elf/image/picture
               loaders; the web server
+  wifi.rs     the virtual 802.11 access point (beacons, probe/auth/assoc, WPA2 four-way
+              handshake) and StationLink, the station's side of the air every chip's MAC shares
+  net.rs      the emulated subnet 10.0.2.0/24: ARP, DHCP, ICMP, DNS, SNTP
+  nat.rs      user-mode NAT: guest TCP/UDP relayed over ordinary host sockets
 esp32s3/      the SoC and boards
   soc.rs      the S3 as a Soc: two LX7 cores, core-1 reset/stall state, interrupt lines per core,
               app boot, reboot (what survives), console streams, audio, board
@@ -33,9 +37,6 @@ esp32s3/      the SoC and boards
               RTC_CNTL + WDT, efuse, SPI0/1 flash + PSRAM, SHA, AES, RSA/MPI, RNG, regi2c,
               GDMA, I2S, RMT, LCD_CAM, WiFi MAC)
   i2c.rs      I2C master controller + bus devices (CH32V003, OV5640, ES8311/ES7210)
-  wifi.rs     virtual 802.11 access point: beacons, probe/auth/assoc, WPA2 four-way handshake
-  net.rs      the emulated subnet 10.0.2.0/24: ARP, DHCP, ICMP, DNS, SNTP
-  nat.rs      user-mode NAT: guest TCP/UDP relayed over ordinary host sockets
   board/      one file per board: Atech14, WaveshareCam, WaveshareLcd4b, WaveshareAmoled18V2 (BoardModel from esp-soc)
 esp-periph/   the peripheral IP Espressif chips share, one file each (UART, USB-Serial/JTAG,
               systimer, TIMG, GPIO, RTC_CNTL, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S, RMT,
@@ -213,7 +214,9 @@ esp_wifi + libpp/libnet80211        unmodified blob, drives the MAC registers
 ```
 
 - **The air**: `StationLink::next_rx` (`esp-soc/src/wifi.rs`) picks one frame at a time —
-  spaced ~400 µs apart, and never before the driver has recycled the previous descriptor — and
+  spaced ~400 µs apart, and only once the driver has recycled the previous descriptor or 50 ms
+  have passed; a frame that then finds no usable descriptor is dropped and counted, and the gap
+  and the 50 ms start again from it, on every chip — and
   each chip's `wifi_air_step()` in its `bus.rs` writes it into the RX ring with the chip's
   descriptor and header layout, then raises the MAC's RX interrupt. Management frames are delivered ahead of beacons so a
   response never waits behind a beacon the ring may drop.

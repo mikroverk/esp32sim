@@ -14,6 +14,7 @@ cover the RISC-V side.
 | [decisions.md](decisions.md) | Design decisions and hard-won gotchas (the "why" behind the code) |
 | [roadmap.md](roadmap.md) | What is planned, in priority order |
 | [wifi-plan.md](wifi-plan.md) | Plan + status: full WiFi emulation with the unmodified blob (MAC model + virtual AP) |
+| [wifi-c6-plan.md](wifi-c6-plan.md) | Plan + status: the C6's own WiFi MAC model, its register map and what differs from the S3 |
 | [networking-howto.md](networking-howto.md) | How to run firmware with WiFi and the network: flags, what the subnet offers, debugging, limits |
 | [networking-plan.md](networking-plan.md) | Status: the emulated subnet and the user-mode NAT that carries traffic to the host network |
 | [speed-plan.md](speed-plan.md) | Plan: performance roadmap — measured baselines, block interpreter, JIT, with the rejected ideas |

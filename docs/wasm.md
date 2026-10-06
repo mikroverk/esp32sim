@@ -68,7 +68,7 @@ S3 sends, and `esp32sim_cpu_hz` tells the worker which clock to pace against (24
 web/run.html     the UI, unchanged; `link` is either a WebSocket or the worker
 web/emu.js       page side: firmware panel, manifest loading, window.EmuLink
 web/wasm/worker.js   owns the wasm instance, paces it to wall time, relays the UI protocol
-wasm/            the crate: a C ABI over esp32s3::Machine (esp32sim_new / load / wifi / stub /
+wasm/            the crate: a C ABI over the S3, C3 and C6 machines (esp32sim_new / load / wifi / stub /
                  boot / run / out_* / in_*); no bindgen, no dependencies
 ```
 
@@ -181,8 +181,8 @@ Normal builds contain neither the sampling code nor the clock import.
 
 - **No NAT.** The browser has no sockets. With a `wifi=` spec the firmware still associates,
   gets a DHCP lease, resolves names and syncs time against the emulated subnet, but connections
-  past the gateway are refused (the `--net none` behaviour). A WebSocket relay to a small host
-  helper is the planned way out (`wasm-plan.md`).
+  past the gateway are refused (the `--net none` behaviour). The [host Ethernet relay](#host-ethernet-relay)
+  below lets a page carry the guest's frames to a host helper instead.
 - **No file outputs**: `--wav`, `--tft-png`, register traces — the page is the output.
 - **Emulator log lines** (`[emu] …`) that the native build prints to stderr do not exist here,
   except the ones the wasm glue forwards (stubs, resets, load errors) to the console tab and the

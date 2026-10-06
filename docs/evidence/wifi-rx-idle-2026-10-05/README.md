@@ -64,4 +64,4 @@ workloads move within ±1.7% with opposite signs between runs (C6 hello −1.4% 
 link's own 1–2% is not established (the per-round logic is the same; code generation is the likely
 difference). Browser speed was not measured.
 
-**Adoption.** Adopted with the shared link (PR #192).
+**Adoption.** Adopted with the shared link: PR #192, merged as #193 (squash `a3a3102c`). The commits named above are on that PR's branch, not on main.
