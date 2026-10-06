@@ -132,6 +132,7 @@ fn aes_dma_scatters_across_descriptors_and_marks_only_final_eof() {
     assert!(!bus.periph.gdma.inp[0].running);
     assert_eq!(bus.periph.aes.state, 2);
     assert_eq!(bus.periph.aes.int_raw, 1);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw, 0x3);
 }
 
 #[test]
@@ -546,7 +547,7 @@ fn camera_blanking_owner_modes_clock_reset_and_idle() {
 }
 
 #[test]
-fn camera_partial_slices_resume_unaligned_and_report_ring_exhaustion() {
+fn camera_partial_slices_resume_unaligned_without_false_ring_exhaustion() {
     let mut bus = camera_bus((0..40).collect());
     m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 40, M2M_DST, 0);
     bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
@@ -555,6 +556,34 @@ fn camera_partial_slices_resume_unaligned_and_report_ring_exhaustion() {
     assert_eq!(bus.periph.gdma.inp[0].buf_pos, 5);
     bus.dma_cam_step(437);
     for i in 0..40 { assert_eq!(bus.read8(M2M_DST + i).unwrap(), i as u8); }
-    assert_eq!(bus.periph.gdma.inp[0].int_raw & 0x13, 0x13);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw, 0x3);
     assert!(!bus.periph.gdma.inp[0].running);
+}
+
+#[test]
+fn camera_receive_leftover_data_reports_ring_exhaustion() {
+    let mut bus = camera_bus((0..40).collect());
+    m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 39, M2M_DST, 0);
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 39);
+    bus.dma_cam_step(1000); bus.dma_cam_step(550);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw, 0x11);
+    assert!(!bus.periph.gdma.inp[0].running);
+    assert_eq!((bus.read32(FIRST_DESC).unwrap() >> 12) & 0xfff, 39);
+}
+
+#[test]
+fn camera_large_frame_slow_clock_progress_does_not_overflow() {
+    let mut bus = camera_bus(vec![0x5a; 16_000_000]);
+    let period = 1u64 << 40;
+    bus.periph.lcd_cam.frame_cycles = period;
+    m2m_desc(&mut bus, FIRST_DESC, (1 << 31) | 8, M2M_DST, 0);
+    bus.periph.gdma.write(0x20, (FIRST_DESC & 0xfffff) | (1 << 22));
+    bus.dma_cam_step(period);
+    // Arm capture after 90% of the pixels; the next tick crosses the old u64 product limit.
+    bus.periph.lcd_cam.acc = period / 20 + period * 9 / 20;
+    bus.periph.lcd_cam.write(0x08, (1 << 29) | 7);
+    bus.dma_cam_step(period / 10);
+    assert_eq!(bus.read32(M2M_DST).unwrap(), 0x5a5a5a5a);
+    assert_eq!(bus.periph.gdma.inp[0].int_raw, 0x13);
 }

@@ -187,7 +187,7 @@ an error and leaves the previous image intact. This is a live source only: regul
 files are read as fast as possible, so the frames observed by firmware are not
 deterministic. Use `--cam-image` for deterministic still input. FIFO opening runs
 on the reader thread and never blocks emulator startup or shutdown. Input dimensions
-share the browser limit: an equivalent RGBA message must fit 8 MiB. `--console` still selects firmware console output.
+share the browser limit: an equivalent RGBA message must fit 8 MiB. This limit also applies to `--cam-image`. `--console` still selects firmware console output.
 
 For a macOS webcam, choose a video device with
 `ffmpeg -f avfoundation -list_devices true -i ''`, then replace `0` below with its index:

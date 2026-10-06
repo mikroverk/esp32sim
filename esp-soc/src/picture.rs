@@ -5,7 +5,7 @@ pub const MAX_RGBA_BYTES: u64 = 8 << 20;
 pub struct Picture { pub w: u32, pub h: u32, pub rgb: Vec<u8> }
 
 impl Picture {
-    pub fn valid(&self) -> bool { valid_size(self.w, self.h) && self.rgb.len() as u64 == self.w as u64 * self.h as u64 * 3 }
+    pub fn valid(&self) -> bool { rgba_len(self.w, self.h).is_some() && self.rgb.len() as u64 == self.w as u64 * self.h as u64 * 3 }
     fn pixel(&self, x: u32, y: u32, w: u32, h: u32) -> (u8, u8, u8) {
         let o = ((y as u64 * self.h as u64 / h as u64 * self.w as u64 + x as u64 * self.w as u64 / w as u64) * 3) as usize;
         (self.rgb[o], self.rgb[o + 1], self.rgb[o + 2])
@@ -142,6 +142,14 @@ pub fn sensor_frame(p: &Picture, w: u32, h: u32, format: PixelFormat) -> Option<
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn camera_picture_shares_rgba_input_limit() {
+        for (w, h, valid) in [(2048, 1023, true), (2048, 1024, false), (4096, 4096, false)] {
+            let p = Picture { w, h, rgb: vec![0; (w * h * 3) as usize] };
+            assert_eq!(p.valid(), valid);
+            assert_eq!(rgba_len(w, h).is_some(), valid);
+        }
+    }
     #[test]
     fn formats_scaling_and_window() {
         let p = Picture { w: 2, h: 1, rgb: vec![255, 0, 0, 0, 255, 0] };

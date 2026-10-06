@@ -180,8 +180,6 @@ fn find_rom(name: &str) -> Option<PathBuf> {
 pub fn run_cli(default_chip: &str) {
     let args: Vec<String> = std::env::args().collect();
     let mut o = parse(&args, default_chip);
-    if o.cam_stream.is_some() != o.cam_size.is_some() { usage_error("--cam-stream and --cam-size must be supplied together"); }
-    if let Some(size) = &o.cam_size { camera::size(size).unwrap_or_else(|e| usage_error(&e)); }
     validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
     if o.cooja { return run_cooja(&mut o); }
@@ -226,6 +224,13 @@ fn run_cooja(o: &mut Opts) {
 }
 
 fn setup_s3(o: &Opts) -> esp32s3::Machine {
+    for (message, invalid) in [
+        ("--cam-stream and --cam-size must be supplied together", o.cam_stream.is_some() != o.cam_size.is_some()),
+        ("--cam-stream requires --board waveshare-cam", o.cam_stream.is_some() && o.board != "waveshare-cam"),
+        ("--cam-size requires nonzero decimal WIDTHxHEIGHT fitting the 8 MiB host input limit", o.cam_size.as_deref().is_some_and(|s| camera::size(s).is_err())),
+    ] {
+        if invalid { usage_error(message); }
+    }
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
     m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, none)", o.board); std::process::exit(2) });
     if o.measured_te {
@@ -441,7 +446,6 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     }
     if let Some(path) = &o.cam_stream {
         let (width, height) = camera::size(o.cam_size.as_deref().unwrap()).unwrap();
-        if o.board != "waveshare-cam" { usage_error("--cam-stream requires --board waveshare-cam"); }
         let input = std::sync::Arc::new(std::sync::Mutex::new(None));
         m.camera_input = Some(input.clone());
         let path = path.clone();

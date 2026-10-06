@@ -1,0 +1,13 @@
+--- a/esp32s3/src/bus/dma.rs
++++ b/esp32s3/src/bus/dma.rs
+@@ -546 +546 @@
+-        let position = |phase| camera_byte_position(phase, cam.frame_start, cam.frame_cycles, frame.len());
++        let position = |phase: u64| ((phase.saturating_sub(cam.frame_start.saturating_add(cam.frame_cycles / 20)) as u128 * frame.len() as u128 * 2) / cam.frame_cycles.max(1) as u128).min(frame.len() as u128) as usize;
+@@ -756,7 +755,0 @@
+-
+-// Keep wide division out of the shared tick body when the camera is unused.
+-#[inline(never)]
+-fn camera_byte_position(phase: u64, frame_start: u64, frame_cycles: u64, bytes: usize) -> usize {
+-    ((phase.saturating_sub(frame_start.saturating_add(frame_cycles / 20)) as u128 * bytes as u128 * 2)
+-        / frame_cycles.max(1) as u128).min(bytes as u128) as usize
+-}

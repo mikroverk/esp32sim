@@ -543,8 +543,9 @@ impl SocBus {
         if !cam.running() { return; }
         let Some(frame) = cam.cam_frame().cloned() else { return };
         // Approximate DVP: 5% blanking, then half a period of active pixels.
-        let position = |phase: u64| ((phase.saturating_sub(cam.frame_start.saturating_add(cam.frame_cycles / 20)) * frame.len() as u64 * 2) / cam.frame_cycles.max(1)).min(frame.len() as u64) as usize;
-        let (start, end) = (position(before), position(cam.acc));
+        let position = |phase| camera_byte_position(phase, cam.frame_start, cam.frame_cycles, frame.len());
+        let end = position(cam.acc);
+        let start = position(before).min(end);
         if start == end { return; }
         // IDF v5.5.4 soc/lcd_cam_reg.h: BIT_ORDER bit 6, 2BYTE_EN bit 24,
         // VH_DE_MODE_EN bit 28, REC_DATA_BYTELEN bits 0..15 (encoded length - 1).
@@ -664,8 +665,12 @@ impl SocBus {
         let mut walk = DescriptorWalk::new(GDMA_DESCRIPTOR_STEP_BUDGET);
         while pos < data.len() || (finish && self.periph.gdma.inp[ch].rx_eof_pos != 0) {
             let mut r = self.periph.gdma.inp[ch];
-            // IDF v5.5.4 soc/gdma_reg.h: IN_DSCR_EMPTY bit 4, CHECK_OWNER bit 12.
-            if r.desc == 0 { self.periph.gdma.inp[ch].int_raw |= 1 << 4; return Err(()); }
+            // IDF v5.5.4 soc/gdma_reg.h: IN_DSCR_EMPTY bit 4 means data remains
+            // but there is no more inlink; CHECK_OWNER is bit 12.
+            if r.desc == 0 {
+                if pos < data.len() { self.periph.gdma.inp[ch].int_raw |= 1 << 4; }
+                return Err(());
+            }
             let (control, d) = walk.read(self, r.desc).map_err(|_| ())?;
             if (r.conf1 & (1 << 12) != 0 && !d.owner_dma) || d.size == 0 || r.buf_pos > d.size { return Err(()); }
             let until_eof = eof_bytes.unwrap_or(u32::MAX).checked_sub(r.rx_eof_pos).filter(|n| *n != 0).ok_or(())?;
@@ -696,7 +701,7 @@ impl SocBus {
             // Keep a final full descriptor pending in VS_EOF mode until VSYNC marks it.
             if (eof || (r.buf_pos == d.size && (eof_bytes.is_some() || pos < data.len())))
                 && !self.dma_close_in(&mut r, control, d.next, eof) { return Err(()); }
-            if r.desc == 0 { r.running = false; r.int_raw |= 1 << 4; }
+            if r.desc == 0 { r.running = false; }
             self.periph.gdma.inp[ch] = r;
         }
         Ok(())
@@ -747,4 +752,11 @@ impl SocBus {
         self.irq_dirty = true;
     }
 
+}
+
+// Keep wide division out of the shared tick body when the camera is unused.
+#[inline(never)]
+fn camera_byte_position(phase: u64, frame_start: u64, frame_cycles: u64, bytes: usize) -> usize {
+    ((phase.saturating_sub(frame_start.saturating_add(frame_cycles / 20)) as u128 * bytes as u128 * 2)
+        / frame_cycles.max(1) as u128).min(bytes as u128) as usize
 }

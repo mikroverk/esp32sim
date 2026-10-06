@@ -98,3 +98,7 @@ Every round below is main / branch, in user CPU seconds. Warmup is excluded from
 | 7 | M→B | 25.919 / 25.650 | 36.465 / 35.938 | 2.532 / 2.514 | 3.467 / 3.465 |
 
 Instruction counts (including each S3 core) and console hashes are identical in every run. The ranges overlap; these samples do not resolve sub-percent costs or establish a precise speedup. They do not reproduce the reviewer’s separated +3–4% S3 hello ranges on an M5 Max. Raw samples and input/executable hashes are in [speed.json](speed.json).
+
+[Receive completion and overflow follow-up](review-2.md) records exact-fit
+interrupt checks, the slow-clock reproduction, still-image limits and fresh
+S3 hello/Pocket Tank measurements.
