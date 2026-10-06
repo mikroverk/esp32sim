@@ -108,6 +108,7 @@ gives the same bytes in any directory. From this directory, with ESP-IDF 5.5.4:
 
 ```sh
 for t in esp32s3 esp32c3 esp32c6; do
+  rm -rf build-$t sdkconfig.$t   # start clean: a kept sdkconfig.$t may hold your own network
   idf.py -B build-$t -DIDF_TARGET=$t -DSDKCONFIG=sdkconfig.$t \
     '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ci.defaults' build
   c=${t#esp32}; P=../../web/wasm/fw/public
@@ -120,9 +121,10 @@ done
 The build keeps the project's `c6_wifi_station.bin` name on every target. The ELFs are not
 committed, so the C6 test stubs `bb_init` by address: after a rebuild that changes the code,
 `riscv32-esp-elf-nm build-esp32c6/c6_wifi_station.elf | grep ' bb_init$'` gives the new one for
-`wifi_station_c6`. Then regenerate the goldens with `UPDATE_GOLDENS=1` and check that the station
+the `--stub` in `wifi_station_c6` (`cli/tests/goldens.rs`). Then regenerate the goldens with `UPDATE_GOLDENS=1` and check that the station
 lines and the WiFi and network counts stay the same. The licences of what the binaries contain
-are in `web/wasm/fw/public/wifi-station-NOTICE.txt`. This is firmware validation, not a
+are in `web/wasm/fw/public/wifi-station-NOTICE.txt`, taken from ESP-IDF 5.5.4; rebuilding with
+another ESP-IDF version means checking it against that version's `docs/en/COPYRIGHT.rst`. This is firmware validation, not a
 comparison with a physical radio.
 
 ## In the browser

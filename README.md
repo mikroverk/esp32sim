@@ -17,7 +17,7 @@ projects end to end. No cloud, no accounts. MIT.
 | Reported full-listing decoder checks | 977 k instructions, 0 mismatches | 161 k instructions, 0 mismatches | 126 k instructions, 0 mismatches |
 | Boots | ROM → bootloader → FreeRTOS → app | ROM → bootloader → FreeRTOS → app | ROM → bootloader → FreeRTOS → app |
 | Boards / displays | ST7735, ST7701S 480×480 + touch, WS2812, camera, audio | none — console only | ST7789 172×320 over SPI+DMA, WS2812, an 802.15.4 energy-detect stand-in |
-| WiFi | virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS | not modelled | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station, legacy rates) |
+| WiFi | virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station) | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station, legacy rates) |
 | Speed | block interpreter + **AArch64 JIT**, ~150–240 Minsn/s | plain interpreter (no block cache or JIT yet) — still well above real time on hello_world | same interpreter |
 | In the browser | yes (WebAssembly) | yes (WebAssembly) | yes (WebAssembly) |
 | Reported hardware comparisons | JTAG trace, 8000 steps after timing-loop resynchronization | console diff, 205/208 lines identical | console diff, 203/204 lines identical |
@@ -44,7 +44,7 @@ esp32sim/
   emu-core/       the Bus and Core traits, Trap, ClockTree, AArch64 encoder — shared by both cores
   esp-soc/        Machine<S: Soc>: scheduler, device time, console, scripts, web UI, loaders, boards —
                   one machine for every chip; a chip plugs in its cores, bus and interrupt routing;
-                  the virtual WiFi access point, the network behind it and the NAT, for the S3 and the C6
+                  the virtual WiFi access point, the network behind it and the NAT, for every chip
   esp-periph/     the peripheral IP the chips share (UART, systimer, TIMG, GPIO, SPI_MEM, GDMA, crypto,
                   I2S, RMT, I2C, …), the Device trait, and the device_set! table that mounts them
   ── ESP32-S3 (Xtensa LX7, dual core) ──
@@ -69,7 +69,8 @@ esp32sim/
   web/            browser UI (board drawing, console, audio, camera) + emu.js/worker.js for wasm
   hw/             JTAG differential-test scripts against a real board, captured C3 and C6 consoles
   examples/       hello_world (IDF, S3, C3 and C6), waveshare-cam (autopling run script + photo),
-                  wifi-station (S3) and c6-wifi-station, c6-radio-dashboard (WiFi + 802.15.4 on the C6 board)
+                  wifi-station (S3), c6-wifi-station (builds for the S3, C3 and C6; the WiFi goldens'
+                  firmware), c6-radio-dashboard (WiFi + 802.15.4 on the C6 board)
   tools/          PIE table generator (TRM-derived); bench.py (interleaved A/B benchmark);
                   wasm-build.sh (the WebAssembly module)
 ```
@@ -165,7 +166,7 @@ board's LVGL spectrum-scanner firmware runs end to end (`examples/waveshare-c6-l
 also sends and receives frames with the timing of the air, and `--cooja` makes the C6 an external
 mote of Cooja-NG, driven in exact lock-step over NDJSON (an unmodified Contiki-NG-on-IDF image
 exchanging broadcasts with emulated MSP430 nodes). WiFi works too: `--wifi` attaches the same
-virtual access point as on the S3 (see [WiFi](#wifi-esp32-s3-and-esp32-c6) below). See
+virtual access point as on the S3 (see [WiFi](#wifi-esp32-s3-c3-and-c6) below). See
 [docs/esp32c6.md](docs/esp32c6.md).
 
 ## Scripts (host actions at emulated time)
@@ -178,7 +179,7 @@ virtual access point as on the S3 (see [WiFi](#wifi-esp32-s3-and-esp32-c6) below
 5.0  stop
 ```
 
-## WiFi (ESP32-S3 and ESP32-C6)
+## WiFi (ESP32-S3, C3 and C6)
 
 `--wifi ssid=NAME[,psk=PASS,chan=N,bssid=..]` attaches a virtual access point that the **unmodified**
 Espressif WiFi blob associates with — scan, authentication, association and, with a passphrase, the
@@ -197,7 +198,8 @@ runs the esp32-screen energy panel: it joins, takes a lease, syncs its clock, fe
 electricity prices over **HTTPS** and polls a real Home Assistant on the LAN.
 [docs/networking-howto.md](docs/networking-howto.md) is the how-to (flags, debugging, limits);
 [docs/wifi-plan.md](docs/wifi-plan.md) and [docs/networking-plan.md](docs/networking-plan.md)
-describe how the MAC model and the packet path work.
+describe how the MAC model and the packet path work, and the Networking section of
+[docs/architecture.md](docs/architecture.md#networking) the layers every chip shares.
 
 The ESP32-C6 joins the same access point and the same network, through its own MAC model
 ([docs/wifi-c6-plan.md](docs/wifi-c6-plan.md)): one station, legacy rates, no power save.
@@ -210,6 +212,18 @@ B=examples/c6-wifi-station/build-emu
 ./target/release/esp32sim-c6 --boot rom --flash-mb 4 --board waveshare-c6-lcd147 --console usb \
     --bootloader $B/bootloader/bootloader.bin --ptable $B/partition_table/partition-table.bin \
     --app $B/c6_wifi_station.bin --elf $B/c6_wifi_station.elf --stub bb_init=0 \
+    --wifi ssid=esp32sim,psk=esp32sim-pass --max-seconds 14
+```
+
+The ESP32-C3 joins the same access point too, through a MAC model derived from the S3's. The
+same station example, built for each chip without the display, is committed under
+`web/wasm/fw/public/` as the input of the WiFi goldens (`wifi_station_{s3,c3,c6}` in
+`cli/tests/goldens.rs`), so it runs without a local build:
+
+```sh
+P=web/wasm/fw/public
+./target/release/esp32sim-c3 --boot rom --flash-mb 4 --console usb \
+    --bootloader $P/c3-wifi-bootloader.bin --ptable $P/c3-wifi-ptable.bin --app $P/c3-wifi_station.bin \
     --wifi ssid=esp32sim,psk=esp32sim-pass --max-seconds 14
 ```
 

@@ -158,6 +158,7 @@ so no ELF ships). See [wasm.md](wasm.md).
 | CPU | RV32IMAC, machine mode: the C3 core plus the A extension (`lr.w`/`sc.w`, the nine AMOs), `misa` says IMAC |
 | Interrupts | the interrupt matrix (77 sources → 31 lines) with its two front-ends: the PLIC at `0x20001000` that ESP-IDF drives and INTPRI at `0x600C5000` that the ROM uses, one state; the four `FROM_CPU` software interrupts |
 | Memory | 512 KB HP SRAM (one address space for code and data), 320 KB mask ROM, 16 KB LP SRAM, a 16 MB flash window through the 256-entry MMU programmed via SPI0's item index/content registers, page size from `MMU_POWER_CTRL` |
+| WiFi | an unmodified ESP-IDF station scans, joins the virtual access point (open or WPA2-PSK), takes a lease and talks to the virtual network or, with `--net nat`, the host's (`--wifi ssid=esp32sim,psk=esp32sim-pass`, as on the S3). The MAC model is `esp32c6/src/wifi.rs` (register map and differences from the S3 in [wifi-c6-plan.md](wifi-c6-plan.md)); the descriptors move in `bus.rs`; the access point, network, pacing and relay are the chips' shared `StationLink` (`esp-soc/src/wifi.rs`). The `wifi_station_c6` golden runs the committed `examples/c6-wifi-station` build in CI; the browser build runs it too (a manifest's `wifi`, without NAT) |
 | Peripherals | UART0/1, USB-Serial/JTAG, systimer, TIMG0/1, GPIO, efuse, SPI0/1 flash controller, SHA/AES/RSA, L1 cache controller, PCR, the LP blocks (LP_CLKRST reset cause, LP_AON store registers and software reset, LP_TIMER, LP_WDT registers), the analog I2C master (regi2c, with the RF block's status the PHY polls), ASSIST_DEBUG's saved PC, hardware RNG; for the board: RMT (the S3 transmitter on the C6's register map), GDMA (three channels, the S3 model behind the C6's layout), GP-SPI2 with its DMA data phase; the 802.15.4 MAC: energy detect, TX and RX of whole frames with the timing of the air, its two timers (below) |
 
 Peripheral models are **shared with the C3 and S3 through `esp-periph`** where the IP is the same:
@@ -348,14 +349,8 @@ machine wants to see, as the Xtensa block interpreter always did.
 - **`--boot app`** maps the image through the unified MMU and jumps to it, but the system
   registers the bootloader would have set up are not preset; ROM boot is the tested path.
 - **Watchdogs.** The LP_WDT and the TIMG watchdogs are register RAM: they never fire.
-- **WiFi**: an unmodified ESP-IDF station scans, joins the virtual access point (open or WPA2-PSK),
-  takes a lease and talks to the virtual network or, with `--net nat`, the host's:
-  `--wifi ssid=esp32sim,psk=esp32sim-pass`, the S3's option and the S3's access point
-  (`esp-soc/src/wifi.rs`). The MAC model is `wifi.rs`, the frames move in `bus.rs`;
-  `docs/wifi-c6-plan.md` has the register map and what differs from the S3. One station, legacy
-  rates, no power save, no TSF; the PHY calibration is the `bb_init` stub as for 802.15.4. The
-  specimen is `examples/c6-wifi-station`. It runs in the browser build too (a manifest's `wifi`,
-  as on the S3, without NAT); the example's README has the local manifest for it.
+- **WiFi** beyond one station: legacy rates only, no power save, no TSF; the PHY calibration is
+  the `bb_init` stub as for 802.15.4.
 - **BLE, the LP core** — nothing of that radio or the second core is modelled. The
   802.15.4 MAC sends, receives, acknowledges and filters (above); enhanced ACKs and security are not there.
 - **Peripherals on demand**: GDMA, I2C, SPI2, RMT, ADC, TWAI, PARL_IO. Each shows up as an
