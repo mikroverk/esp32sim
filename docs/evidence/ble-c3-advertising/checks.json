@@ -1,0 +1,134 @@
+{
+  "source": "fced1b8214ecd6944412d0467cae1f58e33485f6",
+  "rust": "1.99.0, explicit selection; default unchanged",
+  "checks": [
+    {
+      "command": "cargo +1.99.0 build --release --workspace",
+      "result": "pass"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "result": "pass",
+      "detail": "warnings denied"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": "pass",
+      "detail": "warnings denied"
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=\"$PWD/web/wasm/fw\" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "result": "pass",
+      "detail": {
+        "passed": 612,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "result": "pass",
+      "detail": {
+        "passed": 593,
+        "failed": 0,
+        "ignored": 33
+      }
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "result": "pass",
+      "detail": "production WASM build"
+    },
+    {
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "result": "pass",
+      "detail": "all eight pass"
+    },
+    {
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+      "result": "pass",
+      "detail": "virtual-quantum scheduler tests pass"
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 sh -c ' . ./tools/wasm-rustflags.sh; cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile'",
+      "result": "pass",
+      "detail": "profiling features compile with production flags"
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "result": "pass"
+    },
+    {
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/worker-pacing-test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/worker-channel-test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test tools/touch-input-test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test tools/wasm-build-policy.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test tools/browser-benchmark/*.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+      "result": "pass"
+    },
+    {
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "result": "pass",
+      "detail": "19 events, 57 PDUs, valid polling buffers and post-boot enable rejection"
+    },
+    {
+      "command": "tools/wasm-jit-test.sh",
+      "result": "not applicable",
+      "detail": "No JIT source changed."
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "result": "pass",
+      "detail": "1628 tracked evidence files checked, including 20 gzip files; manual review found no local paths in new text or firmware binaries."
+    }
+  ],
+  "existing_goldens": "unchanged",
+  "new_goldens": [
+    "ble-advertiser-c3.insns",
+    "ble-advertiser-c3.observer.txt"
+  ]
+}

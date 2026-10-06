@@ -1,0 +1,20 @@
+{
+  "checks": "pass",
+  "module_sha256": "e77e77d6fa3db7878dcfab05b528116e51a8b8a898301bc1ef98fce74b508686",
+  "modeled_seconds": 2,
+  "packets": 57,
+  "events": 19,
+  "first_five_event_hus": [
+    101250,
+    305000,
+    511250,
+    730000,
+    933750
+  ],
+  "interval_us": {
+    "min": 101250,
+    "max": 110000
+  },
+  "sample": "[ble-air] hus=101250 channel=37 type=ADV_SCAN_IND AdvA=3c:84:27:b6:a7:1e service=180f name=\"esp32sim\" flags=0x06 pdu=26171ea7b627843c02010603030f180909657370333273696d",
+  "configured": "[ble-config] SCAN_RSP  data="
+}
