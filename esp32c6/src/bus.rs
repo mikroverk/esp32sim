@@ -235,39 +235,20 @@ impl SocBus {
             if self.periph.wifi_mac.log || self.debug.has("wifi-frames") { eprintln!("[wifi] TX queue {} desc {:#010x} {}", queue, desc, esp_soc::wifi::describe(&frame)); }
             let mac = &mut self.periph.wifi_mac;
             mac.tx_done(queue);
-            if let Some(ap) = &mut mac.ap {
-                if let Some(data) = ap.on_station_tx(&frame, now_us) {
-                    if let Some(eth) = esp_soc::wifi::data_to_eth(&data) { if !mac.relay || (eth.len() <= 1518 && mac.eth_tx.len() < 64) { mac.eth_tx.push(eth); } else { mac.tx_dropped += 1; } }
-                }
-            }
+            mac.link.station_tx(&frame, now_us);
             self.irq_dirty = true;
         }
     }
 
     /// The virtual air: what the access point has due (beacons, responses) and what the network
-    /// sends the station, one frame at a time into the RX ring. The pacing is the S3's, for the
-    /// same library behaviour: a frame is only indicated up the stack while the ring is shallow,
-    /// so wait until software has recycled the last descriptor — but not for ever.
+    /// sends the station, one frame at a time into the RX ring, paced as on the other chips
+    /// (`StationLink::next_rx`).
     fn wifi_air_step(&mut self) {
         let now_us = self.now_us();
-        let (last_us, last_desc) = (self.periph.wifi_mac.last_rx_us, self.periph.wifi_mac.last_rx_desc);
-        if now_us.wrapping_sub(last_us) < 400 { return; }
-        let busy = last_desc != 0 && self.sram32(last_desc) & (1 << 30) != 0;
-        if busy && now_us.wrapping_sub(last_us) < 50_000 { return; }
-        let mac = &mut self.periph.wifi_mac;
-        let Some(ap) = mac.ap.as_mut() else { return };
-        let mut due = ap.step(now_us);
-        let eth_in = if mac.relay {
-            if due.is_empty() && !mac.eth_rx.is_empty() { vec![mac.eth_rx.remove(0)] } else { Vec::new() }
-        } else { std::mem::take(&mut mac.eth_rx) };
-        for e in eth_in {
-            if let Some(f) = ap.data_from_ds(&e) { due.push(esp_soc::wifi::AirFrame { at_us: now_us, frame: f }); }
-        }
-        if due.is_empty() { return; }
-        due.sort_by_key(|a| (esp_soc::wifi::is_beacon(&a.frame), a.at_us));   // a connect exchange goes before beacons
-        let first = due.remove(0);
-        ap.queue.extend(due);
-        self.wifi_rx_deliver(&first.frame, now_us);
+        if self.periph.wifi_mac.link.nothing_due(now_us) { return; }
+        let last_desc = self.periph.wifi_mac.link.last_rx_desc();
+        let busy = last_desc != 0 && self.sram32(last_desc) & esp_soc::wifi::RX_DESC_HAS_DATA != 0;
+        if let Some(frame) = self.periph.wifi_mac.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }
     }
 
     /// One received frame into the next RX descriptor, behind the control header this MAC puts in
@@ -280,13 +261,13 @@ impl SocBus {
     fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64) {
         const RX_CTRL: usize = 92;
         let mac = &self.periph.wifi_mac;
-        if mac.rx_next == 0 { self.periph.wifi_mac.rx_dropped += 1; return; }
+        if mac.rx_next == 0 { self.periph.wifi_mac.link.drop_rx(); return; }
         let desc = mac.addr(mac.rx_next);
-        let log = mac.ap.as_ref().is_some_and(|ap| ap.log);
+        let log = mac.link.ap().is_some_and(|ap| ap.log);
         let (dw0, buf, next) = (self.sram32(desc), self.sram32(desc.wrapping_add(4)), self.sram32(desc.wrapping_add(8)));
         let total = RX_CTRL + frame.len() + 4;
         // hardware-owned, empty, and big enough (size is the low 14 bits)
-        if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.rx_dropped += 1; return; }
+        if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.link.drop_rx(); return; }
         let group = frame.len() >= 5 && frame[4] & 1 == 1;
         let mut words = [0u32; RX_CTRL / 4];
         words[0] = 0xd8 | 1 << 28 | if group { 0 } else { 1 << 29 };   // rssi -40 dBm, 1 Mbps legacy; match 0, and match 1 for our own address
@@ -297,27 +278,12 @@ impl SocBus {
         let mut b: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
         b.extend_from_slice(frame);
         b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
-        if !self.sram_store(buf, &b) { self.periph.wifi_mac.rx_dropped += 1; return; }
+        if !self.sram_store(buf, &b) { self.periph.wifi_mac.link.drop_rx(); return; }
         let filled = (dw0 & !(0x3fff << 14)) | (total as u32) << 14 | 1 << 30;           // length, has_data; size and owner stay
         self.sram_store(desc, &filled.to_le_bytes());
-        self.periph.wifi_mac.rx_filled(desc, next, now_us);
+        self.periph.wifi_mac.rx_filled(desc, next);
         if log { eprintln!("[wifi] RX -> desc {:#010x} (was {:#010x}, next {:#010x}) buf {:#010x} {}", desc, dw0, next, buf, esp_soc::wifi::describe(frame)); }
         self.irq_dirty = true;
-    }
-
-    /// The network behind the access point: what the station sent is answered at once, the host
-    /// sockets are read every 500 us (syscalls every round would cost more than the CPU).
-    fn wifi_net_step(&mut self) {
-        let now_us = self.now_us();
-        let mac = &mut self.periph.wifi_mac;
-        if mac.relay { return; }
-        let Some(net) = mac.net.as_mut() else { return };
-        let out = std::mem::take(&mut mac.eth_tx);
-        let due = now_us.wrapping_sub(mac.net_polled_us) >= 500;
-        if out.is_empty() && !due { return; }
-        if due { mac.net_polled_us = now_us; }
-        for e in out { let r = net.handle(&e, now_us); mac.eth_rx.extend(r); }
-        let r = net.poll(now_us); mac.eth_rx.extend(r);
     }
 
     fn spi2_dma_tx(&mut self) {
@@ -465,7 +431,7 @@ impl SocBus {
         if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_tx(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi_mac.tx_pending.is_empty() { self.wifi_tx_step(); }
-        if self.periph.wifi_mac.ap.is_some() { self.wifi_air_step(); self.wifi_net_step(); }
+        if self.periph.wifi_mac.link.ap().is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi_mac.link.net_step(now_us); }
         self.deliver_board_events();
     }
 }

@@ -12,7 +12,7 @@ const STATION: [u8; 6] = [0xdc, 0x1e, 0xd5, 0x6e, 0x8c, 0xdc];
 fn run_ms(m: &mut esp32c6::Machine, ms: u32) { for _ in 0..ms { m.bus.tick(160_000); } }
 fn machine_with_ap() -> esp32c6::Machine {
     let mut m = esp32c6::machine(STATION, 4 << 20);
-    m.bus.periph.wifi_mac.ap = Some(VirtualAp::new(ApConfig::parse("").unwrap(), false));
+    m.bus.periph.wifi_mac.link.attach(Some(VirtualAp::new(ApConfig::parse("").unwrap(), false)), None);
     m
 }
 
@@ -103,8 +103,8 @@ fn a_beacon_fills_the_next_rx_descriptor() {
     run_ms(&mut m, 110);
     assert_eq!(m.bus.read32(d1).unwrap() >> 30, 3);
     run_ms(&mut m, 110);
-    assert_eq!(m.bus.periph.wifi_mac.rx_frames, 2, "both descriptors are full; nothing is overwritten");
-    assert!(m.bus.periph.wifi_mac.rx_dropped > 0);
+    assert_eq!(m.bus.periph.wifi_mac.link.rx_frames(), 2, "both descriptors are full; nothing is overwritten");
+    assert!(m.bus.periph.wifi_mac.link.rx_dropped() > 0);
 }
 
 /// A probe request leaves queue 0: the packet is an 8-byte header (the frame's length in its
@@ -128,12 +128,12 @@ fn a_probe_request_leaves_its_tx_queue_and_is_answered() {
     assert_eq!(m.bus.read32(MAC + 0xd6c).unwrap() >> 30, 0, "the start bits are the hardware's to clear");
     m.bus.write32(MAC + 0xcb4, 1).unwrap();
     assert_eq!(m.bus.read32(MAC + 0xcb8).unwrap(), 0);
-    assert_eq!(m.bus.periph.wifi_mac.ap.as_ref().unwrap().stats.1, 1, "one probe response");
+    assert_eq!(m.bus.periph.wifi_mac.link.ap().unwrap().stats.1, 1, "one probe response");
 
     // +0xCB8 and +0xC8C are 16-byte steps below queue 0 too, but past queue 10: not queues
     m.bus.write32(MAC + 0xc8c, 0xc000_0000).unwrap();
     run_ms(&mut m, 1);
-    assert_eq!(m.bus.periph.wifi_mac.tx_frames, 1);
+    assert_eq!(m.bus.periph.wifi_mac.link.tx_frames(), 1);
 }
 
 /// AES-128 ECB of the FIPS-197 vector through GDMA peripheral 6, which is how ESP-IDF's driver

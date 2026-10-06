@@ -83,16 +83,14 @@ impl Device for ModemBb {
 ///
 /// The access point and the network behind it are the chip-independent ones from `esp-soc`; the
 /// bus moves frames between them and the guest's descriptors (`bus.rs`).
-pub struct WifiMac { pub relay: bool,
+pub struct WifiMac {
     ram: RegRam,
     pub log: bool,
     pub events: u32,
     pub rx_base: u32, pub rx_next: u32, pub rx_last: u32,
-    pub rx_frames: u64, pub rx_dropped: u64, pub tx_dropped: u64,
-    pub txq_complete: u32, pub tx_pending: Vec<(u8, u32)>, pub tx_frames: u64,
-    pub ap: Option<esp_soc::wifi::VirtualAp>, pub net: Option<esp_soc::net::VirtualNet>,
-    pub eth_tx: Vec<Vec<u8>>, pub eth_rx: Vec<Vec<u8>>,
-    pub last_rx_us: u64, pub last_rx_desc: u32, pub net_polled_us: u64,
+    pub txq_complete: u32, pub tx_pending: Vec<(u8, u32)>,
+    /// the access point, the network and the counts, shared with the other chips
+    pub link: esp_soc::wifi::StationLink,
 }
 impl Default for WifiMac { fn default() -> Self { Self::new() } }
 
@@ -118,9 +116,7 @@ const SRAM_HIGH: u32 = 0x4080_0000;
 
 impl WifiMac {
     pub fn new() -> Self {
-        WifiMac { relay: false, ram: RegRam::new(), log: false, events: 0, rx_base: 0, rx_next: 0, rx_last: 0, rx_frames: 0, rx_dropped: 0, tx_dropped: 0,
-                  txq_complete: 0, tx_pending: Vec::new(), tx_frames: 0, ap: None, net: None, eth_tx: Vec::new(), eth_rx: Vec::new(),
-                  last_rx_us: 0, last_rx_desc: 0, net_polled_us: 0 }
+        WifiMac { ram: RegRam::new(), log: false, events: 0, rx_base: 0, rx_next: 0, rx_last: 0, txq_complete: 0, tx_pending: Vec::new(), link: Default::default() }
     }
     /// A descriptor address from the 20 bits a register holds.
     pub fn addr(&self, low: u32) -> u32 { SRAM_HIGH | (low & 0xf_ffff) }
@@ -129,14 +125,13 @@ impl WifiMac {
     }
     /// The hardware sent the frame in `queue`.
     pub fn tx_done(&mut self, queue: u8) {
-        self.txq_complete |= 1 << queue; self.events |= EVENT_TX_DONE; self.tx_frames += 1;
+        self.txq_complete |= 1 << queue; self.events |= EVENT_TX_DONE;
         let off = TXQ0 - TXQ_STRIDE * queue as u32;
         let v = self.ram.read(off); self.ram.write(off, v & !(3 << 30));
     }
     /// The hardware filled `desc` and moved on to `next`.
-    pub fn rx_filled(&mut self, desc: u32, next: u32, now_us: u64) {
-        self.rx_last = desc & 0xf_ffff; self.rx_next = next & 0xf_ffff; self.last_rx_desc = desc; self.last_rx_us = now_us;
-        self.rx_frames += 1; self.events |= EVENT_RX;
+    pub fn rx_filled(&mut self, desc: u32, next: u32) {
+        self.rx_last = desc & 0xf_ffff; self.rx_next = next & 0xf_ffff; self.link.rx_delivered(desc); self.events |= EVENT_RX;
     }
 }
 
@@ -147,7 +142,7 @@ impl Device for WifiMac {
             MAC_EVENTS => self.events,
             RX_BASE => self.rx_base & 0xf_ffff, RX_NEXT => self.rx_next & 0xf_ffff, RX_LAST => self.rx_last,
             TXQ_COMPLETE => self.txq_complete,
-            ADDR_HIGH => if self.last_rx_desc != 0 { self.last_rx_desc } else { SRAM_HIGH },
+            ADDR_HIGH => if self.link.last_rx_desc() != 0 { self.link.last_rx_desc() } else { SRAM_HIGH },
             TXQ_COMPLETE_CLR => 0,
             _ => self.ram.read(off),
         };

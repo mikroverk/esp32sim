@@ -75,21 +75,22 @@ pub const SRC_WIFI_MAC: usize = 0;
 ///       bits 31:30 start the transmission. Completion: TXQ_STATE_COMPLETE (0xcc8) bit n, cleared via 0xcc4;
 ///       DMA_INT_STATUS (0xc48) bit 7, cleared via 0xc4c.
 ///   RX: descriptor ring base at 0x088 (dma_list_item: size:12 length:12 _:6 has_data:1 owner:1, packet, next).
-pub struct WifiMac { pub relay: bool, pub ram: RegRam, pub ram2: RegRam, pub log: bool,
+pub struct WifiMac { pub ram: RegRam, pub ram2: RegRam, pub log: bool,
                      /// TSF: 1 MHz counter (offset applied to the CPU cycle clock), latched into WDEV 0x18/0x1c
                      pub tsf_offset: i64, pub tsf_latched: u64, pub now_cycles: u64,
                      /// interrupt events (0xc3c; cleared by writing 0xc40): bit 7 = TX complete, bits 14/24 = RX data (libpp wDev_ProcessFiq)
                      pub events: u32, pub pwr_events: u32,
                      /// per-queue completion bitmap (0xca8 bits 10:0, cleared via 0xca4)
                      pub txq_complete: u32, pub txq_error: u32,
-                     pub tx_pending: Vec<(u8, u32)>, pub tx_frames: u64,
+                     pub tx_pending: Vec<(u8, u32)>,
                      /// RX descriptor ring: base written by the driver (0x088), the descriptor the hardware fills next, the last one filled
-                     pub rx_base: u32, pub rx_next: u32, pub rx_last: u32, pub rx_frames: u64, pub rx_dropped: u64, pub tx_dropped: u64,
-                     pub ap: Option<crate::wifi::VirtualAp>, pub eth_tx: Vec<Vec<u8>>, pub eth_rx: Vec<Vec<u8>>, pub last_rx_us: u64, pub net_polled_us: u64, pub last_rx_desc: u32, pub net: Option<crate::net::VirtualNet> }
+                     pub rx_base: u32, pub rx_next: u32, pub rx_last: u32,
+                     /// the access point, the network and the counts, shared with the other chips
+                     pub link: crate::wifi::StationLink }
 impl Default for WifiMac { fn default() -> Self { Self::new() } }
 
 impl WifiMac {
-    pub fn new() -> Self { WifiMac { relay: false, ram: RegRam::new(), ram2: RegRam::new(), log: false, tsf_offset: 0, tsf_latched: 0, now_cycles: 0, rx_base: 0, rx_next: 0, rx_last: 0, rx_frames: 0, rx_dropped: 0, tx_dropped: 0, ap: None, eth_tx: Vec::new(), eth_rx: Vec::new(), last_rx_us: 0, net_polled_us: 0, last_rx_desc: 0, net: None, events: 0, pwr_events: 0, txq_complete: 0, txq_error: 0, tx_pending: Vec::new(), tx_frames: 0 } }
+    pub fn new() -> Self { WifiMac { ram: RegRam::new(), ram2: RegRam::new(), log: false, tsf_offset: 0, tsf_latched: 0, now_cycles: 0, rx_base: 0, rx_next: 0, rx_last: 0, events: 0, pwr_events: 0, txq_complete: 0, txq_error: 0, tx_pending: Vec::new(), link: Default::default() } }
     pub fn irq(&self) -> bool { self.events != 0 || self.pwr_events != 0 }
     /// TX queue n has its PLCP0 register at 0xd08 - 8n (hal_mac_txq_enable: (0x0c0067a1 - n) << 3).
     fn txq_of(off: u32) -> Option<u8> { if off <= 0xd08 && (0xd08 - off).is_multiple_of(8) && (0xd08 - off) / 8 < 16 { Some(((0xd08 - off) / 8) as u8) } else { None } }
@@ -150,7 +151,7 @@ impl WifiMac {
     }
     /// Hardware finished sending the frame in `queue`.
     pub fn tx_done(&mut self, queue: u8) {
-        self.txq_complete |= 1 << queue; self.events |= 1 << 7; self.tx_frames += 1;
+        self.txq_complete |= 1 << queue; self.events |= 1 << 7;
         let o = 0xd08 - 8 * queue as u32; let v = self.ram.read(o); self.ram.write(o, v & !(3 << 30));
         // result word (hal_mac_get_txq_pmd): bits 15:12 = status code, 0 = success (3 would trap the blob)
         let r = 0x320 - 76 * queue as u32; let w = self.ram2.read(r); self.ram2.write(r, w & !(0xf << 12));
@@ -479,7 +480,7 @@ impl DeviceSet for Peripherals {
             0xc2 if !write => self.intmatrix.status = self.source_status(),   // INTERRUPT_*_STATUS reads the live sources
             0x35 => self.wifi.now_cycles = self.clock.cycles(),               // TSF timestamps
             0x08 => self.rtc.now_cycles = self.clock.cycles(),                // SENS ADC samples analog sources at this time
-            0x06 => self.fe.done = self.wifi.ap.is_some(),                    // IQ estimation completes once there is an AP
+            0x06 => self.fe.done = self.wifi.link.ap().is_some(),                    // IQ estimation completes once there is an AP
             _ => {}
         }
     }

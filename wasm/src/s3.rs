@@ -19,23 +19,13 @@ pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize)
         Ok(spec) => spec,
         Err(_) => { log("[emu] wifi: configuration is not UTF-8"); return 1; }
     };
-    let cfg = match esp32s3::wifi::ApConfig::parse(spec) {
+    let cfg = match esp_soc::wifi::ApConfig::parse(spec) {
         Ok(cfg) => cfg,
         Err(reason) => { log(&format!("[emu] wifi: {reason}")); return 1; }
     };
     log(&format!("[emu] virtual AP '{}' ({}), subnet 10.0.2.0/24, no NAT in the browser", cfg.ssid, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" }));
-    if let Some(m) = e.m.s3_mut() {
-        m.bus.periph.wifi.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
-        m.bus.periph.wifi.net = Some(esp32s3::net::VirtualNet::new(m.bus.debug.has("net")));
-        m.bus.refresh_tick_budget();
-    } else if let Some(m) = e.m.c3_mut() {
-        m.bus.periph.wifi.ap = Some(esp_soc::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
-        m.bus.periph.wifi.net = Some(esp_soc::net::VirtualNet::new(m.bus.debug.has("net")));
-        m.bus.periph.refresh_work();
-    } else if let Some(m) = e.m.c6_mut() {                       // the same access point and network, behind the C6's MAC
-        m.bus.periph.wifi_mac.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
-        m.bus.periph.wifi_mac.net = Some(esp32s3::net::VirtualNet::new(m.bus.debug.has("net")));
-    }
+    // the same access point and network behind every chip's MAC; no NAT in the browser
+    if let Err(reason) = e.m.bus().attach_wifi(cfg, None) { log(&format!("[emu] wifi: {reason}")); return 1; }
     0
 }
 

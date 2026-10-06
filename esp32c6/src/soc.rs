@@ -39,21 +39,19 @@ impl esp_soc::SocBus for SocBus {
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles) }
+    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi_mac.link.attach_new(cfg, nat, &self.debug);
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
-        let mac = &mut self.periph.wifi_mac;
-        if mac.relay != enabled { mac.eth_tx.clear(); mac.eth_rx.clear(); mac.relay = enabled; }
+        self.periph.wifi_mac.link.set_relay(enabled);
         Ok(())
     }
     fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> {
-        if self.periph.wifi_mac.relay { std::mem::take(&mut self.periph.wifi_mac.eth_tx) } else { Vec::new() }
+        self.periph.wifi_mac.link.take_relay_frames()
     }
     fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
-        let mac = &mut self.periph.wifi_mac;
-        if !mac.relay || mac.ap.is_none() { return Err("Ethernet relay requires relay mode and a virtual AP".into()); }
-        if !(14..=1518).contains(&frame.len()) { return Err("Ethernet frame must be 14..=1518 bytes without FCS".into()); }
-        if mac.eth_rx.len() >= 64 { return Err("Ethernet receive queue full".into()); }
-        mac.eth_rx.push(frame.to_vec());
-        Ok(())
+        self.periph.wifi_mac.link.receive_relay_frame(frame)
     }
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> {
@@ -123,7 +121,7 @@ impl esp_soc::SocBus for SocBus {
         p.spi1.0.jedec = old.spi1.0.jedec;
         p.gpio.strap = old.gpio.strap;      // strapping pins are board wiring, not chip state
         // The access point and the network behind it are the world outside the chip.
-        p.wifi_mac.ap = old.wifi_mac.ap; p.wifi_mac.net = old.wifi_mac.net; p.wifi_mac.log = old.wifi_mac.log; p.wifi_mac.relay = old.wifi_mac.relay;
+        p.wifi_mac.link = old.wifi_mac.link.surviving_reboot(); p.wifi_mac.log = old.wifi_mac.log;
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;
@@ -193,9 +191,8 @@ impl esp_soc::SocBus for SocBus {
         if self.periph.rmt.rmt.tx_count > 0 { r.push(format!("[emu] rmt: {} transmissions", self.periph.rmt.rmt.tx_count)); }
         if self.periph.radio.scans > 0 { r.push(format!("[emu] 802.15.4: {} energy scans, last channel {} = {} dBm", self.periph.radio.scans, self.periph.radio.channel(), self.periph.radio.ed_rss)); }
         let b = self.board.report(); if !b.is_empty() { r.push(b); }
-        let w = &self.periph.wifi_mac;
-        let wifi = esp_soc::wifi::report(w.tx_frames, w.rx_frames, w.rx_dropped, w.ap.as_ref(), w.net.as_ref());
-        if !wifi.is_empty() { r.push(wifi.trim_end().to_string()); }
+        let wifi = self.periph.wifi_mac.link.report();
+        if !wifi.is_empty() { r.push(wifi); }
         r.join("\n")
     }
 }

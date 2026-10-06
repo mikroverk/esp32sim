@@ -139,7 +139,7 @@ fn idle_rounds_skip_feature_work() {
     m.bus.write32(0x60033d08, (1 << 31) | 0x90000).unwrap();
     assert!(m.bus.periph.work_pending);
     m.bus.tick(160);
-    assert_eq!(m.bus.periph.wifi.tx_frames, 1);
+    assert_eq!(m.bus.periph.wifi.link.tx_frames(), 1);
     assert!(!m.bus.periph.work_pending, "the completed TX leaves no idle work");
     assert_eq!(m.bus.periph.source_status()[0] & 1, 1);
     m.bus.write32(0x60033c40, u32::MAX).unwrap();
@@ -150,11 +150,11 @@ fn idle_rounds_skip_feature_work() {
 fn configured_ap_keeps_work_scheduled_across_reboot() {
     use esp_soc::SocBus;
     let mut m = esp32c3::machine(STATION, 4 << 20);
-    m.bus.periph.wifi.ap = Some(esp_soc::wifi::VirtualAp::new(esp_soc::wifi::ApConfig::parse("").unwrap(), false));
+    m.bus.periph.wifi.link.attach(Some(esp_soc::wifi::VirtualAp::new(esp_soc::wifi::ApConfig::parse("").unwrap(), false)), None);
     m.bus.periph.refresh_work();
     assert!(m.bus.periph.work_pending);
     m.bus.reboot(STATION);
     assert!(m.bus.periph.work_pending);
     m.bus.tick(16_000_000);
-    assert_eq!(m.bus.periph.wifi.ap.as_ref().unwrap().stats.0, 1);
+    assert_eq!(m.bus.periph.wifi.link.ap().unwrap().stats.0, 1);
 }

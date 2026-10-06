@@ -739,10 +739,10 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
         ("lcd", |p| { p.lcd_cam.lcd_user |= 1 << 27; p.lcd_cam.lcd_ctrl |= 1 << 31; }),
         ("gdma-out", |p| p.gdma.out[0].running = true),
         ("wifi-tx", |p| p.wifi.tx_pending.push((0, 0))),
-        ("wifi-ap", |p| p.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+        ("wifi-ap", |p| p.wifi.link.attach(Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
             ssid: "test".into(), bssid: [0; 6], channel: 1, psk: None,
-        }, false))),
-        ("network", |p| p.wifi.net = Some(crate::net::VirtualNet::new(false))),
+        }, false)), None)),
+        ("network", |p| p.wifi.link.attach(None, Some(crate::net::VirtualNet::new(false)))),
         ("aes", |p| p.aes.dma_pending = true),
         ("sha", |p| p.sha.dma_pending = true),
         ("spi-dma", |p| p.spi2.dma_tx_pending = Some(8)),
@@ -846,17 +846,17 @@ fn periodic_tick_notifies_wifi_tx_and_air_rx() {
     assert!(bus.periph.wifi.irq());
 
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
-    bus.periph.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+    bus.periph.wifi.link.attach(Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
         ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None,
-    }, false));
-    bus.periph.wifi.ap.as_mut().unwrap().queue.push(crate::wifi::AirFrame { at_us: 0, frame: vec![0; 24] });
+    }, false)), None);
+    bus.periph.wifi.link.ap_mut().unwrap().queue.push(crate::wifi::AirFrame { at_us: 0, frame: vec![0; 24] });
     bus.periph.wifi.rx_next = FIRST_DESC & 0xfffff;
     bus.write32(FIRST_DESC, 512 | (1 << 31)).unwrap();
     bus.write32(FIRST_DESC + 4, FIRST_DESC + 64).unwrap();
     bus.write32(FIRST_DESC + 8, 0).unwrap();
     bus.irq_dirty = false;
     assert_eq!(Bus::tick(&mut bus, (crate::periph::CPU_HZ / 1000) as u32), 1);
-    assert_eq!(bus.periph.wifi.rx_frames, 1);
+    assert_eq!(bus.periph.wifi.link.rx_frames(), 1);
     assert!(bus.periph.wifi.irq());
 }
 

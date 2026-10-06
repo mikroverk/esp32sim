@@ -95,6 +95,11 @@ pub trait SocBus: Bus {
     fn ble_enabled(&self) -> bool { false }
     fn ble_pending_commands(&self) -> usize { 0 }
     fn ble_command(&mut self, _command: &str) -> Result<(), String> { Err("BLE is not enabled".into()) }
+    /// Put a virtual access point (`--wifi`) and the network behind it, with `nat` to the host if
+    /// given, on the air the chip's WiFi MAC hears, logging as the bus's debug flags say. They
+    /// survive a guest reboot. A second call replaces them and restarts the link's queues, pacing
+    /// and counts; the relay mode stays.
+    fn attach_wifi(&mut self, _cfg: crate::wifi::ApConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
     /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }

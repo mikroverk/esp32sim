@@ -47,17 +47,15 @@ type BusCase = (Box<dyn SocBus>, u32, u32, u32, bool);
 
 fn buses() -> Vec<BusCase> {
     let mut s3 = esp32s3::bus::SocBus::new(1 << 20, 0, STA);
-    s3.periph.wifi.ap = Some(ap());
-    s3.periph.wifi.net = Some(VirtualNet::new(false));
-    s3.periph.wifi.net.as_mut().unwrap().nat = Some(esp_soc::nat::Nat::new(false));
+    s3.periph.wifi.link.attach(Some(ap()), Some(VirtualNet::new(false)));
+    s3.periph.wifi.link.net_mut().unwrap().nat = Some(esp_soc::nat::Nat::new(false));
     s3.refresh_tick_budget();
     let mut c3 = esp32c3::bus::SocBus::new(1 << 20, STA);
-    c3.periph.wifi.ap = Some(ap());
-    c3.periph.wifi.net = Some(VirtualNet::new(false));
+    c3.periph.wifi.link.attach(Some(ap()), Some(VirtualNet::new(false)));
+    c3.periph.refresh_work();
     let mut c6 = esp32c6::bus::SocBus::new(1 << 20, STA);
-    c6.periph.wifi_mac.ap = Some(ap());
-    c6.periph.wifi_mac.net = Some(VirtualNet::new(false));
-    c6.periph.wifi_mac.net.as_mut().unwrap().nat = Some(esp_soc::nat::Nat::new(false));
+    c6.periph.wifi_mac.link.attach(Some(ap()), Some(VirtualNet::new(false)));
+    c6.periph.wifi_mac.link.net_mut().unwrap().nat = Some(esp_soc::nat::Nat::new(false));
     vec![
         (Box::new(s3), 0x3fc90000, 0x60033000, 240_000, false),
         (Box::new(c3), 0x3fc90000, 0x60033000, 160_000, false),
@@ -211,20 +209,19 @@ fn relay_rx_backpressure_keeps_frames_until_the_next_tick() {
 #[test]
 fn s3_reboot_preserves_the_host_ap_and_network() {
     let mut bus = esp32s3::bus::SocBus::new(1 << 20, 0, STA);
-    bus.periph.wifi.ap = Some(ap());
     let mut net = VirtualNet::new(false);
     net.gw_ip = [10, 1, 2, 3]; net.dhcp_acks = 7;
     net.nat = Some(esp_soc::nat::Nat::new(false));
-    bus.periph.wifi.net = Some(net); bus.refresh_tick_budget();
+    bus.periph.wifi.link.attach(Some(ap()), Some(net)); bus.refresh_tick_budget();
     bus.reboot(STA);
-    let ap = bus.periph.wifi.ap.as_ref().expect("AP survives reboot");
+    let ap = bus.periph.wifi.link.ap().expect("AP survives reboot");
     assert_eq!(ap.sta, STA); assert_eq!(ap.state, StaState::Associated);
-    let net = bus.periph.wifi.net.as_ref().expect("network survives reboot");
+    let net = bus.periph.wifi.link.net().expect("network survives reboot");
     assert_eq!(net.gw_ip, [10, 1, 2, 3]); assert_eq!(net.dhcp_acks, 7); assert!(net.nat.is_some());
     transmit(&mut bus, 0x3fc90000, 0x60033000, false, &discover());
     bus.tick(240_000); bus.flush_ticks();
-    assert!(bus.periph.wifi.eth_tx.is_empty());
-    assert_eq!(bus.periph.wifi.ap.as_ref().unwrap().stats.2, 1);
+    assert!(bus.periph.wifi.link.eth_tx_pending() == 0);
+    assert_eq!(bus.periph.wifi.link.ap().unwrap().stats.2, 1);
 }
 
 #[test]
@@ -232,15 +229,15 @@ fn relay_tx_counts_oversize_and_full_queue_drops() {
     macro_rules! check {
         ($bus:expr, $wifi:ident, $ram:expr, $mac:expr, $cycles:expr, $c6:expr) => {{
             let mut bus = $bus;
-            bus.periph.$wifi.ap = Some(ap()); bus.set_ethernet_relay(true).unwrap();
+            bus.periph.$wifi.link.attach(Some(ap()), None); bus.set_ethernet_relay(true).unwrap();
             let mut frame = discover(); frame.resize(1519, 0);
             transmit(&mut bus, $ram, $mac, $c6, &frame); bus.tick($cycles); bus.flush_ticks();
-            assert_eq!(bus.periph.$wifi.tx_dropped, 1); assert!(bus.take_ethernet_frames().is_empty());
+            assert_eq!(bus.periph.$wifi.link.tx_dropped(), 1); assert!(bus.take_ethernet_frames().is_empty());
             frame.truncate(1518);
             for _ in 0..65 { transmit(&mut bus, $ram, $mac, $c6, &frame); bus.tick($cycles); bus.flush_ticks(); }
-            assert_eq!(bus.periph.$wifi.tx_dropped, 2); assert_eq!(bus.take_ethernet_frames().len(), 64);
+            assert_eq!(bus.periph.$wifi.link.tx_dropped(), 2); assert_eq!(bus.take_ethernet_frames().len(), 64);
             transmit(&mut bus, $ram, $mac, $c6, &frame); bus.tick($cycles); bus.flush_ticks();
-            assert_eq!(bus.periph.$wifi.tx_dropped, 2); assert_eq!(bus.take_ethernet_frames(), vec![frame]);
+            assert_eq!(bus.periph.$wifi.link.tx_dropped(), 2); assert_eq!(bus.take_ethernet_frames(), vec![frame]);
         }};
     }
     check!(esp32s3::bus::SocBus::new(1 << 20, 0, STA), wifi, 0x3fc90000, 0x60033000, 240_000, false);

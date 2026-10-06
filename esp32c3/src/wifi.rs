@@ -18,21 +18,12 @@ pub struct WifiMac {
     pub txq_complete: u32,
     pub txq_error: u32,
     pub tx_pending: Vec<(u8, u32)>,
-    pub tx_frames: u64,
     /// RX descriptor ring: base written by the driver (0x088), the descriptor the hardware fills next, the last one filled
     pub rx_base: u32,
     pub rx_next: u32,
     pub rx_last: u32,
-    pub rx_frames: u64,
-    pub rx_dropped: u64, pub tx_dropped: u64,
-    pub relay: bool,
-    pub ap: Option<esp_soc::wifi::VirtualAp>,
-    pub eth_tx: Vec<Vec<u8>>,
-    pub eth_rx: Vec<Vec<u8>>,
-    pub last_rx_us: u64,
-    pub net_polled_us: u64,
-    pub last_rx_desc: u32,
-    pub net: Option<esp_soc::net::VirtualNet>,
+    /// the access point, the network and the counts, shared with the other chips
+    pub link: esp_soc::wifi::StationLink,
 }
 
 impl WifiMac {
@@ -47,22 +38,12 @@ impl WifiMac {
             rx_base: 0,
             rx_next: 0,
             rx_last: 0,
-            rx_frames: 0,
-            rx_dropped: 0, tx_dropped: 0,
-            relay: false,
-            ap: None,
-            eth_tx: Vec::new(),
-            eth_rx: Vec::new(),
-            last_rx_us: 0,
-            net_polled_us: 0,
-            last_rx_desc: 0,
-            net: None,
             events: 0,
             pwr_events: 0,
             txq_complete: 0,
             txq_error: 0,
             tx_pending: Vec::new(),
-            tx_frames: 0,
+            link: Default::default(),
         }
     }
     pub fn irq(&self) -> bool {
@@ -165,7 +146,6 @@ impl WifiMac {
     pub fn tx_done(&mut self, queue: u8) {
         self.txq_complete |= 1 << queue;
         self.events |= 1 << 7;
-        self.tx_frames += 1;
         let o = 0xd08 - 8 * queue as u32;
         let v = self.ram.read(o);
         self.ram.write(o, v & !(3 << 30));

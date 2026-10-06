@@ -199,20 +199,23 @@ stops with `Halted` instead of waiting for host input.
 
 Nothing about the network is faked at the API level: the firmware runs Espressif's own closed
 `libpp`/`libnet80211` against a modelled MAC, and what comes out the other end is 802.11 frames.
-Five layers turn those into packets on the host's network:
+Six layers turn those into packets on the host's network:
 
 ```
 esp_wifi + libpp/libnet80211        unmodified blob, drives the MAC registers
-  WifiMac (periph.rs)               TX queues, RX descriptor ring, interrupt events, TSF
-  VirtualAp (wifi.rs)               beacons, probe/auth/assoc responses, WPA2 four-way handshake,
+  WifiMac (each chip)               TX queues, RX descriptor ring, interrupt events, TSF (S3/C3);
+                                    the S3's in periph.rs, the C3's and C6's in their wifi.rs
+  StationLink (esp-soc wifi.rs)     shared by the chips: RX pacing, network step, Ethernet relay
+  VirtualAp (esp-soc wifi.rs)       beacons, probe/auth/assoc responses, WPA2 four-way handshake,
                                     802.11 <-> Ethernet conversion, CCMP framing
   VirtualNet (net.rs)               10.0.2.0/24: ARP, DHCP, ICMP echo, DNS, SNTP from the host clock
   Nat (nat.rs)                      everything past the gateway -> host sockets
 ```
 
-- **The air**: `wifi_air_step()` in `bus.rs` delivers one frame at a time into the RX ring —
-  spaced ~400 µs apart, and never before the driver has recycled the previous descriptor —
-  then raises the MAC's RX interrupt. Management frames are delivered ahead of beacons so a
+- **The air**: `StationLink::next_rx` (`esp-soc/src/wifi.rs`) picks one frame at a time —
+  spaced ~400 µs apart, and never before the driver has recycled the previous descriptor — and
+  each chip's `wifi_air_step()` in its `bus.rs` writes it into the RX ring with the chip's
+  descriptor and header layout, then raises the MAC's RX interrupt. Management frames are delivered ahead of beacons so a
   response never waits behind a beacon the ring may drop.
 - **Encryption**: the four-way handshake is real (PMK, PTK, MIC, AES-key-wrapped GTK), but data
   frames carry plaintext *framed* as CCMP — protected bit, 8-byte CCMP header with the right key
