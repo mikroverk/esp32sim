@@ -64,7 +64,7 @@ pub trait BoardModel {
     /// Devices on the I2C buses: (bus, 7-bit address, device).
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> { Vec::new() }
     /// Give the board's camera a picture to look at (RGB888).
-    fn set_camera_picture(&mut self, _p: crate::picture::Picture) {}
+    fn set_camera_picture(&mut self, _p: crate::picture::Picture) -> Result<(), &'static str> { Err("no camera on this board") }
     /// Next camera frame as the sensor would put it on the DVP bus (YUYV), with its size. None = no camera / nothing to show.
     fn camera_frame(&mut self) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> { None }
     /// Small RGB preview of what the camera is looking at (for the UI), if a picture is loaded.

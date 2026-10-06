@@ -194,3 +194,15 @@ fn committed_images_and_their_truncations() {
     let cuts: Vec<Vec<u8>> = (0..app.len().min(4096)).step_by(37).map(|n| app[..n].to_vec()).collect();
     no_panic("image::parse (truncated)", &|d| image::parse(d).is_ok(), &cuts);
 }
+
+#[test]
+fn camera_rgba_and_crop_never_panic() {
+    for (w, h) in [(0, 0), (1, 1), (2, 3), (4096, 4096), (u32::MAX, u32::MAX)] {
+        no_panic("picture::from_rgba", &|d| picture::Picture::from_rgba(w, h, d).is_some(), &inputs());
+    }
+    let p = picture::Picture { w: 1, h: 1, rgb: vec![1, 2, 3] };
+    for window in [[0; 4], [0, 0, u32::MAX, u32::MAX], [1, 1, 0, 0]] {
+        for size in [0, 1, u32::MAX] { let _ = picture::crop(&p, window, size, size); }
+    }
+    assert_eq!(picture::rgba_len(4096, 4096), None);
+}

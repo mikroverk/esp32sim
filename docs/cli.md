@@ -20,6 +20,7 @@ PSRAM and register presets.
 | `--chip s3\|c3\|c6` | which chip (default s3) |
 | `--rom F` | mask ROM ELF (default: the chip's in `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |
+| `--cam-stream PATH\|-`, `--cam-size WIDTHxHEIGHT` | live RGB24 camera source and its dimensions; requires `waveshare-cam` |
 | `--serial TEXT` | bytes into the USB-Serial/JTAG console before the run |
 | `--elf F` (repeatable) | symbols for logs/profiles (app ELF, bootloader ELF) |
 | `--flash-mb N`, `--psram-mb N` | flash size (JEDEC follows it) and octal PSRAM size (default 8 / 2) |
@@ -175,3 +176,39 @@ registers. Unsupported HCI commands return Unknown Command. The callback task
 and its storage stay allocated until reboot. C6 initializes the guest NPL support
 and a heap-backed mbuf pool; it uses no controller BSS reservation. Cost-model execution
 does not support function substitutions; reported cycle time is not radio timing.
+
+## Live camera input
+
+On `--board waveshare-cam`, `--cam-stream PATH --cam-size WIDTHxHEIGHT` reads
+consecutive RGB24 frames with no headers or row padding. Use `-` for stdin or a FIFO
+path for a producer in another process. Streaming enables real-time pacing, keeps only
+the latest complete input, and retains the last image at EOF. A truncated frame reports
+an error and leaves the previous image intact. This is a live source only: regular
+files are read as fast as possible, so the frames observed by firmware are not
+deterministic. Use `--cam-image` for deterministic still input. FIFO opening runs
+on the reader thread and never blocks emulator startup or shutdown. Input dimensions
+share the browser limit: an equivalent RGBA message must fit 8 MiB. This limit also applies to `--cam-image`. `--console` still selects firmware console output.
+
+For a macOS webcam, choose a video device with
+`ffmpeg -f avfoundation -list_devices true -i ''`, then replace `0` below with its index:
+
+```sh
+ffmpeg -f avfoundation -framerate 10 -video_size 640x480 -i '0:none' \
+  -an -pix_fmt rgb24 -f rawvideo - |
+  target/release/esp32sim --board waveshare-cam --boot rom \
+    --rom "$ROM" --bootloader "$BOOTLOADER" --ptable "$PTABLE" --app "$APP" \
+    --cam-stream - --cam-size 640x480 --no-dump
+```
+
+The firmware programs the OV5640 through SCCB. The model crops its sensor-array
+window, scales to its output dimensions with nearest-neighbour sampling, and emits
+RGB565 MSB first, YUYV422, or grayscale Y8. `--cam-image` still loads BMP or PPM;
+a live frame replaces that image through the same board hook. Without a host image,
+the configured sensor supplies black frames so firmware can initialize. `--cam-fps` controls
+emulated capture cadence independently of host updates. JPEG encoding and RAW Bayer
+are unsupported and produce no frame. Optical black pixels, ISP offsets, binning,
+mirror/flip, exposure and sensor clock calibration are not modeled.
+
+Camera crop/scale does not model ISP offsets (0x3810–0x3813), mirror/flip
+(0x3820/0x3821), or binning. Typical driver settings can differ from the sensor
+by about 2.5% horizontally and 1.6% vertically; mirror/flip is not applied.

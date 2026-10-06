@@ -222,16 +222,18 @@ impl Pcnt {
 }
 
 // ------------------------------------------------------------------ LCD_CAM (camera side)
-/// The camera engine of LCD_CAM: once started it pulls one frame per sensor period through the GDMA
-/// channel bound to trigger 5 (CAM). Only the register semantics the DVP driver needs are modelled.
-pub struct LcdCam { pub ram: RegRam, pub cam_ctrl: u32, pub cam_ctrl1: u32, pub int_raw: u32, pub int_ena: u32, pub running: bool,
+/// LCD_CAM captures sensor frames through GDMA trigger 5 while CAM_START is set.
+/// The sensor frame clock and VSYNC continue while capture is stopped.
+pub struct LcdCam { pub ram: RegRam, cam_ctrl: u32, pub cam_ctrl1: u32, pub int_raw: u32, int_ena: u32, running: bool,
                     pub frame_cycles: u64, pub acc: u64, pub frames: u64, pub dropped: u64,
                     // LCD side (RGB / DPI mode): the panel is refreshed from a GDMA out-channel on trigger 5
-                    pub lcd_clock: u32, pub lcd_user: u32, pub lcd_ctrl: u32, pub lcd_ctrl1: u32, pub lcd_acc: u64, pub lcd_frames: u64, pub lcd_line: Vec<u8>, pub lcd_fifo: std::collections::VecDeque<u8>, pub lcd_log: bool }
+                    pub lcd_clock: u32, pub lcd_user: u32, pub lcd_ctrl: u32, pub lcd_ctrl1: u32, pub lcd_acc: u64, pub lcd_frames: u64, pub lcd_line: Vec<u8>, pub lcd_fifo: std::collections::VecDeque<u8>, pub lcd_log: bool,
+                    cam_frame: Option<std::sync::Arc<Vec<u8>>>, cam_active: bool, cam_clock_active: bool,
+                    clock_enabled: bool, pub frame_dropped: bool, pub frame_start: u64 }
 impl Default for LcdCam { fn default() -> Self { Self::new() } }
 
 impl LcdCam {
-    pub fn new() -> Self { LcdCam { ram: RegRam::new(), cam_ctrl: 0, cam_ctrl1: 0, int_raw: 0, int_ena: 0, running: false, frame_cycles: CPU_HZ / 10, acc: 0, frames: 0, dropped: 0,
+    pub fn new() -> Self { LcdCam { ram: RegRam::new(), cam_ctrl: 0, cam_ctrl1: 0, int_raw: 0, int_ena: 0, running: false, cam_active: false, cam_clock_active: false, cam_frame: None, clock_enabled: false, frame_dropped: false, frame_start: 0, frame_cycles: CPU_HZ / 10, acc: 0, frames: 0, dropped: 0,
                                     lcd_clock: 0, lcd_user: 0, lcd_ctrl: 0, lcd_ctrl1: 0, lcd_acc: 0, lcd_frames: 0, lcd_line: Vec::new(), lcd_fifo: std::collections::VecDeque::new(), lcd_log: false } }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     /// LCD RGB mode running: LCD_START (USER bit 27) with LCD_RGB_MODE_EN (CTRL bit 31).
@@ -264,14 +266,27 @@ impl LcdCam {
                       if self.lcd_log { eprintln!("[lcd] USER <- {:#010x} (start {} reset {} update {})", v, v >> 27 & 1, v >> 28 & 1, v >> 20 & 1); } }
             0x18 => { if v & (1 << 27) != 0 { self.lcd_fifo.clear(); if self.lcd_log { eprintln!("[lcd] AFIFO reset"); } } self.ram.write(off, v); }   // LCD_MISC.AFIFO_RESET
             0x1c => self.lcd_ctrl = v, 0x20 => self.lcd_ctrl1 = v,
-            0x04 => { self.cam_ctrl = v & !(1 << 4); }                                                                          // CAM_UPDATE (self-clearing)
-            0x08 => { self.cam_ctrl1 = v & !(3 << 30); self.running = v & (1 << 29) != 0; if v & (1 << 30) != 0 { self.acc = 0; } }   // CAM_START / CAM_RESET
-            0x64 => self.int_ena = v, 0x70 => self.int_raw &= !v,
+            0x04 => { self.cam_ctrl = v & !(1 << 4); self.refresh_cam_active(); }                                                                          // CAM_UPDATE (self-clearing)
+            0x08 => { self.cam_ctrl1 = v & !(3 << 30); self.running = v & (1 << 29) != 0; if v & (1 << 30) != 0 { self.running = false; self.cam_ctrl1 &= !(1 << 29); } self.refresh_cam_active(); }   // CAM_START / CAM_RESET
+            0x64 => { self.int_ena = v; self.refresh_cam_active(); }, 0x70 => self.int_raw &= !v,
             _ => self.ram.write(off, v),
         }
     }
-    /// True when a new frame is due (advances the frame clock while streaming).
-    pub fn frame_due(&mut self, cycles: u64) -> bool { if !self.running { self.acc = 0; return false; } self.acc += cycles; if self.acc >= self.frame_cycles { self.acc -= self.frame_cycles; true } else { false } }
+    /// Cache activity at register/frame changes so idle ticks only read a flag.
+    fn refresh_cam_active(&mut self) {
+        // IDF v5.5.4 soc/lcd_cam_reg.h: CAM_CLK_SEL bits 29..30, zero disables XCLK.
+        self.cam_active = self.clock_enabled && (self.cam_ctrl >> 29) & 3 != 0 && (self.running || self.int_ena & (1 << 2) != 0);
+        self.cam_clock_active = self.clock_enabled && (self.cam_ctrl >> 29) & 3 != 0 && (self.cam_active || self.cam_frame.is_some());
+    }
+    pub fn cam_ctrl(&self) -> u32 { self.cam_ctrl }
+    pub fn cam_active(&self) -> bool { self.cam_active }
+    pub fn cam_clock_active(&self) -> bool { self.cam_clock_active }
+    pub fn running(&self) -> bool { self.running }
+    pub fn cam_frame(&self) -> Option<&std::sync::Arc<Vec<u8>>> { self.cam_frame.as_ref() }
+    pub fn set_cam_frame(&mut self, frame: Option<std::sync::Arc<Vec<u8>>>) { self.cam_frame = frame; self.frame_start = self.acc; self.refresh_cam_active(); }
+    pub fn set_clock_enabled(&mut self, enabled: bool) { self.clock_enabled = enabled; self.refresh_cam_active(); }
+    /// Advance the sensor clock independently of CAM_START and CAM_RESET.
+    pub fn frame_due(&mut self, cycles: u64) -> bool { self.acc = self.acc.saturating_add(cycles); if self.acc >= self.frame_cycles.max(1) { self.acc %= self.frame_cycles.max(1); true } else { false } }
 }
 
 // ------------------------------------------------------------------ EXTMEM (cache controller; MMU table lives in the bus)
@@ -549,6 +564,10 @@ impl Peripherals {
         let fx = mmio::write32(self, addr, v);
         if fx.contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if fx.contains(WriteEffect::INTMAP) { self.intmatrix_dirty = true; }
+        // ESP-IDF v5.5.4 soc/system_reg.h: PERIP_CLK_EN1/RST_EN1 LCD_CAM bit 8.
+        if addr == PERIPH_BASE + 0xc001c || addr == PERIPH_BASE + 0xc0024 {
+            self.lcd_cam.set_clock_enabled(self.system.read(0x1c) & (1 << 8) != 0 && self.system.read(0x24) & (1 << 8) == 0);
+        }
         if addr == PERIPH_BASE + 0xc0018 || addr == PERIPH_BASE + 0xc0020 {
             for (group, bit) in [17, 20].iter().enumerate() { self.mcpwm[group].clock_enabled = self.system.read(0x18) & (1 << bit) != 0 && self.system.read(0x20) & (1 << bit) == 0; }
             self.ledc.clock_enabled = self.system.read(0x18) & (1 << 11) != 0 && self.system.read(0x20) & (1 << 11) == 0;

@@ -1,0 +1,60 @@
+{
+  "candidate": "68068d9838fd6761106619f9ff74666d49b7f4fa",
+  "parent": "fb97f45059d9aa4e100629124a1c7ffc2a4edd5d",
+  "base": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
+  "source_sha256": {
+    "cli/src/lib.rs": "52562636660e05de2f84e439b734bf7748d1f59c4e60813e24b84fd6abe7744a",
+    "esp-soc/src/picture.rs": "e5def47df8296de5ab44dcadd392cdf7233e80a0884f833826c93f904a92b124",
+    "esp32s3/src/bus/dma.rs": "d8be5886300e1f469b51178d537d534fb728974bbf56ba57e2e37bd20ff7fb00",
+    "esp32s3/src/bus/dma_tests.rs": "b96deedc0882add6e975d6b5f67ef60fff0965f361fc5a29652cc535aca96215",
+    "tools/camera-cli-test.mjs": "eb111fd42b6023a081797e53bc555e2d5d4a661379a56251128e709d5cf0dd98"
+  },
+  "rust": "1.99.0",
+  "checks": {
+    "clippy_native": "pass, warnings denied",
+    "clippy_wasm": "pass, warnings denied",
+    "wasm": "pass: production build and all eight requested workloads",
+    "camera_cli": "PASS: per-chip camera flags and oversize still image rejected; FIFO without writer boots and exits at max-seconds; no web server",
+    "goldens": "unchanged",
+    "jit_suite": "not required: no JIT implementation changes",
+    "include_ignored": {
+      "passed": 619,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 14
+    },
+    "plain": {
+      "passed": 601,
+      "failed": 0,
+      "ignored": 32,
+      "measured": 0,
+      "filtered": 0
+    },
+    "evidence_privacy": "pass; staged evidence and manual diff review"
+  },
+  "before_fix": {
+    "aes_scatter": "exact interrupt assertion failed: 0x13 instead of 0x3",
+    "slow_camera": "release panic: slice start 14399999 greater than end 822783"
+  },
+  "public_driver": {
+    "expect": "frames",
+    "passed": true,
+    "serial": [
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00"
+    ],
+    "stdout_sha256": "b0011b04b138834fd6d6697ed6a9cfd328065f5af87b1a68d7eb146f6ba01bd2",
+    "emulator_sha256": "b841ea1994fa16caa1843bef7b573d3e7cbc6f73920b801fa377f0e9e1e8e1ba",
+    "image_sha256": "8dee30e2caa26a23f15a2e903788b34b4bd247a15ccb4feed7ec8b3db1bc71ee",
+    "script_sha256": "cddffebec8750ae80f744863a3deecb9a78d6d356f6098c7281ab7bd46be7f35"
+  }
+}

@@ -15,8 +15,8 @@ impl I2cDevice for Ch32v003 {
 }
 
 /// What the board needs to know about the sensor's configuration (written over SCCB).
-#[derive(Default, Debug)]
-pub struct SensorState { pub width: u32, pub height: u32, pub format: u8, pub streaming: bool }
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SensorState { pub width: u32, pub height: u32, pub format: u8, pub streaming: bool, pub window: Option<[u32; 4]>, pub jpeg: bool }
 
 /// OV5640 image sensor over SCCB: 16-bit register addresses, auto-increment.
 pub struct Ov5640 { pub regs: HashMap<u16, u8>, addr: u16, phase: u8, pub writes: u64, state: std::sync::Arc<std::sync::Mutex<SensorState>> }
@@ -26,7 +26,9 @@ impl Ov5640 {
         regs.insert(0x300a, 0x56); regs.insert(0x300b, 0x40);   // chip ID 0x5640
         regs.insert(0x3008, 0x02);                              // system control: normal
         regs.insert(0x302a, 0xb0);                              // silicon revision
-        Ov5640 { regs, addr: 0, phase: 0, writes: 0, state }
+        let sensor = Ov5640 { regs, addr: 0, phase: 0, writes: 0, state };
+        sensor.sync_state();
+        sensor
     }
     pub fn get(&self, r: u16) -> u8 { *self.regs.get(&r).unwrap_or(&0) }
     fn sync_state(&self) {
@@ -34,6 +36,15 @@ impl Ov5640 {
         st.width = ((self.get(0x3808) as u32 & 0xf) << 8) | self.get(0x3809) as u32;    // DVP output width
         st.height = ((self.get(0x380a) as u32 & 0x7) << 8) | self.get(0x380b) as u32;   // DVP output height
         st.format = self.get(0x4300);
+        // esp32-camera v2.1.4 sensors/private_include/ov5640_regs.h and
+        // ov5640_settings.h; format values also match esp32-camera v2.0.4.
+        // Inclusive sensor-array window. Missing window registers preserve whole-image scaling.
+        st.window = (0x3800..=0x3807).all(|r| self.regs.contains_key(&r)).then(|| {
+            [0x3800, 0x3802, 0x3804, 0x3806].map(|r| {
+                ((self.get(r) as u32 & if r & 2 == 0 { 15 } else { 7 }) << 8) | self.get(r + 1) as u32
+            })
+        });
+        st.jpeg = self.get(0x3821) & 0x20 != 0;
         st.streaming = self.get(0x3008) & 0x40 == 0;
     }
 }
@@ -43,7 +54,10 @@ impl I2cDevice for Ov5640 {
         match self.phase {
             0 => { self.addr = (b as u16) << 8; self.phase = 1; }
             1 => { self.addr |= b as u16; self.phase = 2; }
-            _ => { let v = if self.addr == 0x3008 { b & !0x80 } else { b }; self.regs.insert(self.addr, v); if (0x3808..=0x380b).contains(&self.addr) || self.addr == 0x4300 || self.addr == 0x3008 { self.sync_state(); } self.addr = self.addr.wrapping_add(1); self.writes += 1; }
+            _ => { if self.addr == 0x3008 && b & 0x80 != 0 {
+                self.regs.retain(|r, _| [0x300a, 0x300b, 0x302a].contains(r));
+            }
+            let v = if self.addr == 0x3008 { b & !0x80 } else { b }; self.regs.insert(self.addr, v); if (0x3800..=0x380b).contains(&self.addr) || self.addr == 0x3821 || self.addr == 0x4300 || self.addr == 0x3008 { self.sync_state(); } self.addr = self.addr.wrapping_add(1); self.writes += 1; }
         }
         true
     }

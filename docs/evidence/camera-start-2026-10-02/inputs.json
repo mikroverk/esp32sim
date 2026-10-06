@@ -1,0 +1,63 @@
+{
+  "base": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
+  "versions": {
+    "arduino_cli": "1.5.1",
+    "arduino_esp32": "3.3.8",
+    "esp_idf": "5.5.4",
+    "esp32_camera": "v2.1.4",
+    "compiler": "esp-x32 2601",
+    "rust": "1.99.0",
+    "host": "macOS arm64"
+  },
+  "archives_sha256": {
+    "core.zip": "8159cefaa2eea131360ac32393d741d462583297c8c1e5169ca48139fa324173",
+    "libs.zip": "fc9dcf416ec458527b932d3423c337eb207e90492367a390c1408ecde7cc505c",
+    "camera.tar.gz": "f78cad6ef02b2347ead7c63e753cf2b0193c9051fbe264d6fd932b8a985bebfc",
+    "ctags.tar.gz": "86ca843c62aecb9bc531a73d9b6cef33179bd885b1bf8df9e0c7e9761aa9794d"
+  },
+  "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+  "source_sha256": {
+    "firmware.cpp": "715f7225386ac92226da976cd062d9ce35e79c77335003c2dbe4c8cfcc4d0483",
+    "prepare-firmware.py": "a6d5b518257ae22c2902f372cfd458ab5b1cbceecf3cc651f9a32e646d1ba3e0",
+    "external_camera.py": "5afeccf5aae1f1f37a69948963b5e8f6058ebfa96bffbf2c1105bebe9b0cbf03"
+  },
+  "flash": {
+    "files": [
+      {
+        "filename": "CameraFixture.ino.bootloader.bin",
+        "offset": 0,
+        "bytes": 19984,
+        "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432"
+      },
+      {
+        "filename": "CameraFixture.ino.partitions.bin",
+        "offset": 32768,
+        "bytes": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "filename": "boot_app0.bin",
+        "offset": 57344,
+        "bytes": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "filename": "CameraFixture.ino.bin",
+        "offset": 65536,
+        "bytes": 359840,
+        "sha256": "f577967ab70b72a0dae84da0ca7e325b05a761330169079fc61ed9a7d9cf233f"
+      }
+    ]
+  },
+  "driver_source_files": 80,
+  "driver_manifest_sha256": "275bbcd8cd14c45b9da3938b9004da96d0f81899f7eb50f042f003ce6417b103",
+  "emulator_source_sha256": {
+    "esp-periph/src/gdma.rs": "f4399a4c8f7d130306a660afa7aacdcb646aad7425007e39f5e2e3373e87612f",
+    "esp32s3/src/periph.rs": "80a1c4809fb5b7812770e49d6479ce5995c46dd2eccdf0ed89521eee6484ec51",
+    "esp32s3/src/bus.rs": "9b1eab5a6a99472fa3e72206266d202a150a72d97b61dc5f8eb70923d6517d19",
+    "esp32s3/src/bus/dma.rs": "68b29416540478413224b2a347a9810bb9252f620c1ac3112b4f46cb123c25e4",
+    "esp32s3/src/bus/dma_tests.rs": "e72c3891ac9b4dfbf2deba65e9897e1d20dd194ef9cb025deed3b6377bb2aef8",
+    "esp32s3/src/bus/tests.rs": "58efe1a808aef27d73acb6522c42a8a0fe5069279f24dec6a646903e2bcbe122",
+    "esp32s3/src/soc.rs": "0d117e64c2fb4949ce142c26e895c4003dd20e2b055dfc4dfdcae0b91d36be5e"
+  }
+}

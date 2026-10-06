@@ -1,0 +1,35 @@
+{
+  "candidate": "commit containing review-3.md",
+  "parent": "68068d9838fd6761106619f9ff74666d49b7f4fa",
+  "base": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
+  "rust": "1.99.0",
+  "source_sha256": {
+    "cli/src/lib.rs": "9bd3eab89df5adcaddca3da320a5bc41e04ec63177442dc602bebecf8a6548e3",
+    "esp32s3/src/bus/dma.rs": "7798c76ba8df5f544a6caa1843f7db480445cb542c3f26ced61ec85cfdf9c87f",
+    "tools/camera-cli-test.mjs": "0ef87ee89624d34b5404bef338d0c0f582403a99847ef67dae7a825fb2c3df6d"
+  },
+  "checks": {
+    "clippy_native": "pass, warnings denied",
+    "clippy_wasm": "pass, warnings denied",
+    "wasm_build": "pass",
+    "wasm_smoke": "pass: hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "camera_cli": "pass: specific size diagnostics, pairing before Cooja, unsupported chips, still-image limit and FIFO startup",
+    "goldens": "unchanged",
+    "jit_suite": "not required: no JIT implementation changes",
+    "include_ignored": {
+      "passed": 619,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 14
+    },
+    "plain": {
+      "passed": 601,
+      "failed": 0,
+      "ignored": 32,
+      "measured": 0,
+      "filtered": 0
+    },
+    "evidence_privacy": "pass: 1644 tracked evidence files, including 20 gzip files; manual added-text review passed"
+  }
+}

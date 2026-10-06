@@ -1,0 +1,23 @@
+{
+  "expect": "frames",
+  "passed": true,
+  "serial": [
+    "CAMERA:READY:0:5640",
+    "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+    "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+    "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+    "CAMERA:READY:0:5640",
+    "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+    "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+    "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+    "CAMERA:READY:0:5640",
+    "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00"
+  ],
+  "stdout_sha256": "b0011b04b138834fd6d6697ed6a9cfd328065f5af87b1a68d7eb146f6ba01bd2",
+  "emulator_sha256": "095d269fe97cb005852119b9e6c76e45431a2519315d50ae2a59d1c3cb5dff29",
+  "image_sha256": "8dee30e2caa26a23f15a2e903788b34b4bd247a15ccb4feed7ec8b3db1bc71ee",
+  "script_sha256": "cddffebec8750ae80f744863a3deecb9a78d6d356f6098c7281ab7bd46be7f35",
+  "source_commit": "58ab02b85eed9267c99bd26da2977b67bda55e97",
+  "firmware_inputs": "../camera-start-2026-10-02/inputs.json",
+  "command": "python3 docs/evidence/camera-start-2026-10-02/external_camera.py --emulator target/release/esp32sim --firmware \"$FIRMWARE\" --rom web/wasm/fw/esp32s3_rev0_rom.elf --output \"$OUTPUT\" --expect frames"
+}

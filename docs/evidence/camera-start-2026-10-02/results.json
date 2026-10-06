@@ -1,0 +1,42 @@
+{
+  "main": {
+    "expect": "empty",
+    "passed": true,
+    "serial": [
+      "CAMERA:READY:0:5640",
+      "CAMERA:EMPTY",
+      "CAMERA:EMPTY",
+      "CAMERA:EMPTY",
+      "CAMERA:READY:0:5640",
+      "CAMERA:EMPTY",
+      "CAMERA:EMPTY",
+      "CAMERA:EMPTY",
+      "CAMERA:READY:0:5640",
+      "CAMERA:EMPTY"
+    ],
+    "stdout_sha256": "860ae0ef165e4a1e6a365c64fbc353067bea5920b8b41e6934efb07ef88ef710",
+    "emulator_sha256": "dd278111ad28cff9add82d05f47fa13e75d6c14cc32469ca900eed51cb313b64",
+    "image_sha256": "8dee30e2caa26a23f15a2e903788b34b4bd247a15ccb4feed7ec8b3db1bc71ee",
+    "script_sha256": "cddffebec8750ae80f744863a3deecb9a78d6d356f6098c7281ab7bd46be7f35"
+  },
+  "vsync_fix": {
+    "expect": "vsync-only",
+    "passed": true,
+    "serial": [
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:0:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:0:18432:8c2afdc5:4c:ff",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:8c2afdc5:4c:ff"
+    ],
+    "stdout_sha256": "767bf9c307438381941c5d6c9683b1db9a52869694293f46ec72ac6a9c032bd9",
+    "emulator_sha256": "bff5550687b0ecf72b63fa116ff5d1b25ccfe71d2180f81ffb9f05ef341133cd",
+    "image_sha256": "8dee30e2caa26a23f15a2e903788b34b4bd247a15ccb4feed7ec8b3db1bc71ee",
+    "script_sha256": "cddffebec8750ae80f744863a3deecb9a78d6d356f6098c7281ab7bd46be7f35"
+  }
+}

@@ -114,3 +114,17 @@ fn c6_speaks_the_web_protocol() {
     // SAFETY: `e.0` stays live and the query does not overlap mutable access.
     assert_eq!(unsafe { esp32sim_cpu_hz(e.0) }, 160e6);
 }
+
+#[test]
+fn camera_binary_input_reports_boards_without_a_camera() {
+    for board in ["none", "atech14", "waveshare-cam", "c3", "c6"] {
+        let mut e = Emu::new(board, 4, 0);
+        e.boot();
+        let red = [3, 1, 0, 1, 0, 255, 0, 0, 255];
+        // SAFETY: the emulator is live and red is readable for its length.
+        unsafe { esp32sim_in_bin(e.0, red.as_ptr(), red.len()); }
+        e.run(0);
+        let messages = texts(&e.out());
+        assert_eq!(has(&messages, "no camera on this board"), board != "waveshare-cam", "{board}");
+    }
+}

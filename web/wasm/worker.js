@@ -172,7 +172,7 @@ onmessage = async (ev) => {
     else if (m.op === 'net-load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_net_load(net, m.node, m.kind, p, n)); postMessage({ loaded: 'n' + m.node + ':' + m.kind, ok: rc === 0 }); }
     else if (m.op === 'net-stub') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_net_stub_spec(net, m.node, p, n)) !== 0) setupError ||= 'invalid stub for node ' + m.node + ': ' + m.spec; }
     else if (m.op === 'net-start') { if (setupError) throw new Error(setupError); const rc = wasm.esp32sim_net_boot(net); if (rc === 0) { running = true; netT0 = performance.now(); netLoop(); } postMessage({ started: rc === 0 }); }
-    else if (m.op === 'stop') { running = false; }
+    else if (m.op === 'stop') { running = false; postMessage({ stopped: 0 }); }
     else if (m.op === 'text') {
       if (traceEnabled && m.touchTrace) {
         postMessage({ touchTrace: { stage: 'worker-receive', ...m.touchTrace, atMs: traceNow(), cycles: wasm.esp32sim_cycles(emu) } });
@@ -181,6 +181,14 @@ onmessage = async (ev) => {
       pacing.input(performance.now());
       withBytes(enc.encode(m.data), (p, n) => wasm.esp32sim_in_text(emu, p, n));
     }
-    else if (m.op === 'bin') { pacing.input(performance.now()); withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_in_bin(emu, p, n)); }
-  } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; if (m.op === 'start' || m.op === 'net-start') postMessage({ started: false, error: err.message || String(err) }); }
+    else if (m.op === 'bin') {
+      pacing.input(performance.now());
+      const data = new Uint8Array(m.data);
+      if (data.length > 8 * 1024 * 1024) {
+        postMessage({ text: JSON.stringify({ t: 'camera-error', message: 'input exceeds 8 MiB' }) });
+        return;
+      }
+      withBytes(data, (p, n) => wasm.esp32sim_in_bin(emu, p, n));
+    }
+  } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; if (m.op === 'start' || m.op === 'net-start') postMessage({ started: false, error: err.message || String(err) }); else postMessage({ stopped: 1 }); }
 };

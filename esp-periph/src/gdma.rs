@@ -23,7 +23,8 @@ impl GdmaOutCh {
 pub struct GdmaInCh {
     pub conf0: u32, pub conf1: u32, pub int_raw: u32, pub int_ena: u32, pub link: u32, pub peri_sel: u32, pub pri: u32,
     pub desc: u32, pub eof_desc: u32, pub running: bool,
-    pub buf_pos: u32,         // bytes filled in the current descriptor (memory-to-memory copies)
+    pub buf_pos: u32,         // bytes filled in the current descriptor
+    pub rx_eof_pos: u32,      // peripheral bytes since the last receive EOF
 }
 impl GdmaInCh { pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 } }
 
@@ -57,11 +58,11 @@ impl Gdma {
             if o < 0x60 {
                 let r = &mut self.inp[ch];
                 match o {
-                    0x00 => { r.conf0 = v & !1; if v & 1 != 0 { r.running = false; r.desc = 0; r.buf_pos = 0; } }   // IN_RST self-clears
+                    0x00 => { r.conf0 = v & !1; if v & 1 != 0 { r.running = false; r.desc = 0; r.buf_pos = 0; r.rx_eof_pos = 0; } }   // IN_RST self-clears
                     0x04 => r.conf1 = v, 0x10 => r.int_ena = v, 0x14 => r.int_raw &= !v,
                     0x20 => {
                         r.link = v & 0xF_FFFF;
-                        if v & (1 << 22) != 0 || v & (1 << 23) != 0 { r.desc = self.addr_base | (v & 0xF_FFFF); r.buf_pos = 0; r.running = true; }   // START / RESTART
+                        if v & (1 << 22) != 0 || v & (1 << 23) != 0 { r.desc = self.addr_base | (v & 0xF_FFFF); r.buf_pos = 0; r.rx_eof_pos = 0; r.running = true; }   // START / RESTART
                         if v & (1 << 21) != 0 { r.running = false; }                                                                 // STOP
                     }
                     0x44 => r.pri = v, 0x48 => r.peri_sel = v & 0x3f,

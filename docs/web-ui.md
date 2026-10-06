@@ -74,3 +74,24 @@ upload and the webcam (4 fps). Frames up to 8 MB are accepted.
 
 Each client has a writer thread with a bounded queue; when a tab is frozen or slow, frames
 are dropped for that client and the emulator keeps running at real time.
+
+## Use a webcam with the browser build
+
+Open `run.html?wasm`, select `waveshare-cam`, and load the ROM and camera firmware
+files in the firmware panel. Boot the firmware, then click **use webcam** in the
+camera panel. The sensor supplies black frames until the first host image arrives,
+so firmware can initialize before permission is granted. The browser asks for camera permission only after that click. Serve
+from localhost or HTTPS, as required by `getUserMedia`. Permission failure appears
+beside the button. **stop webcam** releases the camera and keeps its last image;
+leaving the page also releases it.
+
+The existing upload and webcam controls work with both native WebSocket and WASM
+runs. The worker sends type-3 camera RGBA through `esp32sim_in_bin`; the native server
+uses binary type 3. Both replace the same board image. Host updates arrive at 4 fps;
+the sensor repeats the latest image at its emulated capture cadence. The SCCB format,
+output size and sensor-array window apply to still images and live frames alike.
+See [live camera input](cli.md#live-camera-input) for supported formats and limits.
+
+Camera errors use `{"t":"camera-error","message":"..."}` and appear beside
+the source controls. Webcam tracks stop on emulator stop, boot failure, disconnect
+and page exit. Insecure origins report that HTTPS or localhost is required.

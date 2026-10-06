@@ -99,21 +99,31 @@ impl<S: Soc> Machine<S> {
         w.send_text(&format!("{{\"t\":\"stat\",\"time\":{:.2},\"insns\":{},\"frames\":{},\"behind\":{:.2},\"resyncs\":{},\"speed\":{},\"cam\":{},\"gpio_in\":\"{:x}\"}}", self.seconds(), self.insns(), board.display_frames(), self.rt.behind, self.rt.resyncs, self.rt.speed.map_or_else(|| "null".to_string(), |s| format!("{:.3}", s)), self.bus.camera_frames(), self.bus.gpio_input()));
     }
 
+    pub(super) fn poll_camera_input(&mut self) {
+        if let Some(input) = &self.camera_input {
+            let picture = input.lock().unwrap().take();
+            if let Some(picture) = picture {
+                if let Err(error) = self.bus.board().set_camera_picture(picture) { eprintln!("[camera] {error}"); }
+            }
+        }
+    }
+
     // Host input is accepted at run boundaries without advancing device time. The periodic
     // poll remains necessary for native callers that run continuously rather than in slices.
     pub(super) fn web_poll_input(&mut self) {
+        self.poll_camera_input();
         let Some(w) = self.web.clone() else { return };
         use crate::json::{parse_json, Json};
         for b in w.poll_incoming_bin() {
             // type 3: camera picture from the browser — [3][w u16 le][h u16 le][RGBA...]
             if b.len() >= 5 && b[0] == 3 {
-                let (wd, ht) = (u16::from_le_bytes([b[1], b[2]]) as usize, u16::from_le_bytes([b[3], b[4]]) as usize);
-                let Some(pixels) = wd.checked_mul(ht).filter(|&n| n > 0 && n as u64 <= crate::picture::MAX_PIXELS) else { continue };
-                let Some(bytes) = pixels.checked_mul(4) else { continue };
-                let Some(rgba) = b[5..].get(..bytes) else { continue };
-                let mut rgb = Vec::with_capacity(pixels * 3);
-                for px in rgba.as_chunks::<4>().0 { rgb.extend_from_slice(&px[..3]); }
-                self.bus.board().set_camera_picture(crate::picture::Picture { w: wd as u32, h: ht as u32, rgb });
+                let wd = u16::from_le_bytes([b[1], b[2]]) as u32;
+                let ht = u16::from_le_bytes([b[3], b[4]]) as u32;
+                if let Some(picture) = crate::picture::Picture::from_rgba(wd, ht, &b[5..]) {
+                    if let Err(error) = self.bus.board().set_camera_picture(picture) {
+                        w.send_text(&format!("{{\"t\":\"camera-error\",\"message\":\"{error}\"}}"));
+                    }
+                }
             }
         }
         for m in w.poll_incoming() {

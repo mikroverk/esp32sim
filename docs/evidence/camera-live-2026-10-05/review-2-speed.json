@@ -1,0 +1,486 @@
+{
+  "system": "Darwin",
+  "machine": "arm64",
+  "pairs": 7,
+  "seconds": 30,
+  "hello_seconds": 3000,
+  "base_revision": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
+  "candidate_revision": "68068d9838fd6761106619f9ff74666d49b7f4fa",
+  "commands": {
+    "hello": [
+      "esp32sim",
+      "--boot",
+      "rom",
+      "--max-seconds",
+      "3000",
+      "--no-dump",
+      "--board",
+      "none",
+      "--flash-mb",
+      "8",
+      "--psram-mb",
+      "2",
+      "--rom",
+      "web/wasm/fw/esp32s3_rev0_rom.elf",
+      "--bootloader",
+      "web/wasm/fw/public/hello-bootloader.bin",
+      "--ptable",
+      "web/wasm/fw/public/hello-ptable.bin",
+      "--app",
+      "web/wasm/fw/public/hello_world.bin"
+    ],
+    "pocket-tank": [
+      "esp32sim",
+      "--boot",
+      "rom",
+      "--max-seconds",
+      "30",
+      "--no-dump",
+      "--board",
+      "waveshare-amoled18-v2",
+      "--flash-mb",
+      "16",
+      "--psram-mb",
+      "8",
+      "--rom",
+      "web/wasm/fw/esp32s3_rev0_rom.elf",
+      "--bootloader",
+      "web/wasm/fw/public/pocket-tank-bootloader.bin",
+      "--ptable",
+      "web/wasm/fw/public/pocket-tank-ptable.bin",
+      "--app",
+      "web/wasm/fw/public/pocket-tank.bin",
+      "--flash-at",
+      "0x290000=web/wasm/fw/local/model_q4.bin"
+    ]
+  },
+  "warmup_pairs": 1,
+  "timer": "getrusage children user seconds",
+  "runs": [
+    {
+      "workload": "hello",
+      "pair": -1,
+      "build": "candidate",
+      "user": 26.384499,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": -1,
+      "build": "base",
+      "user": 26.06231,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 0,
+      "build": "base",
+      "user": 25.523731999999995,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 0,
+      "build": "candidate",
+      "user": 25.705163,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 1,
+      "build": "candidate",
+      "user": 25.750346000000008,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 1,
+      "build": "base",
+      "user": 26.43838199999999,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 2,
+      "build": "base",
+      "user": 26.909861000000006,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 2,
+      "build": "candidate",
+      "user": 26.70929000000001,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 3,
+      "build": "candidate",
+      "user": 26.754886,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 3,
+      "build": "base",
+      "user": 27.03363999999999,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 4,
+      "build": "base",
+      "user": 27.89017899999999,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 4,
+      "build": "candidate",
+      "user": 27.476036000000022,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 5,
+      "build": "candidate",
+      "user": 26.839572999999973,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 5,
+      "build": "base",
+      "user": 27.180586000000005,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 6,
+      "build": "base",
+      "user": 27.284614000000033,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "hello",
+      "pair": 6,
+      "build": "candidate",
+      "user": 27.383676999999977,
+      "insns": 1789819657,
+      "core_insns": [
+        1134713226,
+        655106431
+      ],
+      "console_sha256": "98de90e19cbd85e91103f4ae97797135bdf03a9669f9c370a5c924cc5d376887"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": -1,
+      "build": "candidate",
+      "user": 38.54413099999999,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": -1,
+      "build": "base",
+      "user": 38.23154800000003,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 0,
+      "build": "base",
+      "user": 38.29452699999996,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 0,
+      "build": "candidate",
+      "user": 38.71196599999996,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 1,
+      "build": "candidate",
+      "user": 38.031379000000015,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 1,
+      "build": "base",
+      "user": 38.66850199999999,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 2,
+      "build": "base",
+      "user": 39.025792000000024,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 2,
+      "build": "candidate",
+      "user": 38.641350999999986,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 3,
+      "build": "candidate",
+      "user": 40.27921900000001,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 3,
+      "build": "base",
+      "user": 38.23769900000002,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 4,
+      "build": "base",
+      "user": 38.21354599999995,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 4,
+      "build": "candidate",
+      "user": 39.254546000000005,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 5,
+      "build": "candidate",
+      "user": 38.52513600000009,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 5,
+      "build": "base",
+      "user": 37.110005,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 6,
+      "build": "base",
+      "user": 38.34894699999995,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    },
+    {
+      "workload": "pocket-tank",
+      "pair": 6,
+      "build": "candidate",
+      "user": 38.42007699999999,
+      "insns": 10073833775,
+      "core_insns": [
+        4446180089,
+        5627653686
+      ],
+      "console_sha256": "c3776029dd98a1cd1ad148aa3cfdbd6639a49e465157214c2f1ca34ac5e2bbd5"
+    }
+  ],
+  "inputs": {
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+    "public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+    "public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "local/model_q4.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+  },
+  "binaries": {
+    "base": {
+      "esp32sim": "dd278111ad28cff9add82d05f47fa13e75d6c14cc32469ca900eed51cb313b64",
+      "esp32sim-c3": "74b2bf5b60084a4d9bc81b81c93f1cabb255cd9c3d9019cffa86c4becb92c96b",
+      "esp32sim-c6": "1821513c687ee6b99397d48b356971370167d2b976cf54c79bc4f3ca2a5cc73c"
+    },
+    "candidate": {
+      "esp32sim": "b841ea1994fa16caa1843bef7b573d3e7cbc6f73920b801fa377f0e9e1e8e1ba",
+      "esp32sim-c3": "3826be5ad250fd9bf70a9bb42262892487a1bd28b2e1a9a3285cac5e0b1c5df0",
+      "esp32sim-c6": "f0fab8bf69522a270bbc28736c45493a5556bcf9ee31e7c98d6e24017761326a"
+    }
+  },
+  "medians": {
+    "hello": {
+      "base": 27.03363999999999,
+      "candidate": 26.754886,
+      "change_percent": -1.031137501276158
+    },
+    "pocket-tank": {
+      "base": 38.29452699999996,
+      "candidate": 38.641350999999986,
+      "change_percent": 0.9056751112241912
+    }
+  },
+  "correctness": "identical instruction counts and stdout SHA-256 in every pair",
+  "host": {
+    "cpu": "Apple M5 Pro",
+    "os": "macOS 27.0.1 arm64",
+    "rust": "1.99.0",
+    "build": "cargo +1.99.0 build --release --bins"
+  }
+}
