@@ -1,5 +1,5 @@
 //! Opt-in C3 link controller, derived from the rev3 ROM and ESP-IDF v5.5.5 controller.
-//! All register fields below are inferred, not public-header definitions or silicon validated.
+//! Fields remain inferred unless explicitly marked checked on C3 rev v0.3.
 //! See docs/evidence/ble-c3-advertising/README.md for derivation and limits.
 use std::collections::VecDeque;
 use emu_core::ClockDomain;
@@ -13,6 +13,7 @@ const PERIOD: u64 = (1 << 28) * 625;
 #[derive(Default)]
 pub struct BleLc {
     ram: RegRam,
+    pub(crate) accessible: bool,
     state: Option<Box<State>>,
 }
 
@@ -33,7 +34,14 @@ struct State {
 }
 
 impl BleLc {
-    pub fn enable(&mut self) { self.state = Some(Box::default()); }
+    pub fn enable(&mut self) {
+        self.state = Some(Box::default());
+        self.accessible = true;
+        // Inferred reset configuration; initialized readbacks checked on C3 rev v0.3.
+        // +48 is preserved by guest RMW; +7c is never written by the probe guest.
+        self.ram.write(0x048, 0x0003_fff7);
+        self.ram.write(0x07c, 0xe400_e400);
+    }
     pub fn observe(&mut self, log: bool) { if let Some(s) = &mut self.state { s.pub_log = log; } }
     pub fn logging(&self) -> bool { self.state.as_ref().is_some_and(|s| s.pub_log) }
     pub fn take_observation(&mut self) -> Option<String> {
@@ -165,6 +173,8 @@ impl BleLc {
                                 ad_fields(&s.scan_response[8..]), hex(&s.scan_response[8..])));
                         }
                     }
+                    // Inferred START bit4; unmasked advertising snapshot checked on C3 rev v0.3.
+                    s.raw |= 1 << 4;
                     event.advertising = Some(advertising);
                 }
                 Err(reason) => {
@@ -223,9 +233,24 @@ fn ad_fields(data: &[u8]) -> String {
 impl Device for BleLc {
     fn read(&mut self, off: u32) -> u32 {
         let Some(s) = &self.state else { return self.ram.read(off) };
+        if !self.accessible { return 0 }
         match off {
             // Inferred identity required by app r_lld_core_init.
+            // Identity and feature word checked on C3 rev v0.3; subfields inferred.
             0x004 => 0x0900_1b00,
+            0x008 => 0x0f22_d0b0,
+            // Inferred unmasked status; snapshot bits checked on C3 rev v0.3.
+            0x014 => s.raw,
+            // RF status checked on C3 rev v0.3 after the guest writes zero.
+            // Bit meaning and other RF states remain inferred.
+            0x070 => self.ram.read(off) | 2,
+            // ROM r_cali_phase_match_p searches phase fields [10:8]/[6:4]
+            // and tests bit12. Successful 2/2 readback checked on C3 rev v0.3;
+            // the phase acceptance rule and instantaneous completion are inferred.
+            0x0f8 => {
+                let v = self.ram.read(off) & !(1 << 12);
+                v | (u32::from(v & 0x771 == 0x221) << 12)
+            },
             // Inferred masked status, read by ROM r_rwble_isr (0x4002e8ee).
             0x010 => s.raw & self.ram.read(0x00c),
             // Inferred W1C readback for read/modify/write acknowledgements in r_rwble_isr.
@@ -243,7 +268,10 @@ impl Device for BleLc {
             return WriteEffect::NONE;
         };
         match off {
-            0x004 | 0x010 | 0x020 => {},
+            0x004 | 0x008 | 0x010 | 0x014 | 0x020 => {},
+            // Checked on C3 rev v0.3: guest writes 00640064, reads 00000064.
+            // Width beyond the exercised low byte remains inferred.
+            0x08c => self.ram.write(off, v & 0xffff),
             // Inferred index/request: r_sch_prog_ble_push_hack.
             0x100 => {
                 self.ram.write(off, v);
@@ -255,6 +283,8 @@ impl Device for BleLc {
                 self.ram.write(off, v);
                 if v & REQUEST != 0 { s.reset = Some(s.cycles + HALF_US_CYCLES); }
             }
+            // Latch completion and 2 half-us ticks/us checked on C3 rev v0.3.
+            // Atomicity and 80-cycle completion remain inferred.
             // Inferred atomic snapshot: r_rwip_time_get polls bit 31, masks 28 bits,
             // and returns 624 minus the fine register. Reads never advance time.
             0x01c => {
@@ -295,6 +325,8 @@ impl Device for BleLc {
     }
     fn tick(&mut self, ticks: u64) {
         let Some(s) = &mut self.state else { return };
+        // Inferred half-slot status bit0; init/adv snapshots checked on C3 rev v0.3.
+        if self.ram.read(0) & 0x100 != 0 && s.cycles / (625 * HALF_US_CYCLES) != (s.cycles + ticks) / (625 * HALF_US_CYCLES) { s.raw |= 1; }
         s.cycles += ticks;
         if s.reset.is_some_and(|t| t <= s.cycles) {
             s.reset = None;
@@ -464,7 +496,7 @@ mod tests {
             assert_eq!(d.read(0), control);
             assert_eq!(d.read(4), 0x0900_1b00);
             d.tick(1_000_000);
-            assert_eq!(d.state.as_ref().unwrap().raw, 0);
+            assert_eq!(d.state.as_ref().unwrap().raw, u32::from(control & 0x100 != 0));
         }
     }
 
@@ -496,6 +528,38 @@ mod tests {
             assert_eq!(d.irq_sources(), 0);
             d.tick(10_000);
             assert_eq!(d.read(0x010), 0);
+        }
+    }
+
+    #[test]
+    fn silicon_readbacks_follow_configuration_and_power_state() {
+        let mut p = crate::periph::Peripherals::new([0; 6]);
+        p.ble_lc.enable();
+        assert_eq!(p.read32(0x60026014), 0xfffc_e030);
+        assert_eq!(p.read32(0x600c0024), 0x0200_1001);
+        assert_eq!(p.read32(0x60031004), 0);
+        p.write32(0x60026014, 0xffff_ffdf);
+        assert_eq!(p.read32(0x60031004), 0x0900_1b00);
+        for (addr, mask) in [(0x60026014, 1 << 16), (0x60026018, 1 << 11),
+            (0x60008088, 1 << 11), (0x6000808c, 1 << 22)] {
+            let before = p.read32(addr);
+            p.write32(addr, before ^ mask);
+            assert_eq!(p.read32(0x60031004), 0);
+            p.write32(addr, before);
+            assert_eq!(p.read32(0x60031004), 0x0900_1b00);
+        }
+        assert_eq!(p.read32(0x60031008), 0x0f22_d0b0);
+        assert_eq!(p.read32(0x6003107c), 0xe400_e400);
+        let config = p.read32(0x60031048);
+        p.write32(0x60031048, config | 0x1f0);
+        assert_eq!(p.read32(0x60031048), 0x0003_fff7);
+        p.write32(0x60031070, 0);
+        assert_eq!(p.read32(0x60031070), 2);
+        p.write32(0x6003108c, 0x0064_0064);
+        assert_eq!(p.read32(0x6003108c), 100);
+        for (value, expected) in [(0x331, 0x331), (0x221, 0x1221), (0x1220, 0x220)] {
+            p.write32(0x600310f8, value);
+            assert_eq!(p.read32(0x600310f8), expected);
         }
     }
 

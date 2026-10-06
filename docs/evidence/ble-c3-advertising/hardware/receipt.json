@@ -1,0 +1,648 @@
+{
+  "experiment": "EX211",
+  "board": "ESP32-C3 rev v0.3; 4 MB flash; 40 MHz crystal",
+  "arduino": "3.3.11",
+  "idf": "5.5.5",
+  "candidate_parent": "3783dedfd5d67da5e7878d4c181c069d67f9f1a6",
+  "baseline_main": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
+  "source_sha256": {
+    "esp32c3/src/ble_lc.rs": "d3924d92dd9c3d1d160effa55e3457e0860f4a702d66454251b7318fc43617c2",
+    "esp32c3/src/periph.rs": "f5dc88f65214203b11b93c2a205a9153b07d3d18567d408a114477252d430aa6"
+  },
+  "inputs": {
+    "images/app.bin": {
+      "sha256": "5caad961e43141e25127f31b1cf7d50a36dd6dd6ce072f0c8ea159cd8ded479d",
+      "bytes": 609808
+    },
+    "images/boot_app0.bin": {
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+      "bytes": 8192
+    },
+    "images/bootloader.bin": {
+      "sha256": "d4a87d86e17457c5d9e6d9b6c83f1af5ab0122a58545aaab392af1135a01f00a",
+      "bytes": 19536
+    },
+    "images/partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    },
+    "Probe/Probe.ino": {
+      "sha256": "8cac41830514c0fa95b1b592967a81e47656d10f300b3ad523a4bca30d8555dd",
+      "bytes": 7996
+    },
+    "esp32c3_rev3_rom.elf": {
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+      "bytes": 556332
+    },
+    "IDF5.5.5/system_reg.h": {
+      "sha256": "373e66719f0c0b762eac103d40d5862b96d2ac6ff1678eb09da8b77505867ce0",
+      "bytes": 42273
+    },
+    "IDF5.5.5/syscon_reg.h": {
+      "sha256": "b74225d9d09508084021e5eb671454b1da29fc62b52a14fc61f6bed10f2db299",
+      "bytes": 27421
+    },
+    "IDF5.5.5/reg_base.h": {
+      "sha256": "0c11cb4190afcc8097608a7e508d6bbc12bb432f7c6c73922537c488963f8056",
+      "bytes": 2776
+    }
+  },
+  "hardware_capture": {
+    "sha256": "6d5e783b50bc74cce605265f9e0ee0b12aee08c180b69989c001833f2334ca59",
+    "bytes": 50685
+  },
+  "original_emulator_capture": {
+    "sha256": "ab9f18964c2348b066d66afc69ce307164faf92c94faac05deef5bbd6ce190c6",
+    "bytes": 46288,
+    "scope": "A+B; comparison repeated on A-only candidate; no off-branch commit citation"
+  },
+  "negative_results": [
+    "Original static comparison had 22 register mismatches.",
+    "A first local unit-test build failed after an overbroad assertion edit; narrowed to the reset test, then passed.",
+    "LC+2cc remains different: hardware 00340034, emulator 00000000; original comparator calls it exact. ROM error-path evidence justifies live-diagnostic classification, not a fabricated fixed readback."
+  ],
+  "privacy": {
+    "omitted": "MAC/BT addresses, device memory/event streams, serial logs, local paths, device/host identifiers",
+    "effect": "Numeric measurements and original artifact hashes retained. No raw dumps committed. Original captures retained privately; independent reproduction needs hardware.",
+    "existing_receipts": "Appended evidence, no redaction of historical samples or hashes."
+  },
+  "checks": [
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=\"$PWD/web/wasm/fw\" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit_code": 0,
+      "totals": {
+        "passed": 613,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 14
+      }
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "exit_code": 0,
+      "totals": {
+        "passed": 594,
+        "failed": 0,
+        "ignored": 33,
+        "measured": 0,
+        "filtered_out": 0
+      }
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "exit_code": 0
+    },
+    {
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit_code": 0
+    },
+    {
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+      "exit_code": 0,
+      "totals": {
+        "passed": 39,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      }
+    },
+    {
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "exit_code": 0
+    },
+    {
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+      "exit_code": 0
+    },
+    {
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node tools/worker-pacing-test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node tools/worker-channel-test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test tools/touch-input-test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test tools/wasm-build-policy.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test tools/browser-benchmark/battery-failure.test.mjs tools/browser-benchmark/verdict.test.mjs tools/browser-benchmark/experiments.test.mjs tools/browser-benchmark/battery-workload.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s tools/browser-benchmark -p test_*.py",
+      "exit_code": 0
+    },
+    {
+      "command": "tools/wasm-jit-test.sh",
+      "status": "not applicable; no JIT changes"
+    },
+    {
+      "command": "python3 docs/evidence/ble-c3-advertising/hardware/compare.py \"$PROBE_DIR/hardware.probe.log\" target/hardware/emulator.probe.log",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 docs/evidence/ble-c3-advertising/hardware/check_compare.py target/hardware/emulator.probe.log",
+      "exit_code": 0
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0
+    }
+  ],
+  "goldens": "All unchanged, including BLE advertiser observer lines and 320000000 accounted instructions; no regeneration.",
+  "candidate_emulator_capture": {
+    "sha256": "3cd416b35bffbed346875f451bc521aab3e1742aa7a488fadce75b9602df8668",
+    "bytes": 46427,
+    "instructions": 2400000000,
+    "exceptions": 0
+  },
+  "comparison": {
+    "exit_code": 0,
+    "equal_fields": 2278,
+    "difference_count": 944,
+    "static_mismatches": 0,
+    "raw_layout_mismatches": 0,
+    "remaining_error_diagnostic": {
+      "register": "600312cc",
+      "hardware": "00340034",
+      "emulator": "00000000"
+    },
+    "intervals": [
+      {
+        "source": "et",
+        "hardware_median_us": 65625.0,
+        "emulator_median_us": 65937.5,
+        "tolerance_us": 10000,
+        "within_tolerance": true,
+        "reason": "independent 0..10-ms advertising jitter; programmed deadlines, not RF timing"
+      },
+      {
+        "source": "alarm",
+        "hardware_median_us": 64687.5,
+        "emulator_median_us": 65625.0,
+        "tolerance_us": 10000,
+        "within_tolerance": true,
+        "reason": "independent 0..10-ms advertising jitter; programmed deadlines, not RF timing"
+      }
+    ]
+  },
+  "hardware_summary": {
+    "latch_rate_half_us_per_us": {
+      "init": [
+        2.000047317119334,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0
+      ],
+      "adv": [
+        2.000047317119334,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0
+      ]
+    },
+    "latch_latency_bounds": {
+      "init": [
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 290,
+          "total_timer_bracket_us": 3
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 2
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 2
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        }
+      ],
+      "adv": [
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 290,
+          "total_timer_bracket_us": 3
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 2
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 2
+        },
+        {
+          "polls": 2,
+          "write_to_observed_clear_upper_cycles": 63,
+          "total_timer_bracket_us": 1
+        }
+      ]
+    },
+    "programmed_deadline_intervals": {
+      "et": {
+        "unique_deadlines": 46,
+        "deltas_us": [
+          63125.0,
+          66250.0,
+          68125.0,
+          65625.0,
+          68125.0,
+          66875.0,
+          67500.0,
+          61250.0,
+          70000.0,
+          66250.0,
+          70000.0,
+          65625.0,
+          63750.0,
+          67500.0,
+          60625.0,
+          66250.0,
+          66250.0,
+          66250.0,
+          70000.0,
+          63750.0,
+          69375.0,
+          64375.0,
+          65625.0,
+          66875.0,
+          60625.0,
+          61875.0,
+          70000.0,
+          63125.0,
+          63750.0,
+          60625.0,
+          63750.0,
+          65000.0,
+          70000.0,
+          64375.0,
+          66875.0,
+          65625.0,
+          70000.0,
+          68125.0,
+          60000.0,
+          63125.0,
+          61875.0,
+          66875.0,
+          61250.0,
+          62500.0,
+          63125.0
+        ],
+        "median_us": 65625.0
+      },
+      "alarm": {
+        "unique_deadlines": 31,
+        "deltas_us": [
+          66250.0,
+          66250.0,
+          70000.0,
+          63750.0,
+          69375.0,
+          64375.0,
+          65625.0,
+          66875.0,
+          60625.0,
+          61875.0,
+          70000.0,
+          63125.0,
+          63750.0,
+          60625.0,
+          63750.0,
+          65000.0,
+          70000.0,
+          64375.0,
+          66875.0,
+          65625.0,
+          70000.0,
+          68125.0,
+          60000.0,
+          63125.0,
+          61875.0,
+          66875.0,
+          61250.0,
+          62500.0,
+          63125.0,
+          65625.0
+        ],
+        "median_us": 64687.5
+      }
+    },
+    "max_poll_gap_us": 217,
+    "checks": {
+      "passed": 32,
+      "failed": 0
+    }
+  },
+  "emulator_summary": {
+    "latch_rate_half_us_per_us": {
+      "init": [
+        1.9999013514846602,
+        2.00009864851534,
+        1.9999013514846602,
+        2.0,
+        1.9999013514846602,
+        2.000098643649815,
+        2.0
+      ],
+      "adv": [
+        1.999901555424296,
+        2.0000988533017003,
+        1.9999013514846602,
+        2.0,
+        1.9999013514846602,
+        2.000098643649815,
+        2.0
+      ]
+    },
+    "latch_latency_bounds": {
+      "init": [
+        {
+          "polls": 20,
+          "write_to_observed_clear_upper_cycles": 125,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 20,
+          "write_to_observed_clear_upper_cycles": 125,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 22,
+          "write_to_observed_clear_upper_cycles": 137,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 21,
+          "write_to_observed_clear_upper_cycles": 131,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 12,
+          "write_to_observed_clear_upper_cycles": 77,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 12,
+          "write_to_observed_clear_upper_cycles": 77,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 16,
+          "write_to_observed_clear_upper_cycles": 101,
+          "total_timer_bracket_us": 0
+        },
+        {
+          "polls": 16,
+          "write_to_observed_clear_upper_cycles": 101,
+          "total_timer_bracket_us": 1
+        }
+      ],
+      "adv": [
+        {
+          "polls": 20,
+          "write_to_observed_clear_upper_cycles": 125,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 15,
+          "write_to_observed_clear_upper_cycles": 95,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 22,
+          "write_to_observed_clear_upper_cycles": 137,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 21,
+          "write_to_observed_clear_upper_cycles": 131,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 12,
+          "write_to_observed_clear_upper_cycles": 77,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 12,
+          "write_to_observed_clear_upper_cycles": 77,
+          "total_timer_bracket_us": 1
+        },
+        {
+          "polls": 16,
+          "write_to_observed_clear_upper_cycles": 101,
+          "total_timer_bracket_us": 0
+        },
+        {
+          "polls": 16,
+          "write_to_observed_clear_upper_cycles": 101,
+          "total_timer_bracket_us": 1
+        }
+      ]
+    },
+    "programmed_deadline_intervals": {
+      "et": {
+        "unique_deadlines": 41,
+        "deltas_us": [
+          1348438.0,
+          65625.0,
+          63750.0,
+          61250.0,
+          70000.0,
+          62500.0,
+          69375.0,
+          70000.0,
+          63125.0,
+          68125.0,
+          65000.0,
+          68125.0,
+          61250.0,
+          65625.0,
+          65000.0,
+          64375.0,
+          66250.0,
+          69375.0,
+          63750.0,
+          68125.0,
+          70000.0,
+          61875.0,
+          66875.0,
+          60625.0,
+          61250.0,
+          66875.0,
+          66250.0,
+          63750.0,
+          69375.0,
+          61250.0,
+          69375.0,
+          66250.0,
+          62500.0,
+          66875.0,
+          61250.0,
+          66250.0,
+          60625.0,
+          66875.0,
+          68750.0,
+          60625.0
+        ],
+        "median_us": 65937.5
+      },
+      "alarm": {
+        "unique_deadlines": 32,
+        "deltas_us": [
+          65000.0,
+          68125.0,
+          61250.0,
+          65625.0,
+          65000.0,
+          64375.0,
+          66250.0,
+          69375.0,
+          63750.0,
+          68125.0,
+          70000.0,
+          61875.0,
+          66875.0,
+          60625.0,
+          61250.0,
+          66875.0,
+          66250.0,
+          63750.0,
+          69375.0,
+          61250.0,
+          69375.0,
+          66250.0,
+          62500.0,
+          66875.0,
+          61250.0,
+          66250.0,
+          60625.0,
+          66875.0,
+          68750.0,
+          60625.0,
+          60000.0
+        ],
+        "median_us": 65625.0
+      }
+    },
+    "max_poll_gap_us": 434,
+    "checks": {
+      "passed": 32,
+      "failed": 0
+    }
+  },
+  "comparison_method": {
+    "original_compare_sha256": "f2a70669aab85489bd4706ab942da0b7286b84b8db69ec98642c604a99bb6554",
+    "retained_compare_sha256": "784ecdc6047c9fe5b4e8fce3a65352160da342aac69a657fc055257d3a48c3ef",
+    "note": "Original exact policy differs only by the documented LC+2cc dynamic classification; complete original comparison retained locally."
+  },
+  "cpu": {
+    "receipt": "cpu.json",
+    "rounds": 7,
+    "warmup_pairs": 1,
+    "command": "python3 docs/evidence/ble-c3-advertising/bench.py target/main/target/release target/release web/wasm/fw",
+    "build": "cargo +1.99.0 build --release --bins, both trees",
+    "baseline": "git archive cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc extracted to target/main",
+    "conditions": "Sequential arms with no concurrent builds/tests from this task. Host load uncontrolled. Baseline is upstream/main at task start.",
+    "result": "C3 median 2.590978 -> 2.577355 user seconds (-0.526%); no measured regression, no speedup claim. All three demos have identical per-arm instruction counts and console hashes."
+  }
+}

@@ -34,8 +34,9 @@ Both use a 100 ms configured interval plus the guest's 0–10 ms advertising del
 
 ## Inferred register and descriptor contract
 
-**Every controller field in this table is inferred from the C3 rev3 ROM and the
-ESP-IDF v5.5.5 controller, not a public register specification or silicon result.**
+The register layout is inferred from the C3 rev3 ROM and ESP-IDF v5.5.5
+controller. The hardware comparison below identifies the readbacks and clock
+rate now checked on C3 rev v0.3; other semantics remain inferred.
 The code marks these inferences in `esp32c3/src/ble_lc.rs`. LC means base
 `0x60031000`, also inferred from guest loads/stores. ROM function addresses refer
 to the ROM hash in `inputs.json`; application functions can be located with `nm`
@@ -64,7 +65,7 @@ The public interrupt-source definition is ESP-IDF **v5.5.5**
 `components/soc/esp32c3/include/soc/interrupts.h`, `ETS_RWBLE_INTR_SOURCE = 8`,
 checked against the pinned firmware's IDF checkout. No IDF 4.4 compatibility claim
 is made. Time uses the existing C3 160 MHz model clock, 80 cycles per half-µs.
-No new clock-register definition is introduced.
+The hardware follow-up below adds header-defined C3 reset values and access gates.
 
 To inspect the inferred application contract after rebuilding, with the matching
 compiler on PATH:
@@ -79,7 +80,7 @@ riscv32-esp-elf-objdump -d --disassemble=r_sch_prog_ble_push_hack "$ELF"
 
 ## Limits
 
-No physical-radio comparison. Reset/latch latency, clock epoch, modular late-alarm
+No over-air timing comparison. Reset/latch latency, clock epoch, modular late-alarm
 handling, one active event, FIFO kick order, coalescing identical interrupt sources,
 a maximum of 16 queued kicks and nine descriptors, CS/TX snapshot at event start,
 ascending channel order and a fixed 300 µs silent receive window are model choices.
@@ -155,3 +156,75 @@ receipt was constructed from numeric results without personal paths or machine
 identifiers; no existing receipt was redacted. The privacy pattern check and manual
 review cover the new text and firmware binaries. No remote artifact is required to
 reproduce the claims.
+
+
+## C3 rev v0.3 hardware comparison
+
+This EX211 repeat adds a silicon oracle to the original inferred model. The same
+Arduino-ESP32 3.3.11 / ESP-IDF 5.5.5 probe binary ran on a C3 rev v0.3 board with
+4 MB flash and a 40 MHz crystal, and on this advertising-only PR. No probe rebuild
+was needed. The earlier emulator capture used milestones A+B; this repeat checks A
+on parent `3783dedf` plus this commit's changes. The original capture's emulator
+revision is deliberately not cited because it is not an ancestor of this PR.
+
+The probe takes pre-init, initialized and advertising snapshots, brackets sixteen
+latch requests with timer/cycle reads, and samples programmed deadlines for two
+seconds. It does not measure radio transmissions. [hardware/receipt.json](hardware/receipt.json)
+retains input/capture hashes, comparison outcomes, timings and check results.
+[hardware/Probe.ino](hardware/Probe.ino) and [hardware/compare.py](hardware/compare.py)
+retain the measurement and comparison methods.
+
+| Register | Classification and correction | Scope of hardware check |
+| --- | --- | --- |
+| LC+04 | Read-only identity, gated by SYSCON clock/reset and RTC BT power/isolation | Zero before init, `09001b00` after init; pre-init actually has BT power-down and isolation set despite enabled clocks |
+| LC+08 | Read-only feature word `0f22d0b0` | Init and advertising values; individual fields and read-only behavior remain inferred |
+| LC+14 | Live unmasked interrupt status; half-slot bit0 and event-start bit4 | Init `1`, advertising `11`; bit meanings and transition timing remain inferred |
+| LC+48 | Inferred reset configuration `0003fff7`, retained by guest RMW | Guest ORs `100` and `f0`; initialized value checked, power-on value not directly observed |
+| LC+70 | Live RF status bit1 survives the guest's zero write | Readback `2`; other RF states remain unproven |
+| LC+7c | Inferred reset configuration `e400e400` | No guest write in the trace; initialized value checked |
+| LC+8c | Guest configuration, mask off upper half on write | Both guest writes traced, final readback `64`; other bit widths remain inferred |
+| LC+f8 | Phase-calibration configuration and success status | ROM `r_cali_phase_match_p` searches fields `[10:8]` and `[6:4]`, testing bit12. Model succeeds at phase 2/2, producing checked readback `1221`; phase choice is a board-specific model assumption, not an analog simulation |
+| LC+2cc | Live exchange-memory error diagnostic, left unmodeled | Hardware `00340034`, emulator `0` during advertising; discrepancy retained, not claimed fixed |
+| SYSCON+14 | Header reset `fffce030`, ordinary guest RMW | All three snapshots now `ffffffdf` |
+| SYSTEM+24 | Header reset `02001001`, ordinary guest RMW | Pre `01001001`, init/advertising `04001000` |
+
+The clock/reset masks and reset defaults come from ESP-IDF v5.5.5
+`components/soc/esp32c3/register/soc/syscon_reg.h`, `system_reg.h` and
+`rtc_cntl_reg.h`, matching the probe firmware. These are C3-only initial values;
+the shared S3 SYSTEM implementation is unchanged. No IDF 4.4 claim is made.
+
+The original comparator incorrectly classified LC+2cc as static configuration.
+C3 ROM `r_rwble_isr`, load `0x4002e7e4`, reads its low 14 bits when LC+60 bit21 is
+set and prints `EM BASE ERROR`, string at `0x3ff1b4c4`. The revised comparator
+classifies it as live diagnostic state while retaining both numeric values.
+There is insufficient evidence to derive its update/clear behavior from one
+advertising snapshot. No constant was added to reproduce that snapshot.
+The original comparator therefore still reports this one exact mismatch; the
+corrected comparator reports zero static mismatches. Other asynchronous differences
+remain, including event/RX bytes and device-dependent addresses.
+
+Latch completion and the rate of 2 half-µs ticks per µs are checked on C3 rev v0.3.
+The programmed event-deadline medians are 65.625 ms hardware and 65.9375 ms emulator,
+within independent 0..10 ms advertising delay. These results do not validate the
+80-cycle latch latency, clock epoch, atomicity, reset behavior, W1C, FIFO ordering,
+RF timing, RX, connections or coexistence. Firmware uses the emulated calibration
+success instead of exhausting its search; the committed advertiser observer lines and instruction golden remain identical.
+
+Raw serial/device dumps remain local and are not committed. The receipt omits
+MAC/BT addresses, raw memory/event streams and local paths, preserving hashes of
+the original captures and numeric measurement summaries. No device identifier is
+included in the draft PR comment. Capture hashes identify local evidence; those
+private captures are not downloadable, so independent replication requires a board.
+
+Follow-up validation passes with Rust 1.99.0: both Clippy commands with warnings
+denied; 613 native tests under CI's ignored-test policy; 594 plain tests with 33
+ignored; all eight WASM demos; timing/BLE ABI, VQ and ancillary CI checks; comparator
+self-check and evidence privacy check. No JIT change, so the conditional JIT suite
+was not rerun. All goldens remain byte-identical, including BLE advertising.
+
+[hardware/cpu.json](hardware/cpu.json) records one warmup and seven alternating
+pairs per hello demo against upstream main `cbb9edf6`, with identical instruction
+counts and console hashes. Median user CPU seconds main → candidate: C3
+2.590978 → 2.577355, -0.526%; S3 0.277569 → 0.275099, -0.890%; C6
+3.404235 → 3.426627, +0.658%. No concurrent builds/tests from this task; unrelated
+host load uncontrolled. There is no measured off-mode C3 regression or speedup claim.
