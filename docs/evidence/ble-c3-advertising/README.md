@@ -1,7 +1,7 @@
 # EX211: C3 controller-driven legacy advertising
 
-Base: `a3a3102c6c7e130e20a4d5d6e4eb45a68251590c`.
-Controller: `6b136e7a`. Firmware and tests: `fced1b82`.
+Current base: `a9b4b309`. Rebased controller: `543b0c6a`; firmware/tests: `5e65ac10`.
+Historical measurements below retain their original, pre-rebase revisions.
 Scope agreed in [mikroverk/esp32sim#189](https://github.com/mikroverk/esp32sim/issues/189).
 
 `--ble full` runs the C3 guest controller through its registers and exchange
@@ -10,6 +10,13 @@ observer reports emitted PDUs. The guest handles END interrupts and schedules
 subsequent events, including wrap of the 16-entry event table. EX200 tests an HCI
 replacement; EX211 instead tests the controller's MMIO, timer and descriptor
 contract. EX210's shared StationLink remains unchanged.
+
+
+Commits `6b136e7a`, `fced1b82` and `1a427d57`, cited by the earlier measurements in
+this receipt (`cpu.json`, `hardware/cpu.json`, `hardware/receipt.json`), are this PR's
+commits before it was rebased onto current main. They are kept in
+schematik-engineering/esp32sim under tag `ble-c3-advertising-r1`. Later sections cite
+commits on the PR branch.
 
 ## Inputs and reproducible firmware
 
@@ -25,10 +32,13 @@ Only the three binaries are needed by CI; no application ELF is loaded by the te
 Native and production WASM each emit 19 events / 57 ADV_SCAN_IND PDUs in two
 modeled seconds. Every event uses channels 37, 38 and 39 and advertises name
 `esp32sim`, Battery Service UUID `180f` and flags `06`. The native golden pins every
-observer line and 320,000,000 accounted instructions. Guest idle cycles are included
-in that count. Native default AdvA is `60:55:f9:00:11:24`; WASM's default is
-`3c:84:27:b6:a7:1e`. These are simulator defaults. The different addresses affect
-the controller's random delay, so the two hosts do not share a timestamp golden.
+observer/configuration line, console, exceptions, total interrupts and per-source
+interrupt counts. The 320,000,000 accounted instructions equal the cycle budget,
+including idle cycles; this alone cannot detect timing regressions. Native and
+WASM counts match, but per-event times differ. Matching their simulator MACs does
+not make those times equal. The 64-instruction native versus 256-instruction WASM
+scheduling quantum is a plausible cause through guest cycle-based randomness,
+but that causal explanation remains unverified.
 Both use a 100 ms configured interval plus the guest's 0–10 ms advertising delay.
 [wasm.json](wasm.json) records its interval range and production module hash.
 
@@ -50,7 +60,7 @@ in the reproducible ELF whose hash is recorded there.
 | LC `+0x0c/+0x10/+0x18` | Mask, masked status, W1C acknowledgement; acknowledgement reads zero | `r_rwble_isr`, ROM load `0x4002e8ee`; `r_rwble_isr_hack` |
 | LC `+0xec/+0xf0`, raw bit 11 | Coarse/fine alarm pair; fine write arms timer IRQ | `r_rwip_timer_hus_set`, ROM stores `0x4002f312/0x4002f34c` |
 | LC `+0x2d8` | Count `[9:5]`, source snapshot `[30:10]`, pop bit 0, reset bit 31, stored configuration `[4:1]` | `r_rwble_isr_hack` |
-| LC `+0x204..0x2c0`, `+0x2e0..0x2fc` | 56 mappings with a seven-register gap; high 14 bits × 4 = logical start; low 18 bits × 4 OR `0x3fc00000` = SRAM base | `r_emi_get_mem_addr_by_offset`, ROM `0x400069e2..0x40006a90` |
+| LC `+0x204..0x29c` | 39 mappings selected by ROM `em_base_reg_lut`; high 14 bits × 4 must equal logical start; low 18 bits × 4 OR `0x3fc00000` = SRAM base | `r_emi_get_mem_addr_by_offset`, ROM `0x40006976`; table `0x3ff1f518` |
 | LC `+0x100` | Bit 31 kicks event index in low nibble | `r_sch_prog_ble_push_hack` |
 | Event stride 16; `+2/+4`, `+6` | 28-bit half-slot time and `624 - fine_half_us` | `r_sch_prog_push`, ROM stores `0x40030f1a/0x40030f3c/0x40030f9e` |
 | Event `+8` | CS pointer in halfwords | `r_sch_prog_ble_push_hack` |
@@ -81,7 +91,7 @@ riscv32-esp-elf-objdump -d --disassemble=r_sch_prog_ble_push_hack "$ELF"
 ## Limits
 
 No over-air timing comparison. Reset/latch latency, clock epoch, modular late-alarm
-handling, one active event, FIFO kick order, coalescing identical interrupt sources,
+handling, one active event, FIFO kick order,
 a maximum of 16 queued kicks and nine descriptors, CS/TX snapshot at event start,
 ascending channel order and a fixed 300 µs silent receive window are model choices.
 Packet airtime uses 1M PHY length; RF energy, whitening and CRC bytes are not modeled.
@@ -97,12 +107,13 @@ There is no RX, SCAN_REQ/SCAN_RSP exchange, connection or GATT support; mileston
 follows separately. The observation queue keeps the latest 1024 entries and reports
 drops. CLI full mode is C3-only and mutually exclusive with HCI `--ble`.
 
-## Verification and off-mode CPU comparison
+## Original verification and off-mode CPU comparison
 
-[checks.json](checks.json) records final commands and outcomes. Rust is selected
+[checks.json](checks.json) records current commands and outcomes. The CPU samples in
+this section predate the hardware follow-up and camera rebase. Rust is selected
 explicitly with `+1.99.0` or `RUSTUP_TOOLCHAIN=1.99.0`; the default is unchanged.
-Existing goldens were not regenerated. Only `ble-advertiser-c3.observer.txt` and
-`ble-advertiser-c3.insns` were added to pin the new fixture's behavior.
+Existing goldens were not regenerated. The original fixture added `ble-advertiser-c3.observer.txt` and
+`ble-advertiser-c3.insns`; the review adds console and interrupt/configuration report goldens.
 
 [bench.py](bench.py) runs one warmup pair, then seven alternating main/candidate
 pairs for each hello demo. Every run is 30 modeled seconds with BLE off. Both
@@ -152,8 +163,8 @@ not measurement precision; warmups and load are in `cpu.json`.
 Committed evidence contains commands, hashes, counts, timings and limits. Raw
 build output, console logs, event streams and process inventories are not included.
 The automated-test observer golden is a fixture, not an evidence capture. The
-receipt was constructed from numeric results without personal paths or machine
-identifiers; no existing receipt was redacted. The privacy pattern check and manual
+original receipt was constructed from numeric results without personal paths or machine
+identifiers. Review curation hashes are recorded in `review/curation.json`. The privacy pattern check and manual
 review cover the new text and firmware binaries. No remote artifact is required to
 reproduce the claims.
 
@@ -164,7 +175,7 @@ This EX211 repeat adds a silicon oracle to the original inferred model. The same
 Arduino-ESP32 3.3.11 / ESP-IDF 5.5.5 probe binary ran on a C3 rev v0.3 board with
 4 MB flash and a 40 MHz crystal, and on this advertising-only PR. No probe rebuild
 was needed. The earlier emulator capture used milestones A+B; this repeat checks A
-on parent `3783dedf` plus this commit's changes. The original capture's emulator
+at measured revision `1a427d57`, before the camera rebase. The original capture's emulator
 revision is deliberately not cited because it is not an ancestor of this PR.
 
 The probe takes pre-init, initialized and advertising snapshots, brackets sixteen
@@ -212,11 +223,10 @@ success instead of exhausting its search; the committed advertiser observer line
 
 Raw serial/device dumps remain local and are not committed. The receipt omits
 MAC/BT addresses, raw memory/event streams and local paths, preserving hashes of
-the original captures and numeric measurement summaries. No device identifier is
-included in the draft PR comment. Capture hashes identify local evidence; those
+the original captures and numeric measurement summaries. Capture hashes identify local evidence; those
 private captures are not downloadable, so independent replication requires a board.
 
-Follow-up validation passes with Rust 1.99.0: both Clippy commands with warnings
+Historical hardware follow-up validation at `1a427d57` passed with Rust 1.99.0: both Clippy commands with warnings
 denied; 613 native tests under CI's ignored-test policy; 594 plain tests with 33
 ignored; all eight WASM demos; timing/BLE ABI, VQ and ancillary CI checks; comparator
 self-check and evidence privacy check. No JIT change, so the conditional JIT suite
@@ -226,5 +236,42 @@ was not rerun. All goldens remain byte-identical, including BLE advertising.
 pairs per hello demo against upstream main `cbb9edf6`, with identical instruction
 counts and console hashes. Median user CPU seconds main → candidate: C3
 2.590978 → 2.577355, -0.526%; S3 0.277569 → 0.275099, -0.890%; C6
-3.404235 → 3.426627, +0.658%. No concurrent builds/tests from this task; unrelated
+3.404235 → 3.426627, +0.658%. No concurrent builds or tests; unrelated
 host load uncontrolled. There is no measured off-mode C3 regression or speedup claim.
+
+
+## PR #195 review follow-up
+
+The camera rebase retains EX211 and merged EX212 without renumbering. The expanded
+golden adds console, exceptions/interrupt totals, per-source counts and configured
+SCAN_RSP output; the original observer and instruction goldens are unchanged.
+Directed tests cover non-boundary fine timestamps, past-due alarms/events, distinct
+ENDs, cancelled TIMER entries, half-slot deadlines, clock/power/reset access, the
+ROM mapping table and guest `esp_restart`. Past-due means immediate in this model;
+whether silicon waits for a wrap is still a hardware question.
+
+`Peripherals::enable_ble_full(observe)` updates both scheduler caches. Machine bus
+APIs reject HCI/full mode conflicts in either order. CLI accepts `esp32c3`, reports
+script errors without panicking, and sends observed packets to stderr. WASM logs
+invalid enable reasons and rejects non-C3 chips. Observations and loss counts
+survive reboot; disabled observation does not format or queue strings.
+
+Mapping selection now follows C3 ROM `em_base_reg_lut`, including its asserted
+logical start; an all-zero mapping is invalid. The original hardware probe used
+the model's dynamic decoder, so its decoder-consistency checks are not independent
+validation. Masking TIMER discards its pending FIFO entries because the ROM's
+FIFO-mode ISR dispatches without rechecking the mask. END entries never coalesce.
+FIFO overflow behavior remains unproven. Masked half-slot status can remain lazy;
+unmasked status has a scheduler deadline at the next half-slot boundary.
+
+Clock and isolation gating now reject writes too. Any asserted SYSCON BT reset bit
+cancels controller work and resets its register storage; this combined reset rule
+is inferred, not proof that all six reset signals have identical silicon effects.
+The C3 SYSCON WIFI_CLK_EN and SYSTEM+0x24 reset values are set even with BLE off.
+
+The hardware deadline check allows the entire 0..10 ms random-delay range. It does
+not validate over-air timing, channel order, END timing, TX descriptor semantics
+or FIFO behavior. Register/latch checks do not remove these limits.
+
+[Review verification](review/README.md) retains the 18 killed mutations, current
+hardware repeat, native/WASM MAC experiment and renewed mode-off CPU comparison.

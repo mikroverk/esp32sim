@@ -34,8 +34,7 @@ private scratch data, not a publishable receipt. LC+2cc is now classified as liv
 error diagnostics for the ROM-derived reason in the parent receipt. The self-check
 ensures its differing value is retained and identity/UUID corruption still fails.
 
-The committed source is byte-identical to the captured probe. Its `INFERRED.md`
-reference names the original local inventory; the parent README contains the
-applicable inferred-contract inventory. The original private captures and build
-products are retained locally, not distributed here. Hashes in `receipt.json`
-identify their original bytes; no hardware address or raw device dump is copied.
+The retained probe differs from the measured source only in a documentation comment.
+The parent README identifies unproven fields. Original private captures and build
+products remain local; hashes in `receipt.json` identify their original bytes.
+No hardware address or raw device dump is copied.

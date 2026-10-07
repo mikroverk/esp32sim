@@ -7,7 +7,7 @@
 #include <soc/system_reg.h>
 
 // IDF 5.5.5 public clock/reset definitions above. LC/EM layout is inferred
-// from C3 rev3 ROM; see INFERRED.md and esp32sim EX211 receipts.
+// from C3 rev3 ROM; see the EX211 receipt README for unproven fields.
 static constexpr uint32_t LC = 0x60031000;
 static uint32_t maps[56];
 static portMUX_TYPE latchMux = portMUX_INITIALIZER_UNLOCKED;

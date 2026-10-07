@@ -663,5 +663,7 @@
       },
       "change_percent": 0.6577689260581776
     }
-  }
+  },
+  "baseline": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
+  "candidate": "1a427d57fe48b8ac7a1ec3ca0d04cad54a53c283"
 }

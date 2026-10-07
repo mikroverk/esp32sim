@@ -3,7 +3,6 @@
   "board": "ESP32-C3 rev v0.3; 4 MB flash; 40 MHz crystal",
   "arduino": "3.3.11",
   "idf": "5.5.5",
-  "candidate_parent": "3783dedfd5d67da5e7878d4c181c069d67f9f1a6",
   "baseline_main": "cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc",
   "source_sha256": {
     "esp32c3/src/ble_lc.rs": "d3924d92dd9c3d1d160effa55e3457e0860f4a702d66454251b7318fc43617c2",
@@ -54,11 +53,10 @@
   "original_emulator_capture": {
     "sha256": "ab9f18964c2348b066d66afc69ce307164faf92c94faac05deef5bbd6ce190c6",
     "bytes": 46288,
-    "scope": "A+B; comparison repeated on A-only candidate; no off-branch commit citation"
+    "scope": "A+B; subsequently compared with advertising-only firmware model"
   },
   "negative_results": [
     "Original static comparison had 22 register mismatches.",
-    "A first local unit-test build failed after an overbroad assertion edit; narrowed to the reset test, then passed.",
     "LC+2cc remains different: hardware 00340034, emulator 00000000; original comparator calls it exact. ROM error-path evidence justifies live-diagnostic classification, not a fabricated fixed readback."
   ],
   "privacy": {
@@ -642,7 +640,9 @@
     "command": "python3 docs/evidence/ble-c3-advertising/bench.py target/main/target/release target/release web/wasm/fw",
     "build": "cargo +1.99.0 build --release --bins, both trees",
     "baseline": "git archive cbb9edf607a09be78cb199c49c2e4cc0bd27d0dc extracted to target/main",
-    "conditions": "Sequential arms with no concurrent builds/tests from this task. Host load uncontrolled. Baseline is upstream/main at task start.",
+    "conditions": "Sequential alternating arms, no concurrent builds or tests; host load uncontrolled.",
     "result": "C3 median 2.590978 -> 2.577355 user seconds (-0.526%); no measured regression, no speedup claim. All three demos have identical per-arm instruction counts and console hashes."
-  }
+  },
+  "candidate": "1a427d57fe48b8ac7a1ec3ca0d04cad54a53c283",
+  "candidate_note": "Measured revision before rebase onto the merged camera work; retained source hashes identify the measured bytes."
 }

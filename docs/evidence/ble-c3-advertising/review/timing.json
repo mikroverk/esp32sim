@@ -1,0 +1,49 @@
+{
+  "source": "270f45c2f8d233f8c28f3ca80183e90c0b34c530",
+  "native": [
+    {
+      "mac": "simulator native default",
+      "packets": 57,
+      "first_five_hus": [
+        101250,
+        315000,
+        533750,
+        736250,
+        953750
+      ]
+    },
+    {
+      "mac": "simulator WASM default",
+      "packets": 57,
+      "first_five_hus": [
+        101250,
+        315000,
+        533750,
+        736250,
+        953750
+      ]
+    }
+  ],
+  "wasm": {
+    "checks": "pass",
+    "module_sha256": "b4c7f14c5d3b2e7ecf089ef116aa2a1d999de404000cdd3e5e5fa30e6846b870",
+    "modeled_seconds": 2,
+    "packets": 57,
+    "events": 19,
+    "first_five_event_hus": [
+      101250,
+      305000,
+      511250,
+      730000,
+      933750
+    ],
+    "interval_us": {
+      "min": 101250,
+      "max": 110000
+    },
+    "configured": "[ble-config] SCAN_RSP empty"
+  },
+  "conclusion": "Native and WASM event/PDU counts agree, but per-event times differ even when the native run uses the WASM simulator MAC. Scheduling quantum is a possible explanation, unverified.",
+  "native_command": "target/release/esp32sim-c3 --boot rom --rom web/wasm/fw/esp32c3_rev3_rom.elf --flash-mb 4 --bootloader web/wasm/fw/public/c3-ble-bootloader.bin --ptable web/wasm/fw/public/c3-ble-ptable.bin --app web/wasm/fw/public/c3-ble-advertiser.bin --ble full --ble-observe --max-seconds 2 --no-dump [--mac 3c:84:27:b6:a7:1c]",
+  "mac_note": "The optional MAC is a simulator default, not a captured hardware address."
+}

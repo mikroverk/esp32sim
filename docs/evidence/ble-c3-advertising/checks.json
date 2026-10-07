@@ -1,9 +1,9 @@
 {
-  "source": "fced1b8214ecd6944412d0467cae1f58e33485f6",
+  "source": "270f45c2f8d233f8c28f3ca80183e90c0b34c530",
   "rust": "1.99.0, explicit selection; default unchanged",
   "checks": [
     {
-      "command": "cargo +1.99.0 build --release --workspace",
+      "command": "cargo +1.99.0 build --release --workspace --bins",
       "result": "pass"
     },
     {
@@ -20,7 +20,7 @@
       "command": "ESP32SIM_ROM_DIR=\"$PWD/web/wasm/fw\" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
       "result": "pass",
       "detail": {
-        "passed": 612,
+        "passed": 641,
         "failed": 0,
         "ignored": 0
       }
@@ -29,9 +29,9 @@
       "command": "cargo +1.99.0 test --release --workspace",
       "result": "pass",
       "detail": {
-        "passed": 593,
+        "passed": 620,
         "failed": 0,
-        "ignored": 33
+        "ignored": 35
       }
     },
     {
@@ -113,7 +113,7 @@
     {
       "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
       "result": "pass",
-      "detail": "19 events, 57 PDUs, valid polling buffers and post-boot enable rejection"
+      "detail": "19 events, 57 PDUs; non-C3 and post-boot enable rejection logged; observation buffers valid"
     },
     {
       "command": "tools/wasm-jit-test.sh",
@@ -123,12 +123,12 @@
     {
       "command": "node tools/check-evidence-privacy.mjs",
       "result": "pass",
-      "detail": "1628 tracked evidence files checked, including 20 gzip files; manual review found no local paths in new text or firmware binaries."
+      "detail": "Pattern check plus manual review of changed evidence; no physical device identifiers or absolute local paths retained."
     }
   ],
-  "existing_goldens": "unchanged",
+  "existing_goldens": "unchanged, including BLE observer and instruction count",
   "new_goldens": [
-    "ble-advertiser-c3.insns",
-    "ble-advertiser-c3.observer.txt"
+    "ble-advertiser-c3.console.txt",
+    "ble-advertiser-c3.report.txt"
   ]
 }

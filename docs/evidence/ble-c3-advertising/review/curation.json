@@ -1,0 +1,36 @@
+{
+  "original_revision": "270f45c2f8d233f8c28f3ca80183e90c0b34c530",
+  "changes": "Remove review-quoted session narrative and absent INFERRED.md references; identify measured pre-rebase revision, refresh check counts, correct mapping/timing/golden descriptions and add CPU revision fields. Historical measurements and artifact hashes remain unchanged. Probe source changes only a documentation comment.",
+  "files": [
+    {
+      "file": "docs/evidence/ble-c3-advertising/README.md",
+      "original_sha256": "a1487ec60ddc0a630acedeaaebb95d324ab4b22d1496af8dd859b2966cd4054c",
+      "curated_sha256": "d18be19d59ef527cd0211ffb6abad0ae79d042b8b003350e07b39a3b596804c3"
+    },
+    {
+      "file": "docs/evidence/ble-c3-advertising/checks.json",
+      "original_sha256": "4039ea98dfb2c4a15d12b1bfe4772c6afebdeb096633d5fadc13514b00ff34d5",
+      "curated_sha256": "e2655ca94db03162b5fa994d6dce71241d3378b4d2e0bacb64bf98bca61eb3cb"
+    },
+    {
+      "file": "docs/evidence/ble-c3-advertising/hardware/Probe.ino",
+      "original_sha256": "8cac41830514c0fa95b1b592967a81e47656d10f300b3ad523a4bca30d8555dd",
+      "curated_sha256": "23d43d657a96c9955d1c94dc0283a56c432749c5de66fe7c6468c6fee6cdf20a"
+    },
+    {
+      "file": "docs/evidence/ble-c3-advertising/hardware/README.md",
+      "original_sha256": "aee4d6eb6da90fb05cb3695ab31f93fde9516923d9a20d482d25f65a3e27576c",
+      "curated_sha256": "0c53a3d16342b8faba6190934402174b5e469473001da30fbed73baa4df0a17c"
+    },
+    {
+      "file": "docs/evidence/ble-c3-advertising/hardware/cpu.json",
+      "original_sha256": "86b52f664e0c0d05563324bab8a1f962e8d27923deb473d3bf71d9c4551d2b42",
+      "curated_sha256": "14f404fc34140a33507d72917cb9f71464122b14ffca8a99a9c6ceb04bf7e3f1"
+    },
+    {
+      "file": "docs/evidence/ble-c3-advertising/hardware/receipt.json",
+      "original_sha256": "08ade8cff63ea5461cd91f42442c89d178c95314047282e4c38f3061433c501f",
+      "curated_sha256": "1608796ce563edbed5e7e76f6e3cfb968be54f7d8ee8443fc3e2e47749d641c8"
+    }
+  ]
+}
