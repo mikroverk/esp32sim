@@ -276,4 +276,5 @@ emulator deletion. `[ble-air]` contains modeled half-microsecond time, channel,
 PDU type, AdvA, decoded name/service AD fields and the raw PDU. `[ble-config]`
 contains configured scan-response data, not a transmitted packet. The bounded
 1024-entry queue reports lost observations as `[ble-observer] dropped=N`.
-No RX, SCAN_REQ or connection handling is implemented.
+Queued observations and the dropped count survive guest reboot. Invalid enable
+calls log a reason through `host_log`. No RX, SCAN_REQ or connection handling is implemented.

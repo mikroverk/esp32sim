@@ -171,7 +171,8 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
         i += 1;
     }
     if o.ble_observe && !o.ble_full { usage_error("--ble-observe requires --ble full"); }
-    if o.ble_full && (o.ble || o.chip != "c3") { usage_error("--ble full requires C3 and is mutually exclusive with --ble"); }
+    if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
+    if o.ble_full && !matches!(o.chip.as_str(), "c3" | "esp32c3") { usage_error("--ble full requires C3"); }
     o
 }
 
@@ -296,7 +297,7 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
     let mut m = esp32c3::machine(o.mac.unwrap_or([0x60, 0x55, 0xf9, 0x00, 0x11, 0x22]), o.flash_mb.unwrap_or(4) << 20);
     m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);   // the JEDEC capacity follows the size
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
-    if o.ble_full { m.bus.periph.ble_lc.enable(); m.bus.periph.ble_lc.observe(o.ble_observe); m.bus.periph.refresh_work(); esp_periph::Dispatch::refresh_optional(&mut m.bus.periph, 0x31); }
+    if o.ble_full { m.bus.enable_ble_full(o.ble_observe).unwrap_or_else(|e| usage_error(&e)); }
     if let Some(spec) = &o.wifi {
         let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
         m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
@@ -420,7 +421,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
         if o.ble { let elf = esp_soc::elf::parse(&data).expect("BLE ELF symbols"); if elf.by_name.contains_key("esp_bt_controller_init") { ble_elf = elf; } }
     }
     if o.ble { m.bus.enable_ble(&ble_elf).unwrap_or_else(|e| usage_error(&format!("--ble: {e}"))); }
-    if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).expect("script")).expect("script"); }
+    if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).unwrap_or_else(|e| usage_error(&format!("script: {e}")))).unwrap_or_else(|e| usage_error(&format!("script: {e}"))); }
     if let Some(s) = &o.serial { m.bus.serial_input(s.as_bytes()); }
     for pre in &o.trace_fns {
         let n = m.trace_fns(pre);

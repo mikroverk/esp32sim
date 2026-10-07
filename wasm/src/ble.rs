@@ -1,5 +1,6 @@
 //! Passive observation of the C3 full link controller.
-use super::{Emu, MachineKind};
+use super::{log, Emu, MachineKind};
+use esp_soc::SocBus;
 
 /// Enable the full controller before boot. Returns 1 for other chips or after boot.
 /// # Safety
@@ -7,11 +8,10 @@ use super::{Emu, MachineKind};
 #[no_mangle]
 pub unsafe extern "C" fn esp32sim_ble_full(e: *mut Emu) -> u32 {
     let e = unsafe { &mut *e };
-    if e.booted { return 1 }
-    let MachineKind::C3(m) = &mut e.m else { return 1 };
-    m.bus.periph.ble_lc.enable();
-    m.bus.periph.refresh_work();
-    esp_periph::Dispatch::refresh_optional(&mut m.bus.periph, 0x31);
+    if e.booted { log("[emu] full BLE must be enabled before boot"); return 1 }
+    let MachineKind::C3(m) = &mut e.m else { log("[emu] full BLE requires C3"); return 1 };
+    if let Err(reason) = m.bus.enable_ble_full(true) { log(&format!("[emu] {reason}")); return 1 }
+
     0
 }
 

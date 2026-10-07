@@ -183,12 +183,15 @@ does not support function substitutions; reported cycle time is not radio timing
 `--ble` HCI substitution. It runs the original guest controller without ELF hooks.
 It implements initialization, clock capture, timer IRQs and legacy advertising on
 channels 37–39. Completion IRQs let the guest schedule its next event. `--ble-observe`
-logs emitted ADV_IND, ADV_NONCONN_IND or ADV_SCAN_IND packets as `[ble-air]` lines;
+logs to stderr emitted ADV_IND, ADV_NONCONN_IND or ADV_SCAN_IND packets as `[ble-air]` lines;
 `hus` is modeled time in half-microseconds. `[ble-config]` reports configured
 SCAN_RSP data separately; a passive observer cannot elicit that response. The queue
 holds the latest 1024 observations and reports dropped entries when polled.
 RX, scan requests and connections are not implemented. Register meanings and the
-300 µs silent receive window remain inferred/model choices, without hardware validation.
+300 µs silent receive window remain inferred/model choices. C3 rev v0.3 checks cover
+selected readbacks, latch completion and clock rate; they do not validate over-air
+timing, channel order, END timing, descriptor semantics or the FIFO. Script `ble`
+commands require HCI `--ble` and an application ELF; `--ble full` rejects them.
 
 ## Live camera input
 

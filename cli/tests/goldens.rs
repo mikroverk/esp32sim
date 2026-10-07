@@ -272,6 +272,11 @@ fn ble_advertiser_c3() {
             assert!(line.contains("name=\"esp32sim\"") && line.contains("service=180f"), "{line}");
         }
     }
+    expect_text("ble-advertiser-c3.console.txt", &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("  core") || l.starts_with("[ble-config]")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text("ble-advertiser-c3.report.txt", &report);
     expect_text("ble-advertiser-c3.observer.txt", &(packets.join("\n") + "\n"));
     expect_u64("ble-advertiser-c3.insns", r.insns);
 }

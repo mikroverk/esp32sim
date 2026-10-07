@@ -222,7 +222,7 @@ impl DeviceSet for Peripherals {
             // IDF v5.5.5 soc/esp32c3/register/soc/{syscon,rtc_cntl}_reg.h.
             // Checked on C3 rev v0.3: pre-init BT is powered down and isolated,
             // even though SYSCON already enables its clocks and releases reset.
-            let syscon = self.misc.generic.entry(0x26).or_default();
+            let syscon = self.misc.generic.get(&0x26).expect("C3 SYSCON reset registers");
             self.ble_lc.accessible = syscon.read(0x14) & 0x30800 == 0x30800
                 && syscon.read(0x18) & 0x3e08 == 0
                 && self.rtc.ram.read(0x88) & (1 << 11) == 0
@@ -236,6 +236,13 @@ impl DeviceSet for Peripherals {
 }
 
 impl Peripherals {
+    pub fn enable_ble_full(&mut self, observe: bool) {
+        if !self.ble_lc.enabled() { self.ble_lc.enable(); }
+        self.ble_lc.observe(observe);
+        self.refresh_work();
+        self.refresh_optional(0x31);
+    }
+
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             ble_lc: Default::default(),
@@ -273,7 +280,7 @@ impl Peripherals {
             0x08 => "RTCCNTL/EFUSE", 0x09 => "IO_MUX", 0x0e => "RTC_I2C", 0x10 => "UART1",
             0x13 => "I2C0", 0x14 => "UHCI0", 0x16 => "RMT", 0x19 => "LEDC", 0x1c => "NRX", 0x1d => "BB",
             0x1f => "TIMG0", 0x20 => "TIMG1", 0x23 => "SYSTIMER", 0x24 => "SPI2", 0x26 => "APB_CTRL",
-            0x2b => "TWAI", 0x2d => "I2S", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS",
+            0x31 => "BLE_LC", 0x2b => "TWAI", 0x2d => "I2S", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS",
             0x3e => "HMAC", 0x3f => "GDMA", 0x40 => "APB_SARADC", 0x43 => "USB_SERIAL_JTAG",
             0xc0 => "SYSTEM", 0xc1 => "SENSITIVE", 0xc2 => "INTERRUPT", 0xc4 => "EXTMEM",
             0xc5 => "MMU", 0xcc => "XTS_AES", 0xce => "ASSIST_DEBUG", 0xcf => "DEDICATED_GPIO",
@@ -312,6 +319,12 @@ impl Peripherals {
         if addr == PERIPH_BASE + 0xc0010 || addr == PERIPH_BASE + 0xc0018 {
             self.ledc.clock_enabled = self.system.read(0x10) & (1 << 11) != 0 && self.system.read(0x18) & (1 << 11) == 0;
             self.refresh_optional(0x19);
+        }
+        // IDF v5.5.5 syscon_reg.h: BTBB, RW_BTMAC/BTLP and their register resets.
+        // Reset cancellation/register clearing are inferred, not hardware-probed.
+        if addr == 0x6002_6018 && v & 0x3e08 != 0 && self.ble_lc.enabled() {
+            self.ble_lc.reset_controller();
+            self.refresh_optional(0x31);
         }
         self.refresh_work();
     }

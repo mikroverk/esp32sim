@@ -27,7 +27,7 @@ pub fn advertising_fields(data: &[u8]) -> Vec<String> {
 }
 
 const ADV: &[u8] = b"\x02\x01\x06\x03\x03\x0f\x18\x09\x09esp32sim";
-fn hex(b: &[u8]) -> String { b.iter().map(|v| format!("{v:02x}")).collect() }
+pub fn hex(b: &[u8]) -> String { b.iter().map(|v| format!("{v:02x}")).collect() }
 fn uuid(b: &[u8]) -> String {
     let s = hex(&b.iter().rev().copied().collect::<Vec<_>>());
     if b.len() == 16 {

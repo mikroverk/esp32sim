@@ -4,6 +4,7 @@
 use std::collections::VecDeque;
 use emu_core::ClockDomain;
 use esp_periph::{Device, RegRam, WriteEffect};
+use esp_soc::ble::peer::hex;
 
 const REQUEST: u32 = 1 << 31;
 const TIMER: u32 = 1 << 11;
@@ -34,7 +35,7 @@ struct State {
 }
 
 impl BleLc {
-    pub fn enable(&mut self) {
+    pub(crate) fn enable(&mut self) {
         self.state = Some(Box::default());
         self.accessible = true;
         // Inferred reset configuration; initialized readbacks checked on C3 rev v0.3.
@@ -43,11 +44,27 @@ impl BleLc {
         self.ram.write(0x07c, 0xe400_e400);
     }
     pub fn observe(&mut self, log: bool) { if let Some(s) = &mut self.state { s.pub_log = log; } }
-    pub fn logging(&self) -> bool { self.state.as_ref().is_some_and(|s| s.pub_log) }
+    pub fn observing(&self) -> bool { self.state.as_ref().is_some_and(|s| s.pub_log) }
     pub fn take_observation(&mut self) -> Option<String> {
         let s = self.state.as_mut()?;
         if s.dropped != 0 { return Some(format!("[ble-observer] dropped={}", std::mem::take(&mut s.dropped))) }
         s.packets.pop_front()
+    }
+    pub(crate) fn reset_controller(&mut self) {
+        let Some(old) = self.state.take() else { return };
+        self.ram = RegRam::new();
+        self.enable();
+        let s = self.state.as_mut().unwrap();
+        s.cycles = old.cycles;
+        s.pub_log = old.pub_log;
+        s.packets = old.packets;
+        s.dropped = old.dropped;
+    }
+    pub(crate) fn keep_observations(&mut self, old: &mut Self) {
+        if let (Some(s), Some(old)) = (&mut self.state, &mut old.state) {
+            s.packets = std::mem::take(&mut old.packets);
+            s.dropped = old.dropped;
+        }
     }
     pub fn enabled(&self) -> bool { self.state.is_some() }
 }
@@ -69,34 +86,37 @@ struct Advertising {
 impl State {
     fn raise(&mut self, source: u32) {
         self.raw |= source;
-        // Coalesce repeated pending sources; only TIMER and END exist in this model.
-        if !self.fifo.contains(&source) { self.fifo.push_back(source); }
+        // r_sch_prog_end_isr completes one ET per FIFO END, never coalesce ENDs.
+        self.fifo.push_back(source);
     }
-    fn observe(&mut self, line: String) {
-        if self.pub_log { eprintln!("{line}"); }
+    fn observe(&mut self, line: impl FnOnce() -> String) {
+        if !self.pub_log { return }
+        let line = line();
+        #[cfg(not(target_arch = "wasm32"))]
+        eprintln!("{line}");
         if self.packets.len() == 1024 { self.packets.pop_front(); self.dropped += 1; }
         self.packets.push_back(line);
     }
 }
 
 impl BleLc {
-    // Inferred mapping: r_emi_get_mem_addr_by_offset, 0x400069f6 / 0x40006a68.
-    // The final eight mappings follow a seven-register gap (0x40006a8c).
+    // C3 rev3 ROM em_base_reg_lut (0x3ff1f518), condensed to region starts.
+    // r_emi_get_mem_addr_by_offset chooses a register by this static table and
+    // asserts its programmed logical start. A zero register cannot inherit a neighbor.
+    const EM_STARTS: [u32; 39] = [
+        0, 0x400, 0xc00, 0x1000, 0x1400, 0x1c00, 0x2000, 0x2400,
+        0x2c00, 0x3400, 0x3c00, 0x4400, 0x4c00, 0x5400, 0x5c00, 0x6400,
+        0x6c00, 0x7400, 0x7800, 0x7c00, 0x8000, 0x8400, 0x8800, 0x8c00,
+        0x9000, 0x9400, 0x9800, 0x9c00, 0xa000, 0xa400, 0xa800, 0xac00,
+        0xb000, 0xb400, 0xb800, 0xbc00, 0xc000, 0xc400, 0xc800,
+    ];
     fn mapped(&self, offset: u32, len: usize, sram: &[u8]) -> Option<usize> {
-        let mut mapping = None;
-        let mut end = 0x10000;
-        for i in 0..56 {
-            let entry = self.ram.read(0x204 + (if i < 48 { i } else { i + 7 }) * 4);
-            if entry == 0 { continue }
-            let start = (entry >> 18) << 2;
-            if start > offset { end = end.min(start); }
-            if start <= offset && mapping.is_none_or(|(old, _)| old < start) {
-                mapping = Some((start, entry));
-            }
-        }
+        let i = Self::EM_STARTS.partition_point(|&start| start <= offset).checked_sub(1)?;
+        let start = Self::EM_STARTS[i];
+        let end = Self::EM_STARTS.get(i + 1).copied().unwrap_or(0xcc00);
         if offset.checked_add(len.try_into().ok()?)? > end { return None }
-        let (start, entry) = mapping?;
-        if entry & 0x3ffff == 0 { return None }
+        let entry = self.ram.read(0x204 + i as u32 * 4);
+        if entry >> 18 != start / 4 || entry & 0x3ffff == 0 { return None }
         let addr = (0x3fc00000 | ((entry << 2) & 0xffffc)).checked_add(offset - start)?;
         let index = addr.checked_sub(crate::bus::DRAM_LOW)? as usize + crate::bus::DRAM_IN_SRAM;
         sram.get(index..index.checked_add(len)?)?;
@@ -146,13 +166,14 @@ impl BleLc {
         if s.event.is_none() {
             if let Some(index) = s.kicks.pop_front() {
                 let Some(entry) = self.mapped(index as u32 * 16, 16, sram) else {
-                    self.state.as_mut().unwrap().observe("[ble-error] unmapped event entry".into());
+                    self.state.as_mut().unwrap().observe(|| "[ble-error] unmapped event entry".into());
                     return;
                 };
                 // Inferred coarse/fine timestamp: r_sch_prog_push 0x40030f1a / 0x40030f3c / 0x40030f9e.
                 let coarse = half(sram, entry + 2) as u64 | ((half(sram, entry + 4) as u64 & 0xfff) << 16);
                 let target = coarse * 625 + 624u64.saturating_sub(half(sram, entry + 6) as u64);
                 let delta = (target + PERIOD - now / HALF_US_CYCLES % PERIOD) % PERIOD;
+                // Inferred: a past target fires now, rather than after wrap; hardware question.
                 let due = if delta >= PERIOD / 2 { now } else { (now / HALF_US_CYCLES + delta) * HALF_US_CYCLES };
                 self.state.as_mut().unwrap().event = Some(Event { entry, due, advertising: None });
             }
@@ -169,16 +190,18 @@ impl BleLc {
                     if advertising.scan_response != s.scan_response {
                         s.scan_response.clone_from(&advertising.scan_response);
                         if !s.scan_response.is_empty() {
-                            s.observe(format!("[ble-config] SCAN_RSP {} data={}",
-                                ad_fields(&s.scan_response[8..]), hex(&s.scan_response[8..])));
+                            let data = &advertising.scan_response[8..];
+                            s.observe(|| if data.is_empty() { "[ble-config] SCAN_RSP empty".into() } else {
+                                format!("[ble-config] SCAN_RSP {} data={}", ad_fields(data), hex(data))
+                            });
                         }
                     }
                     // Inferred START bit4; unmasked advertising snapshot checked on C3 rev v0.3.
-                    s.raw |= 1 << 4;
+                    if self.ram.read(0x0c) & (1 << 4) != 0 { s.raise(1 << 4); } else { s.raw |= 1 << 4; }
                     event.advertising = Some(advertising);
                 }
                 Err(reason) => {
-                    self.state.as_mut().unwrap().observe(format!("[ble-error] {reason}"));
+                    self.state.as_mut().unwrap().observe(|| format!("[ble-error] {reason}"));
                     self.complete(event.entry, 4, sram);
                     return;
                 }
@@ -190,10 +213,12 @@ impl BleLc {
             let channel = advertising.channels.trailing_zeros() as u8;
             advertising.channels &= !(1 << channel);
             let pdu = &advertising.pdu;
-            let address = pdu[2..8].iter().rev().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(":");
-            let kind = match pdu[0] & 15 { 0 => "ADV_IND", 2 => "ADV_NONCONN_IND", _ => "ADV_SCAN_IND" };
-            s.observe(format!("[ble-air] hus={} channel={} type={} AdvA={} {} pdu={}", event.due / HALF_US_CYCLES,
-                37 + channel, kind, address, ad_fields(&pdu[8..]), hex(pdu)));
+            s.observe(|| {
+                let address = pdu[2..8].iter().rev().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(":");
+                let kind = match pdu[0] & 15 { 0 => "ADV_IND", 2 => "ADV_NONCONN_IND", _ => "ADV_SCAN_IND" };
+                format!("[ble-air] hus={} channel={} type={} AdvA={} {} pdu={}", event.due / HALF_US_CYCLES,
+                    37 + channel, kind, address, ad_fields(&pdu[8..]), hex(pdu))
+            });
             // Model choice: 1M PHY airtime (preamble, access address, CRC) plus a
             // 300 us silent receive window. No RX or SCAN_RSP is emitted without RX.
             event.due += (8 * (pdu.len() as u64 + 8) + 300) * 2 * HALF_US_CYCLES;
@@ -213,8 +238,6 @@ impl BleLc {
         self.state.as_mut().unwrap().raise(1 << 5);
     }
 }
-
-fn hex(bytes: &[u8]) -> String { bytes.iter().map(|b| format!("{b:02x}")).collect() }
 
 fn ad_fields(data: &[u8]) -> String {
     let mut fields = esp_soc::ble::peer::advertising_fields(data);
@@ -252,7 +275,7 @@ impl Device for BleLc {
                 v | (u32::from(v & 0x771 == 0x221) << 12)
             },
             // Inferred masked status, read by ROM r_rwble_isr (0x4002e8ee).
-            0x010 => s.raw & self.ram.read(0x00c),
+            0x010 => s.fifo.iter().fold(s.raw, |raw, entry| raw | entry) & self.ram.read(0x00c),
             // Inferred W1C readback for read/modify/write acknowledgements in r_rwble_isr.
             0x018 => 0,
             // Inferred FIFO: r_rwble_isr_hack extracts count [9:5]
@@ -267,7 +290,17 @@ impl Device for BleLc {
             self.ram.write(off, v);
             return WriteEffect::NONE;
         };
+        if !self.accessible { return WriteEffect::NONE }
         match off {
+            // r_rwip_timer_hus_set cancels by masking TIMER. The FIFO-mode ISR
+            // dispatches popped entries without a mask check (ROM 0x4002e722).
+            0x00c => {
+                if v & TIMER == 0 {
+                    s.fifo.retain(|&source| source != TIMER);
+                    s.alarm = None;
+                }
+                self.ram.write(off, v);
+            }
             0x004 | 0x008 | 0x010 | 0x014 | 0x020 => {},
             // Checked on C3 rev v0.3: guest writes 00640064, reads 00000064.
             // Width beyond the exercised low byte remains inferred.
@@ -300,7 +333,7 @@ impl Device for BleLc {
                 if v & REQUEST != 0 { s.fifo.clear(); } else if v & 1 != 0 { s.fifo.pop_front(); }
             }
             // Inferred alarm pair: r_rwip_timer_hus_set writes coarse then 624-hus.
-            // A target behind now by less than half the counter period is due immediately.
+            // Inferred: a past target fires now, rather than after wrap; hardware question.
             0x0f0 => {
                 self.ram.write(off, v & 0x3ff);
                 let target = (self.ram.read(0x0ec) as u64 & 0x0fff_ffff) * 625
@@ -318,15 +351,19 @@ impl Device for BleLc {
     fn has_deadline(&self) -> bool { self.enabled() }
     fn next_deadline(&self) -> Option<u64> {
         let s = self.state.as_ref()?;
-        [s.reset, s.latch, s.alarm, s.event.as_ref().map(|e| e.due)].into_iter().flatten().min().map(|t| t.saturating_sub(s.cycles).max(1))
+        let half_slot = (self.ram.read(0) & 0x100 != 0 && self.ram.read(0x0c) & 1 != 0 && s.raw & 1 == 0)
+            .then(|| (s.cycles / (625 * HALF_US_CYCLES) + 1) * (625 * HALF_US_CYCLES));
+        [s.reset, s.latch, s.alarm, half_slot, s.event.as_ref().map(|e| e.due)].into_iter().flatten().min().map(|t| t.saturating_sub(s.cycles).max(1))
     }
     fn irq_sources(&self) -> u64 {
-        self.state.as_ref().is_some_and(|s| s.raw & self.ram.read(0x00c) != 0) as u64
+        self.state.as_ref().is_some_and(|s| s.fifo.iter().fold(s.raw, |raw, entry| raw | entry) & self.ram.read(0x00c) != 0) as u64
     }
     fn tick(&mut self, ticks: u64) {
         let Some(s) = &mut self.state else { return };
         // Inferred half-slot status bit0; init/adv snapshots checked on C3 rev v0.3.
-        if self.ram.read(0) & 0x100 != 0 && s.cycles / (625 * HALF_US_CYCLES) != (s.cycles + ticks) / (625 * HALF_US_CYCLES) { s.raw |= 1; }
+        if self.ram.read(0) & 0x100 != 0 && s.cycles / (625 * HALF_US_CYCLES) != (s.cycles + ticks) / (625 * HALF_US_CYCLES) {
+            if self.ram.read(0x0c) & 1 != 0 && s.raw & 1 == 0 { s.raise(1); } else { s.raw |= 1; }
+        }
         s.cycles += ticks;
         if s.reset.is_some_and(|t| t <= s.cycles) {
             s.reset = None;
@@ -357,8 +394,10 @@ mod tests {
     fn advertising_fixture() -> (BleLc, Vec<u8>) {
         let mut d = BleLc::default();
         d.enable();
-        // One synthetic SRAM mapping; pointers exercise the actual exchange-memory decoder.
-        d.write(0x204, 0x20000);
+        d.observe(true);
+        for (i, &start) in BleLc::EM_STARTS.iter().enumerate() {
+            d.write(0x204 + i as u32 * 4, (start / 4) << 18 | (0x20000 + start / 4));
+        }
         let mut ram = vec![0; 0x14000];
         let base = crate::bus::DRAM_IN_SRAM;
         for (offset, value) in [(0, 2), (2, 10), (6, 624), (8, 0x200),
@@ -374,6 +413,27 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs the ESP32-C3 mask ROM ELF fetched by CI; set ESP32SIM_ROM_DIR"]
+    fn mapping_boundaries_match_rom_em_base_reg_lut() {
+        let dir = std::env::var_os("ESP32SIM_ROM_DIR").expect("set ESP32SIM_ROM_DIR to the fetched mask ROM directory");
+        let bytes = std::fs::read(std::path::Path::new(&dir).join("esp32c3_rev3_rom.elf")).unwrap();
+        let elf = esp_soc::elf::parse(&bytes).unwrap();
+        let addr = elf.by_name["em_base_reg_lut"];
+        let section = elf.sections.iter().find(|s| addr >= s.addr && (addr - s.addr) as usize + 51 * 4 <= s.data.len()).unwrap();
+        let table = &section.data[(addr - section.addr) as usize..][..51 * 4];
+        for (page, entry) in table.as_chunks::<4>().0.iter().enumerate() {
+            let index = BleLc::EM_STARTS.partition_point(|&start| start <= page as u32 * 1024) - 1;
+            assert_eq!(usize::from(entry[0]), index);
+            assert_eq!(u32::from(u16::from_le_bytes([entry[2], entry[3]])), BleLc::EM_STARTS[index]);
+        }
+        let (mut d, ram) = advertising_fixture();
+        assert!(d.mapped(0x2c00, 3, &ram).is_some());
+        d.write(0x224, 0);
+        assert!(d.mapped(0x2c00, 3, &ram).is_none());
+        assert!(d.mapped(0x2bfc, 8, &ram).is_none());
+    }
+
+    #[test]
     fn descriptor_chain_maps_address_data_and_conditional_scan_response() {
         let (mut d, mut ram) = advertising_fixture();
         let et = crate::bus::DRAM_IN_SRAM;
@@ -385,7 +445,7 @@ mod tests {
         assert!(d.advertising(et, &ram).is_err());
         ram[et + 0x1403] = 9;
         // An unmapped region must not fall back to the preceding mapping.
-        d.write(0x208, 0x2c000000);
+        d.write(0x224, 0);
         assert!(d.advertising(et, &ram).is_err());
         assert!(d.mapped(0x2bff, 2, &ram).is_none());
         assert!(d.mapped(u32::MAX, usize::MAX, &ram).is_none());
@@ -532,9 +592,119 @@ mod tests {
     }
 
     #[test]
+    fn event_fine_timestamp_and_past_due_event() {
+        for (now, fine, due) in [(0, 400, 6474), (7000, 400, 7000)] {
+            let (mut d, mut ram) = advertising_fixture();
+            ram[crate::bus::DRAM_IN_SRAM + 6..crate::bus::DRAM_IN_SRAM + 8].copy_from_slice(&(fine as u16).to_le_bytes());
+            d.tick(now * HALF_US_CYCLES);
+            d.write(0x100, REQUEST);
+            d.service(&mut ram);
+            if now < due {
+                assert!(d.take_observation().is_none());
+                assert_eq!(d.next_deadline(), Some((due - now) * HALF_US_CYCLES));
+                d.tick((due - now) * HALF_US_CYCLES - 1);
+                d.service(&mut ram);
+                assert!(d.take_observation().is_none());
+                d.tick(1);
+                d.service(&mut ram);
+            }
+            assert!(d.take_observation().unwrap().starts_with("[ble-config]"));
+            assert!(d.take_observation().unwrap().contains(&format!("hus={due} channel=37")));
+        }
+    }
+
+    #[test]
+    fn past_due_alarm_is_due_now_not_after_wrap() {
+        let mut d = BleLc::default(); d.enable();
+        d.tick(1000 * HALF_US_CYCLES);
+        d.write(0xc, TIMER);
+        d.write(0xec, 1); d.write(0xf0, 624);
+        assert_eq!(d.next_deadline(), Some(1));
+        d.tick(0);
+        assert_eq!(d.read(0x10), TIMER);
+    }
+
+    #[test]
+    fn each_completed_event_retains_an_end_and_cancelled_timer_stays_out() {
+        let (mut d, mut ram) = advertising_fixture();
+        let base = crate::bus::DRAM_IN_SRAM;
+        ram.copy_within(base..base + 16, base + 16);
+        ram[base + 0x426] = 0; // No channels: complete both ETs without an intervening ISR.
+        d.write(0xc, TIMER | (1 << 5));
+        d.write(0xec, 0); d.write(0xf0, 624);
+        d.tick(1);
+        assert_eq!(d.read(0x2d8) >> 10, TIMER);
+        d.write(0xc, 1 << 5); // r_rwip_timer_hus_set's cancellation, no FIFO pop.
+        d.write(0x100, REQUEST); d.write(0x100, REQUEST | 1);
+        d.tick(10 * 625 * HALF_US_CYCLES);
+        d.service(&mut ram); d.service(&mut ram);
+        for pending in [2, 1] {
+            assert_eq!((d.read(0x2d8) >> 5) & 31, pending);
+            assert_eq!(d.read(0x2d8) >> 10, 1 << 5);
+            assert_eq!(d.irq_sources(), 1);
+            // The ROM pops before dispatch and acknowledges the completed source.
+            d.write(0x2d8, 1); d.write(0x18, 1 << 5);
+        }
+        assert_eq!(d.read(0x2d8), 0); assert_eq!(d.irq_sources(), 0);
+        for entry in [base, base + 16] { assert_eq!((half(&ram, entry) >> 3) & 7, 3); }
+    }
+
+    #[test]
+    fn half_slot_deadline_and_ack_are_chunk_independent() {
+        let mut d = BleLc::default(); d.enable();
+        d.write(0, 0x100); d.write(0xc, 1);
+        assert_eq!(d.next_deadline(), Some(50_000));
+        d.tick(49_999); assert_eq!(d.read(0x14), 0);
+        assert_eq!(d.next_deadline(), Some(1));
+        d.tick(1); assert_eq!(d.read(0x14), 1); assert_eq!(d.irq_sources(), 1);
+        assert_eq!(d.next_deadline(), None);
+        d.write(0x2d8, 1); d.write(0x18, 1);
+        assert_eq!(d.next_deadline(), Some(50_000));
+        d.tick(50_000); assert_eq!(d.read(0x14), 1);
+    }
+
+    #[test]
+    fn gated_writes_are_ignored_and_bt_reset_cancels_work() {
+        let mut p = crate::periph::Peripherals::new([0; 6]);
+        p.enable_ble_full(false);
+        p.write32(0x6003108c, 12);
+        p.write32(0x60026014, 0xffff_ffdf);
+        assert_eq!(p.read32(0x6003108c), 0);
+        for bit in [3, 9, 10, 11, 12, 13] {
+            p.write32(0x6003108c, 34);
+            p.write32(0x6003101c, REQUEST);
+            p.write32(0x600310ec, 100);
+            p.write32(0x600310f0, 624);
+            p.write32(0x60026018, 1 << bit);
+            p.write32(0x6003108c, 56);
+            p.write32(0x60026018, 0);
+            assert_eq!(p.read32(0x6003108c), 0);
+            assert_eq!(p.ble_lc.next_deadline(), None);
+            assert_eq!(p.read32(0x60031014), 0);
+        }
+    }
+
+    #[test]
+    fn disabled_observer_does_not_format_or_queue_and_reboot_keeps_loss_count() {
+        let mut d = BleLc::default(); d.enable();
+        d.state.as_mut().unwrap().observe(|| panic!("disabled observer formatted a line"));
+        assert!(d.take_observation().is_none());
+        d.observe(true);
+        let s = d.state.as_mut().unwrap();
+        s.packets.push_back("queued".into()); s.dropped = 7;
+        let mut m = crate::machine([0; 6], 4 << 20);
+        m.bus.periph.ble_lc = d;
+        m.reboot();
+        assert!(m.bus.periph.work_pending);
+        assert_eq!(m.bus.periph.misc.active_optional, [0x31]);
+        assert_eq!(m.bus.periph.ble_lc.take_observation().as_deref(), Some("[ble-observer] dropped=7"));
+        assert_eq!(m.bus.periph.ble_lc.take_observation().as_deref(), Some("queued"));
+    }
+
+    #[test]
     fn silicon_readbacks_follow_configuration_and_power_state() {
         let mut p = crate::periph::Peripherals::new([0; 6]);
-        p.ble_lc.enable();
+        p.enable_ble_full(false);
         assert_eq!(p.read32(0x60026014), 0xfffc_e030);
         assert_eq!(p.read32(0x600c0024), 0x0200_1001);
         assert_eq!(p.read32(0x60031004), 0);
@@ -572,7 +742,10 @@ mod tests {
         p.tick(1000);
         assert_eq!(p.read32(0x6003101c), REQUEST);
         assert!(p.misc.active_optional.is_empty());
-        p.ble_lc.enable();
+        p.enable_ble_full(false);
+        assert!(p.work_pending);
+        assert_eq!(p.misc.active_optional, [0x31]);
+        p.write32(0x60026014, 0xffff_ffdf);
         p.write32(0x600c2020, 9);
         p.write32(0x6003100c, TIMER);
         p.write32(0x600310ec, 1);
@@ -582,6 +755,7 @@ mod tests {
         assert_eq!(p.source_status()[0] & (1 << 8), 1 << 8);
         assert_ne!(p.intc.lines.level & (1 << 9), 0);
         p.write32(0x60031018, TIMER);
+        p.write32(0x600312d8, 1);
         p.refresh_lines();
         assert_eq!(p.intc.lines.level & (1 << 9), 0);
     }

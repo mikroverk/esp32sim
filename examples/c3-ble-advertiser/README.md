@@ -8,7 +8,7 @@ passively; it does not send scan requests or transmit scan responses.
 
 The committed app is under 400 KB. The test `ble_advertiser_c3` in
 `cli/tests/goldens.rs` boots it with the CI-fetched C3 rev3 ROM, without an app ELF,
-hooks or external firmware. It pins the observer lines and instruction count for
+hooks or external firmware. It pins console, observer/configuration lines, interrupt counts and accounted instructions for
 two modeled seconds, including wrap of the controller's 16-entry event table.
 
 ## Rebuild
@@ -20,7 +20,12 @@ including its pinned submodules, and its recommended RISC-V GCC
 ```sh
 "$IDF_PATH/install.sh" esp32c3
 . "$IDF_PATH/export.sh"
-cd examples/c3-ble-advertiser
+```
+
+Then, from `examples/c3-ble-advertiser`, start a clean build:
+
+```sh
+rm -rf build sdkconfig
 idf.py -B build -DIDF_TARGET=esp32c3 build
 P=../../web/wasm/fw/public
 cp build/bootloader/bootloader.bin "$P/c3-ble-bootloader.bin"
@@ -45,6 +50,7 @@ node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public \
   web/wasm/fw/esp32c3_rev3_rom.elf
 ```
 
-Only an intentional firmware/model change should regenerate these two new goldens.
+Recheck the linked components and update the notice whenever ESP-IDF changes.
+Only an intentional firmware/model change should regenerate these goldens.
 This checks modeled advertising and interrupt progress; it does not validate RF
 behavior or timing against hardware.

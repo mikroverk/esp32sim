@@ -22,6 +22,13 @@ const bytes = (data, f) => {
   mem().set(data, p);
   try { return f(p, data.length); } finally { w.esp32sim_free(p, data.length); }
 };
+for (const chip of ['none', 'esp32c6']) {
+  const other = bytes(new TextEncoder().encode(chip), (p, n) => w.esp32sim_new(p, n, 4, 0));
+  assert(other);
+  assert.equal(w.esp32sim_ble_full(other), 1);
+  assert(logs.at(-1).includes('requires C3'));
+  w.esp32sim_delete(other);
+}
 const emu = bytes(new TextEncoder().encode('c3'), (p, n) => w.esp32sim_new(p, n, 4, 0));
 assert(emu);
 assert.equal(w.esp32sim_ble_full(emu), 0);
@@ -31,6 +38,7 @@ for (const [kind, path] of [[0, rom], [1, join(build, 'c3-ble-bootloader.bin')],
 }
 assert.equal(w.esp32sim_boot(emu, 0), 0);
 assert.equal(w.esp32sim_ble_full(emu), 1);
+assert(logs.at(-1).includes('before boot'));
 const observations = [];
 while (w.esp32sim_cycles(emu) < 320_000_000) {
   assert.equal(w.esp32sim_run(emu, 2_000_000, 0), 0);
