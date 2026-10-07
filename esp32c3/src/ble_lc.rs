@@ -428,6 +428,8 @@ mod tests {
         }
         let (mut d, ram) = advertising_fixture();
         assert!(d.mapped(0x2c00, 3, &ram).is_some());
+        d.write(0x224, (0x3400 / 4) << 18 | 0x20d00);
+        assert!(d.mapped(0x2c00, 3, &ram).is_none());
         d.write(0x224, 0);
         assert!(d.mapped(0x2c00, 3, &ram).is_none());
         assert!(d.mapped(0x2bfc, 8, &ram).is_none());

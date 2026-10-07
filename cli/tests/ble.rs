@@ -33,7 +33,9 @@ fn ble_script_without_enable_exits_unsuccessfully() {
         let result = Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(["--script", script.to_str().unwrap(), "--max-insns", "1", "--no-dump"])
             .output().unwrap();
         assert!(!result.status.success());
-        assert!(String::from_utf8_lossy(&result.stderr).contains("line 1"));
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        assert!(stderr.contains(if line.ends_with("conect") { "line 1: expected connect" } else { "line 1: BLE requires --ble" }), "{stderr}");
+        assert!(!stderr.contains("ROM loaded"), "{stderr}");
     }
     std::fs::remove_file(script).unwrap();
 }
@@ -72,5 +74,5 @@ fn full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic() {
     assert_eq!(result.status.code(), Some(2));
     let stderr = String::from_utf8_lossy(&result.stderr);
     assert!(stderr.contains("line 1: BLE requires --ble"), "{stderr}");
-    assert!(!stderr.contains("panicked"));
+    assert!(!stderr.contains("panicked") && !stderr.contains("ROM loaded"), "{stderr}");
 }

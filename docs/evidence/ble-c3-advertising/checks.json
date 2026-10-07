@@ -1,5 +1,4 @@
 {
-  "source": "270f45c2f8d233f8c28f3ca80183e90c0b34c530",
   "rust": "1.99.0, explicit selection; default unchanged",
   "checks": [
     {
@@ -23,7 +22,8 @@
         "passed": 641,
         "failed": 0,
         "ignored": 0
-      }
+      },
+      "environment": "HOME is an empty directory; CARGO_HOME and RUSTUP_HOME retain toolchain caches. ESP32SIM_ROM_DIR is the absolute fetched ROM directory."
     },
     {
       "command": "cargo +1.99.0 test --release --workspace",
@@ -32,7 +32,8 @@
         "passed": 620,
         "failed": 0,
         "ignored": 35
-      }
+      },
+      "environment": "HOME is an empty directory; CARGO_HOME and RUSTUP_HOME retain toolchain caches. ESP32SIM_ROM_DIR is unset."
     },
     {
       "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
@@ -130,5 +131,39 @@
   "new_goldens": [
     "ble-advertiser-c3.console.txt",
     "ble-advertiser-c3.report.txt"
-  ]
+  ],
+  "source_base": "a26e1d6770d8015ef7aec6afe4eb43afdd2983d4",
+  "source_sha256": {
+    "cli/src/lib.rs": "b8792fd1c9b3b5694ef78dfc2ee3bfd3f1de45f84880935b4a39149905ce5eee",
+    "cli/tests/ble.rs": "cf8dc6c879c46df5e12aa84eb2aee1447704bc3fe4674ca66a851303f68c7b83",
+    "esp32c3/src/ble_lc.rs": "669b91bf173b12ad812e39690ee069c514db13bb0a37939908a5ca96062f3e6a"
+  },
+  "source_scope": "Base revision plus the three source files identified by SHA-256; startup validation and test changes only.",
+  "empty_home_reproduction": {
+    "test": "full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic",
+    "before_revision": "a26e1d6770d8015ef7aec6afe4eb43afdd2983d4",
+    "build": "cargo +1.99.0 test --release -p esp32sim --test ble --no-run",
+    "run": "HOME=<empty directory> ESP32SIM_ROM_DIR=<unset or absolute fetched ROM directory> target/release/deps/ble-<hash> full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic --exact --nocapture",
+    "before": [
+      {
+        "rom_dir": "unset",
+        "exit_code": 101
+      },
+      {
+        "rom_dir": "set",
+        "exit_code": 101
+      }
+    ],
+    "after": [
+      {
+        "rom_dir": "unset",
+        "exit_code": 0
+      },
+      {
+        "rom_dir": "set",
+        "exit_code": 0
+      }
+    ],
+    "rom_lookup": "With empty HOME and ESP32SIM_ROM_DIR alone, esp32sim --chip CHIP --boot rom --max-insns 1 --no-dump loads the fetched ROM and exits zero for s3, c3 and c6."
+  }
 }

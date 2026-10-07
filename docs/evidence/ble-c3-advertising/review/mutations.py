@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 root = Path(__file__).resolve().parents[4]
 os.chdir(root)
@@ -34,10 +35,12 @@ mutations = [
     ('enable_skips_optional_refresh', 'esp32c3/src/periph.rs', 'self.refresh_optional(0x31);', '', unit),
     ('enable_skips_work_refresh', 'esp32c3/src/periph.rs', 'self.ble_lc.observe(observe);\n        self.refresh_work();', 'self.ble_lc.observe(observe);', unit),
     ('half_slot_deadline_removed', lc, '[s.reset, s.latch, s.alarm, half_slot,', '[s.reset, s.latch, s.alarm, None,', unit),
+    ('mapping_start_mismatch', lc, 'entry >> 18 != start / 4 || ', '', unit[:-1] + ['mapping_boundaries_match_rom_em_base_reg_lut', '--', '--include-ignored']),
     ('gated_write_accepted', lc, 'if !self.accessible { return WriteEffect::NONE }', '', unit),
 ]
 results = []
 for name, file, before, after, command in mutations:
+    if sys.argv[1:] and name not in sys.argv[1:]: continue
     path = Path(file)
     original = path.read_bytes()
     source = original.decode()

@@ -173,11 +173,22 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if o.ble_observe && !o.ble_full { usage_error("--ble-observe requires --ble full"); }
     if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
     if o.ble_full && !matches!(o.chip.as_str(), "c3" | "esp32c3") { usage_error("--ble full requires C3"); }
+    if let Some(path) = &o.script {
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| usage_error(&format!("script: {e}")));
+        for (ln, line) in text.lines().enumerate() {
+            let mut words = line.split_whitespace();
+            if words.next().is_none_or(|s| s.starts_with('#')) || words.next() != Some("ble") { continue }
+            words.collect::<Vec<_>>().join(" ").parse::<esp_soc::ble::peer::Command>()
+                .unwrap_or_else(|e| usage_error(&format!("script: line {}: {e}", ln + 1)));
+            if !o.ble { usage_error(&format!("script: line {}: BLE requires --ble and the application ELF", ln + 1)); }
+        }
+    }
     o
 }
 
-/// `~/.espressif/tools/esp-rom-elfs/*/<name>` (the newest release wins).
+/// ESP32SIM_ROM_DIR, then `~/.espressif/tools/esp-rom-elfs/*/<name>` (newest first).
 fn find_rom(name: &str) -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("ESP32SIM_ROM_DIR").map(|d| PathBuf::from(d).join(name)).filter(|p| p.is_file()) { return Some(p) }
     let home = std::env::var("HOME").ok()?;
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(format!("{}/.espressif/tools/esp-rom-elfs", home)).ok()?.flatten().map(|e| e.path()).collect();
     dirs.sort();

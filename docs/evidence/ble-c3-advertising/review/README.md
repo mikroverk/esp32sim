@@ -114,3 +114,25 @@ samples, not precision. Each row runs main then candidate. Ranges overlap.
 C3/C6 hello account for 4.8B instructions, C3 Wi-Fi for 2.24B, S3 hello for
 18,788,848. Every Wi-Fi run completes five of five pings. Counts and console hashes
 match main on every run.
+
+## Empty-HOME and mapping-start follow-up
+
+At `a26e1d67`, `full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic`
+fails with an empty HOME both without and with ESP32SIM_ROM_DIR. With CLI BLE
+script validation before ROM loading, both runs pass. Syntax validation reuses
+`ble::peer::Command`; the existing tests also reject any preceding ROM-load log.
+`find_rom` consults ESP32SIM_ROM_DIR first. A one-instruction ROM boot succeeds for
+S3, C3 and C6 with only that ROM directory and an empty HOME.
+
+The full release workspace suite also passes with an empty HOME: 620 passed and
+35 ignored with ESP32SIM_ROM_DIR unset; 641 passed with the fetched ROM directory
+and `--include-ignored --skip external_`. Toolchain caches remain explicitly set
+through CARGO_HOME and RUSTUP_HOME; neither supplies a ROM. `../checks.json` retains
+the reproduction commands, before/after exit codes and tested source hashes.
+
+The nonzero region-0x2c00 mapping with programmed start 0x3400 is rejected.
+`python3 docs/evidence/ble-c3-advertising/review/mutations.py mapping_start_mismatch`
+removes only the start comparison and fails `mapping_boundaries_match_rom_em_base_reg_lut`.
+This nineteenth row records its own source hash; the original eighteen rows retain
+their earlier measured source hashes. Both Clippy gates and the full native/WASM
+check set pass. No goldens or firmware bytes change. No per-tick or JIT code changes.

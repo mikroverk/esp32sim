@@ -18,7 +18,7 @@ PSRAM and register presets.
 | `--bootloader F`, `--ptable F`, `--app F` | written to flash at 0x0 / 0x8000 / 0x10000 |
 | `--flash-image F` | whole flash dump written at 0 |
 | `--chip s3\|c3\|c6` | which chip (default s3) |
-| `--rom F` | mask ROM ELF (default: the chip's in `~/.espressif/tools/esp-rom-elfs/*/`) |
+| `--rom F` | mask ROM ELF (default: the chip's in `ESP32SIM_ROM_DIR`, then `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |
 | `--cam-stream PATH\|-`, `--cam-size WIDTHxHEIGHT` | live RGB24 camera source and its dimensions; requires `waveshare-cam` |
 | `--serial TEXT` | bytes into the USB-Serial/JTAG console before the run |
@@ -166,7 +166,7 @@ use seconds like the other script actions. For example:
 
 Use handles reported by discovery. `ble subscribe CCC_HANDLE` writes notification
 enable to a discovered client configuration descriptor. Commands are validated when
-the script is loaded and require `--ble`. `connect` waits for guest advertising;
+CLI arguments are parsed, before loading the ROM, and require `--ble`. `connect` waits for guest advertising;
 ATT commands wait for the connection and run in order, with one request outstanding.
 At exit, the CLI reports the number of queued or in-flight commands still pending.
 Writes are limited to 20 bytes. A scanning guest sees a virtual

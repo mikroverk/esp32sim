@@ -220,5 +220,17 @@
     "failing_tests": [
       "ble_lc::tests::gated_writes_are_ignored_and_bt_reset_cancels_work"
     ]
+  },
+  {
+    "mutation": "mapping_start_mismatch",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "entry >> 18 != start / 4 || ",
+    "after": "",
+    "source_sha256": "669b91bf173b12ad812e39690ee069c514db13bb0a37939908a5ca96062f3e6a",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib mapping_boundaries_match_rom_em_base_reg_lut -- --include-ignored",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::mapping_boundaries_match_rom_em_base_reg_lut"
+    ]
   }
 ]
