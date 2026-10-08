@@ -40,9 +40,12 @@ impl esp_soc::SocBus for SocBus {
         self.periph.enable_ble_full(observe);
         Ok(())
     }
-    fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
-    fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
-    fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
+    fn ble_enabled(&self) -> bool { self.periph.ble_lc.enabled() || !self.ble.hooks.is_empty() }
+    fn ble_pending_commands(&self) -> usize { if self.periph.ble_lc.enabled() { self.periph.ble_lc.pending_commands() } else { self.ble.session.pending_commands() } }
+    fn ble_command(&mut self, command: &str) -> Result<(), String> {
+        if self.periph.ble_lc.enabled() { self.periph.ble_lc.command(command) }
+        else { self.ble.command(command, self.cycles, periph::CPU_HZ) }
+    }
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         self.periph.refresh_work();
@@ -122,7 +125,7 @@ impl esp_soc::SocBus for SocBus {
         p.wifi.link = old.wifi.link.surviving_reboot(); p.wifi.log = old.wifi.log;
         if old.ble_lc.enabled() {
             p.enable_ble_full(old.ble_lc.observing());
-            p.ble_lc.keep_observations(&mut old.ble_lc);
+            p.ble_lc.keep_host(&mut old.ble_lc);
         }
         p.refresh_work();
         p.efuse = old.efuse;

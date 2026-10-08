@@ -277,4 +277,11 @@ PDU type, AdvA, decoded name/service AD fields and the raw PDU. `[ble-config]`
 contains configured scan-response data, not a transmitted packet. The bounded
 1024-entry queue reports lost observations as `[ble-observer] dropped=N`.
 Queued observations and the dropped count survive guest reboot. Invalid enable
-calls log a reason through `host_log`. No RX, SCAN_REQ or connection handling is implemented.
+calls log a reason through `host_log`. Use `esp32sim_ble_scan(emu, enabled)` for active scanning,
+`esp32sim_ble_command(emu, ptr, len)` for UTF-8 `connect`, `disconnect`,
+`central-stop` or `read-uuid SERVICE CHARACTERISTIC`. `central-stop` silences
+a connected central. These exports return 0 on
+success or 1 for invalid commands/state/chip. Reads use the guest ATT server.
+The central models one unencrypted 1M CSA#1 connection with a 30 ms interval,
+2 s supervision timeout and ATT MTU 23. See [EX213](evidence/ble-c3-connection/README.md)
+for model limits and the production-module reconnect test.

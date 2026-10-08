@@ -29,7 +29,8 @@ PSRAM and register presets.
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
 | `--stub SYMBOL[=value]` (repeatable) | return `value` (default 0) immediately when execution reaches the function's entry; numeric function addresses require a `0x` prefix; accepts decimal, `0x` hex, `true` (1) or `false` (0); rejects invalid values |
-| `--ble full` | experimental C3 register-level BLE controller; runs legacy advertising events in modeled time; excludes `--ble` |
+| `--ble full` | experimental C3 register-level BLE controller; advertising, scanning and one virtual central; excludes `--ble` |
+| `--ble-scan` | enable a virtual active scanner in C3 full mode; sends SCAN_REQ and observes guest-configured SCAN_RSP |
 | `--ble-observe` | passive full-mode PDU log: half-microsecond timestamp, channel, type, AdvA, decoded AD and raw PDU |
 | `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
 | `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3 and C6 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md) |
@@ -187,11 +188,24 @@ logs to stderr emitted ADV_IND, ADV_NONCONN_IND or ADV_SCAN_IND packets as `[ble
 `hus` is modeled time in half-microseconds. `[ble-config]` reports configured
 SCAN_RSP data separately; a passive observer cannot elicit that response. The queue
 holds the latest 1024 observations and reports dropped entries when polled.
-RX, scan requests and connections are not implemented. Register meanings and the
-300 µs silent receive window remain inferred/model choices. C3 rev v0.3 checks cover
-selected readbacks, latch completion and clock rate; they do not validate over-air
-timing, channel order, END timing, descriptor semantics or the FIFO. Script `ble`
-commands require HCI `--ble` and an application ELF; `--ble full` rejects them.
+`--ble-scan` enables active SCAN_REQ/SCAN_RSP exchanges through guest RX descriptors.
+Use script commands `ble connect`, `ble read-uuid SERVICE CHARACTERISTIC`,
+`ble central-stop`, and `ble disconnect`. The last sends LL_TERMINATE_IND;
+`central-stop` silences the central so the guest supervision timer can expire.
+For example, pass this file with `--ble full --script connection.txt`:
+
+```text
+0.5 ble connect
+0.7 ble read-uuid 4fafc201-1fb5-459e-8fcc-c5c9c331914b beb5483e-36e1-4688-b7f5-ea07361b26a8
+3.1 ble central-stop
+```
+
+The model supports one unencrypted 1M CSA#1 link, a fixed 30 ms interval and
+2 s supervision timeout, default ATT MTU 23 and no L2CAP fragmentation. It replies
+to LL_VERSION_IND even without an ATT request. Pairing, CSA#2, PHY updates and
+optional LL procedures are unsupported. Register meanings and packet timing
+remain inferred/model choices. [EX213 evidence](evidence/ble-c3-connection/README.md)
+separates the historical probe-b field checks from unvalidated RF timing.
 
 ## Live camera input
 

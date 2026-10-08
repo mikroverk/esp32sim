@@ -1,0 +1,5 @@
+0 exceptions, 2007 interrupts
+  core0 int3         11  sources [39]
+  core0 int4        661  sources [50]
+  core0 int5        797  sources [37]
+  core0 int8        538  sources [8]

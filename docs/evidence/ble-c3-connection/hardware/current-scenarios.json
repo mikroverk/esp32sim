@@ -1,0 +1,28 @@
+{
+  "normal": {
+    "reads": 2,
+    "disconnect_reasons": [
+      19,
+      19
+    ],
+    "advertising_resumed": 2,
+    "advertising_payloads_identical": true,
+    "guest_errors": 0,
+    "modeled_seconds": 15,
+    "console_sha256": "3885efef3fbeef452bb6c7e743b503a26e71e999ff26ef87584aa44042bd5ac8",
+    "trace_sha256": "9cc155396d2313a9f55bf5d7acf2a04e052b271d47a36b84c9f22b2aa7f2458f"
+  },
+  "timeout": {
+    "reads": 2,
+    "disconnect_reasons": [
+      8,
+      19
+    ],
+    "advertising_resumed": 2,
+    "advertising_payloads_identical": true,
+    "guest_errors": 0,
+    "modeled_seconds": 25,
+    "console_sha256": "e85c7a3fcabfe1e34f8eb133f6da54335ea99f88ce76fdd3f2499284e0106a12",
+    "trace_sha256": "da6cde789b5786f54dd58ebdc901bb8ddfe99430776bceaf41812c73ca7786fc"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "idf": "v5.5.5",
+  "compiler": "esp-14.2.0_20260121",
+  "reproducibility": "Historical fixture build: two separate source/build directories yielded identical bytes; recipe is committed.",
+  "files": {
+    "examples/c3-ble-server/main/CMakeLists.txt": {
+      "bytes": 55,
+      "sha256": "b4a327ea58686c86faae1c3fd02fc715a9be560380c78da7f1de38c8e3a813f7"
+    },
+    "examples/c3-ble-server/main/main.c": {
+      "bytes": 2861,
+      "sha256": "a4ee8dbd1985577ae299f4778ed2e6b0a59d774834fa4faedaa05c84f51b451a"
+    },
+    "examples/c3-ble-server/CMakeLists.txt": {
+      "bytes": 128,
+      "sha256": "fccf40b3278378c2c919a69b25e3b9c894d94821295c2df7ddd41a41df83aa53"
+    },
+    "examples/c3-ble-server/sdkconfig.defaults": {
+      "bytes": 349,
+      "sha256": "29017cb8e614e1599c0fd163e7b74ab0cb55991b235397596580e0e36a37d20e"
+    },
+    "web/wasm/fw/public/c3-ble-server.bin": {
+      "bytes": 458432,
+      "sha256": "2f3b4d834392518c9a93e1ace389774dcd795280d7773ea7a17a9f1bc279b64c"
+    },
+    "web/wasm/fw/public/c3-ble-bootloader.bin": {
+      "bytes": 20896,
+      "sha256": "6a2ec68d72c552e9399da762f8789a305e982fd9208b7414e66fe17c990e2296"
+    },
+    "web/wasm/fw/public/c3-ble-ptable.bin": {
+      "bytes": 3072,
+      "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820"
+    },
+    "web/wasm/fw/esp32c3_rev3_rom.elf": {
+      "bytes": 556332,
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+    }
+  }
+}

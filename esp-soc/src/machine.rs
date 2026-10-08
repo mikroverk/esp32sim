@@ -268,6 +268,15 @@ impl<S: Soc> Machine<S> {
             }
             if dbg { eprintln!("[emu] rom: back-filled {} initialiser blocks into ROM from table {:#x}..{:#x}", n, ds, de); }
         }
+        // C3 rev3 btdm_controller_rom_data_init (0x40002d20) copies this
+        // initializer through a ROM pointer, outside the reset-handler table.
+        // The ELF contains .data_btdm at its RAM address but omits that ROM copy.
+        if S::NAME == "esp32c3" {
+            if let (Some(pointer), Some(section)) = (find("_data_start_btdm_rom"), e.sections.iter().find(|s| s.name == ".data_btdm")) {
+                let source = self.bus.read32_unpriced(pointer).map_err(|e| format!("BT initializer pointer: {e:?}"))?;
+                self.bus.load_bytes(source, &section.data)?;
+            }
+        }
         self.symbols.extend(e.symbols);
         Ok(())
     }
@@ -1152,7 +1161,7 @@ impl<S: Soc> Machine<S> {
                 }
                 "ble" => {
                     rest.parse::<crate::ble::peer::Command>().map_err(|e| format!("line {}: {e}", ln + 1))?;
-                    if !self.bus.ble_enabled() { return Err(format!("line {}: BLE requires --ble and the application ELF", ln + 1)); }
+                    if !self.bus.ble_enabled() { return Err(format!("line {}: BLE requires --ble with the application ELF, or C3 --ble full", ln + 1)); }
                     ev.push((c, ScriptAction::Ble(rest.to_string())));
                 },
                 "stop" => ev.push((c, ScriptAction::Stop)),

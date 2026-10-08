@@ -1,0 +1,194 @@
+[
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if link & 0x8000 != 0 { -> if false {",
+    "test": "active_scan_uses_guest_rx_ring_and_ifs_before_response",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if c.anchor < event.due || c.anchor > event.due + width * HALF_US_CYCLES { -> if false {",
+    "test": "connection_anchor_must_fit_the_programmed_receive_window",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if c.pending.is_none() { -> if true {",
+    "test": "unacknowledged_connection_tx_reuses_the_cached_packet",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "0x0c => c.version(), -> 0x0c => {},",
+    "test": "version_reply_is_dispatched_from_guest_tx_and_duplicates_are_suppressed",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if !self.version_sent { -> if true {",
+    "test": "peripheral_version_request_gets_one_response_without_att",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "let unmapped = (previous + hop) % 37; -> let unmapped = previous;",
+    "test": "csa1_hops_and_remaps_sparse_channels",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "let index = unmapped as u32 % map.count_ones(); -> let index = 0;",
+    "test": "csa1_hops_and_remaps_sparse_channels",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "self.sn ^= 1; -> self.sn ^= 0;",
+    "test": "sequence_retransmits_until_ack_and_rejects_duplicate_payload",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "self.nesn ^= 1; -> self.nesn ^= 0;",
+    "test": "sequence_retransmits_until_ack_and_rejects_duplicate_payload",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if c.peripheral.acknowledge(pdu[0]) { -> if true {",
+    "test": "tx_descriptor_is_released_only_after_peer_ack",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "self.state.as_mut().unwrap().raise(1 << 1); -> self.state.as_mut().unwrap().raise(1 << 6);",
+    "test": "tx_descriptor_is_released_only_after_peer_ack",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "2 * (40 + ((self.ram.read(0x90) >> 8) & 127) as u64) -> 0",
+    "test": "sync_timestamp_recovers_packet_start_across_half_slots_and_wrap",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if s.connection.is_some() { return Err(\"central is already connected\".into()) } -> ",
+    "test": "commands_reject_disabled_busy_and_unsupported_states",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "if c.terminating || c.stopped { return Err(\"central is already stopping\".into()) } -> ",
+    "test": "commands_reject_disabled_busy_and_unsupported_states",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "if start == 0 || end < start { -> if false {",
+    "test": "uuid_read_validates_pages_permissions_and_errors",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "if declaration <= last || declaration > end || handle <= declaration || handle > end { -> if false {",
+    "test": "uuid_read_validates_pages_permissions_and_errors",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "if item[2] & 2 == 0 { -> if false {",
+    "test": "uuid_read_validates_pages_permissions_and_errors",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "let next = last + 1; -> let next = last;",
+    "test": "uuid_read_validates_pages_permissions_and_errors",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "if item[5..] == self.characteristic { -> if true {",
+    "test": "uuid_read_validates_pages_permissions_and_errors",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "bytes.reverse(); -> ",
+    "test": "uuid_read_validates_pages_permissions_and_errors",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "event.phase = ScanPhase::Receive(channel, pdu); -> event.phase = ScanPhase::Receive(channel, connect_request(&advertising.pdu));",
+    "test": "connect_command_does_not_change_an_inflight_scan_request",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "event.due += 300 * HALF_US_CYCLES;\n                event.phase = ScanPhase::Response(channel); -> event.due += 0;\n                event.phase = ScanPhase::Response(channel);",
+    "test": "active_scan_uses_guest_rx_ring_and_ifs_before_response",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "self.ram.write(0x24, (link & 0x7fff) as u32); -> self.ram.write(0x24, logical);",
+    "test": "active_scan_uses_guest_rx_ring_and_ifs_before_response",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "put_half(sram, cs + 28, next); -> put_half(sram, cs + 28, 0);",
+    "test": "tx_descriptor_is_released_only_after_peer_ack",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/machine.rs",
+    "mutation": "self.bus.load_bytes(source, &section.data)?; -> ",
+    "test": "bluetooth_rom_initializer_has_its_rom_source_copy",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "if matches!(command, Command::CentralStop | Command::Disconnect | Command::ReadUuid(..)) { -> if false {",
+    "test": "full_controller_commands_do_not_queue_in_hci_mode",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "s.host = old.host; -> s.host = Host::default();",
+    "test": "host_configuration_survives_controller_reset",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "s.host = std::mem::take(&mut old.host); -> s.host = Host::default();",
+    "test": "host_configuration_survives_machine_reboot",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "let pdu = std::mem::take(&mut c.incoming); -> let pdu = c.outgoing.front().cloned().unwrap_or_else(|| vec![1,0]);",
+    "test": "central_receive_uses_the_transmitted_packet_and_header",
+    "killed": true
+  },
+  {
+    "file": "esp32c3/src/ble_lc.rs",
+    "mutation": "?.silent = true, -> ?.silent = false,",
+    "test": "full_ble_script_connect_read_and_stop",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "b.len() <= 20 -> true",
+    "test": "hex_bytes_and_read_by_type_preserve_wire_values",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/peer.rs",
+    "mutation": "end as u8, (end >> 8) as u8, 3, 0x28 -> 0xff, 0xff, 3, 0x28",
+    "test": "hex_bytes_and_read_by_type_preserve_wire_values",
+    "killed": true
+  }
+]
