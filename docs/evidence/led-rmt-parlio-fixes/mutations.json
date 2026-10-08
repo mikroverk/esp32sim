@@ -1,0 +1,305 @@
+[
+  {
+    "mutation": "mirror fanout",
+    "command": "cargo +1.99.0 test --release -p esp32sim --test led_outputs",
+    "tests": [
+      "test rmt_fans_out_to_enabled_routes_on_each_chip ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp-soc/src/pins.rs",
+    "before": "(0..49).filter",
+    "after": "(0..2).filter"
+  },
+  {
+    "mutation": "DMA symbols",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma_stages",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_stages_symbols_and_returns_descriptors_without_a_tick_pump ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp-periph/src/rmt.rs",
+    "before": "let dma = n == 3 && c.conf0 & (1 << 25) != 0;",
+    "after": "let dma = false;"
+  },
+  {
+    "mutation": "DMA threshold suppression",
+    "command": "cargo +1.99.0 test --release -p esp-periph --lib dma_tests",
+    "tests": [
+      "test rmt::dma_tests::dma_reset_disable_starvation_and_threshold_suppression ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp-periph/src/rmt.rs",
+    "before": "if !dma && c.tx_lim",
+    "after": "if c.tx_lim"
+  },
+  {
+    "mutation": "DMA reset",
+    "command": "cargo +1.99.0 test --release -p esp-periph --lib dma_tests",
+    "tests": [
+      "test rmt::dma_tests::dma_reset_disable_starvation_and_threshold_suppression ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp-periph/src/rmt.rs",
+    "before": "self.dma_fifo.clear();",
+    "after": "let _ = &self.dma_fifo;"
+  },
+  {
+    "mutation": "s3 ownership",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_rejects_malformed_chains_and_bounds_cycles ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus/dma.rs",
+    "before": "self.periph.gdma.out[ch].conf1 & (1 << 12) != 0 && !d.owner_dma",
+    "after": "false"
+  },
+  {
+    "mutation": "s3 length",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_rejects_malformed_chains_and_bounds_cycles ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus/dma.rs",
+    "before": "d.length > d.size",
+    "after": "false"
+  },
+  {
+    "mutation": "s3 owner writeback",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_stages_symbols_and_returns_descriptors_without_a_tick_pump ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus/dma.rs",
+    "before": "if self.periph.gdma.out[ch].conf0 & 4 != 0",
+    "after": "if false"
+  },
+  {
+    "mutation": "s3 automatic writeback gate",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_stages_symbols_and_returns_descriptors_without_a_tick_pump ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus/dma.rs",
+    "before": "if self.periph.gdma.out[ch].conf0 & 4 != 0",
+    "after": "if true"
+  },
+  {
+    "mutation": "s3 EOF interrupt",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_stages_symbols_and_returns_descriptors_without_a_tick_pump ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus/dma.rs",
+    "before": "self.periph.gdma.out[ch].int_raw |= 1 << 1;",
+    "after": "self.periph.gdma.out[ch].int_raw |= 0;"
+  },
+  {
+    "mutation": "c6 ownership",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_dma_tests",
+    "tests": [
+      "test bus::parlio_dma_tests::parlio_bad_descriptor_never_publishes_data ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "c.conf1 & (1 << 12) != 0 && !d.owner_dma",
+    "after": "false"
+  },
+  {
+    "mutation": "c6 length",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_dma_tests",
+    "tests": [
+      "test bus::parlio_dma_tests::parlio_bad_descriptor_never_publishes_data ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "d.length > d.size",
+    "after": "false"
+  },
+  {
+    "mutation": "c6 owner writeback",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_dma_tests",
+    "tests": [
+      "test bus::parlio_dma_tests::parlio_clock_off_prefill_mirrored_lanes_and_eof ... FAILED",
+      "test bus::parlio_dma_tests::shared_gather_preserves_spi_payload_and_aes_ciphertext ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "if c.conf0 & 4 != 0",
+    "after": "if false"
+  },
+  {
+    "mutation": "c6 automatic writeback gate",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_dma_tests",
+    "tests": [
+      "test bus::parlio_dma_tests::shared_gather_preserves_spi_payload_and_aes_ciphertext ... FAILED",
+      "test bus::parlio_dma_tests::parlio_clock_off_prefill_mirrored_lanes_and_eof ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "if c.conf0 & 4 != 0",
+    "after": "if true"
+  },
+  {
+    "mutation": "c6 EOF interrupt",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_dma_tests",
+    "tests": [
+      "test bus::parlio_dma_tests::shared_gather_preserves_spi_payload_and_aes_ciphertext ... FAILED",
+      "test bus::parlio_dma_tests::parlio_clock_off_prefill_mirrored_lanes_and_eof ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "c.int_raw |= 2;",
+    "after": "c.int_raw |= 0;"
+  },
+  {
+    "mutation": "S3 staging hook",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_rejects_malformed_chains_and_bounds_cycles ... FAILED",
+      "test bus::gp_spi_board_tests::rmt_dma_stages_symbols_and_returns_descriptors_without_a_tick_pump ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus.rs",
+    "before": "{ self.stage_rmt_dma(); }",
+    "after": "{}"
+  },
+  {
+    "mutation": "C6 staging hook",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_clock_off",
+    "tests": [
+      "test bus::parlio_dma_tests::parlio_clock_off_prefill_mirrored_lanes_and_eof ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "            self.stage_parlio_dma();",
+    "after": "            // removed"
+  },
+  {
+    "mutation": "S3 storage bound",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib rmt_dma_rejects",
+    "tests": [
+      "test bus::gp_spi_board_tests::rmt_dma_rejects_malformed_chains_and_bounds_cycles ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32s3/src/bus/dma.rs",
+    "before": "bytes.len() <= limit",
+    "after": "true"
+  },
+  {
+    "mutation": "C6 storage bound",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_bad_descriptor",
+    "tests": [
+      "test bus::parlio_dma_tests::parlio_bad_descriptor_never_publishes_data ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/bus.rs",
+    "before": "data.len() <= limit",
+    "after": "true"
+  },
+  {
+    "mutation": "PARLIO bit order",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio::tests",
+    "tests": [
+      "test parlio::tests::fifo_readiness_lane_samples_and_eof_interrupt ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/parlio.rs",
+    "before": "self.cfg & (1 << 26) == 0",
+    "after": "true"
+  },
+  {
+    "mutation": "PARLIO clock gate",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio::tests",
+    "tests": [
+      "test parlio::tests::absent_clock_and_fifo_do_not_complete_transfer ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/parlio.rs",
+    "before": " || self.clock_hz == 0",
+    "after": ""
+  },
+  {
+    "mutation": "PARLIO width",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio::tests",
+    "tests": [
+      "test parlio::tests::fifo_readiness_lane_samples_and_eof_interrupt ... FAILED",
+      "test parlio::tests::widths_reset_and_invalid_formats ... FAILED",
+      "test parlio::tests::absent_clock_and_fifo_do_not_complete_transfer ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/parlio.rs",
+    "before": "16u8.checked_shr",
+    "after": "8u8.checked_shr"
+  },
+  {
+    "mutation": "PARLIO IRQ clear",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio::tests",
+    "tests": [
+      "test parlio::tests::fifo_readiness_lane_samples_and_eof_interrupt ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/parlio.rs",
+    "before": "0x20 => self.raw &= !value",
+    "after": "0x20 => self.raw |= value"
+  },
+  {
+    "mutation": "PARLIO IRQ routing",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib parlio_clock_off",
+    "tests": [
+      "test bus::parlio_dma_tests::parlio_clock_off_prefill_mirrored_lanes_and_eof ... FAILED"
+    ],
+    "killed": true,
+    "file": "esp32c6/src/periph.rs",
+    "before": "(parlio) => [src::PARLIO]",
+    "after": "(parlio) => [NO_SOURCE]"
+  },
+  {
+    "mutation": "shared gather IRQ refresh",
+    "file": "esp32c6/src/bus.rs",
+    "before": "        self.irq_dirty = true;\n        result\n",
+    "after": "        result\n",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib shared_gather",
+    "tests": [
+      "test bus::parlio_dma_tests::shared_gather_preserves_spi_payload_and_aes_ciphertext ... FAILED"
+    ],
+    "killed": true
+  },
+  {
+    "mutation": "lazy PARLIO storage",
+    "file": "esp32c6/src/parlio.rs",
+    "before": "pub fn new() -> Self { Self::default() }",
+    "after": "pub fn new() -> Self { Self { tx: Some(Default::default()) } }",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib unused_parlio",
+    "tests": [
+      "test bus::parlio_dma_tests::unused_parlio_has_no_storage_clock_or_active_tick_entry ... FAILED"
+    ],
+    "killed": true
+  },
+  {
+    "mutation": "out-of-line PARLIO storage",
+    "file": "esp32c6/src/parlio.rs",
+    "before": "Option<Box<Tx>>",
+    "after": "Option<Tx>",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib unused_parlio",
+    "tests": [
+      "test bus::parlio_dma_tests::unused_parlio_has_no_storage_clock_or_active_tick_entry ... FAILED"
+    ],
+    "killed": true
+  },
+  {
+    "mutation": "unclocked PARLIO",
+    "file": "esp32c6/src/parlio.rs",
+    "before": "impl Device for Parlio {",
+    "after": "impl Device for Parlio {\n    fn clock(&self) -> Option<emu_core::ClockDomain> { Some(emu_core::ClockDomain::Cpu) }",
+    "command": "cargo +1.99.0 test --release -p esp32c6 --lib unused_parlio",
+    "tests": [
+      "test bus::parlio_dma_tests::unused_parlio_has_no_storage_clock_or_active_tick_entry ... FAILED"
+    ],
+    "killed": true
+  }
+]

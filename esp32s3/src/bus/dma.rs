@@ -6,6 +6,8 @@ pub(super) const SPI2_DMA_DESCRIPTOR_STEP_BUDGET: usize = 1024;
 /// Maximum descriptor reads in one pump call. This bounds zero-progress rings and crypto
 /// allocation (each descriptor carries at most 4095 bytes).
 const GDMA_DESCRIPTOR_STEP_BUDGET: usize = 4096;
+// 4096 RGB pixels plus the RMT end marker.
+const RMT_DMA_SYMBOL_LIMIT: usize = 24 * 4096 + 1;
 
 /// Which end of a memory-to-memory copy faulted.
 pub(super) enum M2mFault { Source, Destination }
@@ -53,6 +55,31 @@ impl DescriptorWalk {
 }
 
 impl SocBus {
+    /// IDF v5.5.4 components/soc/esp32s3/include/soc/gdma_channel.h:21: trigger 9.
+    /// Error bit: register/soc/rmt_reg.h:1650-1656. GDMA writeback/owner:
+    /// register/soc/gdma_reg.h:585-618; OUT interrupts:649-678.
+    /// Descriptor fields: components/hal/include/hal/dma_types.h:23-32.
+    /// Stage a finite RMT DMA transaction on register writes. No idle tick pump.
+    /// Descriptor reads reuse the existing bounded walker and unpriced bus access.
+    pub(super) fn stage_rmt_dma(&mut self) {
+        if self.periph.rmt.ch[3].conf0 & (1 << 25) == 0 { return; }
+        let Some(ch) = self.periph.gdma.out_channel_for(9) else { return; };
+        let limit = RMT_DMA_SYMBOL_LIMIT.saturating_sub(self.periph.rmt.dma_fifo.len()) * 4;
+        match self.gather_dma_out(ch, limit + 1) {
+            Ok(bytes) if bytes.len() <= limit => {
+                self.periph.rmt.dma_fifo.extend(bytes.as_chunks::<4>().0.iter().map(|&word| u32::from_le_bytes(word)));
+                self.periph.gdma.out[ch].running = false;
+                self.periph.gdma.out[ch].int_raw |= 8;
+            }
+            _ => {
+                self.fail_dma_out(ch);
+                self.periph.rmt.int_raw |= 1 << 28;
+                self.periph.rmt.dma_fifo.clear();
+            }
+        }
+        self.irq_dirty = true;
+    }
+
     pub(super) fn complete_spi2_dma(&mut self) {
         if let Some((deadline, _)) = &self.spi2_scheduled {
             if self.cycles < *deadline { return; }
@@ -633,7 +660,7 @@ impl SocBus {
         }
     }
 
-    /// Gather a finite crypto transaction. Descriptor visits bound both runtime and allocation
+    /// Gather a finite OUT transaction. Descriptor visits bound both runtime and allocation
     /// (4096 * 4095 bytes maximum); a visited set rejects cycles independently of owner checking.
     fn gather_dma_out(&mut self, ch: usize, limit: usize) -> Result<Vec<u8>, DmaDescriptorFault> {
         let mut input = Vec::new();
@@ -642,13 +669,22 @@ impl SocBus {
         let mut walk = DescriptorWalk::new(GDMA_DESCRIPTOR_STEP_BUDGET);
         while desc != 0 && input.len() < limit {
             if !visited.insert(desc) { return Err(DmaDescriptorFault::Cycle { descriptor: desc }); }
+            if desc & 3 != 0 || !desc.checked_add(12).is_some_and(|end| self.lookup(desc).is_some_and(|entry| end <= entry.hi)) {
+                return Err(DmaDescriptorFault::Read { descriptor: desc, word: DmaDescriptorWord::Control, fault: Fault::Prohibited });
+            }
             let (control, d) = walk.read(self, desc)?;
+            if d.length > d.size || (self.periph.gdma.out[ch].peri_sel == 9 && (d.length & 3 != 0 || d.buf & 3 != 0)) {
+                return Err(DmaDescriptorFault::BufferRead { descriptor: desc, address: d.buf, fault: Fault::Prohibited });
+            }
             if self.periph.gdma.out[ch].conf1 & (1 << 12) != 0 && !d.owner_dma { return Err(DmaDescriptorFault::NotOwned { descriptor: desc }); }
             let take = (d.length as usize).min(limit - input.len());
             self.append_mapped_bytes(d.buf, take, &mut input).map_err(|(address, fault)|
                 DmaDescriptorFault::BufferRead { descriptor: desc, address, fault })?;
-            self.write32_unpriced(desc, control & !(1 << 31)).map_err(|fault|
-                DmaDescriptorFault::Writeback { descriptor: desc, fault })?;
+            // OUT_AUTO_WRBACK, IDF v5.5.4 soc/esp32s3/register/soc/gdma_reg.h:585-591.
+            if self.periph.gdma.out[ch].conf0 & 4 != 0 {
+                self.write32_unpriced(desc, control & !(1 << 31)).map_err(|fault|
+                    DmaDescriptorFault::Writeback { descriptor: desc, fault })?;
+            }
             self.periph.gdma.out[ch].int_raw |= 1 << 0;
             if d.eof {
                 self.periph.gdma.out[ch].int_raw |= 1 << 1;

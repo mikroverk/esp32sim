@@ -1402,3 +1402,57 @@ fn output_irq_cache_tracks_resolved_input_not_output_latch() {
     esp_soc::SocBus::gpio_release_input(&mut bus, 4);
     assert!(bus.irq_dirty);
 }
+
+#[test]
+fn rmt_dma_stages_symbols_and_returns_descriptors_without_a_tick_pump() {
+    for auto in [0, 4] {
+    let mut bus = dma_bus();
+    let data = FIRST_DESC + 64;
+    bus.periph.gdma.out[0].peri_sel = 9;
+    bus.periph.gdma.out[0].conf0 = auto;
+    bus.periph.gdma.out[0].conf1 = 1 << 12;
+    bus.write32(FIRST_DESC, (1 << 31) | (8 << 12) | 8).unwrap();
+    bus.write32(FIRST_DESC + 4, data).unwrap();
+    bus.write32(FIRST_DESC + 8, FIRST_DESC + 16).unwrap();
+    bus.write32(FIRST_DESC + 16, (1 << 31) | (1 << 30) | (4 << 12) | 4).unwrap();
+    bus.write32(FIRST_DESC + 20, data + 8).unwrap();
+    bus.write32(FIRST_DESC + 24, 0).unwrap();
+    bus.write32(data, 0x8000 | 35 | (15 << 16)).unwrap();
+    bus.write32(data + 4, 0x8000 | 10 | (40 << 16)).unwrap();
+    bus.write32(data + 8, 0).unwrap();
+    bus.write32(0x6001_602c, (1 << 25) | (2 << 8) | 1).unwrap();
+    assert_eq!(bus.periph.rmt.dma_fifo.len(), 3);
+    assert_eq!(bus.periph.gdma.out[0].int_raw & 15, 11);
+    assert_eq!(bus.periph.gdma.out[0].eof_desc, FIRST_DESC + 16);
+    assert!(!bus.periph.gdma.out[0].running);
+    assert_eq!(bus.read32(FIRST_DESC).unwrap() >> 31, u32::from(auto == 0));
+    bus.periph.rmt.tick(1);
+    assert!(bus.periph.rmt.done.is_empty());
+    bus.periph.rmt.tick(600);
+    assert_eq!(bus.periph.rmt.done, vec![(3, vec![true, false])]);
+    assert_eq!(bus.periph.rmt.int_raw & (1 << 3), 1 << 3);
+    assert!(!bus.periph.rmt.is_running());
+}
+}
+
+#[test]
+fn rmt_dma_rejects_malformed_chains_and_bounds_cycles() {
+    for case in 0..8 {
+        let mut bus = dma_bus();
+        let data = FIRST_DESC + 64;
+        bus.periph.gdma.out[0].peri_sel = 9;
+        bus.periph.gdma.out[0].conf1 = 1 << 12;
+        let word = match case { 0 => 4 | (4 << 12), 1 => (1 << 31) | 3 | (4 << 12),
+            2 => (1 << 31) | 3 | (3 << 12), 5 => 1 << 31, _ => (1 << 31) | 4 | (4 << 12) };
+        bus.write32(FIRST_DESC, word).unwrap();
+        bus.write32(FIRST_DESC + 4, match case { 3 => data + 1, 4 => 0xffff_fffc, _ => data }).unwrap();
+        bus.write32(FIRST_DESC + 8, if case == 5 { FIRST_DESC } else { 0 }).unwrap();
+        if case == 6 { bus.periph.gdma.out[0].desc = 0x6001_602c; }
+        if case == 7 { bus.periph.rmt.dma_fifo.resize(24 * 4096 + 1, 1); }
+        bus.write32(0x6001_602c, 1 << 25).unwrap();
+        assert!(!bus.periph.gdma.out[0].running, "case {case}");
+        assert_eq!(bus.periph.gdma.out[0].int_raw & 4, 4, "case {case}");
+        assert_eq!(bus.periph.rmt.int_raw & (1 << 28), 1 << 28);
+        assert!(bus.periph.rmt.dma_fifo.is_empty());
+    }
+}

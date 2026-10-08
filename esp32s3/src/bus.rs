@@ -498,6 +498,7 @@ impl SocBus {
             self.spi2_pins = self.board.uses_spi_pins().then(|| self.periph.spi2_pins());
         }
         self.periph.write32(a, v);
+        if a == 0x6001_602c || (0x6003_f000..0x6004_0000).contains(&a) { self.stage_rmt_dma(); }
         if old_gpio_out != self.periph.gpio.out || old_gpio_enable != self.periph.gpio.enable {
             let changes = &self.periph.gpio.changes;
             if let Some(events) = &mut self.gpio_events {
@@ -847,8 +848,7 @@ impl SocBus {
         self.deliver_spi2_transfer();
         if !self.periph.rmt.done.is_empty() {
             for (ch, bits) in std::mem::take(&mut self.periph.rmt.done) {
-                let pin = self.periph.gpio.pin_for_signal(RMT_SIG_OUT0 + ch as u32).unwrap_or(u8::MAX);
-                self.board.rmt_frame(pin, &bits);
+                for pin in esp_soc::pins::ChipPins::S3.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(RMT_SIG_OUT0 + ch as u32) { self.board.rmt_frame(pin, &bits); }
             }
             self.irq_dirty = true;
         }

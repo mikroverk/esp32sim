@@ -343,8 +343,7 @@ impl SocBus {
         self.devices(cycles);
         if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
         for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
-            let pin = self.periph.gpio.pin_for_signal(51 + ch as u32).unwrap_or(u8::MAX);
-            self.board.rmt_frame(pin, &bits);
+            for pin in esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(51 + ch as u32) { self.board.rmt_frame(pin, &bits); }
             self.irq_dirty = true;
         }
         self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();

@@ -345,6 +345,7 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
     for ch in 0..2u32 {
         let pin = 5 + ch;
         m.bus.write32(0x6000_4554 + pin * 4, 51 + ch).unwrap();
+        m.bus.write32(0x6000_9004 + pin * 4, 1 << 12).unwrap();
         let colour = 0x341256u32;
         for bit in 0..24 {
             let (high, low) = if colour & (1 << (23 - bit)) != 0 {
