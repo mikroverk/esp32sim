@@ -1,0 +1,26 @@
+[
+  {
+    "path": "tests/gpio_waveform.rs",
+    "sha256": "b7258add80fd1821ab63f218b0d62d737a6b9b08924c3f461addbf01c9b207fa"
+  },
+  {
+    "path": "cli/tests/gpio_waveform.rs",
+    "sha256": "c2b112f2d85a725b22674806d3dbabec490aebc36ebd30473dc9a2ad436c3a9d"
+  },
+  {
+    "path": "web/wasm/fw/esp32c6_rev0_rom.elf",
+    "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+  },
+  {
+    "path": "web/wasm/fw/esp32s3_rev0_rom.elf",
+    "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  {
+    "path": "web/wasm/fw/esp32c3_rev3_rom.elf",
+    "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+  },
+  {
+    "path": "esp-soc/src/machine.rs",
+    "sha256": "c0cf291d7581ccd729f2dc24ffdf3150deace8bdb3fc382ccefd0df95fd05e7c"
+  }
+]

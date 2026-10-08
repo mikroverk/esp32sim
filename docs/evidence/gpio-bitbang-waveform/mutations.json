@@ -1,0 +1,200 @@
+[
+  {
+    "mutation": "minimum low",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "ns < MIN_PULSE_NS",
+    "after": "false",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_timing_limits",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_timing_limits_and_long_uptime_do_not_accept_glitches_or_overflow ... FAILED"
+    ]
+  },
+  {
+    "mutation": "high range",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "!(MIN_PULSE_NS..=MAX_HIGH_NS).contains(&ns)",
+    "after": "false",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_timing_limits",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_timing_limits_and_long_uptime_do_not_accept_glitches_or_overflow ... FAILED"
+    ]
+  },
+  {
+    "mutation": "bit threshold",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "ns >= ONE_HIGH_NS",
+    "after": "ns > ONE_HIGH_NS",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_stream_bounds",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_stream_bounds_storage_and_repeated_levels ... FAILED"
+    ]
+  },
+  {
+    "mutation": "reset interval",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "RESET_US * u64::from(self.gpio_hz)",
+    "after": "(RESET_US - 1) * u64::from(self.gpio_hz)",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_pulses_require",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_pulses_require_output_and_complete_reset_interval ... FAILED"
+    ]
+  },
+  {
+    "mutation": "output enable",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "!enabled || hz == 0",
+    "after": "hz == 0",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_pulses_require",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_pulses_require_output_and_complete_reset_interval ... FAILED"
+    ]
+  },
+  {
+    "mutation": "bounded bits",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "self.gpio.bits.len() < self.leds.len() * 24",
+    "after": "true",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_stream_bounds",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_stream_bounds_storage_and_repeated_levels ... FAILED"
+    ]
+  },
+  {
+    "mutation": "invalid frame",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "if !self.gpio.invalid {",
+    "after": "if true {",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_trailing_glitch",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_trailing_glitch_discards_even_complete_pixels ... FAILED"
+    ]
+  },
+  {
+    "mutation": "repeated high",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "if self.gpio.high_since.is_none() {",
+    "after": "if true {",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_stream_bounds",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_stream_bounds_storage_and_repeated_levels ... FAILED"
+    ]
+  },
+  {
+    "mutation": "nonzero clock",
+    "file": "esp-soc/src/devices/ws2812.rs",
+    "before": "assert!(hz != 0, \"GPIO waveform clock must be nonzero\");",
+    "after": "",
+    "test": "cargo +1.99.0 test --release -p esp-soc --lib gpio_clock_must",
+    "killed": true,
+    "tests": [
+      "test devices::ws2812::tests::gpio_clock_must_be_nonzero - should panic ... FAILED"
+    ]
+  },
+  {
+    "mutation": "run quantum",
+    "file": "esp-soc/src/machine.rs",
+    "before": "std::mem::replace(&mut self.quantum, 1)",
+    "after": "std::mem::replace(&mut self.quantum, 64)",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "killed": true,
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ]
+  },
+  {
+    "mutation": "until-cycle quantum",
+    "file": "esp-soc/src/machine.rs",
+    "before": "            1\n        } else { self.quantum };",
+    "after": "            self.quantum\n        } else { self.quantum };",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "killed": true,
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ]
+  },
+  {
+    "mutation": "restore quantum",
+    "file": "esp-soc/src/machine.rs",
+    "before": "self.quantum = quantum;",
+    "after": "self.quantum = 1; let _ = quantum;",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "killed": true,
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ]
+  },
+  {
+    "mutation": "browser bypass",
+    "file": "esp-soc/src/machine.rs",
+    "before": "if self.bus.board_ref().uses_gpio_waveform()\n            || u64",
+    "after": "if false\n            || u64",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "killed": true,
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ]
+  },
+  {
+    "mutation": "opt-in gate",
+    "file": "esp-soc/src/machine.rs",
+    "before": "if self.bus.board_ref().uses_gpio_waveform() {\n            if self.has_timing_model()",
+    "after": "if true {\n            if self.has_timing_model()",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "killed": true,
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ]
+  },
+  {
+    "mutation": "cost-model configuration",
+    "file": "esp-soc/src/machine.rs",
+    "before": "pub fn set_cost_model(&mut self, mut model: Box<dyn CostModel>) -> Result<(), String> {\n        if self.bus.board_ref().uses_gpio_waveform() { return Err(GPIO_WAVEFORM_TIMING_ERROR.into()); }",
+    "after": "pub fn set_cost_model(&mut self, mut model: Box<dyn CostModel>) -> Result<(), String> {",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ],
+    "killed": true
+  },
+  {
+    "mutation": "approximate-JIT configuration",
+    "file": "esp-soc/src/machine.rs",
+    "before": "pub fn set_approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> Result<(), String> {\n        if self.bus.board_ref().uses_gpio_waveform() { return Err(GPIO_WAVEFORM_TIMING_ERROR.into()); }",
+    "after": "pub fn set_approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> Result<(), String> {",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ],
+    "killed": true
+  },
+  {
+    "mutation": "late waveform board in run",
+    "file": "esp-soc/src/machine.rs",
+    "before": "if self.has_timing_model() { return Stop::CostModelLifecycle { kind: LifecycleKind::Attach, reason: GPIO_WAVEFORM_TIMING_ERROR.into() }; }",
+    "after": "",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ],
+    "killed": true
+  },
+  {
+    "mutation": "late waveform board in run_until_cycle",
+    "file": "esp-soc/src/machine.rs",
+    "before": "if self.has_timing_model() { return RunUntil::Stop(Stop::CostModelLifecycle { kind: LifecycleKind::Attach, reason: GPIO_WAVEFORM_TIMING_ERROR.into() }); }",
+    "after": "",
+    "test": "cargo +1.99.0 test --release -p esp32sim --test gpio_waveform",
+    "tests": [
+      "test gpio_waveforms_have_exact_pulse_widths ... FAILED"
+    ],
+    "killed": true
+  }
+]
