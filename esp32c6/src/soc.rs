@@ -101,7 +101,7 @@ impl esp_soc::SocBus for SocBus {
     }
     /// Digital peripherals re-created; SRAM, the LP domain and the efuses kept.
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
-        if let Some((off, original)) = self.ble.original_flash.take() { self.flash[off..off + original.len()].copy_from_slice(&original); }
+        esp_soc::ble::vhci::restore_flash(&mut self.ble.original_flash, &mut self.flash);
         self.ble.reset();
         let cause = self.periph.lpsys.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));

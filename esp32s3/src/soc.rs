@@ -137,7 +137,7 @@ impl esp_soc::SocBus for SocBus {
     /// Digital peripherals re-initialised, cache MMU invalid; SRAM, RTC memories, efuses and the
     /// RTC-domain registers survive, as on silicon. Returns the cause the ROM will report.
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
-        if let Some((off, original)) = self.ble.original_flash.take() { self.flash[off..off + original.len()].copy_from_slice(&original); }
+        self.ble.restore_flash(&mut self.flash);
         self.ble.reset();
         self.flush_ticks();
         self.cancel_spi2_timing();

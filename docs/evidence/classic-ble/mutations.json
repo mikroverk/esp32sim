@@ -1,0 +1,65 @@
+[
+  {
+    "file": "esp32/src/ble.rs",
+    "mutation": "cpu.insn_count += 1 -> cpu.insn_count += 0",
+    "test": "trampoline_creates_guest_task_with_windowed_abi_and_returns_esp_ok",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ble.rs",
+    "mutation": "advance_cycles(cpu, 1) -> advance_cycles(cpu, 0)",
+    "test": "trampoline_creates_guest_task_with_windowed_abi_and_returns_esp_ok",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ble.rs",
+    "mutation": "decode(pc, bytes).op == Op::Entry -> decode(pc, bytes).op != Op::Entry",
+    "test": "callback_requires_readable_windowed_function_entry",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "{ &bus.ble.hooks } -> { let _ = bus; &[] }",
+    "test": "machine_dispatches_chip_hooks_as_function_boundaries",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "elf.symbol_sizes.get(\"esp_bt_controller_init\").copied().unwrap_or(0) -> 0",
+    "test": "host_enable_uses_elf_extent_and_reports_enabled_state",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/vhci.rs",
+    "mutation": "flash[off..off + original.len()].copy_from_slice(&original); -> flash[off..off + original.len()].fill(0);",
+    "test": "reboot_restores_controller_flash_even_after_mmu_mapping_changes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "        self.ble.reset(); ->         // reset removed",
+    "test": "reboot_restores_controller_flash_even_after_mmu_mapping_changes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/ble/vhci.rs",
+    "mutation": "end.saturating_sub(init) < INIT + abi.code.len() as u32 -> false",
+    "test": "trampoline_extent_uses_symbol_size_including_alignment",
+    "crate": "esp32s3",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ble.rs",
+    "mutation": "ram: DRAM_LOW..DRAM_HIGH -> ram: 0..u32::MAX",
+    "test": "invalid_guest_buffers_and_missing_symbols_are_rejected",
+    "crate": "esp32",
+    "killed": true
+  }
+]

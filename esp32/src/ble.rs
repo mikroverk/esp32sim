@@ -1,4 +1,4 @@
-//! S3 windowed-Xtensa calling glue for the virtual VHCI controller.
+//! Classic ESP32 windowed-Xtensa calling glue for the virtual VHCI controller.
 use crate::bus::{SocBus, DRAM_HIGH, DRAM_LOW};
 use emu_core::Bus;
 use esp_soc::ble::vhci::{Abi, Ble, VhciBus, XTENSA_CODE as CODE};
@@ -13,11 +13,26 @@ pub fn intercept(cpu: &mut xtensa_lx7::Cpu, bus: &mut SocBus) -> bool {
 }
 
 impl VhciBus for SocBus {
-    fn abi() -> Abi { Abi { code: CODE, ram: DRAM_LOW..DRAM_HIGH, hz: crate::periph::CPU_HZ } }
-    fn ble(&mut self) -> &mut Ble { &mut self.ble }
-    fn valid_callback(&mut self, pc: u32) -> bool { self.fetch(pc).is_ok_and(|bytes| decode(pc, bytes).op == Op::Entry) }
-    fn flash_offset(&mut self, pc: u32) -> Option<usize> { self.flash_off(pc) }
-    fn ble_debug(&self) -> bool { self.debug.has("ble") }
+    fn abi() -> Abi {
+        Abi {
+            code: CODE,
+            ram: DRAM_LOW..DRAM_HIGH,
+            hz: crate::periph::CPU_HZ,
+        }
+    }
+    fn ble(&mut self) -> &mut Ble {
+        &mut self.ble
+    }
+    fn valid_callback(&mut self, pc: u32) -> bool {
+        self.fetch(pc)
+            .is_ok_and(|bytes| decode(pc, bytes).op == Op::Entry)
+    }
+    fn flash_offset(&mut self, pc: u32) -> Option<usize> {
+        self.flash_off(pc)
+    }
+    fn ble_debug(&self) -> bool {
+        self.debug.has("ble")
+    }
 }
 
 #[cfg(test)]
@@ -30,13 +45,13 @@ mod tests {
     const INVALID_ARG: u32 = 0x102;
     use xtensa_lx7::state::ps;
 
-    const BASE: u32 = 0x4038_8000;
-    const RETURN: u32 = 0x4038_9000;
+    const BASE: u32 = 0x4008_0000;
+    const RETURN: u32 = 0x4008_1000;
     const SEND_CB: u32 = BASE + 0x700;
     const RECV_CB: u32 = BASE + 0x710;
 
     fn fixture() -> (SocBus, HashMap<String, u32>) {
-        let mut bus = SocBus::new(0x400000, 0, [0; 6]);
+        let mut bus = SocBus::new(0x400000, [0; 6]);
         let symbols: HashMap<String, u32> = [
             ("esp_bt_controller_init", BASE),
             ("xTaskCreatePinnedToCore", BASE + 0x400),
@@ -46,25 +61,30 @@ mod tests {
             ("esp_vhci_host_check_send_available", BASE + 0x620),
             ("esp_vhci_host_send_packet", BASE + 0x630),
             ("esp_vhci_host_register_callback", BASE + 0x640),
-            ("_bt_controller_bss_start", 0x3fc9_0000),
-            ("_bt_controller_bss_end", 0x3fc9_1000),
+            ("_bt_controller_bss_start", 0x3ffc_7104),
+            ("_bt_controller_bss_end", 0x3ffc_7c7c),
         ]
         .into_iter()
         .map(|(n, a)| (n.into(), a))
         .collect();
-        for &pc in symbols.values().filter(|&&pc| pc >= BASE) { bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap(); }
-        for pc in [SEND_CB, RECV_CB] { bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap(); }
+        for &pc in symbols.values().filter(|&&pc| pc >= BASE) {
+            bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap();
+        }
+        for pc in [SEND_CB, RECV_CB] {
+            bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap();
+        }
         bus.ble.enable(&symbols, 0x400, &SocBus::abi()).unwrap();
         (bus, symbols)
     }
 
     fn caller(pc: u32, arg: u32) -> Cpu {
         let mut cpu = Cpu::new(0);
+        cpu.lx6 = true;
         cpu.ps = ps::WOE | ps::UM | (2 << ps::CALLINC_SHIFT);
         cpu.windowbase = 0;
         cpu.windowstart = 1;
         cpu.pc = pc;
-        cpu.set_ar(1, 0x3fcf_0000);
+        cpu.set_ar(1, 0x3ffe_0000);
         cpu.set_ar(8, (2 << 30) | (RETURN & 0x3fff_ffff));
         cpu.set_ar(10, arg);
         cpu
@@ -74,17 +94,28 @@ mod tests {
     fn trampoline_creates_guest_task_with_windowed_abi_and_returns_esp_ok() {
         let (mut bus, _) = fixture();
         let mut cpu = caller(BASE, DRAM_LOW);
+        let before = cpu.ccount;
         assert!(intercept(&mut cpu, &mut bus));
+        assert_eq!(cpu.ccount, before + 1);
+        assert_eq!(cpu.insn_count, 1);
         let mut created = false;
         for _ in 0..100 {
-            if cpu.pc == RETURN { break; }
+            if cpu.pc == RETURN {
+                break;
+            }
             if cpu.pc == bus.ble.create {
                 let args: Vec<u32> = (0..6).map(|n| cpu.arg(&mut bus, n)).collect();
                 assert_eq!(args, [BASE + TASK, bus.ble.buffer + 4, 4096, 0, 23, 0]);
-                assert_eq!(bus.read32_unpriced(cpu.get_ar(1)).unwrap(), 0, "core ID is seventh stack argument");
+                assert_eq!(
+                    bus.read32_unpriced(cpu.get_ar(1)).unwrap(),
+                    0,
+                    "core ID is seventh stack argument"
+                );
                 cpu.return_from_stub(&mut bus, 1);
                 created = true;
-            } else if !intercept(&mut cpu, &mut bus) { assert!(cpu.step(&mut bus).trap().is_none()); }
+            } else if !intercept(&mut cpu, &mut bus) {
+                assert!(cpu.step(&mut bus).trap().is_none());
+            }
         }
         assert!(created);
         assert_eq!(cpu.pc, RETURN);
@@ -112,7 +143,9 @@ mod tests {
         for _ in 0..100 {
             if cpu.pc == RECV_CB {
                 let (ptr, len) = (cpu.arg(&mut bus, 0), cpu.arg(&mut bus, 1));
-                let bytes: Vec<u8> = (0..len).map(|i| bus.read8_unpriced(ptr + i).unwrap()).collect();
+                let bytes: Vec<u8> = (0..len)
+                    .map(|i| bus.read8_unpriced(ptr + i).unwrap())
+                    .collect();
                 assert_eq!(bytes, [4, 14, 4, 1, 3, 12, 0]);
                 cpu.return_from_stub(&mut bus, 0);
                 received = true;
@@ -123,9 +156,13 @@ mod tests {
             } else if cpu.pc == bus.ble.delay {
                 assert_eq!(cpu.arg(&mut bus, 0), 1);
                 delayed = true;
-                if ready { break; }
+                if ready {
+                    break;
+                }
                 cpu.return_from_stub(&mut bus, 0);
-            } else if !intercept(&mut cpu, &mut bus) { assert!(cpu.step(&mut bus).trap().is_none()); }
+            } else if !intercept(&mut cpu, &mut bus) {
+                assert!(cpu.step(&mut bus).trap().is_none());
+            }
         }
         assert!(received && ready && delayed);
     }
@@ -136,48 +173,65 @@ mod tests {
         let mut cpu = caller(symbols["esp_vhci_host_register_callback"], 0xffff_fffc);
         assert!(intercept(&mut cpu, &mut bus));
         assert_eq!(cpu.get_ar(10), INVALID_ARG);
-        let table = 0x3fc9_2000;
+        let table = 0x3ff9_1000;
         bus.load_bytes(table, &SEND_CB.to_le_bytes()).unwrap();
         bus.load_bytes(table + 4, &RECV_CB.to_le_bytes()).unwrap();
         let mut cpu = caller(symbols["esp_vhci_host_register_callback"], table);
         assert!(intercept(&mut cpu, &mut bus));
-        assert_eq!(cpu.get_ar(10), 0, "a static callback table can live in DROM");
+        assert_eq!(
+            cpu.get_ar(10),
+            0,
+            "a static callback table can live in DROM"
+        );
         assert_eq!(bus.ble.callbacks, [SEND_CB, RECV_CB]);
+        let start = symbols["_bt_controller_bss_start"];
+        let end = symbols["_bt_controller_bss_end"];
+        symbols.insert("_bt_controller_bss_start".into(), 0x1000);
+        symbols.insert("_bt_controller_bss_end".into(), 0x2000);
+        assert!(bus.ble.enable(&symbols, 0x400, &SocBus::abi()).is_err());
+        symbols.insert("_bt_controller_bss_start".into(), start);
+        symbols.insert("_bt_controller_bss_end".into(), bus.ble.buffer + 511);
+        assert!(bus.ble.enable(&symbols, 0x400, &SocBus::abi()).is_err());
+        symbols.insert("_bt_controller_bss_end".into(), end);
         symbols.remove("vTaskDelay");
-        assert!(bus.ble.enable(&symbols, 0x400, &SocBus::abi()).unwrap_err().contains("vTaskDelay"));
+        assert!(bus
+            .ble
+            .enable(&symbols, 0x400, &SocBus::abi())
+            .unwrap_err()
+            .contains("vTaskDelay"));
     }
 
     #[test]
     fn machine_dispatches_chip_hooks_as_function_boundaries() {
-        struct SingleStep;
-        impl esp_soc::Observer<crate::S3> for SingleStep {
-            fn name(&self) -> &'static str { "single-step" }
-            fn wants(&self) -> esp_soc::Wants { esp_soc::Wants::INSN }
-        }
-        for single_step in [false, true] {
-            let (bus, symbols) = fixture();
-            let mut m = esp_soc::Machine::<crate::S3>::new([0; 6], bus);
-            m.quantum = 1;
-            if single_step { m.add_observer(Box::new(SingleStep)); }
-            m.bus.ble.status = 2;
-            m.cores[0] = caller(symbols["esp_bt_controller_get_status"], 0);
-            assert!(matches!(m.run(1), esp_soc::Stop::MaxInsns));
-            assert_eq!(m.cores[0].pc, RETURN);
-            assert_eq!(m.cores[0].get_ar(10), 2);
-        }
+        let (bus, symbols) = fixture();
+        let mut m = esp_soc::Machine::<crate::Esp32>::new([0; 6], bus);
+        m.quantum = 1;
+        m.bus.ble.status = 2;
+        m.cores[0] = caller(symbols["esp_bt_controller_get_status"], 0);
+        assert!(matches!(m.run(1), esp_soc::Stop::MaxInsns));
+        assert_eq!(m.cores[0].pc, RETURN);
+        assert_eq!(m.cores[0].get_ar(10), 2);
     }
-
     #[test]
     fn reboot_restores_controller_flash_even_after_mmu_mapping_changes() {
         let (mut bus, symbols) = fixture();
         let init = crate::bus::IBUS_LOW;
         let symbols = symbols
             .into_iter()
-            .map(|(name, address)| (name, if address >= BASE { address - BASE + init } else { address }))
+            .map(|(name, address)| {
+                (
+                    name,
+                    if address >= BASE {
+                        address - BASE + init
+                    } else {
+                        address
+                    },
+                )
+            })
             .collect();
         bus.ble.enable(&symbols, 0x400, &SocBus::abi()).unwrap();
-        let slot = ((init & 0x1ff_ffff) >> 16) as usize;
-        bus.mmu[slot] = 0;
+        let slot = 64 + ((init - 0x4000_0000) >> 16) as usize;
+        bus.mmu[0][slot] = 0;
         let mut original: Vec<u8> = (0..INIT as usize + CODE.len()).map(|i| i as u8).collect();
         original[..3].copy_from_slice(&[0x36, 0x41, 0]);
         bus.load_bytes(init, &original).unwrap();
@@ -188,7 +242,7 @@ mod tests {
         bus.ble.task_created = true;
         bus.ble.session.send(&[1, 0x0a, 0x20, 1, 1]);
         assert!(bus.ble.session.is_advertising());
-        bus.mmu[slot] = 1;
+        bus.mmu[0][slot] = 1;
         esp_soc::SocBus::reboot(&mut bus, [0; 6]);
         assert_eq!(&bus.flash[..original.len()], &original);
         assert_eq!(bus.ble.status, 0);
@@ -200,30 +254,26 @@ mod tests {
         assert!(!bus.ble.hooks.is_empty());
     }
     #[test]
-    fn vhci_send_cap_rejects_readable_oversized_packet() {
-        let (mut bus, symbols) = fixture();
-        bus.ble.status = 2;
-        let data = DRAM_LOW + 0x2000;
-        // Both packets fit DRAM. A valid H4 prefix alone must not bypass the transport cap.
-        let mut bytes = vec![0; 497];
-        bytes[..4].copy_from_slice(&[1, 3, 12, 0]);
-        bus.load_bytes(data, &bytes).unwrap();
-        for len in [496, 497] {
-            bus.ble.send_ready = false;
-            let mut cpu = caller(symbols["esp_vhci_host_send_packet"], data);
-            cpu.set_ar(11, len);
-            assert!(intercept(&mut cpu, &mut bus));
-            assert_eq!(bus.ble.send_ready, len == 496);
-            assert_eq!(bus.ble.session.pop_packet().is_some(), len == 496);
-        }
+    fn callback_requires_readable_windowed_function_entry() {
+        let (mut bus, _) = fixture();
+        assert!(bus.valid_callback(SEND_CB));
+        bus.load_bytes(SEND_CB, &[0, 0, 0]).unwrap();
+        assert!(!bus.valid_callback(SEND_CB));
+        assert!(!bus.valid_callback(u32::MAX));
     }
+
     #[test]
-    fn trampoline_extent_uses_symbol_size_including_alignment() {
-        let (mut bus, mut symbols) = fixture();
-        symbols.insert("esp_bt_controller_init".into(), BASE + 2);
-        let required = INIT + CODE.len() as u32 + 2;
-        assert!(bus.ble.enable(&symbols, required - 1, &SocBus::abi()).is_err());
-        assert!(bus.ble.enable(&symbols, 0, &SocBus::abi()).is_err());
-        assert!(bus.ble.enable(&symbols, required, &SocBus::abi()).is_ok());
+    fn host_enable_uses_elf_extent_and_reports_enabled_state() {
+        use esp_soc::SocBus as _;
+        let (_, symbols) = fixture();
+        let mut bus = SocBus::new(0, [0; 6]);
+        let mut elf = esp_soc::elf::Elf { by_name: symbols, ..Default::default() };
+        assert!(!bus.ble_enabled());
+        assert!(bus.enable_ble(&elf).is_err());
+        elf.symbol_sizes.insert("esp_bt_controller_init".into(), 0x400);
+        bus.enable_ble(&elf).unwrap();
+        assert!(bus.ble_enabled());
+        assert_eq!(bus.ble_pending_commands(), 0);
     }
+
 }

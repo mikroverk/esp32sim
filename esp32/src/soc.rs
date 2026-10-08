@@ -23,6 +23,8 @@ impl Soc for Esp32 {
     const CORES: usize = 2;
     const IDLE_CHUNK: u64 = 512;
     const ROM_DATA_TABLE: &'static [&'static str] = &["_data_start"];
+    fn function_hooks(bus: &SocBus) -> &[u32] { &bus.ble.hooks }
+    fn function_hook(core: &mut Cpu, bus: &mut SocBus) -> bool { crate::ble::intercept(core, bus) }
     fn new_core(i: usize) -> Cpu {
         let mut c = Cpu::new(if i == 0 { 0xcdcd } else { 0xabab });
         c.lx6 = true;
@@ -53,6 +55,12 @@ impl Soc for Esp32 {
 }
 
 impl esp_soc::SocBus for SocBus {
+    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> {
+        self.ble.enable(&elf.by_name, elf.symbol_sizes.get("esp_bt_controller_init").copied().unwrap_or(0), &<Self as esp_soc::ble::vhci::VhciBus>::abi())
+    }
+    fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
+    fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
+    fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         Ok(())
@@ -95,6 +103,8 @@ impl esp_soc::SocBus for SocBus {
         Err("boot from ROM on the classic ESP32".into())
     }
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
+        self.ble.restore_flash(&mut self.flash);
+        self.ble.reset();
         let cause = self.periph.rtc.0.reset_cause;
         let old = std::mem::replace(&mut self.periph, Peripherals::new(mac));
         self.periph.gpio.restore_inputs(&old.gpio);

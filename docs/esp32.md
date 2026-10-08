@@ -44,3 +44,8 @@ host raw-count API. DAC25/26 expose nominal DC millivolts in the report.
 `0 touchpad 4 1` touches GPIO4's capacitive pad; `0 touchpad 4 0` releases it.
 This is separate from panel coordinates supplied by `touch`. ADC calibration
 and touch counts are nominal models; see EX227 for limits.
+
+Classic `--ble` uses the shared VHCI/HCI controller with an ELF containing
+controller symbols and function sizes. It installs a guest FreeRTOS task
+using the same windowed-Xtensa trampoline as S3. This is a virtual controller,
+with the shared one-link, MTU-23 and no-pairing limits; see EX228.

@@ -54,6 +54,7 @@ pub struct SocBus {
     pub debug: esp_soc::DebugFlags,
     page_ver: Vec<u32>,
     pub(crate) pins_active: bool,
+    pub ble: esp_soc::ble::vhci::Ble,
 }
 
 // Classic DMA descriptors are read from internal RAM only.
@@ -81,6 +82,7 @@ impl SocBus {
             debug: Default::default(),
             page_ver: vec![0; 0x10021],
             pins_active: false,
+            ble: Default::default(),
         }
     }
     fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
@@ -142,7 +144,7 @@ impl SocBus {
             _ => None,
         }
     }
-    fn flash_off(&self, addr: u32) -> Option<usize> {
+    pub(crate) fn flash_off(&self, addr: u32) -> Option<usize> {
         let (table, index) = if (DBUS_LOW..DBUS_HIGH).contains(&addr) {
             (0, ((addr - DBUS_LOW) >> 16) as usize)
         } else if (IBUS_LOW..IBUS_HIGH).contains(&addr) {
