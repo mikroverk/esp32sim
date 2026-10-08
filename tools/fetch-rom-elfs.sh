@@ -12,7 +12,8 @@ set -e
 DIR=$1
 RELEASE=20260528
 TARBALL_SHA=caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46
-ROMS="esp32s3_rev0_rom.elf c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd
+ROMS="esp32_rev300_rom.elf 920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31
+esp32s3_rev0_rom.elf c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd
 esp32c3_rev3_rom.elf 19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c
 esp32c6_rev0_rom.elf 788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
 URL=https://github.com/espressif/esp-rom-elfs/releases/download/$RELEASE/esp-rom-elfs-$RELEASE.tar.gz

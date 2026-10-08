@@ -27,3 +27,8 @@ web/wasm/esp32sim.wasm
 
 # fetched by tools/fetch-web-vendor.sh (xterm.js for the Terminal tab), not committed
 web/vendor/
+
+.scratch/
+examples/hello_world-classic/.pio/
+examples/hello_world-classic/sdkconfig*
+!examples/hello_world-classic/sdkconfig.defaults

@@ -139,3 +139,9 @@ fn pwm_pins_are_observation_options() {
     let o = parse(&["esp32sim".into(), "--pwm".into(), "4".into(), "--pwm".into(), "21".into()], "s3");
     assert_eq!(o.pwm_pins, [4, 21]);
 }
+
+#[test]
+fn classic_defaults_to_its_own_board_and_keeps_explicit_board_names() {
+    assert_eq!(parse(&["emu".into(), "--chip".into(), "esp32".into()], "s3").board, "esp32dev");
+    assert_eq!(parse(&["emu".into(), "--chip".into(), "classic".into(), "--board".into(), "none".into()], "s3").board, "none");
+}

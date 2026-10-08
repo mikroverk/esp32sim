@@ -113,7 +113,14 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
     } else {
         esp32c6::board::make_board(&board)
     };
-    let m = if board == "esp32c3" || board == "c3" {
+    let m = if matches!(board.as_str(), "esp32" | "classic" | "esp32dev") {
+        let mut m = esp32::machine([0x24, 0x6f, 0x28, 0, 0x11, 0x22], flash_bytes);
+        m.bus.board = esp32::board::make_board("esp32dev").unwrap();
+        m.bus.set_flash_size(flash_bytes);
+        m.console.mask = 2;
+        prepare(&mut m);
+        MachineKind::Esp32(Box::new(m))
+    } else if board == "esp32c3" || board == "c3" {
         let mut m = esp32c3::machine([0x3c, 0x84, 0x27, 0xb6, 0xa7, 0x1c], flash_bytes);
         m.bus.set_flash_size(flash_bytes);
         m.console.mask = 2;                                  // the ROM mirrors its console to UART0 and USB-Serial/JTAG

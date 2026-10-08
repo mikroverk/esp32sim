@@ -1,0 +1,80 @@
+[
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "SRC_TG0_T0_EDGE: usize = 58 -> SRC_TG0_T0_EDGE: usize = 57",
+    "test": "timer_edges_use_idf_sources_58_and_62_on_both_cores",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "SRC_TG1_T0_EDGE: usize = 62 -> SRC_TG1_T0_EDGE: usize = 61",
+    "test": "timer_edges_use_idf_sources_58_and_62_on_both_cores",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "self.written(a, 2); -> self.written(a, 0);",
+    "test": "stores_invalidate_only_the_written_code_pages_and_rtc_alias",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "RTC_FAST_I + addr - RTC_FAST_D -> addr",
+    "test": "stores_invalidate_only_the_written_code_pages_and_rtc_alias",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "self.flash_written(offset, data.len()); -> self.flash_written(offset, 0);",
+    "test": "flash_remapping_and_programming_invalidate_aliases_without_touching_rom",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "if cpu == 0 { if let Some(addr) -> if cpu == 1 { if let Some(addr)",
+    "test": "flash_remapping_and_programming_invalidate_aliases_without_touching_rom",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "0x90 => self.run_sha256(true), -> 0x90 => self.run_sha256(false),",
+    "test": "classic_sha256_layout_hashes_one_block",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "ram.write(0x2c, 1); -> ram.write(0x2c, 0);",
+    "test": "app_cpu_follows_dport_control_bits",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "line < 32 -> line < 7",
+    "test": "dport_routes_cross_core_interrupts",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "self.sync_pull(pin); -> self.sync_pull(39);",
+    "test": "classic_gpio_matrix_routes_simple_io_constants_and_inversion",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/timers.rs",
+    "mutation": "self.lact.tick(ticks, &mut self.timer.int_raw); -> self.lact.tick(0, &mut self.timer.int_raw);",
+    "test": "classic_lact_counts_and_raises_its_interrupt",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/timers.rs",
+    "mutation": "self.wdt_tick(ticks); -> self.wdt_tick(0);",
+    "test": "classic_timer_and_rtc_watchdogs_request_resets",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "return ((self.rx_pending() % 128) as u32) << 13; -> return 0;",
+    "test": "classic_uart_reports_receive_fifo_pointers",
+    "killed": true
+  }
+]

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Everything the page's demos need that is not committed, fetched into web/ exactly as the Pages
 # workflow does (it runs this script):
-#   - the ESP32-S3, C3 and C6 mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs, pinned by release and
+#   - the classic ESP32, ESP32-S3, C3 and C6 mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs, pinned by release and
 #     SHA-256; tools/fetch-rom-elfs.sh) into web/wasm/fw/ — every demo boots from the ROM;
 #   - xterm.js for the Terminal tab (MIT, pinned; tools/fetch-web-vendor.sh);
 #   - the Linux-on-esp32-S3 flash image (GPL-3.0, svermigo/Linux-on-esp32-S3, release 0.7, pinned by

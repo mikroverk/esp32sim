@@ -1,4 +1,4 @@
-//! esp32sim — the command line, one front end for every chip (`--chip s3|c3|c6`; the `esp32sim-c3`
+//! esp32sim — the command line, one front end for every chip (`--chip esp32|s3|c3|c6`; the `esp32sim-c3`
 //! and `esp32sim-c6` binaries are `--chip c3` / `--chip c6`). Parsing and everything a run does are chip-agnostic over
 //! `Machine<S>`; the few flags a chip owns (board, WiFi, camera, PSRAM, register presets) live in
 //! its setup function.
@@ -11,7 +11,7 @@ pub mod cooja;
 mod camera;
 
 fn usage(chip: &str) -> ! {
-    eprintln!("usage: esp32sim [--chip s3|c3|c6] --boot rom|app --bootloader B.bin --ptable P.bin --app A.bin [--elf X.elf]... [options]");
+    eprintln!("usage: esp32sim [--chip esp32|s3|c3|c6] --boot rom|app --bootloader B.bin --ptable P.bin --app A.bin [--elf X.elf]... [options]");
     eprintln!("       see docs/cli.md for every flag (default chip here: {})", chip);
     std::process::exit(2)
 }
@@ -183,6 +183,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             if !o.ble { usage_error(&format!("script: line {}: BLE requires --ble and the application ELF", ln + 1)); }
         }
     }
+    if matches!(o.chip.as_str(), "esp32" | "classic") && !args.iter().any(|a| a == "--board") { o.board = "esp32dev".into(); }
     o
 }
 
@@ -203,6 +204,7 @@ pub fn run_cli(default_chip: &str) {
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
     if o.cooja { return run_cooja(&mut o); }
     match o.chip.as_str() {
+        "esp32" | "classic" => { let m = setup_esp32(&o); run(m, &o) }
         "s3" | "esp32s3" => { let m = setup_s3(&o); run(m, &o) }
         "c3" | "esp32c3" => { let m = setup_c3(&o); run(m, &o) }
         "c6" | "esp32c6" => { let m = setup_c6(&o); run(m, &o) }
@@ -315,6 +317,18 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
     }
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
+    }
+    m
+}
+
+fn setup_esp32(o: &Opts) -> esp32::Machine {
+    let mut m = esp32::machine(o.mac.unwrap_or([0x24, 0x6f, 0x28, 0x00, 0x11, 0x22]), o.flash_mb.unwrap_or(4) << 20);
+    m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);
+    if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
+    let board = &o.board;
+    m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev)")));
+    for (flag, on) in [("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
+        if on { eprintln!("{} is not available on the classic ESP32", flag); std::process::exit(2); }
     }
     m
 }
