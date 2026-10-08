@@ -98,6 +98,7 @@ pub struct SocBus {
     approximate_cache_yield_miss: bool,
     cache_resource: CacheResource,
     pub(crate) fetch_cache: xtensa_lx7::state::SharedFetchCache,
+    board_edges: bool,
 }
 
 /// One shared external resource, occupied only by priced fills/writebacks.
@@ -147,7 +148,7 @@ impl SocBus {
             ble: Default::default(),
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
-            mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), uart_pins: false, cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
+            mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), uart_pins: false, cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(), board_edges: true,
             spi2_timing: false, spi2_scheduled: None, spi2_pins: None,
             tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
@@ -277,6 +278,7 @@ impl SocBus {
     /// Attach fresh peripheral-side devices and restore the levels driven by the persistent board.
     pub fn attach_board_devices(&mut self) {
         self.uart_pins = self.board.uses_uart_pins();
+        self.board_edges = self.board.uses_gpio_edges();
         for (bus, address, device) in self.board.i2c_devices() {
             self.periph.i2c[bus as usize].attach(address, device);
         }
@@ -287,6 +289,7 @@ impl SocBus {
         }
         // Restored input edges and the board's own deadline can activate device work.
         self.refresh_tick_budget();
+        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }
     }
 
     /// Time until deferred device work must run. The bounded fallback covers devices without
@@ -431,12 +434,32 @@ impl SocBus {
     #[inline]
     fn is_periph(addr: u32) -> bool { (PERIPH_BASE..PERIPH_END).contains(&addr) }
 
+    #[inline(always)]
+    fn deliver_board_inputs(&mut self) {
+        if !self.board_edges { return; }
+        self.board.advance_to(self.cycles);
+        for edge in self.board.take_edges() {
+            if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
+            let old_input = self.periph.gpio.input;
+            self.periph.gpio.set_input(edge.pin, edge.level);
+            // set_input reports latched edges only. Level IRQs can rise or fall
+            // when the input changes, so both polarities require a refresh too.
+            self.irq_dirty |= old_input != self.periph.gpio.input;
+        }
+        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }
+    }
+
     fn periph_read(&mut self, addr: u32) -> u32 {
         if (MMU_TABLE..MMU_TABLE + (MMU_ENTRIES as u32) * 4).contains(&addr) {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
         self.vq_backstop(addr);
         self.flush_ticks();                                         // registers must show exact time
+        // IDF v5.5.4 components/soc/esp32s3/register/soc/gpio_reg.h: GPIO_IN/IN1.
+        if matches!(addr & !3, 0x6000_403c | 0x6000_4040) {
+            self.deliver_board_inputs();
+            self.refresh_tick_budget();
+        }
         self.periph.read32(addr)
     }
     /// EX133: every device-register access must have been deferred out of a multi-quantum run.
@@ -504,8 +527,7 @@ impl SocBus {
         }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
-        // GPIO output writes usually only drive the board, but an enabled level
-        // interrupt also observes output levels. Inspect only changed output pins.
+        // Resolved output changes can raise edge or level input interrupts.
         if spi {
             self.irq_dirty |= before != sources(&self.periph);
         } else if !(0x6000_4004..=0x6000_4018).contains(&a) {
@@ -516,7 +538,7 @@ impl SocBus {
                 let pin = changed.trailing_zeros() as usize;
                 changed &= changed - 1;
                 let config = self.periph.gpio.pin[pin];
-                if config & (1 << 13) != 0 && matches!((config >> 7) & 7, 4 | 5) {
+                if config & (1 << 13) != 0 && matches!((config >> 7) & 7, 1..=5) {
                     self.irq_dirty = true;
                     break;
                 }
@@ -827,15 +849,7 @@ impl SocBus {
                 self.irq_dirty = true;
             }
         }
-        self.board.advance_to(self.cycles);
-        for edge in self.board.take_edges() {
-            if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
-            let old_input = self.periph.gpio.input;
-            self.periph.gpio.set_input(edge.pin, edge.level);
-            // set_input reports latched edges only. Level IRQs can rise or fall
-            // when the input changes, so both polarities require a refresh too.
-            self.irq_dirty |= old_input != self.periph.gpio.input;
-        }
+        self.deliver_board_inputs();
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
         self.dma_i2s_step(cycles as u64);

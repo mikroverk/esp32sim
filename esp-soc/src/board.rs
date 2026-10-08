@@ -110,7 +110,8 @@ pub trait BoardModel {
     fn advance_to(&mut self, _cycle: VirtualCycle) {}
     /// Host GPIO drives to release after advancing the board.
     fn released_inputs(&mut self) -> Vec<u8> { Vec::new() }
-    /// Timestamped GPIO input edges emitted by the last advance.
+    /// GPIO edges due by the last advance, including synchronous output responses.
+    /// GPIO reads drain these even without elapsed cycles; retain future edges until due.
     fn take_edges(&mut self) -> Vec<BoardEdge> { Vec::new() }
     /// A pin by the name scripts and the UI use (`btn1`, `sw`, ...).
     fn named_pin(&self, _name: &str) -> Option<u8> { None }

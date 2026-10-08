@@ -549,6 +549,10 @@ impl Peripherals {
     }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
+        // IDF v5.5.4 components/soc/esp32s3/register/soc/io_mux_reg.h:42-50 (FUN_PD/PU).
+        if (0x60009004..=0x600090c4).contains(&addr) {
+            self.gpio.set_pulls(((addr - 0x60009004) / 4) as u8, v & (1 << 8) != 0, v & (1 << 7) != 0);
+        }
         if matches!(addr, 0x6001_3004 | 0x6002_7004) && v & (1 << 5) != 0 {
             let bus = usize::from(addr == 0x6002_7004);
             if self.i2c[bus].has_pinned_devices() {

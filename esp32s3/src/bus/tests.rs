@@ -1292,3 +1292,38 @@ fn stable_pages_move_their_epoch() {
     assert_eq!(bus.stable_pages().1, first - 1, "the last flash page is left to per-page compares");
     assert_eq!(bus.page_versions()[first as usize - 1], before[first as usize - 1] + 3);
 }
+
+#[test]
+fn released_and_same_cycle_inputs_restore_pcnt_cadence() {
+    struct Falling(bool);
+    impl crate::board::BoardModel for Falling {
+        fn name(&self) -> &'static str { "falling" }
+        fn take_edges(&mut self) -> Vec<crate::board::BoardEdge> {
+            if std::mem::take(&mut self.0) {
+                vec![crate::board::BoardEdge { cycle: 64, pin: 4, level: false }]
+            } else { Vec::new() }
+        }
+    }
+    for release in [true, false] {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.gpio.func_in_sel[33] = 0x80 | 4;
+        bus.periph.pcnt.conf[0][0] = (1 << 16) | (1 << 14);
+        bus.periph.pcnt.conf[0][1] = 1;
+        bus.periph.pcnt.int_ena = 1;
+        bus.periph.gpio.set_input(4, true);
+        bus.periph.gpio.set_pulls(4, false, true);
+        Bus::tick(&mut bus, 64);
+        assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+        if release {
+            esp_soc::SocBus::gpio_release_input(&mut bus, 4);
+        } else {
+            bus.board = Box::new(Falling(true));
+            bus.attach_board_devices();
+            bus.read32(0x6000_403c).unwrap();
+        }
+        assert_eq!(bus.next_deadline(), u64::from(MAX_TICK_DEFER));
+        Bus::tick(&mut bus, MAX_TICK_DEFER);
+        assert_eq!(bus.periph.pcnt.cnt[0], 1);
+        assert!(bus.periph.pcnt.irq());
+    }
+}

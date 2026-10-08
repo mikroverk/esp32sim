@@ -119,6 +119,7 @@ impl esp_soc::SocBus for SocBus {
         // The flash chip is on the board, not in the chip: its JEDEC capacity survives a reset.
         p.spi0.0.jedec = old.spi0.0.jedec;
         p.spi1.0.jedec = old.spi1.0.jedec;
+        p.gpio.restore_external(&old.gpio);
         p.gpio.strap = old.gpio.strap;      // strapping pins are board wiring, not chip state
         // The access point and the network behind it are the world outside the chip.
         p.wifi_mac.link = old.wifi_mac.link.surviving_reboot(); p.wifi_mac.log = old.wifi_mac.log;
@@ -148,6 +149,14 @@ impl esp_soc::SocBus for SocBus {
     fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { pin <= 6 && self.periph.adc.analog.set_raw(pin, raw) }
     fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
         (pin <= 6).then(|| self.periph.adc.analog.observation(pin))
+    }
+    fn gpio_release_input(&mut self, pin: u8) {
+        let before = self.periph.gpio.input;
+        self.periph.gpio.release_input(pin);
+        self.irq_dirty |= before != self.periph.gpio.input;
+        if before != self.periph.gpio.input {
+            if let Some(events) = &mut self.gpio_events { events.push((self.cycles, pin, self.periph.gpio.level(pin))); }
+        }
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let before = self.periph.gpio.input;

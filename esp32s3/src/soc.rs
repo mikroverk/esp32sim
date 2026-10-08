@@ -150,6 +150,7 @@ impl esp_soc::SocBus for SocBus {
         p.lcd_cam.frame_cycles = old.lcd_cam.frame_cycles;
         p.efuse = old.efuse;
         p.rtc.analog = old.rtc.analog;
+        p.gpio.restore_external(&old.gpio);
         p.gpio.strap = old.gpio.strap;
         p.misc.log_unknown = old.misc.log_unknown;
         p.spi0.jedec = old.spi0.jedec; p.spi1.jedec = old.spi1.jedec;   // the flash chip is not reset: its ID keeps the --flash-mb capacity
@@ -189,6 +190,15 @@ impl esp_soc::SocBus for SocBus {
     fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { (1..=20).contains(&pin) && self.periph.rtc.analog.set_raw(pin, raw) }
     fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
         ((1..=20).contains(&pin)).then(|| self.periph.rtc.analog.observation(pin))
+    }
+    fn gpio_release_input(&mut self, pin: u8) {
+        let before = self.periph.gpio.input;
+        self.periph.gpio.release_input(pin);
+        self.refresh_tick_budget();
+        self.irq_dirty |= before != self.periph.gpio.input;
+        if before != self.periph.gpio.input {
+            if let Some(events) = &mut self.gpio_events { events.push((self.cycles, pin, self.periph.gpio.level(pin))); }
+        }
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let old_input = self.periph.gpio.input;

@@ -472,6 +472,10 @@ impl Peripherals {
     }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
+        // IDF v5.5.4 components/soc/esp32c6/register/soc/io_mux_reg.h:42-50 (FUN_PD/PU).
+        if (0x60090004..=0x6009007c).contains(&addr) {
+            self.gpio.set_pulls(((addr - 0x60090004) / 4) as u8, v & (1 << 8) != 0, v & (1 << 7) != 0);
+        }
         if addr == 0x6000_4004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
             self.i2c.set_pins(self.i2c_pin(46).zip(self.i2c_pin(45)));
         }

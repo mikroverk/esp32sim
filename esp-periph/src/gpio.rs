@@ -11,9 +11,11 @@ pub struct Gpio {
     /// (pin, level) changes of enabled outputs since last drain
     pub changes: Vec<(u8, bool)>,
     pub strap: u32,
+    pull_up: u64, pull_down: u64,
+    external_mask: u64, external_levels: u64,
 }
 impl Gpio {
-    pub fn new() -> Self { Gpio { out: 0, enable: 0, input: (1u64 << 49) - 1, status: 0, pin: [0; 49], func_in_sel: [0x3c; 256], func_out_sel: [0x100; 49], ram: RegRam::new(), changes: Vec::new(), strap: 0x0f, input_changes: Vec::new() } }
+    pub fn new() -> Self { Gpio { out: 0, enable: 0, input: (1u64 << 49) - 1, status: 0, pin: [0; 49], func_in_sel: [0x3c; 256], func_out_sel: [0x100; 49], ram: RegRam::new(), changes: Vec::new(), strap: 0x0f, input_changes: Vec::new(), pull_up: 0, pull_down: 0, external_mask: 0, external_levels: 0 } }
     /// Report every pin whose driven level changed: `out & enable` before against after. Both
     /// words matter — a driver that toggles the output *enable* to produce a level (IDF 5.5's
     /// esp_lcd releases the D/C line after each colour transfer and re-enables it before the
@@ -28,17 +30,58 @@ impl Gpio {
         }
     }
     pub fn set_input(&mut self, pin: u8, level: bool) -> bool {
-        let Some(&cfg) = self.pin.get(pin as usize) else { return false; };
-        let old = self.input;
-        if level { self.input |= 1u64 << pin; } else { self.input &= !(1u64 << pin); }
-        if old == self.input { return false; }
-        self.input_changes.push((pin, level));
-        // edge detection per GPIO_PINn INT_TYPE (bits 7..9): 1 rising, 2 falling, 3 any, 4 low level, 5 high level
-        let typ = (cfg >> 7) & 7;
-        let rising = level && (typ == 1 || typ == 3);
-        let falling = !level && (typ == 2 || typ == 3);
-        if rising || falling { self.status |= 1u64 << pin; return true; }
-        false
+        if pin >= 49 { return false; }
+        let mask = 1u64 << pin;
+        self.external_mask |= mask;
+        if level { self.external_levels |= mask; } else { self.external_levels &= !mask; }
+        self.resolve(mask)
+    }
+    /// Stop driving a pin externally; resolve it from output enable and IO_MUX pulls.
+    pub fn release_input(&mut self, pin: u8) -> bool {
+        if pin >= 49 { return false; }
+        let mask = 1u64 << pin;
+        self.external_mask &= !mask;
+        self.resolve(mask)
+    }
+    pub fn set_pulls(&mut self, pin: u8, up: bool, down: bool) {
+        if pin >= 49 { return; }
+        let mask = 1u64 << pin;
+        self.pull_up = (self.pull_up & !mask) | if up { mask } else { 0 };
+        self.pull_down = (self.pull_down & !mask) | if down { mask } else { 0 };
+        self.resolve(mask);
+    }
+    /// Preserve host drives across a chip reset, without retaining pad configuration or edges.
+    pub fn restore_external(&mut self, old: &Self) {
+        self.external_mask = old.external_mask;
+        self.external_levels = old.external_levels;
+        self.resolve(self.external_mask);
+        self.input_changes.clear();
+    }
+    // INT_TYPE/INT_ENA: IDF v5.5.4 components/soc/esp32s3/register/soc/gpio_reg.h:278-301.
+    // C3/C6 use the same fields; see docs/evidence/gpio-input-feedback/README.md.
+    fn resolve(&mut self, mask: u64) -> bool {
+        let mask = mask & ((1u64 << 49) - 1);
+        // Host-driven levels are ideal digital sources; opposing output drivers do not
+        // model electrical contention. Floating and simultaneous pulls retain HIGH.
+        let passive = self.pull_up | !self.pull_down;
+        let driven = (self.out & self.enable) | (passive & !self.enable);
+        let levels = (self.external_levels & self.external_mask) | (driven & !self.external_mask);
+        let mut changed = (self.input ^ levels) & mask;
+        self.input = (self.input & !mask) | (levels & mask);
+        let mut irq = false;
+        while changed != 0 {
+            let pin = changed.trailing_zeros() as u8;
+            let bit = 1u64 << pin;
+            let level = self.input & bit != 0;
+            self.input_changes.push((pin, level));
+            let typ = (self.pin[pin as usize] >> 7) & 7;
+            if (level && typ == 1) || (!level && typ == 2) || typ == 3 {
+                self.status |= bit;
+                irq = true;
+            }
+            changed &= changed - 1;
+        }
+        irq
     }
     /// The pin the matrix routes peripheral output signal `sig` to, if any.
     pub fn pin_for_signal(&self, sig: u32) -> Option<u8> {
@@ -46,7 +89,7 @@ impl Gpio {
     }
     pub fn level(&self, pin: u8) -> bool {
         if pin as usize >= self.pin.len() { return false; }
-        if self.enable & (1u64 << pin) != 0 { self.out & (1u64 << pin) != 0 } else { self.input & (1u64 << pin) != 0 }
+        self.input & (1u64 << pin) != 0
     }
     pub fn irq(&self) -> bool {
         // level-type interrupts on current input, plus latched edge status, gated by INT_ENA (bits 13..17, bit 13 = core0)
@@ -95,7 +138,7 @@ impl Gpio {
             _ => self.ram.write(off, v),
         }
         // enable changes also change what's visible on pins
-        if matches!(off, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) { self.note_out(old, old_enable); }
+        if matches!(off, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) { self.note_out(old, old_enable); self.resolve((old ^ self.out) | (old_enable ^ self.enable)); }
     }
 }
 

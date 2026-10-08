@@ -135,6 +135,7 @@ impl esp_soc::SocBus for SocBus {
         // default 8 MB from the second boot onward.)
         p.spi0.jedec = old.spi0.jedec;
         p.spi1.jedec = old.spi1.jedec;
+        p.gpio.restore_external(&old.gpio);
         p.gpio.strap = old.gpio.strap;      // strapping pins are board wiring, not chip state
         // Publish the cause where the ROM reads it, so the boot banner says RTC_SW_CPU_RST like
         // real silicon rather than POWERON.
@@ -163,6 +164,14 @@ impl esp_soc::SocBus for SocBus {
     fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { pin <= 5 && self.periph.adc.analog.set_raw(pin, raw) }
     fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
         (pin <= 5).then(|| self.periph.adc.analog.observation(pin))
+    }
+    fn gpio_release_input(&mut self, pin: u8) {
+        let before = self.periph.gpio.input;
+        self.periph.gpio.release_input(pin);
+        self.irq_dirty |= before != self.periph.gpio.input;
+        if before != self.periph.gpio.input {
+            if let Some(events) = &mut self.gpio_events { events.push((self.cycles, pin, self.periph.gpio.level(pin))); }
+        }
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let before = self.periph.gpio.input;
