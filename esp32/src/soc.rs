@@ -53,6 +53,18 @@ impl Soc for Esp32 {
 }
 
 impl esp_soc::SocBus for SocBus {
+    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
+        Ok(())
+    }
+    fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
+        self.periph.wifi.link.set_relay(enabled);
+        Ok(())
+    }
+    fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> { self.periph.wifi.link.take_relay_frames() }
+    fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
+        self.periph.wifi.link.receive_relay_frame(frame)
+    }
     fn cycles(&self) -> u64 {
         self.cycles
     }
@@ -87,6 +99,8 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, Peripherals::new(mac));
         self.periph.gpio.restore_inputs(&old.gpio);
         self.periph.efuse = old.efuse;
+        self.periph.wifi.link = old.wifi.link.surviving_reboot();
+        self.periph.wifi.log = old.wifi.log;
         self.periph.misc.log_unknown = old.misc.log_unknown;
         self.periph.gpio.gpio.strap = old.gpio.gpio.strap;
         self.periph.rtc.0.ram = old.rtc.0.ram;
@@ -203,6 +217,8 @@ impl esp_soc::SocBus for SocBus {
         if self.periph.rmt.tx_count != 0 {
             lines.push(format!("[emu] rmt: {} transmissions", self.periph.rmt.tx_count));
         }
+        let wifi = self.periph.wifi.link.report();
+        if !wifi.is_empty() { lines.push(wifi); }
         let board = self.board.report();
         if !board.is_empty() { lines.push(board); }
         lines.join("\n")

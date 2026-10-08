@@ -19,6 +19,7 @@ pub const PERIPH_END: u32 = 0x3ff8_0000;
 pub(crate) const NUM_SOURCES: usize = 69;
 
 // ESP-IDF v5.5.4 components/soc/esp32/include/soc/interrupts.h:32-86.
+const SRC_WIFI_MAC: usize = 0;
 const SRC_TG0_T0: usize = 14;
 const SRC_TG0_T1: usize = 15;
 const SRC_TG0_WDT: usize = 16;
@@ -57,6 +58,7 @@ pub struct Dport {
 impl Dport {
     fn new() -> Self {
         let mut ram = RegRam::new();
+        ram.write(0xcc, 0xfffc_e030); // IDF v5.5.4 dport_reg.h:1031-1037.
         ram.write(0x2c, 1); // APP CPU held in reset
         Self {
             ram,
@@ -514,7 +516,12 @@ impl ClassicEfuse {
     fn new(mac: [u8; 6]) -> Self {
         let mut r = RegRam::new();
         r.write(0x04, u32::from_be_bytes([mac[2], mac[3], mac[4], mac[5]]));
-        r.write(0x08, (mac[0] as u32) << 8 | mac[1] as u32);
+        let mut crc = 0u8;
+        for byte in mac {
+            crc ^= byte;
+            for _ in 0..8 { crc = (crc >> 1) ^ if crc & 1 != 0 { 0x8c } else { 0 }; }
+        }
+        r.write(0x08, (crc as u32) << 16 | (mac[0] as u32) << 8 | mac[1] as u32);
         r.write(0x0c, 1 << 15); // ECO1+
         r.write(0x14, 1 << 20); // Revision 2; the loaded ECO3 ROM is selected independently.
         Self { ram: r, cmd: 0 }
@@ -557,6 +564,9 @@ pub struct Peripherals {
     pub aes: ClassicAes,
     pub rsa: ClassicRsa,
     pub(crate) crypto_enabled: [bool; 3],
+    pub wifi: crate::wifi::WifiMac,
+    pub analog: crate::wifi::Analog,
+    pub fe: crate::wifi::FrontEnd,
 }
 
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (ClockDomain::RtcSlow, 1600)];
@@ -568,6 +578,11 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x42 "SPI1" (spi1) => [];
     0x43 "SPI0" (spi0) => [];
     0x44 "GPIO" (gpio) => [];
+    0x46 "FE" (fe) => [];
+    0x4e "I2C_MST" (analog) => [];
+    0x73 "WIFI_MAC" (wifi) => [SRC_WIFI_MAC];
+    0x74 "WIFI_MAC" alias (wifi) delta 0x1000 => [];
+    0x75 "WIFI_MAC" alias (wifi) delta 0x2000 => [];
     0x48 "RTCCNTL" (rtc) => [SRC_RTC_CORE];
     0x49 "IO_MUX" alias (gpio) delta 0x1000 => [];
     0x50 "UART1" (uart[1]) => [SRC_UART1];
@@ -629,6 +644,9 @@ impl Peripherals {
             aes: ClassicAes::new(),
             rsa: ClassicRsa::new(),
             crypto_enabled: [false; 3],
+            wifi: crate::wifi::WifiMac::default(),
+            analog: crate::wifi::Analog::default(),
+            fe: crate::wifi::FrontEnd::default(),
         };
         for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
         p.sync_crypto();
@@ -654,6 +672,9 @@ impl Peripherals {
             0x42 => "SPI1",
             0x43 => "SPI0",
             0x44 => "GPIO",
+            0x46 => "FE",
+            0x4e => "I2C_MST",
+            0x73..=0x75 => "WIFI_MAC",
             0x48 => "RTCCNTL",
             0x49 => "IO_MUX",
             0x50 => "UART1",
@@ -695,6 +716,7 @@ impl Peripherals {
                 v &= !(1 << 5);
             }
         }
+        if addr == 0x3ff0_00d0 && v & (1 << 2) != 0 { self.wifi.reset(); }
         if addr == 0x3ff0_00c4 && v & (1 << 11) != 0 {
             self.ledc = ClassicLedc::new();
         }
@@ -774,6 +796,13 @@ impl Peripherals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classic_factory_mac_includes_rom_crc8() {
+        let mut p = Peripherals::new([0x24, 0x6f, 0x28, 0, 0x11, 0x22]);
+        assert_eq!(p.read32(0x3ff5_a004), 0x2800_1122);
+        assert_eq!(p.read32(0x3ff5_a008), 0x00cf_246f);
+    }
 
     fn configure_i2c0_pins(p: &mut Peripherals) {
         for (pin, mux, signal) in [(21u32, 0x7c, 30u32), (22, 0x80, 29)] {

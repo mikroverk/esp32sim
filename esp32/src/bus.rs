@@ -2,13 +2,13 @@
 //! ESP-IDF v5.5.4 components/soc/esp32/include/soc/soc.h:170-199 gives memory bounds.
 //! Flash MMU behavior and the ROM integrity payload mapping are inferred from ROM execution.
 use crate::periph::{Peripherals, PERIPH_BASE, PERIPH_END};
-use esp_periph::{Device, RegRam, Rng};
+use esp_periph::{Device, Rng};
 use xtensa_lx7::bus::{Bus, Fault};
 
 pub const DRAM_LOW: u32 = 0x3ffa_e000;
 pub const DRAM_HIGH: u32 = 0x4000_0000;
 // The ECO3 ELF carries one reset-integrity payload 0x504 bytes below documented DRAM.
-const ROM_DRAM_LOW: u32 = 0x3ffa_dafc;
+pub(crate) const ROM_DRAM_LOW: u32 = 0x3ffa_dafc;
 pub const IRAM_LOW: u32 = 0x4008_0000;
 pub const IRAM_HIGH: u32 = 0x400c_0000;
 pub const IROM_MASK_LOW: u32 = 0x4000_0000;
@@ -27,10 +27,7 @@ const MMU_PRO: u32 = 0x3ff1_0000;
 const MMU_APP: u32 = 0x3ff1_2000;
 const MMU_INVALID: u32 = 1 << 8;
 const PAGE: usize = 0x1_0000;
-const WDEV_RND: u32 = 0x6003_5144;
-// FIFO AHB windows are aliases, not separate UART register banks.
-const UART_FIFO_AHB: [u32; 3] = [0x6000_0000, 0x6001_0000, 0x6002_e000];
-const I2C_FIFO_AHB: [u32; 2] = [0x6001_301c, 0x6002_701c];
+const WDEV_RND: u32 = 0x3ff7_5144;
 
 fn merge(old: u32, value: u32, addr: u32, size: u32) -> u32 {
     let (shift, mask) = match size { 1 => ((addr & 3) * 8, 0xff), 2 => ((addr & 2) * 8, 0xffff), _ => return value };
@@ -46,7 +43,6 @@ pub struct SocBus {
     pub rtc_fast: Vec<u8>,
     pub rtc_slow: Vec<u8>,
     pub flash: Vec<u8>,
-    pub ana: RegRam,
     pub rng: Rng,
     pub mmu: [[u32; 2048]; 2],
     pub periph: Peripherals,
@@ -74,7 +70,6 @@ impl SocBus {
             rtc_fast: vec![0; 0x2000],
             rtc_slow: vec![0; 0x2000],
             flash: vec![0xff; flash_size],
-            ana: RegRam::new(),
             rng: Rng::new(),
             mmu: [[MMU_INVALID; 2048]; 2],
             periph: Peripherals::new(mac),
@@ -191,12 +186,12 @@ impl SocBus {
                 .map(|off| (&mut self.flash, off, false)),
         }
     }
+    fn ahb_to_apb(addr: u32) -> Option<u32> {
+        (0x6000_0000..0x6004_0000).contains(&addr)
+            .then(|| addr - 0x6000_0000 + 0x3ff4_0000)
+    }
     fn is_periph(addr: u32) -> bool {
-        (PERIPH_BASE..PERIPH_END).contains(&addr)
-            || (0x6000_e000..0x6000_f000).contains(&addr)
-            || (addr & !3) == WDEV_RND
-            || UART_FIFO_AHB.contains(&(addr & !3))
-            || I2C_FIFO_AHB.contains(&(addr & !3))
+        (PERIPH_BASE..PERIPH_END).contains(&addr) || Self::ahb_to_apb(addr).is_some()
     }
     fn mmu_slot(addr: u32) -> Option<(usize, usize)> {
         for (cpu, base) in [(0, MMU_PRO), (1, MMU_APP)] {
@@ -211,16 +206,10 @@ impl SocBus {
         if let Some((cpu, n)) = Self::mmu_slot(addr) {
             return self.mmu[cpu][n];
         }
-        let a = addr & !3;
+        let a = Self::ahb_to_apb(addr & !3).unwrap_or(addr & !3);
         let w = if a == WDEV_RND {
             self.rng.now = self.cycles as u32;
             self.rng.read(0)
-        } else if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
-            self.periph.uart[n].read(0)
-        } else if let Some(n) = I2C_FIFO_AHB.iter().position(|&fifo| fifo == a) {
-            self.periph.i2c[n].read(0x1c)
-        } else if (0x6000_e000..0x6000_f000).contains(&a) {
-            self.ana.read(a - 0x6000_e000)
         } else {
             self.periph.read32(a)
         };
@@ -236,25 +225,8 @@ impl SocBus {
             if cpu == 0 { if let Some(addr) = Self::mmu_address(n) { self.written(addr, PAGE); } }
             return;
         }
-        let a = addr & !3;
+        let a = Self::ahb_to_apb(addr & !3).unwrap_or(addr & !3);
         if a == WDEV_RND {
-            return;
-        }
-        if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
-            self.periph.uart[n].write(0, value);
-            if self.pins_active { self.board.uart_tx(self.cycles, self.periph.uart_route(n), value as u8); }
-            self.irq_dirty = true;
-            return;
-        }
-        if let Some(n) = I2C_FIFO_AHB.iter().position(|&fifo| fifo == a) {
-            self.periph.i2c[n].write(0x1c, value);
-            self.irq_dirty = true;
-            return;
-        }
-        if (0x6000_e000..0x6000_f000).contains(&a) {
-            let old = self.ana.read(a - 0x6000_e000);
-            let v = merge(old, value, addr, size);
-            self.ana.write(a - 0x6000_e000, v);
             return;
         }
         let v = if size == 4 { value } else { merge(self.periph.read32(a), value, addr, size) };
@@ -343,6 +315,9 @@ impl SocBus {
         true
     }
     fn dma_desc_word(&mut self, addr: u32) -> Result<u32, Fault> { self.dma_read_word(addr).ok_or(Fault::Unmapped) }
+    pub(crate) fn read_dma_descriptor(&mut self, addr: u32) -> Result<(u32, esp_periph::DmaDesc), esp_periph::dma::DmaDescriptorFault> {
+        self.try_dma_desc(addr)
+    }
     /// Walk a finite descriptor transaction, rejecting cycles and bounding visits. The visitor
     /// returns false once it has consumed the requested payload.
     fn walk_chain(
@@ -536,6 +511,8 @@ impl Bus for SocBus {
         self.periph.tick(cycles as u64);
         self.flush_rmt();
         self.flush_gpio();
+
+        self.wifi_step();
         1
     }
 }
@@ -570,12 +547,29 @@ mod tests {
         let mut b = SocBus::new(4 << 20, [0; 6]);
         b.write32(0x6000_e044, 0x1234).unwrap();
         assert_eq!(b.read32(0x6000_e044), Ok(0x1234));
+        assert_eq!(b.read32(0x3ff4_e044), Ok(0x1234));
+        b.write32(0x6003_3d24, 2).unwrap();
+        assert_eq!(b.read32(0x3ff7_3d24), Ok(3));
+        b.write32(0x6000_607c, 3).unwrap();
+        assert_eq!(b.read32(0x3ff4_607c), Ok(0x8000_0003));
+    }
+
+    #[test]
+    fn rng_ahb_and_apb_aliases_share_one_generator() {
+        let mut b = SocBus::new(0, [0; 6]);
+        let mut rng = Rng::new();
+        b.cycles = 23;
+        rng.now = 23;
+        for addr in [0x6003_5144, 0x3ff7_5144, 0x6003_5144] {
+            assert_eq!(b.read32(addr), Ok(rng.read(0)));
+            b.write32(addr, 0xdeadbeef).unwrap();
+        }
     }
 
     #[test]
     fn uart_ahb_alias_reaches_fifo() {
         let mut b = SocBus::new(4 << 20, [0; 6]);
-        b.write32(UART_FIFO_AHB[0], b'X' as u32).unwrap();
+        b.write32(0x6000_0000, b'X' as u32).unwrap();
         assert_eq!(b.periph.uart[0].tx_out, b"X");
     }
 
@@ -632,7 +626,9 @@ mod tests {
         b.board = Box::new(I2cBoard);
         b.attach_board_devices();
         assert!(b.periph.i2c[1].has_device(0x6b));
-        b.write32(I2C_FIFO_AHB[0], 0xd6).unwrap();
+        b.irq_dirty = false;
+        b.write32(0x6001_301c, 0xd6).unwrap();
+        assert!(b.irq_dirty, "AHB FIFO writes use the generic IRQ update");
         assert_eq!(b.read32(0x3ff5_3008).unwrap() >> 18 & 0x3f, 1);
 
         <SocBus as esp_soc::SocBus>::reboot(&mut b, [0; 6]);

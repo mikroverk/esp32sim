@@ -3,6 +3,7 @@ pub mod bus;
 pub mod periph;
 pub mod soc;
 pub mod timers;
+pub mod wifi;
 
 pub use esp_soc::Stop;
 pub use soc::{machine, Esp32, Machine};

@@ -204,18 +204,15 @@ impl Device for SpiMemC6 {
 /// register), like the S3 model. Two things the blobs poll for must come back set:
 /// `ANA_CONF0.BBPLL_CAL_DONE`, and the RF block's (0x63) status bits — its registers read as
 /// 0xff until written, which is what the PHY's calibration loops wait for.
-pub struct AnaMst { ram: RegRam, pub ana: std::collections::HashMap<u32, u8> }
+pub struct AnaMst { ram: RegRam, pub ana: esp_periph::Regi2c }
 impl Default for AnaMst { fn default() -> Self { Self::new() } }
 impl AnaMst {
     pub fn new() -> Self { AnaMst { ram: RegRam::new(), ana: Default::default() } }
     fn ctrl_read(&self, off: u32) -> u32 {
         let c = self.ram.read(off);
-        if c & (1 << 24) != 0 { return c & !(1 << 25); }
-        let key = c & 0xffff;
         // the RF block (0x63): register 0 is the sigma-delta modulator status the PHY's
         // `wait_i2c_sdm_stable` polls for 0x5b; the other status registers read all-ones
-        let d = *self.ana.get(&key).unwrap_or(match key { 0x0063 => &0x5b, k if k & 0xff == 0x63 => &0xff, _ => &0 }) as u32;
-        (c & !(0xff << 16) & !(1 << 25)) | (d << 16)
+        self.ana.read(0, c, |key| match key { 0x0063 => &0x5b, k if k & 0xff == 0x63 => &0xff, _ => &0 })
     }
 }
 impl Device for AnaMst {
@@ -227,7 +224,7 @@ impl Device for AnaMst {
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        if (off == 0x00 || off == 0x04) && v & (1 << 24) != 0 { self.ana.insert(v & 0xffff, (v >> 16) as u8); }
+        if off == 0x00 || off == 0x04 { self.ana.write(0, v); }
         self.ram.write(off, v);
         WriteEffect::NONE
     }
