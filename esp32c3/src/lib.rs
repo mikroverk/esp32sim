@@ -10,6 +10,7 @@ pub use esp_soc::Stop;
 pub use soc::{machine, Machine, C3};
 
 mod ble;
+pub mod ble_lc;
 
 pub mod wifi;
 mod gdma;

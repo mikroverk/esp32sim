@@ -136,6 +136,7 @@ impl Device for Extmem {
 pub use esp_periph::Rng;
 
 pub struct Peripherals {
+    pub ble_lc: crate::ble_lc::BleLc,
     pub adc: esp_periph::sar_adc::SarAdc,
     pub uart: [Uart; 2],
     pub usb: UsbSerialJtag,
@@ -174,6 +175,8 @@ pub struct Peripherals {
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
 device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
+    // IDF v5.5.5 components/soc/esp32c3/include/soc/interrupts.h: ETS_RWBLE_INTR_SOURCE = 8.
+    0x31 "BLE_LC" optional (ble_lc) => [8];
     0x40 "APB_SARADC" (adc) => [];
     0x06 "FE_IQ" (fe_iq) @ 0x140..=0x177 => [];
     0x33 "WIFI_MAC" (wifi) => [];
@@ -215,6 +218,16 @@ impl DeviceSet for Peripherals {
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+        if block == 0x31 && self.ble_lc.enabled() {
+            // IDF v5.5.5 soc/esp32c3/register/soc/{syscon,rtc_cntl}_reg.h.
+            // Checked on C3 rev v0.3: pre-init BT is powered down and isolated,
+            // even though SYSCON already enables its clocks and releases reset.
+            let syscon = self.misc.generic.get(&0x26).expect("C3 SYSCON reset registers");
+            self.ble_lc.accessible = syscon.read(0x14) & 0x30800 == 0x30800
+                && syscon.read(0x18) & 0x3e08 == 0
+                && self.rtc.ram.read(0x88) & (1 << 11) == 0
+                && self.rtc.ram.read(0x8c) & (1 << 22) == 0;
+        }
         if block == 0x40 { self.adc.now_cycles = self.clock.cycles(); }
         if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
         if block == 0x06 { self.fe_iq.now_cycles = self.clock.cycles(); }
@@ -223,19 +236,40 @@ impl DeviceSet for Peripherals {
 }
 
 impl Peripherals {
+    pub fn enable_ble_full(&mut self, observe: bool) {
+        if !self.ble_lc.enabled() { self.ble_lc.enable(); }
+        self.ble_lc.observe(observe);
+        self.refresh_work();
+        self.refresh_optional(0x31);
+    }
+
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
+            ble_lc: Default::default(),
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
             wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(), ledc: Ledc::new(LedcLayout::C3),
-            efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
+            efuse: efuse_c3(mac, 0, 4, 3), system: {
+                let mut s = SystemRegs::new(0x28);
+                // IDF v5.5.5 soc/esp32c3/register/soc/system_reg.h:
+                // BT_LPCK_DIV_FRAC reset: SEL_8M=1, DIV_A=1, DIV_B=1.
+                // Guest read/modify/write snapshots checked on C3 rev v0.3.
+                s.ram.write(0x24, 0x0200_1001);
+                s
+            }, extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
             gdma: Default::default(),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
-            misc: Misc::new(), spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
+            misc: {
+                let mut m = Misc::new();
+                // IDF v5.5.5 soc/esp32c3/register/soc/syscon_reg.h reset.
+                // Guest read/modify/write yields ffffffdf, checked on C3 rev v0.3.
+                m.generic.entry(0x26).or_default().write(0x14, 0xfffc_e030);
+                m
+            }, spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
             last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
@@ -246,7 +280,7 @@ impl Peripherals {
             0x08 => "RTCCNTL/EFUSE", 0x09 => "IO_MUX", 0x0e => "RTC_I2C", 0x10 => "UART1",
             0x13 => "I2C0", 0x14 => "UHCI0", 0x16 => "RMT", 0x19 => "LEDC", 0x1c => "NRX", 0x1d => "BB",
             0x1f => "TIMG0", 0x20 => "TIMG1", 0x23 => "SYSTIMER", 0x24 => "SPI2", 0x26 => "APB_CTRL",
-            0x2b => "TWAI", 0x2d => "I2S", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS",
+            0x31 => "BLE_LC", 0x2b => "TWAI", 0x2d => "I2S", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS",
             0x3e => "HMAC", 0x3f => "GDMA", 0x40 => "APB_SARADC", 0x43 => "USB_SERIAL_JTAG",
             0xc0 => "SYSTEM", 0xc1 => "SENSITIVE", 0xc2 => "INTERRUPT", 0xc4 => "EXTMEM",
             0xc5 => "MMU", 0xcc => "XTS_AES", 0xce => "ASSIST_DEBUG", 0xcf => "DEDICATED_GPIO",
@@ -286,13 +320,19 @@ impl Peripherals {
             self.ledc.clock_enabled = self.system.read(0x10) & (1 << 11) != 0 && self.system.read(0x18) & (1 << 11) == 0;
             self.refresh_optional(0x19);
         }
+        // IDF v5.5.5 syscon_reg.h: BTBB, RW_BTMAC/BTLP and their register resets.
+        // Reset cancellation/register clearing are inferred, not hardware-probed.
+        if addr == 0x6002_6018 && v & 0x3e08 != 0 && self.ble_lc.enabled() {
+            self.ble_lc.reset_controller();
+            self.refresh_optional(0x31);
+        }
         self.refresh_work();
     }
 
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
         self.wifi_irq = self.wifi.irq();
-        self.work_pending = self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some();
+        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some();
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz

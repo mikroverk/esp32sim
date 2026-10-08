@@ -1,0 +1,50 @@
+{
+  "idf": {
+    "tag": "v5.5.5",
+    "commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+    "compiler": "esp-14.2.0_20260121"
+  },
+  "reproducibility": "Two distinct source and build directories, identical bytes for all three images; fixed app version 1.",
+  "files": {
+    "web/wasm/fw/public/c3-ble-bootloader.bin": {
+      "bytes": 20896,
+      "sha256": "6a2ec68d72c552e9399da762f8789a305e982fd9208b7414e66fe17c990e2296"
+    },
+    "web/wasm/fw/public/c3-ble-ptable.bin": {
+      "bytes": 3072,
+      "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820"
+    },
+    "web/wasm/fw/public/c3-ble-advertiser.bin": {
+      "bytes": 387840,
+      "sha256": "7d130e7f2f356111884d545c5c9c4eae496ac13d2e85d1cc262c400feb6cd9bd"
+    },
+    "examples/c3-ble-advertiser/main/CMakeLists.txt": {
+      "bytes": 55,
+      "sha256": "b4a327ea58686c86faae1c3fd02fc715a9be560380c78da7f1de38c8e3a813f7"
+    },
+    "examples/c3-ble-advertiser/main/main.c": {
+      "bytes": 1258,
+      "sha256": "70a98130a82fe85d144d842880219733d252d3fd6d6a14798d496f581ab234b1"
+    },
+    "examples/c3-ble-advertiser/CMakeLists.txt": {
+      "bytes": 132,
+      "sha256": "cd6ce3dc53fea4f78e47d7d8ca667a9d8ffc2b414e23dfba763bb9335b550130"
+    },
+    "examples/c3-ble-advertiser/sdkconfig.defaults": {
+      "bytes": 349,
+      "sha256": "643ff303725c2eb2eabcb70ccf69b6baf272a2f6fd81ee521677d86aa93a06fd"
+    },
+    "web/wasm/fw/esp32c3_rev3_rom.elf": {
+      "bytes": 556332,
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+    }
+  },
+  "reproduced_elf_sha256": "b7eb3e202f00939a769d47201ce5a5c0b3c14a90fe4f7165860ed051ad23f1e8",
+  "tools": {
+    "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "python": "3.14.7",
+    "cmake": "cmake version 4.4.2",
+    "ninja": "1.13.2",
+    "esptool": "4.12.0"
+  }
+}

@@ -32,7 +32,14 @@ impl Soc for C3 {
 }
 
 impl esp_soc::SocBus for SocBus {
-    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> { self.ble.enable(&elf.by_name, elf.symbol_sizes.get("esp_bt_controller_init").copied().unwrap_or(0), &<Self as esp_soc::ble::vhci::VhciBus>::abi()) }
+    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> {
+        if self.periph.ble_lc.enabled() { return Err("HCI BLE and full BLE are mutually exclusive".into()) }
+        self.ble.enable(&elf.by_name, elf.symbol_sizes.get("esp_bt_controller_init").copied().unwrap_or(0), &<Self as esp_soc::ble::vhci::VhciBus>::abi()) }
+    fn enable_ble_full(&mut self, observe: bool) -> Result<(), String> {
+        if self.ble_enabled() { return Err("HCI BLE and full BLE are mutually exclusive".into()) }
+        self.periph.enable_ble_full(observe);
+        Ok(())
+    }
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
@@ -110,9 +117,13 @@ impl esp_soc::SocBus for SocBus {
         if let Some((off, original)) = self.ble.original_flash.take() { self.flash[off..off + original.len()].copy_from_slice(&original); }
         self.ble.reset();
         let cause = self.periph.rtc.reset_cause;
-        let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
+        let mut old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         p.wifi.link = old.wifi.link.surviving_reboot(); p.wifi.log = old.wifi.log;
+        if old.ble_lc.enabled() {
+            p.enable_ble_full(old.ble_lc.observing());
+            p.ble_lc.keep_observations(&mut old.ble_lc);
+        }
         p.refresh_work();
         p.efuse = old.efuse;
         p.adc.analog = old.adc.analog;

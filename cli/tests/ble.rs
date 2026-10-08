@@ -33,7 +33,9 @@ fn ble_script_without_enable_exits_unsuccessfully() {
         let result = Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(["--script", script.to_str().unwrap(), "--max-insns", "1", "--no-dump"])
             .output().unwrap();
         assert!(!result.status.success());
-        assert!(String::from_utf8_lossy(&result.stderr).contains("line 1"));
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        assert!(stderr.contains(if line.ends_with("conect") { "line 1: expected connect" } else { "line 1: BLE requires --ble" }), "{stderr}");
+        assert!(!stderr.contains("ROM loaded"), "{stderr}");
     }
     std::fs::remove_file(script).unwrap();
 }
@@ -44,4 +46,33 @@ fn c6_ble_without_elf_names_the_missing_symbol() {
         .output().unwrap();
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("requires ELF symbol esp_bt_controller_init"));
+}
+
+#[test]
+fn full_ble_mode_is_c3_only_and_excludes_hci() {
+    for args in [vec!["--chip", "s3", "--ble", "full"], vec!["--chip", "c6", "--ble", "full"], vec!["--chip", "c3", "--ble", "--ble", "full"], vec!["--chip", "c3", "--ble", "full", "--ble"]] {
+        let result = Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(&args).output().unwrap();
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains(if args.iter().filter(|&&a| a == "--ble").count() == 2 { "mutually exclusive" } else { "requires C3" }));
+    }
+}
+
+#[test]
+fn passive_observer_requires_full_ble() {
+    let result = Command::new(env!("CARGO_BIN_EXE_esp32sim-c3")).arg("--ble-observe").output().unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("--ble-observe requires --ble full"));
+}
+
+#[test]
+fn full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic() {
+    let script = std::env::temp_dir().join(format!("esp32sim-full-ble-{}.txt", std::process::id()));
+    std::fs::write(&script, "0 ble connect\n").unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(["--chip", "esp32c3", "--ble", "full", "--script"])
+        .arg(&script).output().unwrap();
+    std::fs::remove_file(script).unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(stderr.contains("line 1: BLE requires --ble"), "{stderr}");
+    assert!(!stderr.contains("panicked") && !stderr.contains("ROM loaded"), "{stderr}");
 }

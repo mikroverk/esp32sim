@@ -1,0 +1,236 @@
+[
+  {
+    "mutation": "latch_latency",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "s.latch = Some(s.cycles + HALF_US_CYCLES);",
+    "after": "s.latch = Some(s.cycles + HALF_US_CYCLES + 1);",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::latch_is_atomic_and_wraps_in_modeled_time"
+    ]
+  },
+  {
+    "mutation": "fine_latch_counter",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "624 - (hus % 625) as u32",
+    "after": "0",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::latch_is_atomic_and_wraps_in_modeled_time"
+    ]
+  },
+  {
+    "mutation": "reset_latency",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "s.reset = Some(s.cycles + HALF_US_CYCLES);",
+    "after": "s.reset = Some(s.cycles + HALF_US_CYCLES + 1);",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::reset_completes_without_polling_and_cancels_alarm"
+    ]
+  },
+  {
+    "mutation": "reset_keeps_alarm",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "s.reset = None;\n            s.alarm = None;",
+    "after": "s.reset = None;",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::reset_completes_without_polling_and_cancels_alarm"
+    ]
+  },
+  {
+    "mutation": "alarm_one_half_us_late",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "(now + delta) * HALF_US_CYCLES",
+    "after": "(now + delta + 1) * HALF_US_CYCLES",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::alarm_mask_ack_rearm_and_wrap",
+      "ble_lc::tests::optional_device_routes_source_eight_only_when_enabled",
+      "ble_lc::tests::each_completed_event_retains_an_end_and_cancelled_timer_stays_out"
+    ]
+  },
+  {
+    "mutation": "end_status_aborted",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "self.complete(event.entry, 3, sram);",
+    "after": "self.complete(event.entry, 4, sram);",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::each_completed_event_retains_an_end_and_cancelled_timer_stays_out",
+      "ble_lc::tests::channels_run_in_time_then_completion_is_masked_and_acknowledged"
+    ]
+  },
+  {
+    "mutation": "half_slot_bit_removed",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "if self.ram.read(0) & 0x100 != 0 && s.cycles /",
+    "after": "if false && self.ram.read(0) & 0x100 != 0 && s.cycles /",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::reset_completes_without_polling_and_cancels_alarm",
+      "ble_lc::tests::half_slot_deadline_and_ack_are_chunk_independent"
+    ]
+  },
+  {
+    "mutation": "event_past_due_wraps",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "let due = if delta >= PERIOD / 2 { now }",
+    "after": "let due = if false { now }",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::channel_map_reset_and_bad_descriptor_do_not_transmit_extra_packets",
+      "ble_lc::tests::event_fine_timestamp_and_past_due_event"
+    ]
+  },
+  {
+    "mutation": "power_gate_removed",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "if !self.accessible { return 0 }",
+    "after": "if false { return 0 }",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::silicon_readbacks_follow_configuration_and_power_state"
+    ]
+  },
+  {
+    "mutation": "event_fine_removed",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "624u64.saturating_sub(half(sram, entry + 6) as u64)",
+    "after": "0",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::event_fine_timestamp_and_past_due_event"
+    ]
+  },
+  {
+    "mutation": "alarm_past_due_wraps",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "Some(if delta >= PERIOD / 2 { s.cycles }",
+    "after": "Some(if false { s.cycles }",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::past_due_alarm_is_due_now_not_after_wrap"
+    ]
+  },
+  {
+    "mutation": "end_coalescing",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "self.fifo.push_back(source);",
+    "after": "if !self.fifo.contains(&source) { self.fifo.push_back(source); }",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::each_completed_event_retains_an_end_and_cancelled_timer_stays_out"
+    ]
+  },
+  {
+    "mutation": "stale_timer_retained",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "s.fifo.retain(|&source| source != TIMER);",
+    "after": "",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::each_completed_event_retains_an_end_and_cancelled_timer_stays_out"
+    ]
+  },
+  {
+    "mutation": "reboot_disables_controller",
+    "file": "esp32c3/src/soc.rs",
+    "before": "if old.ble_lc.enabled() {",
+    "after": "if false {",
+    "source_sha256": "ef28efefd5baf4b1e5c26baa5a82acdb15034b19444d61fda828ebb25c175094",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --test ble_full guest_esp_restart -- --include-ignored",
+    "exit_code": 101,
+    "failing_tests": [
+      "guest_esp_restart_preserves_full_ble_and_advertises_again"
+    ]
+  },
+  {
+    "mutation": "enable_skips_optional_refresh",
+    "file": "esp32c3/src/periph.rs",
+    "before": "self.refresh_optional(0x31);",
+    "after": "",
+    "source_sha256": "cf66c26923cd1e3a09066ed7c4908402af7526f1d6bddcdfddf9125c646a48fc",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::optional_device_routes_source_eight_only_when_enabled",
+      "ble_lc::tests::disabled_observer_does_not_format_or_queue_and_reboot_keeps_loss_count"
+    ]
+  },
+  {
+    "mutation": "enable_skips_work_refresh",
+    "file": "esp32c3/src/periph.rs",
+    "before": "self.ble_lc.observe(observe);\n        self.refresh_work();",
+    "after": "self.ble_lc.observe(observe);",
+    "source_sha256": "cf66c26923cd1e3a09066ed7c4908402af7526f1d6bddcdfddf9125c646a48fc",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::optional_device_routes_source_eight_only_when_enabled"
+    ]
+  },
+  {
+    "mutation": "half_slot_deadline_removed",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "[s.reset, s.latch, s.alarm, half_slot,",
+    "after": "[s.reset, s.latch, s.alarm, None,",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::half_slot_deadline_and_ack_are_chunk_independent"
+    ]
+  },
+  {
+    "mutation": "gated_write_accepted",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "if !self.accessible { return WriteEffect::NONE }",
+    "after": "",
+    "source_sha256": "f63e49dfb35a6e08d019d90cdb5e099bd135cdbeca545a2f863910e782e3266d",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib ble_lc::tests::",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::gated_writes_are_ignored_and_bt_reset_cancels_work"
+    ]
+  },
+  {
+    "mutation": "mapping_start_mismatch",
+    "file": "esp32c3/src/ble_lc.rs",
+    "before": "entry >> 18 != start / 4 || ",
+    "after": "",
+    "source_sha256": "669b91bf173b12ad812e39690ee069c514db13bb0a37939908a5ca96062f3e6a",
+    "command": "cargo +1.99.0 test --release -p esp32c3 --lib mapping_boundaries_match_rom_em_base_reg_lut -- --include-ignored",
+    "exit_code": 101,
+    "failing_tests": [
+      "ble_lc::tests::mapping_boundaries_match_rom_em_base_reg_lut"
+    ]
+  }
+]

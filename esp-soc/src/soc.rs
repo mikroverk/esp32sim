@@ -92,6 +92,7 @@ impl GpioState {
 
 pub trait SocBus: Bus {
     fn enable_ble(&mut self, _elf: &crate::elf::Elf) -> Result<(), String> { Err("BLE is unsupported on this chip".into()) }
+    fn enable_ble_full(&mut self, _observe: bool) -> Result<(), String> { Err("full BLE requires C3".into()) }
     fn ble_enabled(&self) -> bool { false }
     fn ble_pending_commands(&self) -> usize { 0 }
     fn ble_command(&mut self, _command: &str) -> Result<(), String> { Err("BLE is not enabled".into()) }

@@ -1,0 +1,169 @@
+{
+  "rust": "1.99.0, explicit selection; default unchanged",
+  "checks": [
+    {
+      "command": "cargo +1.99.0 build --release --workspace --bins",
+      "result": "pass"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "result": "pass",
+      "detail": "warnings denied"
+    },
+    {
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": "pass",
+      "detail": "warnings denied"
+    },
+    {
+      "command": "ESP32SIM_ROM_DIR=\"$PWD/web/wasm/fw\" cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "result": "pass",
+      "detail": {
+        "passed": 641,
+        "failed": 0,
+        "ignored": 0
+      },
+      "environment": "HOME is an empty directory; CARGO_HOME and RUSTUP_HOME retain toolchain caches. ESP32SIM_ROM_DIR is the absolute fetched ROM directory."
+    },
+    {
+      "command": "cargo +1.99.0 test --release --workspace",
+      "result": "pass",
+      "detail": {
+        "passed": 620,
+        "failed": 0,
+        "ignored": 35
+      },
+      "environment": "HOME is an empty directory; CARGO_HOME and RUSTUP_HOME retain toolchain caches. ESP32SIM_ROM_DIR is unset."
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "result": "pass",
+      "detail": "production WASM build"
+    },
+    {
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "result": "pass",
+      "detail": "all eight pass"
+    },
+    {
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+      "result": "pass",
+      "detail": "virtual-quantum scheduler tests pass"
+    },
+    {
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 sh -c ' . ./tools/wasm-rustflags.sh; cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile'",
+      "result": "pass",
+      "detail": "profiling features compile with production flags"
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "result": "pass"
+    },
+    {
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/worker-pacing-test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node tools/worker-channel-test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test tools/touch-input-test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test tools/wasm-build-policy.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "node --test tools/browser-benchmark/*.test.mjs",
+      "result": "pass"
+    },
+    {
+      "command": "python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+      "result": "pass"
+    },
+    {
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "result": "pass",
+      "detail": "19 events, 57 PDUs; non-C3 and post-boot enable rejection logged; observation buffers valid"
+    },
+    {
+      "command": "tools/wasm-jit-test.sh",
+      "result": "not applicable",
+      "detail": "No JIT source changed."
+    },
+    {
+      "command": "node tools/check-evidence-privacy.mjs",
+      "result": "pass",
+      "detail": "Pattern check plus manual review of changed evidence; no physical device identifiers or absolute local paths retained."
+    }
+  ],
+  "existing_goldens": "unchanged, including BLE observer and instruction count",
+  "new_goldens": [
+    "ble-advertiser-c3.console.txt",
+    "ble-advertiser-c3.report.txt"
+  ],
+  "source_base": "a26e1d6770d8015ef7aec6afe4eb43afdd2983d4",
+  "source_sha256": {
+    "cli/src/lib.rs": "b8792fd1c9b3b5694ef78dfc2ee3bfd3f1de45f84880935b4a39149905ce5eee",
+    "cli/tests/ble.rs": "cf8dc6c879c46df5e12aa84eb2aee1447704bc3fe4674ca66a851303f68c7b83",
+    "esp32c3/src/ble_lc.rs": "669b91bf173b12ad812e39690ee069c514db13bb0a37939908a5ca96062f3e6a"
+  },
+  "source_scope": "Base revision plus the three source files identified by SHA-256; startup validation and test changes only.",
+  "empty_home_reproduction": {
+    "test": "full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic",
+    "before_revision": "a26e1d6770d8015ef7aec6afe4eb43afdd2983d4",
+    "build": "cargo +1.99.0 test --release -p esp32sim --test ble --no-run",
+    "run": "HOME=<empty directory> ESP32SIM_ROM_DIR=<unset or absolute fetched ROM directory> target/release/deps/ble-<hash> full_ble_accepts_c3_alias_and_rejects_hci_script_without_panic --exact --nocapture",
+    "before": [
+      {
+        "rom_dir": "unset",
+        "exit_code": 101
+      },
+      {
+        "rom_dir": "set",
+        "exit_code": 101
+      }
+    ],
+    "after": [
+      {
+        "rom_dir": "unset",
+        "exit_code": 0
+      },
+      {
+        "rom_dir": "set",
+        "exit_code": 0
+      }
+    ],
+    "rom_lookup": "With empty HOME and ESP32SIM_ROM_DIR alone, esp32sim --chip CHIP --boot rom --max-insns 1 --no-dump loads the fetched ROM and exits zero for s3, c3 and c6."
+  }
+}

@@ -132,3 +132,16 @@ fn ethernet_relay_validates_frames_on_every_chip() {
         }
     }
 }
+
+#[test]
+fn full_ble_rejects_other_chips() {
+    // SAFETY: each readable name and handle is exclusively owned until deletion.
+    unsafe {
+        for chip in ["none", "esp32c6", "esp32c3"] {
+            let e = esp32sim_new(chip.as_ptr(), chip.len(), 4, 0);
+            assert!(!e.is_null());
+            assert_eq!(esp32sim_ble_full(e), u32::from(chip != "esp32c3"));
+            esp32sim_delete(e);
+        }
+    }
+}

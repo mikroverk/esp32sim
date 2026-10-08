@@ -1,0 +1,79 @@
+{
+  "equal_fields": 2278,
+  "interval_comparison": [
+    {
+      "source": "et",
+      "hardware_median_us": 65625.0,
+      "emulator_median_us": 65937.5,
+      "tolerance_us": 10000,
+      "within_tolerance": true,
+      "reason": "independent 0..10-ms advertising jitter; programmed deadlines, not RF timing"
+    },
+    {
+      "source": "alarm",
+      "hardware_median_us": 64687.5,
+      "emulator_median_us": 65625.0,
+      "tolerance_us": 10000,
+      "within_tolerance": true,
+      "reason": "independent 0..10-ms advertising jitter; programmed deadlines, not RF timing"
+    }
+  ],
+  "latency_policy": "Report measured software upper bounds and poll counts without pass tolerance. The model assumes 80 cycles; instruction and APB timing differ. No exact latch-latency claim.",
+  "capture_sha256": {
+    "hardware": "6d5e783b50bc74cce605265f9e0ee0b12aee08c180b69989c001833f2334ca59",
+    "emulator": "3cd416b35bffbed346875f451bc521aab3e1742aa7a488fadce75b9602df8668"
+  },
+  "static_mismatches": 0,
+  "checks": {
+    "hardware": {
+      "passed": 32,
+      "total": 32,
+      "latch_rate_half_us_per_us": {
+        "init": [
+          2.000047317119334,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ],
+        "adv": [
+          2.000047317119334,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ]
+      }
+    },
+    "emulator": {
+      "passed": 32,
+      "total": 32,
+      "latch_rate_half_us_per_us": {
+        "init": [
+          1.9999013514846602,
+          2.00009864851534,
+          1.9999013514846602,
+          2.0,
+          1.9999013514846602,
+          2.000098643649815,
+          2.0
+        ],
+        "adv": [
+          1.999901555424296,
+          2.0000988533017003,
+          1.9999013514846602,
+          2.0,
+          1.9999013514846602,
+          2.000098643649815,
+          2.0
+        ]
+      }
+    }
+  },
+  "privacy": "Raw dumps, memory bytes, addresses and event arrays omitted. Capture hashes identify local originals; independent replication requires a board.",
+  "source": "270f45c2f8d233f8c28f3ca80183e90c0b34c530"
+}

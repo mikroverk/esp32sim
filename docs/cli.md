@@ -18,7 +18,7 @@ PSRAM and register presets.
 | `--bootloader F`, `--ptable F`, `--app F` | written to flash at 0x0 / 0x8000 / 0x10000 |
 | `--flash-image F` | whole flash dump written at 0 |
 | `--chip s3\|c3\|c6` | which chip (default s3) |
-| `--rom F` | mask ROM ELF (default: the chip's in `~/.espressif/tools/esp-rom-elfs/*/`) |
+| `--rom F` | mask ROM ELF (default: the chip's in `ESP32SIM_ROM_DIR`, then `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |
 | `--cam-stream PATH\|-`, `--cam-size WIDTHxHEIGHT` | live RGB24 camera source and its dimensions; requires `waveshare-cam` |
 | `--serial TEXT` | bytes into the USB-Serial/JTAG console before the run |
@@ -29,6 +29,8 @@ PSRAM and register presets.
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
 | `--stub SYMBOL[=value]` (repeatable) | return `value` (default 0) immediately when execution reaches the function's entry; numeric function addresses require a `0x` prefix; accepts decimal, `0x` hex, `true` (1) or `false` (0); rejects invalid values |
+| `--ble full` | experimental C3 register-level BLE controller; runs legacy advertising events in modeled time; excludes `--ble` |
+| `--ble-observe` | passive full-mode PDU log: half-microsecond timestamp, channel, type, AdvA, decoded AD and raw PDU |
 | `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
 | `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3 and C6 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md) |
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default; `user` is an alias) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
@@ -164,7 +166,7 @@ use seconds like the other script actions. For example:
 
 Use handles reported by discovery. `ble subscribe CCC_HANDLE` writes notification
 enable to a discovered client configuration descriptor. Commands are validated when
-the script is loaded and require `--ble`. `connect` waits for guest advertising;
+CLI arguments are parsed, before loading the ROM, and require `--ble`. `connect` waits for guest advertising;
 ATT commands wait for the connection and run in order, with one request outstanding.
 At exit, the CLI reports the number of queued or in-flight commands still pending.
 Writes are limited to 20 bytes. A scanning guest sees a virtual
@@ -176,6 +178,20 @@ registers. Unsupported HCI commands return Unknown Command. The callback task
 and its storage stay allocated until reboot. C6 initializes the guest NPL support
 and a heap-backed mbuf pool; it uses no controller BSS reservation. Cost-model execution
 does not support function substitutions; reported cycle time is not radio timing.
+
+`--ble full` selects the experimental C3 link-controller register model and excludes
+`--ble` HCI substitution. It runs the original guest controller without ELF hooks.
+It implements initialization, clock capture, timer IRQs and legacy advertising on
+channels 37–39. Completion IRQs let the guest schedule its next event. `--ble-observe`
+logs to stderr emitted ADV_IND, ADV_NONCONN_IND or ADV_SCAN_IND packets as `[ble-air]` lines;
+`hus` is modeled time in half-microseconds. `[ble-config]` reports configured
+SCAN_RSP data separately; a passive observer cannot elicit that response. The queue
+holds the latest 1024 observations and reports dropped entries when polled.
+RX, scan requests and connections are not implemented. Register meanings and the
+300 µs silent receive window remain inferred/model choices. C3 rev v0.3 checks cover
+selected readbacks, latch completion and clock rate; they do not validate over-air
+timing, channel order, END timing, descriptor semantics or the FIFO. Script `ble`
+commands require HCI `--ble` and an application ELF; `--ble full` rejects them.
 
 ## Live camera input
 

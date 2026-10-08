@@ -265,3 +265,16 @@ The entire message must fit 8 MiB, with nonzero dimensions and exact pixel lengt
 The receiver copies the message before returning and applies it at the next run
 boundary. Sensor SCCB settings select output format and geometry. A board without
 a camera emits `{"t":"camera-error","message":"no camera on this board"}`.
+
+### C3 full BLE observation
+
+Call `esp32sim_ble_full(emu)` before boot (0 = enabled, 1 = wrong chip or already
+booted). This runs the guest link controller without HCI substitution. After each
+run slice, call `esp32sim_ble_take(emu)` until it returns zero. Each nonzero return
+is the UTF-8 byte length at `esp32sim_ble_ptr(emu)`, valid until the next take or
+emulator deletion. `[ble-air]` contains modeled half-microsecond time, channel,
+PDU type, AdvA, decoded name/service AD fields and the raw PDU. `[ble-config]`
+contains configured scan-response data, not a transmitted packet. The bounded
+1024-entry queue reports lost observations as `[ble-observer] dropped=N`.
+Queued observations and the dropped count survive guest reboot. Invalid enable
+calls log a reason through `host_log`. No RX, SCAN_REQ or connection handling is implemented.

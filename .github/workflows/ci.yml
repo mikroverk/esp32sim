@@ -46,8 +46,10 @@ jobs:
         run: node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
         run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel
-      - name: Timing configuration ABI (real wasm exports)
-        run: node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm
+      - name: Timing and BLE observation ABI (real wasm exports)
+        run: |
+          node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm
+          node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf
       - name: Worker pacing, channel and experiment tests
         run: |
           node tools/worker-pacing-test.mjs

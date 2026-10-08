@@ -1,0 +1,6 @@
+0 exceptions, 331 interrupts
+[ble-config] SCAN_RSP empty
+  core0 int3          3  sources [39]
+  core0 int4         93  sources [50]
+  core0 int5        197  sources [37]
+  core0 int8         38  sources [8]
