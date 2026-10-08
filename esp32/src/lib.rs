@@ -6,3 +6,9 @@ pub mod timers;
 
 pub use esp_soc::Stop;
 pub use soc::{machine, Esp32, Machine};
+
+pub mod board;
+
+pub mod ledc;
+pub mod rmt;
+pub mod spi;

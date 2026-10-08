@@ -29,3 +29,8 @@ WASM accepts the `esp32` chip identifier. Boot applications through ROM.
 
 T0/T1 and LACT use 64-bit counters and the shared timer stepping logic.
 LACT sleep-time RTC stepping and timer-group watchdog execution are not modeled. Peripheral extensions are separate changes in the stack.
+
+Classic peripheral extensions include I2C0/1, sixteen LEDC channels,
+SPI2/3 with controller-local DMA, and eight RMT channels. SPI and RMT feed
+the existing board/display/WS2812 interfaces. `esp32dev-loopback` supplies a loopback board fixture. Hardware fade and RMT receive
+are not implemented; transaction-level SPI has no bit-level timing.
