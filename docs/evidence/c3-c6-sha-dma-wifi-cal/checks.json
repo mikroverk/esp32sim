@@ -1,0 +1,92 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit": 0
+  },
+  {
+    "check": "workspace-ci",
+    "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+    "exit": 0,
+    "passed": 668,
+    "failed": 0,
+    "ignored": 0,
+    "home": "fresh empty directory",
+    "emulator_environment": [
+      "ESP32SIM_ROM_DIR=web/wasm/fw"
+    ]
+  },
+  {
+    "check": "workspace-plain",
+    "command": "cargo +1.99.0 test --release --workspace",
+    "exit": 0,
+    "passed": 645,
+    "failed": 0,
+    "ignored": 37,
+    "home": "fresh empty directory",
+    "emulator_environment": []
+  },
+  {
+    "check": "wasm-build",
+    "command": "sh tools/wasm-build.sh",
+    "exit": 0,
+    "environment": {
+      "RUSTUP_TOOLCHAIN": "1.99.0"
+    }
+  },
+  {
+    "check": "wasm-smoke",
+    "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit": 0
+  },
+  {
+    "check": "evidence-privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit": 0,
+    "tracked_files": 1673,
+    "gzip_files": 20
+  },
+  {
+    "check": "rule-mutations",
+    "command": "python3 docs/evidence/c3-c6-sha-dma-wifi-cal/mutate.py",
+    "exit": 0,
+    "mutations": 39,
+    "killed": 39
+  },
+  {
+    "check": "firmware-mutations",
+    "command": "ESP32SIM_ROM_DIR=web/wasm/fw python3 docs/evidence/c3-c6-sha-dma-wifi-cal/mutate.py --firmware",
+    "exit": 0,
+    "mutations": 5,
+    "killed": 5
+  },
+  {
+    "check": "independent-ecc-vectors",
+    "command": "python3 docs/evidence/c3-c6-sha-dma-wifi-cal/verify-ecc.py",
+    "exit": 0,
+    "vectors": 2
+  },
+  {
+    "check": "fixture-reproducibility",
+    "recipe": "examples/crypto-tls/build.sh",
+    "chips": [
+      "c3",
+      "c6"
+    ],
+    "source_and_build_directories": 2,
+    "identical_images": 6
+  },
+  {
+    "check": "existing-goldens",
+    "result": "unchanged; only four new crypto-tls console/report files"
+  },
+  {
+    "check": "wasm-jit-differential",
+    "result": "not applicable: no JIT code changed"
+  }
+]

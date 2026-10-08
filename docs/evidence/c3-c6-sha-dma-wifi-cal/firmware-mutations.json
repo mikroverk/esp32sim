@@ -1,0 +1,57 @@
+[
+  {
+    "mutation": "TLS needs C3 SHA DMA",
+    "file": "esp32c3/src/bus.rs",
+    "old": "self.periph.sha.dma_pending &&",
+    "new": "false &&",
+    "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c3 -- --ignored",
+    "killed_by": [
+      "crypto_tls_c3"
+    ],
+    "exit": 101
+  },
+  {
+    "mutation": "TLS needs C6 SHA DMA",
+    "file": "esp32c6/src/bus.rs",
+    "old": "self.periph.sha.dma_pending &&",
+    "new": "false &&",
+    "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c6 -- --ignored",
+    "killed_by": [
+      "crypto_tls_c6"
+    ],
+    "exit": 101
+  },
+  {
+    "mutation": "TLS needs C6 ECC",
+    "file": "esp32c6/src/ecc.rs",
+    "old": "if value & 1 != 0 {",
+    "new": "if false {",
+    "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c6 -- --ignored",
+    "killed_by": [
+      "crypto_tls_c6"
+    ],
+    "exit": 101
+  },
+  {
+    "mutation": "Unstubbed C6 PHY needs TX DC completion",
+    "file": "esp32c6/src/wifi.rs",
+    "old": "u32::from(self.ram.read(off) & 1 != 0) << 22",
+    "new": "0",
+    "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c6 -- --ignored",
+    "killed_by": [
+      "crypto_tls_c6"
+    ],
+    "exit": 101
+  },
+  {
+    "mutation": "Unstubbed C6 PHY needs calibration completion",
+    "file": "esp32c6/src/wifi.rs",
+    "old": "{ 7 << 14 } else { 0 }",
+    "new": "{ 0 } else { 0 }",
+    "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c6 -- --ignored",
+    "killed_by": [
+      "crypto_tls_c6"
+    ],
+    "exit": 101
+  }
+]

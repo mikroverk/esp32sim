@@ -1,0 +1,240 @@
+[
+  {
+    "path": "components/soc/esp32c6/register/soc/ecc_mult_reg.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "2d9409bf4d35d83acff7acf9f4bc374118467eb485fada000a0a8a2e1614f207"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "2d9409bf4d35d83acff7acf9f4bc374118467eb485fada000a0a8a2e1614f207"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/hal/esp32c6/include/hal/ecc_ll.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "85dcec0b24fc0f6b59b58d9cfa4ca8acac92ff0aa3669e78a395fc98f653d005"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "445ef8d75a10243a9feda9d893e1c33980983ed2ed6d152906ad9ef810f4e003"
+      }
+    ],
+    "identical": false
+  },
+  {
+    "path": "components/soc/esp32c6/include/soc/interrupts.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "b63bb01e2a1c521820f0eb3038ff59880e046330ea85fcb9d184781d51bd93ae"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "b63bb01e2a1c521820f0eb3038ff59880e046330ea85fcb9d184781d51bd93ae"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c6/include/soc/gdma_channel.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "9706dbd6a579fbde04bfd89b0c9822849c6c9cdb5b9d713aa45b1403769708ea"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "9706dbd6a579fbde04bfd89b0c9822849c6c9cdb5b9d713aa45b1403769708ea"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c3/include/soc/gdma_channel.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "0497a8e1172a2389a294d38cf835ee468b538f208d667e047d3d1ca8e55759b7"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "0497a8e1172a2389a294d38cf835ee468b538f208d667e047d3d1ca8e55759b7"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c3/register/soc/gdma_reg.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "649c025520424fe002024ea990f8972fe4d90813e0c96436b64b3d5c8e2aff7c"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "649c025520424fe002024ea990f8972fe4d90813e0c96436b64b3d5c8e2aff7c"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c6/register/soc/gdma_reg.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "e7eb0afb5236f8af8237689dfadceb6860f466b33ed2c2aee69083b35672720e"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "e7eb0afb5236f8af8237689dfadceb6860f466b33ed2c2aee69083b35672720e"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c3/include/soc/hwcrypto_reg.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "6940c66c60de2ad750b7ec18ea930203d6e0b6dcec2ca6af1df43b4df93f72ed"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "6940c66c60de2ad750b7ec18ea930203d6e0b6dcec2ca6af1df43b4df93f72ed"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c6/include/soc/hwcrypto_reg.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "9f1aa9ad761a6dc4228cd695b664918bd5f9a10d850854662fe3f24bd55074f2"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "9f1aa9ad761a6dc4228cd695b664918bd5f9a10d850854662fe3f24bd55074f2"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c6/register/soc/sha_reg.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "397facf8d310a575f10576e33902c536f40504ea1a6af279a8787467d53b6bab"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "397facf8d310a575f10576e33902c536f40504ea1a6af279a8787467d53b6bab"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/hal/esp32c3/include/hal/sha_ll.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "8d03c26e93f26b1dc4cd9b6862e290e2b4e8bc262b6e6085cb8c541564023b04"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "8d03c26e93f26b1dc4cd9b6862e290e2b4e8bc262b6e6085cb8c541564023b04"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/hal/esp32c6/include/hal/sha_ll.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "a5e3d6e713ba29f5d5774c92ac4fba9a82d06d886351dfa1b78679b48460b8b9"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "a5e3d6e713ba29f5d5774c92ac4fba9a82d06d886351dfa1b78679b48460b8b9"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c3/include/soc/soc.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "754addb8b38eb3791331683f981b4a54fd663b7722a568a60ef6cd0c32aa1b99"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "754addb8b38eb3791331683f981b4a54fd663b7722a568a60ef6cd0c32aa1b99"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c6/include/soc/soc.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "ad6f21cb5ca24bca941ad34f0be2312857f8e921594ae0e73ae0f7b5fa789b0e"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "ad6f21cb5ca24bca941ad34f0be2312857f8e921594ae0e73ae0f7b5fa789b0e"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/hal/include/hal/dma_types.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "d55b9b651fa980bc747be5dc27eaa9852f6485c58d725c318b512c7ce7984644"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "d55b9b651fa980bc747be5dc27eaa9852f6485c58d725c318b512c7ce7984644"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c3/register/soc/reg_base.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "0c11cb4190afcc8097608a7e508d6bbc12bb432f7c6c73922537c488963f8056"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "0c11cb4190afcc8097608a7e508d6bbc12bb432f7c6c73922537c488963f8056"
+      }
+    ],
+    "identical": true
+  },
+  {
+    "path": "components/soc/esp32c6/register/soc/reg_base.h",
+    "versions": [
+      {
+        "tag": "v5.5.4",
+        "sha256": "c7149e5147c1ff30f8950aeaad88d58b3fff6123ad52af20a1c86f13e0e94160"
+      },
+      {
+        "tag": "v5.5.5",
+        "sha256": "c7149e5147c1ff30f8950aeaad88d58b3fff6123ad52af20a1c86f13e0e94160"
+      }
+    ],
+    "identical": true
+  }
+]
