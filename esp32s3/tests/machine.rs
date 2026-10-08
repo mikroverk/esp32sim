@@ -749,3 +749,49 @@ fn waveform_after_waituart0_starts_at_the_shifted_time() {
     assert_eq!(m.bus.periph.rtc.analog.volts(1, applied), 0.0, "the first sample plays at the moved start");
     assert_eq!(m.bus.periph.rtc.analog.volts(1, applied + 2400), 0.001, "and advances one sample per 10 µs (2400 cycles) from there");
 }
+
+#[test]
+fn reboot_preserves_camera_host_settings_and_stream_but_resets_capture() {
+    use std::sync::{Arc, Mutex};
+    use esp_soc::picture::Picture;
+    let mut m = machine();
+    m.bus.board = make_board("waveshare-cam").unwrap();
+    m.bus.attach_board_devices();
+    m.bus.board.set_camera_picture(Picture { w: 2, h: 1, rgb: vec![1, 2, 3, 4, 5, 6] }).unwrap();
+    let input = Arc::new(Mutex::new(None));
+    m.camera_input = Some(input.clone());
+    let period = esp32s3::periph::CPU_HZ / 25;
+    let mut debug = esp_soc::DebugFlags::default();
+    debug.parse("lcd_cam,wifi,spi,mmio");
+    m.set_debug(&debug);
+    m.bus.periph.misc.log_unknown = true;
+    let cam = &mut m.bus.periph.lcd_cam;
+    cam.frame_cycles = period;
+    cam.acc = 17;
+    cam.frames = 9;
+    cam.dropped = 3;
+    cam.int_raw = 7;
+    cam.set_cam_frame(Some(Arc::new(vec![10, 11])));
+    let preview = m.bus.board.camera_preview(2, 1).unwrap();
+    m.reboot();
+    let cam = &mut m.bus.periph.lcd_cam;
+    assert_eq!(cam.frame_cycles, period);
+    assert!(cam.lcd_log);
+    assert_eq!((cam.acc, cam.frames, cam.dropped, cam.int_raw), (0, 0, 0, 0));
+    assert!(cam.cam_frame().is_none());
+    assert!(!cam.running());
+    assert!(!cam.cam_clock_active());
+    assert!(!cam.frame_due(period - 1));
+    assert!(cam.frame_due(1));
+    assert_eq!(m.bus.board.camera_preview(2, 1).unwrap(), preview);
+    assert!(Arc::ptr_eq(m.camera_input.as_ref().unwrap(), &input));
+    *input.lock().unwrap() = Some(Picture { w: 2, h: 1, rgb: vec![7, 8, 9, 10, 11, 12] });
+    assert!(matches!(m.run(0), Stop::MaxInsns));
+    assert_eq!(m.bus.board.camera_preview(2, 1).unwrap(), [7, 8, 9, 10, 11, 12]);
+    assert!(input.lock().unwrap().is_none());
+    assert!(m.bus.periph.wifi.log);
+    assert!(m.bus.periph.spi1.log);
+    assert!(m.bus.periph.spi2.log);
+    assert!(m.bus.periph.misc.log_all);
+    assert!(m.bus.periph.misc.log_unknown);
+}

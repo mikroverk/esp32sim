@@ -1,0 +1,44 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "workspace-ci",
+    "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+    "exit_code": 0,
+    "tests": {
+      "passed": 642,
+      "failed": 0,
+      "ignored": 0
+    },
+    "environment": "empty HOME; ESP32SIM_ROM_DIR=web/wasm/fw"
+  },
+  {
+    "check": "workspace-plain",
+    "command": "cargo +1.99.0 test --release --workspace",
+    "exit_code": 0,
+    "tests": {
+      "passed": 621,
+      "failed": 0,
+      "ignored": 35
+    },
+    "environment": "empty HOME; no ESP32SIM_* or ESP_EMU_* variables"
+  },
+  {
+    "check": "wasm",
+    "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0
+  }
+]

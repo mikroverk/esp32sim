@@ -145,11 +145,13 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         // The host AP and network survive a guest reboot; only the MAC and relay queues reset.
-        p.wifi.link = old.wifi.link.surviving_reboot(); p.wifi.log = old.wifi.log;
+        p.wifi.link = old.wifi.link.surviving_reboot();
+        // Host camera cadence and logging survive; guest capture state resets.
+        p.lcd_cam.frame_cycles = old.lcd_cam.frame_cycles;
         p.efuse = old.efuse;
         p.rtc.analog = old.rtc.analog;
         p.gpio.strap = old.gpio.strap;
-        p.misc.log_unknown = old.misc.log_unknown; p.spi1.log = old.spi1.log;
+        p.misc.log_unknown = old.misc.log_unknown;
         p.spi0.jedec = old.spi0.jedec; p.spi1.jedec = old.spi1.jedec;   // the flash chip is not reset: its ID keeps the --flash-mb capacity
         p.rtc.ram = old.rtc.ram; p.rtc.slow_ticks = old.rtc.slow_ticks;
         p.rtc.ram.write(0x38, cause | (cause << 6));
@@ -161,6 +163,8 @@ impl esp_soc::SocBus for SocBus {
         self.attach_board_devices();
         self.refresh_tick_budget();
         self.irq_dirty = true;
+        for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
+        self.periph.misc.log_all = self.debug.has("mmio");
         cause
     }
     fn sw_reset(&self) -> bool { self.periph.rtc.sw_reset }
