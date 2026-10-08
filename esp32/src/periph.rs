@@ -4,10 +4,11 @@
 //! io_mux,spi,rtc_cntl,uart,efuse}_reg.h and include/soc/hwcrypto_reg.h:43-46.
 //! Adapter completion behavior is inferred;
 //! no hardware timing validation is claimed.
+pub use crate::crypto::{ClassicAes, ClassicRsa, ClassicSha};
 use crate::{timers::ClassicTimer, rmt::ClassicRmt, spi::ClassicGpSpi, ledc::ClassicLedc};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
-    device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, Sha, SpiMem,
+    device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, SpiMem,
     Uart, UartLayout, WriteEffect,
 };
 
@@ -35,6 +36,7 @@ const SRC_LEDC: usize = 43;
 const SRC_RMT: usize = 47;
 const SRC_I2C0: usize = 49;
 const SRC_I2C1: usize = 50;
+const SRC_RSA: usize = 51;
 const SRC_SPI2_DMA: usize = 53;
 const SRC_SPI3_DMA: usize = 54;
 const I2C_SIGNALS: [(usize, usize); 2] = [(29, 30), (95, 96)];
@@ -535,41 +537,6 @@ impl Device for ClassicEfuse {
     }
 }
 
-pub struct ClassicSha {
-    core: Sha,
-    text: [u32; 32],
-}
-impl ClassicSha {
-    fn new() -> Self {
-        Self { core: Sha::new(), text: [0; 32] }
-    }
-    fn run_sha256(&mut self, first: bool) {
-        self.core.mode = 2;
-        for i in 0..16 {
-            self.core.m[i] = self.text[i].swap_bytes();
-        }
-        self.core.write(if first { 0x10 } else { 0x14 }, 1);
-    }
-}
-impl Device for ClassicSha {
-    fn read(&mut self, off: u32) -> u32 {
-        match off {
-            0x00..=0x7c => self.text[(off / 4) as usize],
-            _ => 0,
-        }
-    }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        match off {
-            0x00..=0x7c => self.text[(off / 4) as usize] = v,
-            0x90 => self.run_sha256(true),
-            0x94 => self.run_sha256(false),
-            0x98 => self.text[..8].copy_from_slice(&self.core.h[..8]),
-            _ => {}
-        }
-        WriteEffect::NONE
-    }
-}
-
 pub struct Peripherals {
     pub dport: Dport,
     pub uart: [ClassicUart; 3],
@@ -587,10 +554,15 @@ pub struct Peripherals {
     pub misc: Misc,
     pub spi_exec: bool,
     clock: ClockTree<2>,
+    pub aes: ClassicAes,
+    pub rsa: ClassicRsa,
+    pub(crate) crypto_enabled: [bool; 3],
 }
 
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (ClockDomain::RtcSlow, 1600)];
     0x00 "DPORT" (dport) => [SRC_FROM_CPU0, SRC_FROM_CPU0 + 1, SRC_FROM_CPU0 + 2, SRC_FROM_CPU0 + 3];
+    0x01 "AES" (aes) => [];
+    0x02 "RSA" (rsa) => [SRC_RSA];
     0x03 "SHA" (sha) => [];
     0x40 "UART0" (uart[0]) => [SRC_UART0];
     0x42 "SPI1" (spi1) => [];
@@ -654,8 +626,12 @@ impl Peripherals {
             misc: Misc::new(),
             spi_exec: false,
             clock: Self::new_clock(),
+            aes: ClassicAes::new(),
+            rsa: ClassicRsa::new(),
+            crypto_enabled: [false; 3],
         };
         for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
+        p.sync_crypto();
         p
     }
     pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
@@ -670,6 +646,8 @@ impl Peripherals {
     }
     pub fn block_name(block: u32) -> &'static str {
         match block {
+            0x01 => "AES",
+            0x02 => "RSA",
             0x03 => "SHA",
             0x00..=0x13 => "DPORT",
             0x40 => "UART0",
@@ -698,6 +676,13 @@ impl Peripherals {
         mmio::read32(self, addr)
     }
     pub fn write32(&mut self, addr: u32, mut v: u32) {
+        let crypto = match addr {
+            0x3ff0_1000 => Some(0),
+            0x3ff0_3080..=0x3ff0_30b8 => Some(1),
+            0x3ff0_2808 | 0x3ff0_2810 => Some(2),
+            _ => None,
+        };
+        if crypto.is_some_and(|engine| !self.crypto_enabled[engine]) { return; }
         let i2c = match (addr - PERIPH_BASE) >> 12 {
             0x53 => Some(0),
             0x67 => Some(1),
@@ -719,6 +704,7 @@ impl Peripherals {
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) {
             self.spi_exec = true;
         }
+        if matches!(addr, 0x3ff0_001c | 0x3ff0_0020 | 0x3ff0_0490) { self.sync_crypto(); }
         if let Some(bus) = i2c {
             let (scl, sda) = I2C_SIGNALS[bus];
             self.gpio.set_output_signal(scl, true, false);

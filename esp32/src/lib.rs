@@ -12,3 +12,5 @@ pub mod board;
 pub mod ledc;
 pub mod rmt;
 pub mod spi;
+
+pub mod crypto;
