@@ -228,3 +228,7 @@ mirror/flip, exposure and sensor clock calibration are not modeled.
 Camera crop/scale does not model ISP offsets (0x3810–0x3813), mirror/flip
 (0x3820/0x3821), or binning. Typical driver settings can differ from the sensor
 by about 2.5% horizontally and 1.6% vertically; mirror/flip is not applied.
+
+On classic ESP32, `touchpad <gpio> <0|1>` drives a capacitive pad separately
+from the panel's `touch <x> <y> <0|1>` action. For example, `0 touchpad 4 1`
+applies a touch at time zero. `adc` and `adcwave` also support classic ADC pads.

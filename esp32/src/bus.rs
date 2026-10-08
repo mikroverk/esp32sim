@@ -231,6 +231,7 @@ impl SocBus {
         }
         let v = if size == 4 { value } else { merge(self.periph.read32(a), value, addr, size) };
         let old_enable = self.periph.gpio.gpio.enable;
+        if (0x3ff4_8800..=0x3ff4_88ff).contains(&a) { self.periph.adc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         if self.pins_active {
             if let Some(port) = [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) {
@@ -665,6 +666,68 @@ mod tests {
         assert!(b.dma_read_chain(first, 1).is_none());
         assert!(b.dma_write_chain(first, &[42]).is_none());
         assert!(b.periph.uart[0].tx_out.is_empty());
+    }
+
+    #[test]
+    fn classic_raw_adc_reports_only_completed_conversions() {
+        use esp_soc::SocBus as _;
+        let mut b = SocBus::new(0, [0; 6]);
+        assert!(!b.adc_set_raw(1, 42));
+        assert!(b.adc_observation(1).is_none());
+        assert!(b.adc_set_raw(34, 1234));
+        assert!(!b.adc_set_raw(34, 4096));
+        b.write32(0x3ff4_8800, 1 << 28).unwrap();
+        assert_eq!(b.adc_observation(34).unwrap().generation, 0);
+        let command = (1 << 31) | (1 << 25) | (1 << 18) | (1 << 17);
+        b.write32(0x3ff4_8854, command).unwrap();
+        assert_eq!(b.read32(0x3ff4_8854).unwrap() & 0xffff, 1234);
+        assert_eq!(b.adc_observation(34).unwrap(), esp_periph::AdcObservation { generation: 1, raw: 1234 });
+        b.write32(0x3ff4_8854, command).unwrap();
+        assert_eq!(b.adc_observation(34).unwrap().generation, 1);
+    }
+
+    #[test]
+    fn classic_adc_samples_host_waveform_at_bus_time() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        esp_soc::SocBus::analog_set(&mut b, 34, esp_periph::AnalogSource::Wave {
+            samples: std::sync::Arc::new(vec![1.650, 0.800]),
+            rate_hz: 10.0,
+            start_cycles: 24_000_000,
+        });
+        b.write32(0x3ff4_8800, 1 << 28).unwrap();
+        b.write32(0x3ff4_8834, 3 << 12).unwrap();
+        for (cycles, expected) in [(0, 1872), (47_999_999, 1872), (48_000_000, 817), (240_000_000, 817)] {
+            b.tick((cycles - b.cycles) as u32);
+            let start = (1 << 31) | (1 << 25) | (1 << 18);
+            b.write32(0x3ff4_8854, start).unwrap();
+            b.write32(0x3ff4_8854, start | (1 << 17)).unwrap();
+            assert_eq!(b.read32(0x3ff4_8854).unwrap() & 0xffff, expected);
+        }
+        esp_soc::SocBus::reboot(&mut b, [0; 6]);
+        b.write32(0x3ff4_8800, 1 << 28).unwrap();
+        b.write32(0x3ff4_8834, 3 << 12).unwrap();
+        b.write32(0x3ff4_8854, (1 << 31) | (1 << 25) | (1 << 18) | (1 << 17)).unwrap();
+        assert_eq!(b.read32(0x3ff4_8854).unwrap() & 0xffff, 817);
+    }
+
+    #[test]
+    fn reboot_preserves_host_analog_input_but_resets_dac_registers() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        esp_soc::SocBus::analog_set(&mut b, 34, esp_periph::AnalogSource::Const(1.650));
+        esp_soc::SocBus::set_touch_input(&mut b, 4, true);
+        b.write32(0x3ff4_8484, (128 << 19) | (1 << 18) | (1 << 17) | (1 << 10)).unwrap();
+        assert!(esp_soc::SocBus::report(&b).contains("[dac] GPIO25: 1656 mV"));
+        esp_soc::SocBus::reboot(&mut b, [0; 6]);
+        assert!(b.periph.adc.dac_outputs().is_empty());
+
+        b.write32(0x3ff4_8480, 1 << 29).unwrap();
+        b.write32(0x3ff4_8800, 1 << 28).unwrap();
+        b.write32(0x3ff4_8834, 3 << 12).unwrap();
+        b.write32(0x3ff4_8854, (1 << 31) | (1 << 25) | (1 << 18) | (1 << 17)).unwrap();
+        assert_eq!(b.read32(0x3ff4_8854).unwrap() & 0xffff, 1872);
+        b.write32(0x3ff4_8494, (1 << 19) | (4 << 23)).unwrap();
+        b.write32(0x3ff4_8884, (1 << 11) | (1 << 12) | (1 << 13)).unwrap();
+        assert_eq!(b.read32(0x3ff4_8870).unwrap() >> 16, 300);
     }
 
     #[test]

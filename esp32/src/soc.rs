@@ -99,6 +99,7 @@ impl esp_soc::SocBus for SocBus {
         let old = std::mem::replace(&mut self.periph, Peripherals::new(mac));
         self.periph.gpio.restore_inputs(&old.gpio);
         self.periph.efuse = old.efuse;
+        self.periph.adc.restore_inputs(old.adc);
         self.periph.wifi.link = old.wifi.link.surviving_reboot();
         self.periph.wifi.log = old.wifi.log;
         self.periph.misc.log_unknown = old.misc.log_unknown;
@@ -161,6 +162,10 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_input(&self) -> u64 {
         self.periph.gpio.gpio.input
     }
+    fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { crate::adc::valid_pin(pin) && self.periph.adc.analog.set_raw(pin, raw) }
+    fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> { crate::adc::valid_pin(pin).then(|| self.periph.adc.analog.observation(pin)) }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.adc.analog.set(pin, src); }
+    fn set_touch_input(&mut self, pin: u8, touched: bool) { self.periph.adc.set_touch_input(pin, touched); }
     fn pwm_output(&self, pin: u8) -> Option<(f64, u32)> {
         self.periph.pwm_output(pin as u32)
     }
@@ -209,6 +214,7 @@ impl esp_soc::SocBus for SocBus {
     }
     fn report(&self) -> String {
         let mut lines = Vec::new();
+        for (pin, millivolts) in self.periph.adc.dac_outputs() { lines.push(format!("[dac] GPIO{pin}: {millivolts} mV")); }
         for (index, spi) in self.periph.spi.iter().enumerate() {
             if spi.transfers != 0 {
                 lines.push(format!("[emu] spi{}: {} transfers", index + 2, spi.transfers));

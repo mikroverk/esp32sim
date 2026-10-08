@@ -38,3 +38,9 @@ are not implemented; transaction-level SPI has no bit-level timing.
 Classic Wi-Fi uses the shared `StationLink` access point, network and Ethernet
 relay. An inline DPORT clock gate guards service. MAC/PHY register behavior is inferred;
 calibration completion is modeled without RF arithmetic or hardware timing.
+
+Classic ADC1/ADC2 accept the existing `adc` and `adcwave` script inputs and
+host raw-count API. DAC25/26 expose nominal DC millivolts in the report.
+`0 touchpad 4 1` touches GPIO4's capacitive pad; `0 touchpad 4 0` releases it.
+This is separate from panel coordinates supplied by `touch`. ADC calibration
+and touch counts are nominal models; see EX227 for limits.

@@ -6,6 +6,7 @@
 //! no hardware timing validation is claimed.
 pub use crate::crypto::{ClassicAes, ClassicRsa, ClassicSha};
 use crate::{timers::ClassicTimer, rmt::ClassicRmt, spi::ClassicGpSpi, ledc::ClassicLedc};
+use crate::adc::ClassicAdc;
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
     device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, SpiMem,
@@ -168,6 +169,7 @@ pub struct ClassicGpio {
     external: u64,
     signal_out: [bool; 256],
     signal_oe: [bool; 256],
+    rtc_pads: u64,
 }
 impl ClassicGpio {
     fn new() -> Self {
@@ -178,6 +180,7 @@ impl ClassicGpio {
             external: 0,
             signal_out: [false; 256],
             signal_oe: [false; 256],
+            rtc_pads: 0,
         }
     }
     // Classic PINn and matrix select banks precede the shared S3 offsets.
@@ -223,10 +226,10 @@ impl ClassicGpio {
         (0..40).find(|&pin| Self::direct_signal(pin) == Some(signal))
     }
     fn input_enabled(&self, pin: usize) -> bool {
-        self.mux(pin) & (1 << 9) != 0
+        self.rtc_pads & (1 << pin) == 0 && self.mux(pin) & (1 << 9) != 0
     }
     fn driven(&self, pin: usize) -> Option<bool> {
-        if pin >= 34 {
+        if pin >= 34 || self.rtc_pads & (1 << pin) != 0 {
             return None;
         }
         if (self.mux(pin) >> 12) & 7 == 1 {
@@ -311,7 +314,9 @@ impl ClassicGpio {
             return false;
         }
         self.external |= 1 << pin;
-        self.gpio.set_input(pin, level)
+        let status = self.gpio.status;
+        let irq = self.gpio.set_input(pin, level);
+        if self.rtc_pads & (1 << pin) != 0 { self.gpio.status = status; false } else { irq }
     }
     pub fn release_input(&mut self, pin: u8) {
         if pin >= 40 { return; }
@@ -323,7 +328,7 @@ impl ClassicGpio {
         for pin in 0..40 { if old.external & (1 << pin) != 0 { self.set_input(pin, old.gpio.input & (1 << pin) != 0); } }
     }
     fn sync_pull(&mut self, pin: usize) {
-        if pin >= 34 || self.external & (1 << pin) != 0 {
+        if pin >= 34 || (self.external | self.rtc_pads) & (1 << pin) != 0 {
             return;
         }
         let cfg = self.mux(pin);
@@ -524,6 +529,7 @@ impl ClassicEfuse {
         r.write(0x08, (crc as u32) << 16 | (mac[0] as u32) << 8 | mac[1] as u32);
         r.write(0x0c, 1 << 15); // ECO1+
         r.write(0x14, 1 << 20); // Revision 2; the loaded ECO3 ROM is selected independently.
+        r.write(0x10, 0x10 << 8); // Nominal 1100 mV Vref, sign-magnitude negative zero.
         Self { ram: r, cmd: 0 }
     }
 }
@@ -567,6 +573,7 @@ pub struct Peripherals {
     pub wifi: crate::wifi::WifiMac,
     pub analog: crate::wifi::Analog,
     pub fe: crate::wifi::FrontEnd,
+    pub adc: ClassicAdc,
 }
 
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (ClockDomain::RtcSlow, 1600)];
@@ -647,6 +654,7 @@ impl Peripherals {
             wifi: crate::wifi::WifiMac::default(),
             analog: crate::wifi::Analog::default(),
             fe: crate::wifi::FrontEnd::default(),
+            adc: ClassicAdc::new(),
         };
         for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
         p.sync_crypto();
@@ -686,6 +694,11 @@ impl Peripherals {
         }
     }
     pub fn read32(&mut self, addr: u32) -> u32 {
+        match addr {
+            0x3ff4_8400..=0x3ff4_84ff => return self.adc.rtc_io.read(addr - 0x3ff4_8400),
+            0x3ff4_8800..=0x3ff4_88ff => return self.adc.read_sens(addr - 0x3ff4_8800),
+            _ => {}
+        }
         if (0x3ff0_00ec..=0x3ff0_0100).contains(&addr) {
             let (core, word) = if addr < 0x3ff0_00f8 {
                 (0, ((addr - 0x3ff0_00ec) / 4) as usize)
@@ -704,6 +717,18 @@ impl Peripherals {
             _ => None,
         };
         if crypto.is_some_and(|engine| !self.crypto_enabled[engine]) { return; }
+        match addr {
+            0x3ff4_8400..=0x3ff4_84ff => {
+                let old = self.gpio.driven_levels();
+                self.adc.rtc_io.write(addr - 0x3ff4_8400, v);
+                self.gpio.rtc_pads = self.adc.rtc_pad_mask();
+                self.gpio.note_driven(old);
+                return;
+            }
+            0x3ff4_8800..=0x3ff4_88ff => { self.adc.write_sens(addr - 0x3ff4_8800, v); return; }
+            0x3ff4_8018 => self.adc.touch_timer = v & (1 << 23) != 0,
+            _ => {}
+        }
         let i2c = match (addr - PERIPH_BASE) >> 12 {
             0x53 => Some(0),
             0x67 => Some(1),
@@ -802,6 +827,29 @@ mod tests {
         let mut p = Peripherals::new([0x24, 0x6f, 0x28, 0, 0x11, 0x22]);
         assert_eq!(p.read32(0x3ff5_a004), 0x2800_1122);
         assert_eq!(p.read32(0x3ff5_a008), 0x00cf_246f);
+    }
+
+    #[test]
+    fn rtc_mux_disconnects_digital_gpio_and_exposes_nominal_adc_vref() {
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x3ff4_9024, (2 << 12) | (1 << 9));
+        p.write32(0x3ff4_4594, 256);
+        p.write32(0x3ff4_4024, 1 << 25);
+        p.write32(0x3ff4_4008, 1 << 25);
+        assert_eq!(p.read32(0x3ff4_403c) & (1 << 25), 1 << 25);
+
+        p.write32(0x3ff4_8484, (128 << 19) | (1 << 18) | (1 << 17) | (1 << 10));
+        assert_eq!(p.gpio.driven(25), None);
+        assert_eq!(p.read32(0x3ff4_403c) & (1 << 25), 0);
+        assert_eq!(p.adc.dac_outputs(), [(25, 1656)]);
+        p.write32(0x3ff4_40ec, (2 << 7) | (1 << 15));
+        p.gpio.set_input(25, true);
+        assert!(!p.gpio.set_input(25, false));
+        assert_eq!(p.read32(0x3ff4_4044) & (1 << 25), 0);
+        p.write32(0x3ff4_8484, 0);
+        assert_eq!(p.gpio.driven(25), Some(true));
+        assert!(p.adc.dac_outputs().is_empty());
+        assert_eq!((p.read32(0x3ff5_a010) >> 8) & 31, 0x10);
     }
 
     fn configure_i2c0_pins(p: &mut Peripherals) {

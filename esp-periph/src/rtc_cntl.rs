@@ -91,9 +91,7 @@ impl RtcCntl {
     /// ATTEN2 +0x838 and GPIO n+11. Both convert instantaneously.
     fn sens_meas(&mut self, off: u32, v: u32) {
         let prev = self.ram.read(off);
-        let mut out = v & !0x1_ffff;                         // DATA and DONE are hardware-written
-        if v & (1 << 17) == 0 { self.ram.write(off, out); return; }   // START low: DONE drops
-        if prev & (1 << 17) == 0 {                           // START rising: convert now
+        let out = crate::sar_adc::sens_oneshot(prev, v & !0xffff, || {
             let pads = (v >> 19) & 0xfff;
             let code = if pads == 0 { 0 } else {
                 let ch = pads.trailing_zeros();
@@ -106,10 +104,8 @@ impl RtcCntl {
                     })
                 }
             };
-            out |= (1 << 16) | code;
-        } else {
-            out |= prev & 0x1_ffff;                          // START held high: keep the last result
-        }
+            (1 << 16) | code
+        });
         self.ram.write(off, out);
     }
 }
