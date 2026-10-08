@@ -1,0 +1,275 @@
+[
+  {
+    "mutation": "idle deadline gate",
+    "killed": true,
+    "tests": [
+      "controller_leaves_optional_dispatch_after_completion_and_reset"
+    ]
+  },
+  {
+    "mutation": "active deadline gate",
+    "killed": true,
+    "tests": [
+      "controller_leaves_optional_dispatch_after_completion_and_reset"
+    ]
+  },
+  {
+    "mutation": "Pocket Tank byte rate",
+    "killed": true,
+    "tests": [
+      "pocket_tank_amoled_transfers_complete_at_programmed_bus_rate"
+    ]
+  },
+  {
+    "mutation": "default address",
+    "killed": true,
+    "tests": [
+      "default_address_match_tracks_device_state_and_default_start_can_nack"
+    ]
+  },
+  {
+    "mutation": "address update",
+    "killed": true,
+    "tests": [
+      "shared_address_change_replacement_and_pin_matching"
+    ]
+  },
+  {
+    "mutation": "address predicate",
+    "killed": true,
+    "tests": [
+      "shared_programmable_aliases_and_all_call"
+    ]
+  },
+  {
+    "mutation": "start rejection",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "pin filter",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "pins before callback",
+    "killed": true,
+    "tests": [
+      "shared_programmable_aliases_and_all_call"
+    ]
+  },
+  {
+    "mutation": "all recipients",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "ACK aggregation",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "wired AND reads",
+    "killed": true,
+    "tests": [
+      "shared_programmable_aliases_and_all_call"
+    ]
+  },
+  {
+    "mutation": "STOP callbacks",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "END selection",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "detach reindex",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "route invalidation",
+    "killed": true,
+    "tests": [
+      "shared_general_call_fanout_ack_lifetime_and_filtering"
+    ]
+  },
+  {
+    "mutation": "delayed transfer",
+    "killed": true,
+    "tests": [
+      "byte_deadlines_delay_fifo_callbacks_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "byte ACK clock",
+    "killed": true,
+    "tests": [
+      "byte_deadlines_delay_fifo_callbacks_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "low period offset",
+    "killed": true,
+    "tests": [
+      "byte_deadlines_delay_fifo_callbacks_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "wait high",
+    "killed": true,
+    "tests": [
+      "wait_high_and_timing_fields_are_masked"
+    ]
+  },
+  {
+    "mutation": "period mask",
+    "killed": true,
+    "tests": [
+      "wait_high_and_timing_fields_are_masked"
+    ]
+  },
+  {
+    "mutation": "fractional divider",
+    "killed": true,
+    "tests": [
+      "dividers_and_repeated_start"
+    ]
+  },
+  {
+    "mutation": "RC source",
+    "killed": true,
+    "tests": [
+      "dividers_and_repeated_start"
+    ]
+  },
+  {
+    "mutation": "round up",
+    "killed": true,
+    "tests": [
+      "dividers_and_repeated_start"
+    ]
+  },
+  {
+    "mutation": "FSM cancellation",
+    "killed": true,
+    "tests": [
+      "timed_nack_end_continuation_and_reset"
+    ]
+  },
+  {
+    "mutation": "busy start guard",
+    "killed": true,
+    "tests": [
+      "busy_start_empty_commands_and_command_limit"
+    ]
+  },
+  {
+    "mutation": "command bound",
+    "killed": true,
+    "tests": [
+      "busy_start_empty_commands_and_command_limit"
+    ]
+  },
+  {
+    "mutation": "idle clock",
+    "killed": true,
+    "tests": [
+      "controller_leaves_optional_dispatch_after_completion_and_reset"
+    ]
+  },
+  {
+    "mutation": "C6 PCR clock",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C6 fractional A",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C6 fractional B",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C6 source",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "S3 clock dispatch",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C6 clock dispatch",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C3 clock dispatch",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C3 edge delivery",
+    "killed": true,
+    "tests": [
+      "c3_i2c_tick_delivers_edges_after_consuming_board_deadline"
+    ]
+  },
+  {
+    "mutation": "C3 board time",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "S3 board order",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  },
+  {
+    "mutation": "C6 board order",
+    "killed": true,
+    "tests": [
+      "timed_callbacks_and_interrupt_status_on_every_chip"
+    ]
+  }
+]

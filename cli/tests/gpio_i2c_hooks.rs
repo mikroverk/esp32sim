@@ -1,3 +1,4 @@
+use esp_periph::Device;
 use esp_periph::i2c::{I2c, I2cDevice, Reg8Device, INT_NACK};
 use esp_soc::{BoardModel, GpioState, SocBus};
 
@@ -73,11 +74,13 @@ fn address(i2c: &mut I2c, addr: u8) {
     i2c.write(0x5c, (1 << 11) | (1 << 8) | 1);
     i2c.write(0x60, 4 << 11); // END, retain the selected device
     i2c.write(0x04, 1 << 5);
+    i2c.tick(100_000);
 }
 fn read(i2c: &mut I2c) -> u32 {
     i2c.write(0x58, (3 << 11) | 1);
     i2c.write(0x5c, 4 << 11);
     i2c.write(0x04, 1 << 5);
+    i2c.tick(100_000);
     i2c.read(0x1c)
 }
 #[test]
@@ -96,6 +99,7 @@ fn detach_preserves_other_selection_and_allows_move() {
     i2c.write(0x1c, 0x55);
     i2c.write(0x58, (1 << 11) | (1 << 8) | 1);
     i2c.write(0x04, 1 << 5);
+    i2c.tick(100_000);
     assert_ne!(i2c.int_raw & INT_NACK, 0);
     address(&mut i2c, 0x21);
     assert_ne!(i2c.int_raw & INT_NACK, 0);

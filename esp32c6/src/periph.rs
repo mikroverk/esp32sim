@@ -369,7 +369,7 @@ pub struct Peripherals {
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
 device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), (ClockDomain::Apb, 2), (ClockDomain::RtcSlow, 1067), (ClockDomain::Cpu, 1)];
-    0x04 "I2C0" (i2c) => [src::I2C_EXT0];
+    0x04 "I2C0" optional (i2c) => [src::I2C_EXT0];
     0x0e "APB_SARADC" (adc) => [];
     0x00 "UART0" (uart[0]) => [src::UART0];
     0x01 "UART1" (uart[1]) => [src::UART1];
@@ -414,6 +414,12 @@ impl DeviceSet for Peripherals {
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+        // IDF v5.5.4 components/soc/esp32c6/register/soc/pcr_reg.h:240-278.
+        // Repack PCR's A/B/NUM/SEL fields into the shared S3/C3 layout.
+        if block == 0x04 {
+            let clock = self.pcr.read(0x24);
+            self.i2c.external_clock_config = Some(((clock >> 12) & 255) | ((clock & 63) << 8) | (((clock >> 6) & 63) << 14) | (clock & (1 << 20)));
+        }
         if block == 0x0e { self.adc.now_cycles = self.clock.cycles(); }
         if block == 0xb2 { self.rng.now = self.clock.cycles() as u32; }
         if block == 0xa3 { self.radio.log_unknown = self.misc.log_unknown; }

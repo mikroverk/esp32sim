@@ -1,0 +1,191 @@
+{
+  "base": "017af5241f48855c412d912ff91f0a801dd3c1bd",
+  "environment": {
+    "os": "Darwin",
+    "os_version": "27.0.1",
+    "architecture": "arm64",
+    "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "node": "v22.23.1"
+  },
+  "checks": [
+    {
+      "check": "panel",
+      "command": "cargo +1.99.0 test --release -p esp32sim --test goldens panel_sid -- --include-ignored",
+      "environment": {
+        "ESP32SIM_ROM_DIR": "web/wasm/fw"
+      },
+      "exit": 0,
+      "passed": 1,
+      "ignored": 0
+    },
+    {
+      "check": "clippy-native",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit": 0
+    },
+    {
+      "check": "clippy-wasm",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit": 0
+    },
+    {
+      "check": "build",
+      "command": "cargo +1.99.0 build --release --workspace",
+      "exit": 0
+    },
+    {
+      "check": "workspace",
+      "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "environment": {
+        "ESP32SIM_ROM_DIR": "web/wasm/fw"
+      },
+      "exit": 0,
+      "passed": 657,
+      "ignored": 0
+    },
+    {
+      "check": "plain",
+      "command": "cargo +1.99.0 test --release --workspace",
+      "exit": 0,
+      "passed": 636,
+      "ignored": 35
+    },
+    {
+      "check": "empty-home-rom",
+      "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "environment": {
+        "HOME": "empty directory",
+        "firmware_inputs": "ESP32SIM_ROM_DIR=web/wasm/fw",
+        "build_environment": "PATH, RUSTUP_HOME, CARGO_HOME, TMPDIR only"
+      },
+      "exit": 0,
+      "passed": 657,
+      "ignored": 0
+    },
+    {
+      "check": "empty-home-plain",
+      "command": "cargo +1.99.0 test --release --workspace",
+      "environment": {
+        "HOME": "empty directory",
+        "firmware_inputs": "none",
+        "build_environment": "PATH, RUSTUP_HOME, CARGO_HOME, TMPDIR only"
+      },
+      "exit": 0,
+      "passed": 636,
+      "ignored": 35
+    },
+    {
+      "check": "virtual-quantum",
+      "command": "cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+      "environment": {
+        "ESP32SIM_VQ_NATIVE": "1"
+      },
+      "exit": 0,
+      "passed": 39,
+      "ignored": 0
+    },
+    {
+      "check": "wasm-build",
+      "command": "tools/wasm-build.sh",
+      "environment": {
+        "RUSTUP_TOOLCHAIN": "1.99.0"
+      },
+      "exit": 0
+    },
+    {
+      "check": "wasm-demos",
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "environment": {
+        "ESP32SIM_ROM_DIR": "web/wasm/fw"
+      },
+      "exit": 0
+    },
+    {
+      "check": "wasm-sections",
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "exit": 0
+    },
+    {
+      "check": "timing-abi",
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+      "exit": 0
+    },
+    {
+      "check": "ble-abi",
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "exit": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node tools/worker-pacing-test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node tools/worker-channel-test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test tools/touch-input-test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test tools/wasm-build-policy.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s tools/browser-benchmark -p test_*.py",
+      "exit": 0
+    },
+    {
+      "command": "node --test tools/browser-benchmark/battery-failure.test.mjs tools/browser-benchmark/verdict.test.mjs tools/browser-benchmark/experiments.test.mjs tools/browser-benchmark/battery-workload.test.mjs",
+      "exit": 0
+    },
+    {
+      "check": "evidence-privacy",
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit": 0,
+      "tracked_files_checked": 1672,
+      "gzip_files_checked": 20,
+      "manual_review": "Changed source, tests, JSON and script reviewed; no personal or private source material retained."
+    }
+  ],
+  "mutations": {
+    "command": "python3 docs/evidence/i2c-addressing-timing/mutate.py",
+    "killed": 39,
+    "total": 39,
+    "profile": "test (debug)"
+  },
+  "cpu_comparison": "PENDING",
+  "jit_differential": "Not required: no JIT code changed",
+  "production_wasm_sha256": "d3bc12e63411835405e6aa42fccc046dfb6616160b2e291571ed766601c412fe",
+  "pocket_tank_correctness": {
+    "receipt": "pocket-tank.md",
+    "results": "pocket-tank.json",
+    "verdict": "Expected elapsed-bus-time divergence; unchanged address/data replies and exact main console/counts when only I2C time is removed.",
+    "fixture": "pocket_tank_amoled_transfers_complete_at_programmed_bus_rate",
+    "passed": true
+  }
+}

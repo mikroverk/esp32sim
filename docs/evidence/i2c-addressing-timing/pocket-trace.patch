@@ -1,0 +1,8 @@
+--- a/esp-periph/src/i2c.rs
++++ b/esp-periph/src/i2c.rs
+@@ -167,0 +168 @@
++        if self.log { eprintln!("[i2c-deadline] op={} ticks={}", self.op(), self.remaining); }
+@@ -173,0 +175 @@
++        if self.log { eprintln!("[i2c-cfg] regs={:?} cmd={:x?}", [0, 0x38, 0x40, 0x44, 0x48, 0x4c, 0x54].map(|off| self.regs.read(off)), self.cmd); }
+@@ -217,0 +220 @@
++                if self.log { eprintln!("[i2c-ack] {}", ack); }

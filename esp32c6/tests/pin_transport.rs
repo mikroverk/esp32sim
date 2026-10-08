@@ -42,6 +42,7 @@ fn read_i2c(bus: &mut esp32c6::bus::SocBus) -> (bool, u8) {
     ] {
         bus.write32(base + off, value).unwrap();
     }
+    bus.tick(100_000);
     (
         bus.read32(base + 0x20).unwrap() & (1 << 10) == 0,
         bus.read32(base + 0x1c).unwrap() as u8,
@@ -156,6 +157,7 @@ fn board_reset_deadlines_interrupts_and_output_enable() {
     route(b, 6, 7);
     assert_eq!(read_i2c(b), (true, 0xa5));
     assert_eq!(b.gpio_input() & (1 << 5), 0);
+    let stimulus_cycle = b.cycles();
     b.observe_gpio(true);
     b.write32(0x6009_1024, 16).unwrap(); // enable GPIO4 low
     b.write32(0x6009_1028, 16).unwrap(); // release low, no level change
@@ -180,10 +182,10 @@ fn board_reset_deadlines_interrupts_and_output_enable() {
     b.write32(0x6009_104c, 32).unwrap();
     b.tick(160000);
     assert_eq!(b.gpio_input() & 32, 0);
-    assert!(b.take_gpio_events().contains(&(48000, 5, true)));
+    assert!(b.take_gpio_events().contains(&(stimulus_cycle + 48000, 5, true)));
     assert_eq!(
         state.lock().unwrap().delivered.last().unwrap().cycle,
-        208000
+        stimulus_cycle + 208000
     );
 }
 

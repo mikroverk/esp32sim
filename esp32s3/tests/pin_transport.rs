@@ -41,6 +41,7 @@ fn read_i2c(bus: &mut esp32s3::bus::SocBus, controller: usize) -> (bool, u8) {
     ] {
         bus.write32(base + off, value).unwrap();
     }
+    bus.tick(100_000);
     (
         bus.read32(base + 0x20).unwrap() & (1 << 10) == 0,
         bus.read32(base + 0x1c).unwrap() as u8,

@@ -1,0 +1,49 @@
+{
+  "files": {
+    "esp-periph/src/i2c.rs": "c728b8a310099ae8359248b7b60f5bff0f87a7640163d8a36dc5381d0f1f1834",
+    "cli/tests/i2c_address.rs": "8b4eee07a4b6802658964c395728af77a0a18c6984341e6c0b023a27dec46fe4",
+    "cli/tests/goldens.rs": "87d27f942bb52b43dc2125d74276ce466f0d30f1883766169ab012e9774962a2",
+    "esp32s3/src/bus.rs": "91bcd8d5a62833d24559e1c10e400ee01c20b2b98cc2aca4f7764caa95ebc7b6",
+    "esp32s3/src/periph.rs": "db1ad6b4eaa1377f39779eac0bd64e71f46fb4298fa5e0f51acbdbc6b4198f68",
+    "esp32c3/src/bus.rs": "e87bb870a9cf7f8b8b94dc9baa63ad4c93bc30cfb7a638a8b750e2ee5feea75f",
+    "esp32c3/src/periph.rs": "c27203351026b7df16ef183f7ad35aa35bb8d5a8a233a3e96f0744e1a5e51ecd",
+    "esp32c6/src/bus.rs": "2b228a1719e0d9896914d81e61254cfec8738e6be49adbe7ee0c3baa7cd58c10",
+    "esp32c6/src/periph.rs": "09659f72f73ad7e83f8cc0f64a2be11a745ff5feca45103400836edee7d68c68",
+    "web/wasm/fw/esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "web/wasm/fw/esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "web/wasm/fw/esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "web/wasm/fw/public/panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+    "web/wasm/fw/public/panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+    "web/wasm/fw/public/panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066",
+    "web/wasm/fw/public/energydata.json": "aa8d5326406a83aa254d953d16f18f644c0112d523ef2e2e66b3ab1add4ff0cb",
+    "web/wasm/fw/public/panel-sid.txt": "bb6e0b1f1d5945265f0310f2a40b59b03602b257b412f52f649fc2c66823f420",
+    "web/wasm/fw/public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "web/wasm/fw/public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "web/wasm/fw/public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "web/wasm/fw/local/model_q4.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+  },
+  "public_headers": {
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/hal/esp32s3/include/hal/i2c_ll.h": "2e18739c171b50d119a263bbf061601de9c9ef0e4afe3c43da3b24bb8d112b8d",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32s3/register/soc/i2c_reg.h": "42ff10628e96e3ee0a66b10aea8a504deb9bfa42c89f4a3c1fd1c003dd57c203",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32s3/include/soc/clk_tree_defs.h": "d3e24702e9c367a172e47077f551ff06d936ab4786484959f5368f9d9647cf2d",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/hal/esp32c3/include/hal/i2c_ll.h": "0c76bfa0eaee837d4495557e0990fc6d50715b11c9793c37b1b232f93bafb478",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c3/register/soc/i2c_reg.h": "4fff93624b9d74502564c59b8229900916094b64a76d35129464a25fcfaa6fa5",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c3/include/soc/clk_tree_defs.h": "7e4170540e71bffc673b654091fd1bc3108e8109f9d3fddec3482bb154707849",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/hal/esp32c6/include/hal/i2c_ll.h": "3b3acfc09625ca3ea4c73c4f6a8cdfa3b22b2333fd0d2196139178bb44446014",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/register/soc/i2c_reg.h": "e8b9cba6afe7ce7b971a2a07477a894fc9c3465797bc2688dc53525fa64fe84b",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/include/soc/clk_tree_defs.h": "ddd869cac0f91d2d9951eb03df43593c0b30458cac6072639bc25e445e7aa9e0",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/hal/esp32s3/include/hal/i2c_ll.h": "ee6d328c17070a4aa5290805ee4448c2403bee23c7a4305c3e898346df873d45",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/soc/esp32s3/include/soc/i2c_reg.h": "b933907a34e3fe5e0e123cfd3cef010409396ac3397da415c5ab0205ecbdb8ad",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/soc/esp32s3/include/soc/soc.h": "5c350c05f1474164c1898275fce1fa1835aeb1e3a70fcaed9c8ccfa3703f1ad7",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/hal/esp32c3/include/hal/i2c_ll.h": "ff249ed4f53a9c74e9135d2facf5e6430ed1d3a2761de64342817823cc814102",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/soc/esp32c3/include/soc/i2c_reg.h": "b6c92df8bf44b5dddbe0e638d48338775d286358b32d94f2cf3f0b9663e7086b",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/soc/esp32c3/include/soc/soc.h": "dfd8a733fe6f31cab39ab20570dbd8d3d9e0af39e989750ad998da637ddba4a1",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/register/soc/pcr_reg.h": "8972e97ee3629b97db85b4b41b11e2223d4429ec0b2f154a4a5bafa42f8eed21",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.4.1/components/hal/esp32s3/include/hal/i2c_ll.h": "cdcb09ecdfc147012d6555ed4ec9871575204b79b741c6e154ba039fe105bf71",
+    "https://raw.githubusercontent.com/espressif/esp-idf/v5.4.1/components/soc/esp32s3/register/soc/i2c_reg.h": "42ff10628e96e3ee0a66b10aea8a504deb9bfa42c89f4a3c1fd1c003dd57c203"
+  },
+  "public_source": {
+    "https://raw.githubusercontent.com/mediacutlet/pocket-tank/v0.2.0/firmware/main/main.c": "790533a39c5a742e1e84c057888e8742b232f0bb94802db125008d9fb2e4abb7",
+    "https://raw.githubusercontent.com/mediacutlet/pocket-tank/v0.2.0/firmware/main/imu_port_qmi8658.c": "467facf7f15ed15cfafee2e4991eac89605cae4d7709f16b796561906870527b"
+  }
+}

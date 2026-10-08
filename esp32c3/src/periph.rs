@@ -190,7 +190,7 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x04 "GPIO" (gpio) => [src::GPIO];
     0x09 "IO_MUX" (io_mux) => [];
     // Pin clocks and sources participate only when active.
-    0x13 "I2C0" alias (i2c) => [src::I2C_EXT0];
+    0x13 "I2C0" optional (i2c) => [src::I2C_EXT0];
     0x16 "RMT" alias (rmt) => [src::RMT];
     0x24 "SPI2" alias (spi2) => [src::SPI2];
     0x19 "LEDC" optional (ledc) => [src::LEDC];

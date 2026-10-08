@@ -467,8 +467,8 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), 
     0x0f "I2S0" (i2s0) => [SRC_I2S0];
     0x2d "I2S1" (i2s1) => [SRC_I2S1];
     0x16 "RMT" (rmt) => [SRC_RMT];
-    0x13 "I2C0" (i2c[0]) => [SRC_I2C0];
-    0x27 "I2C1" (i2c[1]) => [SRC_I2C1];
+    0x13 "I2C0" optional (i2c[0]) => [SRC_I2C0];
+    0x27 "I2C1" optional (i2c[1]) => [SRC_I2C1];
     0x41 "LCD_CAM" (lcd_cam) => [SRC_LCD_CAM];
     0x24 "SPI2" (spi2) => [SRC_SPI2];
     0x17 "PCNT" (pcnt) => [SRC_PCNT];
