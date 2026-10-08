@@ -365,6 +365,7 @@ pub struct Peripherals {
     last_status: [u32; 4],
     pub ledc: Ledc,
     pub mcpwm: Mcpwm,
+    pub ecc: crate::ecc::Ecc,
 }
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
@@ -389,6 +390,8 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x88 "AES" (aes) => [src::AES];
     0x89 "SHA" (sha) => [];
     0x8a "RSA" (rsa) => [src::RSA];
+    // IDF v5.5.5 soc/esp32c6/register/soc/reg_base.h:44; include/soc/interrupts.h:98.
+    0x8b "ECC_MULT" optional (ecc) => [src::ECC];
     0x90 "IO_MUX" (io_mux) => [];
     0x91 "GPIO" (gpio) => [src::GPIO];
     0x96 "PCR" (pcr) => [];
@@ -429,7 +432,7 @@ impl Peripherals {
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
-            sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(),
+            sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), ecc: Default::default(),
             rmt: RmtC6::new(CPU_HZ), gdma: GdmaC6::new(), spi2: GpSpi::new(), radio: Ieee802154::new(), modem_bb: ModemBb::new(), wifi_mac: WifiMac::new(),
             intmtx: IntMatrix::new(), intc: Intc::new(), cache: Cache::new(), lpsys: LpSys::new(), pcr: Pcr::new(), ana_mst: AnaMst::new(), assist_debug: AssistDebug::new(),
             rng: Rng::new(), cpu_sub: RegRam::new(),

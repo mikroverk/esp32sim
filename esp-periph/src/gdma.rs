@@ -108,3 +108,92 @@ impl Device for Gdma {
     fn debug(&mut self, on: bool) { self.dbg = on; }
     fn irq_sources(&self) -> u64 { (0..GDMA_CHANNELS).fold(0, |m, i| m | ((self.out[i].irq() as u64) << i) | ((self.inp[i].irq() as u64) << (GDMA_CHANNELS + i))) }
 }
+
+/// Bounds zero-progress chains and crypto allocation (at most 4095 bytes per descriptor).
+pub const GDMA_DESCRIPTOR_STEP_BUDGET: usize = 4096;
+
+/// Memory accesses used by the shared crypto OUT reader. DMA is not CPU cache traffic.
+pub trait DmaMemory {
+    fn out_channel(&mut self) -> &mut GdmaOutCh;
+    fn descriptor(&mut self, address: u32) -> Option<(u32, DmaDesc)>;
+    fn append(&mut self, address: u32, count: usize, out: &mut Vec<u8>) -> Option<()>;
+    fn writeback(&mut self, address: u32, value: u32) -> Option<()>;
+}
+
+/// C3/C6 crypto DMA can access data SRAM only, never MMIO.
+pub struct DmaRam<'a> { pub base: u32, pub bytes: &'a mut [u8], pub channel: &'a mut GdmaOutCh }
+impl DmaRam<'_> {
+    fn range(&self, address: u32, count: usize) -> Option<std::ops::Range<usize>> {
+        let start = address.checked_sub(self.base)? as usize;
+        let end = start.checked_add(count).filter(|&n| n <= self.bytes.len())?;
+        Some(start..end)
+    }
+}
+impl DmaMemory for DmaRam<'_> {
+    fn out_channel(&mut self) -> &mut GdmaOutCh { self.channel }
+    fn descriptor(&mut self, address: u32) -> Option<(u32, DmaDesc)> {
+        self.range(address, 12)?;
+        let word = |a| {
+            let start = (a - self.base) as usize;
+            u32::from_le_bytes(self.bytes[start..start + 4].try_into().unwrap())
+        };
+        Some((word(address), read_desc(&word, address)))
+    }
+
+    fn append(&mut self, address: u32, count: usize, out: &mut Vec<u8>) -> Option<()> {
+        let range = self.range(address, count)?;
+        out.extend_from_slice(&self.bytes[range]);
+        Some(())
+    }
+    fn writeback(&mut self, address: u32, value: u32) -> Option<()> {
+        let range = self.range(address, 4)?;
+        self.bytes[range].copy_from_slice(&value.to_le_bytes());
+        Some(())
+    }
+}
+
+/// Bounded OUT reader shared by S3 AES/SHA and C3/C6 SHA. Preserve S3 completion semantics.
+/// IDF v5.5.5 components/soc/{esp32s3,esp32c3,esp32c6}/register/soc/gdma_reg.h:
+/// OUT_CONF1 CHECK_OWNER bit 12; OUT_DONE/OUT_EOF/OUT_DSCR_ERR are shared bits 0/1/2.
+/// C3's register adapter translates those interrupt bits to its combined IN/OUT layout.
+pub fn gather_dma_out(memory: &mut impl DmaMemory, limit: usize) -> Option<Vec<u8>> {
+    let mut input = Vec::new();
+    let mut desc = memory.out_channel().desc;
+    let mut visited = std::collections::HashSet::new();
+    while desc != 0 && input.len() < limit {
+        if !visited.insert(desc) { return None; }
+        if visited.len() > GDMA_DESCRIPTOR_STEP_BUDGET { return None; }
+        let (control, d) = memory.descriptor(desc)?;
+        if memory.out_channel().conf1 & (1 << 12) != 0 && !d.owner_dma { return None; }
+        let take = (d.length as usize).min(limit - input.len());
+        memory.append(d.buf, take, &mut input)?;
+        memory.writeback(desc, control & !(1 << 31))?;
+        memory.out_channel().int_raw |= 1;
+        if d.eof {
+            memory.out_channel().int_raw |= 1 << 1;
+            memory.out_channel().eof_desc = desc;
+            break;
+        }
+        desc = d.next;
+    }
+    Some(input)
+}
+
+#[cfg(test)]
+mod crypto_dma_tests {
+    use super::*;
+
+    #[test]
+    fn zero_progress_chain_stops_at_descriptor_budget() {
+        let mut bytes = vec![0; 4097 * 12];
+        for i in 0..4097 {
+            let offset = i * 12;
+            bytes[offset..offset + 4].copy_from_slice(&((1u32 << 31) | if i == 4096 { 1 << 30 } else { 0 }).to_le_bytes());
+            bytes[offset + 4..offset + 8].copy_from_slice(&0x1000u32.to_le_bytes());
+            bytes[offset + 8..offset + 12].copy_from_slice(&(0x1000u32 + offset as u32 + 12).to_le_bytes());
+        }
+        let mut channel = GdmaOutCh { desc: 0x1000, ..Default::default() };
+        let mut memory = DmaRam { base: 0x1000, bytes: &mut bytes, channel: &mut channel };
+        assert!(gather_dma_out(&mut memory, 64).is_none());
+    }
+}

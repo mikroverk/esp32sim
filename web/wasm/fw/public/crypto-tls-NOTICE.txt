@@ -1,0 +1,45 @@
+C3/C6 Wi-Fi and TLS firmware
+===========================
+
+Files: c3-crypto-tls.bin, c3-crypto-tls-bootloader.bin, c3-crypto-tls-ptable.bin,
+       c6-crypto-tls.bin, c6-crypto-tls-bootloader.bin, c6-crypto-tls-ptable.bin.
+
+The fixture source is examples/crypto-tls/Probe/Probe.ino, MIT (repository LICENSE).
+It uses Arduino-ESP32 3.3.11, its bundled ESP-IDF 5.5.5 libraries, and
+esp-rv32/2601 GCC 14.2.0. examples/crypto-tls/build.sh rebuilds the firmware and
+retains the linkable application objects and ELF. Arduino core/library sources:
+https://github.com/espressif/arduino-esp32/tree/3.3.11
+ESP-IDF sources and pinned submodules:
+https://github.com/espressif/esp-idf/tree/v5.5.5
+
+Linked components and licences
+------------------------------
+The application link maps were inspected for retained, nonzero loadable sections.
+The archive inventory is in docs/evidence/c3-c6-sha-dma-wifi-cal/inputs.json.
+This list describes the linked subset, not every library available in ESP-IDF.
+
+* Arduino core, WiFi and Network: Arduino Team and Espressif contributors,
+  LGPL-2.1-or-later. Full licence in crypto-tls-runtime-licenses.txt.
+* ESP-IDF, Espressif Wi-Fi/PHY/coexistence/controller code, ESP-NOW,
+  network-provisioning and diagnostics: Espressif Systems, Apache-2.0.
+* Mbed TLS: ARM Limited and contributors, Apache-2.0.
+* FreeRTOS: Amazon.com and contributors, MIT.
+* lwIP: Swedish Institute of Computer Science and contributors, BSD-3-Clause.
+* wpa_supplicant: Jouni Malinen and contributors, BSD.
+* TLSF allocator: Matthew Conte, BSD-3-Clause.
+* cJSON: Dave Gamble and cJSON contributors, MIT; full notice/licence in
+  crypto-tls-runtime-licenses.txt.
+* newlib C/math runtime: its per-file copyright holders and licences.
+* GCC libgcc and libstdc++ runtime: Free Software Foundation and contributors,
+  GPL-3.0 with GCC Runtime Library Exception 3.1. Both texts are included in
+  crypto-tls-runtime-licenses.txt.
+
+The FreeRTOS, lwIP, wpa_supplicant, TLSF, newlib and Apache-2.0 licence texts and
+copyright notices are already distributed in wifi-station-NOTICE.txt, starting
+at its individually labelled licence sections. That file's general ESP-IDF
+inventory is not the linked-component list for this fixture.
+
+No Mbed TLS test certificates, private keys, external firmware or downloaded
+application code is included. The PSK and deterministic RNG are public test
+inputs, never production credentials. The bootloaders are those shipped in the
+pinned Arduino package; partition tables are generated from its default recipe.
