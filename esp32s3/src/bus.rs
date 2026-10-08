@@ -283,9 +283,7 @@ impl SocBus {
             self.periph.i2c[bus as usize].attach(address, device);
         }
         for (pin, level) in self.board.input_levels() {
-            let old_input = self.periph.gpio.input;
-            self.periph.gpio.set_input(pin, level);
-            self.irq_dirty |= old_input != self.periph.gpio.input;
+            self.irq_dirty |= self.periph.gpio.set_input(pin, level);
         }
         // Restored input edges and the board's own deadline can activate device work.
         self.refresh_tick_budget();
@@ -434,21 +432,6 @@ impl SocBus {
     #[inline]
     fn is_periph(addr: u32) -> bool { (PERIPH_BASE..PERIPH_END).contains(&addr) }
 
-    #[inline(always)]
-    fn deliver_board_inputs(&mut self) {
-        if !self.board_edges { return; }
-        self.board.advance_to(self.cycles);
-        for edge in self.board.take_edges() {
-            if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
-            let old_input = self.periph.gpio.input;
-            self.periph.gpio.set_input(edge.pin, edge.level);
-            // set_input reports latched edges only. Level IRQs can rise or fall
-            // when the input changes, so both polarities require a refresh too.
-            self.irq_dirty |= old_input != self.periph.gpio.input;
-        }
-        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }
-    }
-
     fn periph_read(&mut self, addr: u32) -> u32 {
         if (MMU_TABLE..MMU_TABLE + (MMU_ENTRIES as u32) * 4).contains(&addr) {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
@@ -456,8 +439,8 @@ impl SocBus {
         self.vq_backstop(addr);
         self.flush_ticks();                                         // registers must show exact time
         // IDF v5.5.4 components/soc/esp32s3/register/soc/gpio_reg.h: GPIO_IN/IN1.
-        if matches!(addr & !3, 0x6000_403c | 0x6000_4040) {
-            self.deliver_board_inputs();
+        if self.board_edges && matches!(addr & !3, 0x6000_403c | 0x6000_4040) {
+            self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles);
             self.refresh_tick_budget();
         }
         self.periph.read32(addr)
@@ -508,6 +491,7 @@ impl SocBus {
                 }
             }
         }
+        let old_input = self.periph.gpio.input;
         let old_gpio_out = self.periph.gpio.out;
         let old_gpio_enable = self.periph.gpio.enable;
         if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 && !self.periph.spi2.has_pending_transfer() {
@@ -533,16 +517,7 @@ impl SocBus {
         } else if !(0x6000_4004..=0x6000_4018).contains(&a) {
             self.irq_dirty = true;
         } else {
-            let mut changed = (old_gpio_out ^ self.periph.gpio.out) & self.periph.gpio.enable & ((1u64 << 49) - 1);
-            while changed != 0 {
-                let pin = changed.trailing_zeros() as usize;
-                changed &= changed - 1;
-                let config = self.periph.gpio.pin[pin];
-                if config & (1 << 13) != 0 && matches!((config >> 7) & 7, 1..=5) {
-                    self.irq_dirty = true;
-                    break;
-                }
-            }
+            self.irq_dirty |= (old_input ^ self.periph.gpio.input) & self.periph.gpio.int_ena_pins != 0;
         }
         if self.periph.spi_exec {
             self.periph.spi_exec = false;
@@ -849,7 +824,7 @@ impl SocBus {
                 self.irq_dirty = true;
             }
         }
-        self.deliver_board_inputs();
+        if self.board_edges { self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
         self.dma_i2s_step(cycles as u64);

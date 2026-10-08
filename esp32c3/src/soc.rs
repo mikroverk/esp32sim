@@ -166,18 +166,11 @@ impl esp_soc::SocBus for SocBus {
         (pin <= 5).then(|| self.periph.adc.analog.observation(pin))
     }
     fn gpio_release_input(&mut self, pin: u8) {
-        let before = self.periph.gpio.input;
-        self.periph.gpio.release_input(pin);
-        self.irq_dirty |= before != self.periph.gpio.input;
-        if before != self.periph.gpio.input {
-            if let Some(events) = &mut self.gpio_events { events.push((self.cycles, pin, self.periph.gpio.level(pin))); }
-        }
+        self.irq_dirty |= esp_soc::gpio::release_and_report(&mut self.periph.gpio, &mut self.gpio_events, self.cycles, pin);
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
-        let before = self.periph.gpio.input;
-        self.periph.gpio.set_input(pin, level);
+        self.irq_dirty |= self.periph.gpio.set_input(pin, level);
         self.periph.gpio.input_changes.clear();
-        self.irq_dirty |= before != self.periph.gpio.input;
         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
     }
     fn set_flash_size(&mut self, bytes: usize) {

@@ -3,7 +3,9 @@
 Base: upstream `017af524`. Implementation: `b58d96d884fd4e1c0dd629faa651f6874d6cbc68`. The branch ports GPIO behavior onto the existing
 BoardModel API, typed IO_MUX and shared `PinRoutes` decoder. Open upstream PRs
 were checked before editing; none were open. No new input channel, DMA walker,
-register block or timing mode is introduced.
+register block or timing mode is introduced. The idle-path and shared-helper
+revision follows `45e2211b6e149a2623936437cec86152a250f8eb`; `inputs.json` pins
+the checked source files by SHA-256.
 
 ## Contract
 
@@ -21,6 +23,19 @@ voltage claims. Open-drain and peripheral-driven pad resolution are not added. O
 inputs. Reboot retains host drive masks and levels, while resetting output,
 pulls, interrupt status and pending input edges. A retained board may then
 supply its current levels and releases.
+
+Board input delivery and release reporting share the `esp_soc::gpio` helpers.
+All chips gate delivery on `board_edges` before checking the read address;
+S3 refreshes its budget only inside that gate. Input mutation returns whether
+the resolved level changed, so repeated stable board levels leave IRQ caches
+clean on all three chips. IO_MUX pull decoding shares `Gpio::set_pad`.
+
+Output-driven changes enter the input queue only for pins selected by the
+GPIO input matrix. Its pin mask updates on selector-register writes, outside
+the tick path. Unrouted output loops leave the S3 cadence and PCNT queue idle.
+Routed edges still reach PCNT, whose in-place drain retains queue capacity.
+S3 output IRQ invalidation compares resolved input changes against a cached
+interrupt-enabled pin mask, maintained on GPIO_PIN writes.
 
 C6 SPI2 passes physical routes only to boards opting into `uses_spi_pins`.
 The shared decoder accepts explicit CS signal IDs and native CS pin lists.
@@ -47,6 +62,9 @@ in `inputs.json`. No silicon verification is claimed.
 - `esp32c6/register/soc/gpio_reg.h`, lines 194–219, 389–419, 4992–5023:
   IN/IN1, interrupt fields, output selector/inversion/enable and reset selector
   128. That reset value was already on main.
+- Matrix input selection in `gpio_reg.h`: C3 lines 1323–1340 (enable bit 6,
+  inversion bit 5, pin bits 4:0); C6 lines 2456–2476 and S3 lines 2670–2687
+  (enable bit 7, inversion bit 6, pin bits 5:0).
 - `esp32{c3,c6,s3}/register/soc/io_mux_reg.h`, lines 42–65: pull-down bit 7,
   pull-up bit 8, input-enable bit 9, function field at 12. Pad offsets are
   4 + 4 * GPIO number, limited to each chip's existing IO_MUX range.
@@ -88,10 +106,10 @@ hashes identify the inputs but those binaries are not CI dependencies.
 
 ## Verification
 
-Both Clippy checks pass. CI-policy workspace: 665 passed, none failed. Plain
-workspace: 644 passed, 35 ignored, none failed. Both ran with an empty HOME.
+Both Clippy checks pass. CI-policy workspace: 677 passed, none failed. Plain
+workspace: 656 passed, 35 ignored, none failed. Both ran with an empty HOME.
 All eight WASM demos, timing/BLE ABI, section policy, native virtual-quantum
-checks and the twelve additional JS/Python CI checks pass. All 39 mutations
+checks and the twelve additional JS/Python CI checks pass. All 54 mutations
 are killed; existing goldens are unchanged.
 
 Reproduce the two workspace environments without changing the default toolchain:
@@ -123,13 +141,13 @@ python3 docs/evidence/gpio-input-feedback/mutate.py target/ex217-mutations.json
 
 | Mutation | Test that rejects it |
 | --- | --- |
-| Do not remember host drive mask | `released_pad_resolves_output_pulls_and_interrupts` |
-| Do not remember host low level | `released_pad_resolves_output_pulls_and_interrupts` |
-| Keep released drive active | `released_pad_resolves_output_pulls_and_interrupts` |
+| Do not remember host drive mask | `input_change_result_does_not_depend_on_irq_configuration`, `released_pad_resolves_output_pulls_and_interrupts` |
+| Do not remember host low level | `input_change_result_does_not_depend_on_irq_configuration`, `released_pad_resolves_output_pulls_and_interrupts` |
+| Keep released drive active | `input_change_result_does_not_depend_on_irq_configuration`, `released_pad_resolves_output_pulls_and_interrupts` |
 | Ignore pull-down | `released_pad_resolves_output_pulls_and_interrupts` |
-| Floating pad defaults low | `released_pad_resolves_output_pulls_and_interrupts` |
-| Ignore enabled output | `released_pad_resolves_output_pulls_and_interrupts` |
-| Skip output pad resolution | `released_pad_resolves_output_pulls_and_interrupts` |
+| Floating pad defaults low | `input_change_result_does_not_depend_on_irq_configuration`, `released_pad_resolves_output_pulls_and_interrupts` |
+| Ignore enabled output | `released_pad_resolves_output_pulls_and_interrupts`, `output_edges_only_queue_for_selected_matrix_inputs` |
+| Skip output pad resolution | `output_edges_only_queue_for_selected_matrix_inputs`, `released_pad_resolves_output_pulls_and_interrupts` |
 | Do not latch GPIO edges | `released_pad_resolves_output_pulls_and_interrupts` |
 | Do not guard invalid release pin | `released_pad_resolves_output_pulls_and_interrupts` |
 | c3: skip same-cycle read delivery | `gpio_reads_deliver_same_cycle_feedback_and_preserve_future_edges` |
@@ -162,15 +180,37 @@ python3 docs/evidence/gpio-input-feedback/mutate.py target/ex217-mutations.json
 | c3: omit deadline-driven release | `board_releases_on_attachment_and_deadline` |
 | c6: omit deadline-driven release | `board_releases_on_attachment_and_deadline` |
 | S3: omit upper-bank input-read delivery | `first_read_delivers_feedback_for_each_width_and_bank` |
+| s3: remove idle read gate | `inactive_board_never_polls_inputs` |
+| c3: remove idle read gate | `inactive_board_never_polls_inputs` |
+| c6: remove idle read gate | `inactive_board_never_polls_inputs` |
+| S3: refresh budget on bare GPIO reads | `bus::gp_spi_board_tests::bare_input_reads_do_not_refresh_board_deadlines` |
+| Record unrouted output edges | `bus::gp_spi_board_tests::bare_gpio_toggle_loop_keeps_quiet_cadence_and_no_pcnt_work` |
+| Lose PCNT queue capacity | `bus::gp_spi_board_tests::routed_output_edges_reach_pcnt_and_retain_queue_capacity` |
+| Never record routed output edges | `bus::gp_spi_board_tests::routed_output_edges_reach_pcnt_and_retain_queue_capacity` |
+| Ignore matrix selection enable | `output_edges_only_queue_for_selected_matrix_inputs` |
+| Ignore C3 matrix selector width | `matrix_output_queue_uses_chip_selector_width` |
+| Do not update interrupt-enable mask | `released_inputs_resolve_pulls_outputs_and_irq` |
+| Do not clear interrupt-enable mask | `bus::gp_spi_board_tests::gpio_output_level_irqs_notify_for_both_banks_and_polarities` |
+| Dirty IRQs for unchanged board inputs | `unchanged_board_levels_do_not_dirty_irqs` |
+| Return IRQ rather than input change | `input_change_result_does_not_depend_on_irq_configuration` |
+| Track output latch instead of resolved input for IRQs | `bus::gp_spi_board_tests::output_irq_cache_tracks_resolved_input_not_output_latch` |
+| Forget other matrix routes when updating one | `output_edges_only_queue_for_selected_matrix_inputs` |
 
 ## CPU comparison
 
-PENDING
+Measured by the maintainer on review of `1b3e0d97`, against main `017af524`: user CPU, 9 alternating pairs, identical instruction counts and console hashes.
+
+| Workload | main median (range) | PR median (range) | Change | PR slower in |
+| --- | ---: | ---: | ---: | ---: |
+| S3 hello | 26.050 (25.864–26.556) | 25.876 (25.571–26.399) | −0.67% | 1 of 9 |
+| C3 hello | 2.626 (2.589–2.667) | 2.624 (2.577–2.641) | −0.09% | 3 of 9 |
+
+No regression on either chip. The board work is behind the cached `uses_gpio_edges()` flag, so a board that doesn't opt in pays one bool test on a path that already calls `flush_ticks()`; `bare_input_reads_do_not_refresh_board_deadlines` pins that gate.
 
 No CPU benchmarks were run. GPIO resolution runs only on GPIO/pull/host writes.
 SPI route decoding runs only for a submitted transfer on an opted-in board.
 Input delivery reuses existing board tick locations and is forced inline.
-Release-binary symbol inspection confirms no `deliver_board_inputs` function remains. Cached
+Release-binary symbol inspection confirms neither shared helper remains out of line. Cached
 board edge opt-in skips inactive board callbacks; added state is at the end of
 its containing structs. CPU parity remains subject to the central comparison.
 

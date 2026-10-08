@@ -215,5 +215,27 @@
     }
   ],
   "implementation": "b58d96d884fd4e1c0dd629faa651f6874d6cbc68",
-  "production_wasm_sha256": "d1fcc8683e444ebc10dd72be670d3e9f2a6ed76ac354d099c21de122f82dbe7b"
+  "production_wasm_sha256": "4b11ae83727e32ffcaa7e5d6b921c43e692e34313286b97e63232918b43d969b",
+  "review_base": "45e2211b6e149a2623936437cec86152a250f8eb",
+  "review_source_sha256": {
+    "cli/tests/uart_endpoint.rs": "5ef42ea32cf3086b8bd4f77b8fef0ba7a68d8c712a36625666e99263da1d1a88",
+    "esp-periph/src/gpio.rs": "7a50c3208c65ca8803e8d745d2cbf41279bfe666a6b275413856cc215587c6bd",
+    "esp-periph/tests/devices.rs": "8a9162d10279d21ebe2b4c977a506078450f4b9339d3b6772bcad0e65061459b",
+    "esp-periph/tests/gpio_release.rs": "a33cb6fd7cddda4e9296164b6663b174433d1207f34ec8b1154ff0b42c005c7e",
+    "esp-periph/tests/tx_boundaries.rs": "44c822531aca874c7bc4a51099f4ed29599c2883e1a1b81b7864392201d987ff",
+    "esp-soc/src/gpio.rs": "b27cae8a82b921f13fee13f2285090bd6eeb571bbaabf53cd4e79af4195b51df",
+    "esp-soc/src/lib.rs": "3a97fcb52a5159863fee4d6e95635429baaafa3d7a90717859e7db64b0a5c980",
+    "esp32c3/src/bus.rs": "abc6547587cdba5a7bfb1f8dbaaaa9fac8eaab966c75dd677cd6b0eff22f8074",
+    "esp32c3/src/periph.rs": "8b518e776b6f76aaa876f54defd2f707df0ff2ea1f3bb20c3ae5ca9e76cffc5d",
+    "esp32c3/src/soc.rs": "0d15775c729d117cacbacfa31851f3cdf742d51b5440b66a883f8c5139edb5b6",
+    "esp32c6/src/bus.rs": "771398d0e064c82af9e7e78a2641eab226436d1f2d6286cd25bb04974e207d08",
+    "esp32c6/src/periph.rs": "a4632b5aafb64ac1509e0630758f60daae49340172552262d29e70fb28357fee",
+    "esp32c6/src/soc.rs": "3554c28a1126a46a6d83e0fa9aa77bebccb19d9040daac13620639ce1012746b",
+    "esp32s3/src/bus.rs": "a986c2906871d0723fcfdf103dd741effeb7fe7ad5b5f3efc0a0082a9c08b7a3",
+    "esp32s3/src/bus/tests.rs": "86f77562d87f7398cc710f1ebb1900a0f42f239e1f6136071614dfba5f339f29",
+    "esp32s3/src/periph.rs": "8447d72fb4c74fd93161f424cb40dbc2cb9468a3fd3c91e1b0a0022d2f6f1e36",
+    "esp32s3/src/soc.rs": "d12f7f2ebd200db3d5af2984925b115a92f808944fb64a8b19d7ed30cfb3ba4d",
+    "esp32s3/tests/machine.rs": "41e9a0c89b093d23c0e371739551839aa86060c4a970a153df7c8b2d2874d231",
+    "tests/gpio_feedback.rs": "56fed39e1cff88cffc8c0d96cc0a1e04c19aa728183acf4faa651cfdf066bf2c"
+  }
 }

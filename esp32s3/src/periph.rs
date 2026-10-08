@@ -551,7 +551,7 @@ impl Peripherals {
     pub fn write32(&mut self, addr: u32, v: u32) {
         // IDF v5.5.4 components/soc/esp32s3/register/soc/io_mux_reg.h:42-50 (FUN_PD/PU).
         if (0x60009004..=0x600090c4).contains(&addr) {
-            self.gpio.set_pulls(((addr - 0x60009004) / 4) as u8, v & (1 << 8) != 0, v & (1 << 7) != 0);
+            self.gpio.set_pad(((addr - 0x60009004) / 4) as u8, v);
         }
         if matches!(addr, 0x6001_3004 | 0x6002_7004) && v & (1 << 5) != 0 {
             let bus = usize::from(addr == 0x6002_7004);
@@ -603,15 +603,16 @@ impl Peripherals {
         let mut irq_changed = Dispatch::tick(self, cycles);
         if !self.gpio.input_changes.is_empty() {
             let before = self.pcnt.irq();
-            let changes = std::mem::take(&mut self.gpio.input_changes);
-            let gpio = &self.gpio;
+            let gpio = &mut self.gpio;
+            let input = gpio.input;
+            let selections = &gpio.func_in_sel;
             let sig = |idx: u32| -> Option<(u8, bool)> {
-                let sel = *gpio.func_in_sel.get(idx as usize)?;
+                let sel = *selections.get(idx as usize)?;
                 if sel & 0x80 == 0 { return None; }                       // not routed through the matrix
                 let pin = (sel & 0x3f) as u8; if pin >= 49 { return None; }
-                let lvl = (gpio.input >> pin) & 1 != 0; Some((pin, lvl ^ (sel & 0x40 != 0)))
+                let lvl = (input >> pin) & 1 != 0; Some((pin, lvl ^ (sel & 0x40 != 0)))
             };
-            for (pin, level) in changes { self.pcnt.gpio_edge(pin, level, &sig); }
+            for (pin, level) in gpio.input_changes.drain(..) { self.pcnt.gpio_edge(pin, level, &sig); }
             irq_changed |= before != self.pcnt.irq();
         }
         irq_changed

@@ -192,21 +192,14 @@ impl esp_soc::SocBus for SocBus {
         ((1..=20).contains(&pin)).then(|| self.periph.rtc.analog.observation(pin))
     }
     fn gpio_release_input(&mut self, pin: u8) {
-        let before = self.periph.gpio.input;
-        self.periph.gpio.release_input(pin);
+        self.irq_dirty |= esp_soc::gpio::release_and_report(&mut self.periph.gpio, &mut self.gpio_events, self.cycles, pin);
         self.refresh_tick_budget();
-        self.irq_dirty |= before != self.periph.gpio.input;
-        if before != self.periph.gpio.input {
-            if let Some(events) = &mut self.gpio_events { events.push((self.cycles, pin, self.periph.gpio.level(pin))); }
-        }
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
-        let old_input = self.periph.gpio.input;
-        self.periph.gpio.set_input(pin, level);
+        self.irq_dirty |= self.periph.gpio.set_input(pin, level);
         // Host edges queue PCNT work without going through the MMIO refresh hook.
         // Recompute the threshold without dropping cycles already pending.
         self.refresh_tick_budget();
-        self.irq_dirty |= old_input != self.periph.gpio.input;
         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
     }
     fn set_flash_size(&mut self, bytes: usize) {

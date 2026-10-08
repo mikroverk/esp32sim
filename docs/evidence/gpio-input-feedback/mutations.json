@@ -7,6 +7,7 @@
     "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
     "exit": 101,
     "killed_by": [
+      "input_change_result_does_not_depend_on_irq_configuration",
       "released_pad_resolves_output_pulls_and_interrupts"
     ]
   },
@@ -18,6 +19,7 @@
     "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
     "exit": 101,
     "killed_by": [
+      "input_change_result_does_not_depend_on_irq_configuration",
       "released_pad_resolves_output_pulls_and_interrupts"
     ]
   },
@@ -29,6 +31,7 @@
     "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
     "exit": 101,
     "killed_by": [
+      "input_change_result_does_not_depend_on_irq_configuration",
       "released_pad_resolves_output_pulls_and_interrupts"
     ]
   },
@@ -51,6 +54,7 @@
     "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
     "exit": 101,
     "killed_by": [
+      "input_change_result_does_not_depend_on_irq_configuration",
       "released_pad_resolves_output_pulls_and_interrupts"
     ]
   },
@@ -62,17 +66,19 @@
     "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
     "exit": 101,
     "killed_by": [
-      "released_pad_resolves_output_pulls_and_interrupts"
+      "released_pad_resolves_output_pulls_and_interrupts",
+      "output_edges_only_queue_for_selected_matrix_inputs"
     ]
   },
   {
     "mutation": "Skip output pad resolution",
     "file": "esp-periph/src/gpio.rs",
-    "before": "self.resolve((old ^ self.out) | (old_enable ^ self.enable));",
+    "before": "self.resolve((old ^ self.out) | (old_enable ^ self.enable), self.matrix_input_pins);",
     "after": "",
     "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
     "exit": 101,
     "killed_by": [
+      "output_edges_only_queue_for_selected_matrix_inputs",
       "released_pad_resolves_output_pulls_and_interrupts"
     ]
   },
@@ -101,7 +107,7 @@
   {
     "mutation": "c3: skip same-cycle read delivery",
     "file": "esp32c3/src/bus.rs",
-    "before": "if matches!(addr & !3, 0x6000_403c | 0x6000_4040)",
+    "before": "if self.board_edges && matches!(addr & !3, 0x6000_403c | 0x6000_4040)",
     "after": "if false",
     "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback gpio_reads_",
     "exit": 101,
@@ -123,8 +129,8 @@
   {
     "mutation": "c3: ignore host release",
     "file": "esp32c3/src/soc.rs",
-    "before": "self.periph.gpio.release_input(pin);",
-    "after": "",
+    "before": "esp_soc::gpio::release_and_report(&mut self.periph.gpio, &mut self.gpio_events, self.cycles, pin)",
+    "after": "false",
     "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -145,8 +151,8 @@
   {
     "mutation": "c3: ignore pull registers",
     "file": "esp32c3/src/periph.rs",
-    "before": "v & (1 << 8) != 0, v & (1 << 7) != 0);",
-    "after": "false, false);",
+    "before": "self.gpio.set_pad(((addr - 0x60009004) / 4) as u8, v);",
+    "after": "",
     "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -156,7 +162,7 @@
   {
     "mutation": "c6: skip same-cycle read delivery",
     "file": "esp32c6/src/bus.rs",
-    "before": "if matches!(addr & !3, 0x6009_103c | 0x6009_1040)",
+    "before": "if self.board_edges && matches!(addr & !3, 0x6009_103c | 0x6009_1040)",
     "after": "if false",
     "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback gpio_reads_",
     "exit": 101,
@@ -178,8 +184,8 @@
   {
     "mutation": "c6: ignore host release",
     "file": "esp32c6/src/soc.rs",
-    "before": "self.periph.gpio.release_input(pin);",
-    "after": "",
+    "before": "esp_soc::gpio::release_and_report(&mut self.periph.gpio, &mut self.gpio_events, self.cycles, pin)",
+    "after": "false",
     "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -200,8 +206,8 @@
   {
     "mutation": "c6: ignore pull registers",
     "file": "esp32c6/src/periph.rs",
-    "before": "v & (1 << 8) != 0, v & (1 << 7) != 0);",
-    "after": "false, false);",
+    "before": "self.gpio.set_pad(((addr - 0x60090004) / 4) as u8, v);",
+    "after": "",
     "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -211,7 +217,7 @@
   {
     "mutation": "s3: skip same-cycle read delivery",
     "file": "esp32s3/src/bus.rs",
-    "before": "if matches!(addr & !3, 0x6000_403c | 0x6000_4040)",
+    "before": "if self.board_edges && matches!(addr & !3, 0x6000_403c | 0x6000_4040)",
     "after": "if false",
     "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback gpio_reads_",
     "exit": 101,
@@ -233,8 +239,8 @@
   {
     "mutation": "s3: ignore host release",
     "file": "esp32s3/src/soc.rs",
-    "before": "self.periph.gpio.release_input(pin);",
-    "after": "",
+    "before": "esp_soc::gpio::release_and_report(&mut self.periph.gpio, &mut self.gpio_events, self.cycles, pin)",
+    "after": "false",
     "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -255,8 +261,8 @@
   {
     "mutation": "s3: ignore pull registers",
     "file": "esp32s3/src/periph.rs",
-    "before": "v & (1 << 8) != 0, v & (1 << 7) != 0);",
-    "after": "false, false);",
+    "before": "self.gpio.set_pad(((addr - 0x60009004) / 4) as u8, v);",
+    "after": "",
     "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -266,8 +272,8 @@
   {
     "mutation": "S3: ignore edge IRQs on output writes",
     "file": "esp32s3/src/bus.rs",
-    "before": "matches!((config >> 7) & 7, 1..=5)",
-    "after": "matches!((config >> 7) & 7, 4 | 5)",
+    "before": "(old_input ^ self.periph.gpio.input) & self.periph.gpio.int_ena_pins != 0",
+    "after": "false",
     "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
     "exit": 101,
     "killed_by": [
@@ -277,8 +283,8 @@
   {
     "mutation": "S3: keep quiet cadence after a host release",
     "file": "esp32s3/src/soc.rs",
-    "before": "self.periph.gpio.release_input(pin);\n        self.refresh_tick_budget();",
-    "after": "self.periph.gpio.release_input(pin);",
+    "before": "self.cycles, pin);\n        self.refresh_tick_budget();",
+    "after": "self.cycles, pin);",
     "command": "cargo +1.99.0 test -p esp32s3 --lib released_and_same_cycle_",
     "exit": 101,
     "killed_by": [
@@ -288,8 +294,8 @@
   {
     "mutation": "S3: keep quiet cadence after a same-cycle read",
     "file": "esp32s3/src/bus.rs",
-    "before": "self.deliver_board_inputs();\n            self.refresh_tick_budget();",
-    "after": "self.deliver_board_inputs();",
+    "before": "self.cycles);\n            self.refresh_tick_budget();",
+    "after": "self.cycles);",
     "command": "cargo +1.99.0 test -p esp32s3 --lib released_and_same_cycle_",
     "exit": 101,
     "killed_by": [
@@ -386,9 +392,9 @@
   },
   {
     "mutation": "s3: omit deadline-driven release",
-    "file": "esp32s3/src/bus.rs",
-    "before": "        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }\n    }\n\n    fn periph_read",
-    "after": "    }\n\n    fn periph_read",
+    "file": "esp-soc/src/gpio.rs",
+    "before": "for pin in board.released_inputs() { changed |= release_and_report(gpio, events, cycle, pin); }",
+    "after": "",
     "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback board_releases_",
     "exit": 101,
     "killed_by": [
@@ -397,9 +403,9 @@
   },
   {
     "mutation": "c3: omit deadline-driven release",
-    "file": "esp32c3/src/bus.rs",
-    "before": "        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }\n    }\n\n    fn periph_read",
-    "after": "    }\n\n    fn periph_read",
+    "file": "esp-soc/src/gpio.rs",
+    "before": "for pin in board.released_inputs() { changed |= release_and_report(gpio, events, cycle, pin); }",
+    "after": "",
     "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback board_releases_",
     "exit": 101,
     "killed_by": [
@@ -408,9 +414,9 @@
   },
   {
     "mutation": "c6: omit deadline-driven release",
-    "file": "esp32c6/src/bus.rs",
-    "before": "        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }\n    }\n\n    fn periph_read",
-    "after": "    }\n\n    fn periph_read",
+    "file": "esp-soc/src/gpio.rs",
+    "before": "for pin in board.released_inputs() { changed |= release_and_report(gpio, events, cycle, pin); }",
+    "after": "",
     "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback board_releases_",
     "exit": 101,
     "killed_by": [
@@ -426,6 +432,171 @@
     "exit": 101,
     "killed_by": [
       "first_read_delivers_feedback_for_each_width_and_bank"
+    ]
+  },
+  {
+    "mutation": "s3: remove idle read gate",
+    "file": "esp32s3/src/bus.rs",
+    "before": "if self.board_edges && matches!(addr & !3",
+    "after": "if matches!(addr & !3",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback inactive_board_",
+    "exit": 101,
+    "killed_by": [
+      "inactive_board_never_polls_inputs"
+    ]
+  },
+  {
+    "mutation": "c3: remove idle read gate",
+    "file": "esp32c3/src/bus.rs",
+    "before": "if self.board_edges && matches!(addr & !3",
+    "after": "if matches!(addr & !3",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback inactive_board_",
+    "exit": 101,
+    "killed_by": [
+      "inactive_board_never_polls_inputs"
+    ]
+  },
+  {
+    "mutation": "c6: remove idle read gate",
+    "file": "esp32c6/src/bus.rs",
+    "before": "if self.board_edges && matches!(addr & !3",
+    "after": "if matches!(addr & !3",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback inactive_board_",
+    "exit": 101,
+    "killed_by": [
+      "inactive_board_never_polls_inputs"
+    ]
+  },
+  {
+    "mutation": "S3: refresh budget on bare GPIO reads",
+    "file": "esp32s3/src/bus.rs",
+    "before": "if self.board_edges && matches!(addr & !3",
+    "after": "if matches!(addr & !3",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib bare_input_reads_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::bare_input_reads_do_not_refresh_board_deadlines"
+    ]
+  },
+  {
+    "mutation": "Record unrouted output edges",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "if record & bit != 0",
+    "after": "if true",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib bare_gpio_toggle_loop_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::bare_gpio_toggle_loop_keeps_quiet_cadence_and_no_pcnt_work"
+    ]
+  },
+  {
+    "mutation": "Lose PCNT queue capacity",
+    "file": "esp32s3/src/periph.rs",
+    "before": "gpio.input_changes.drain(..)",
+    "after": "std::mem::take(&mut gpio.input_changes)",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib routed_output_edges_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::routed_output_edges_reach_pcnt_and_retain_queue_capacity"
+    ]
+  },
+  {
+    "mutation": "Never record routed output edges",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.enable), self.matrix_input_pins);",
+    "after": "self.enable), 0);",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib routed_output_edges_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::routed_output_edges_reach_pcnt_and_retain_queue_capacity"
+    ]
+  },
+  {
+    "mutation": "Ignore matrix selection enable",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "sel & self.input_select != 0 && pin < 49",
+    "after": "pin < 49",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release output_edges_",
+    "exit": 101,
+    "killed_by": [
+      "output_edges_only_queue_for_selected_matrix_inputs"
+    ]
+  },
+  {
+    "mutation": "Ignore C3 matrix selector width",
+    "file": "esp32c3/src/periph.rs",
+    "before": "g.input_select = esp_soc::pins::ChipPins::C3.input_select;",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback matrix_output_",
+    "exit": 101,
+    "killed_by": [
+      "matrix_output_queue_uses_chip_selector_width"
+    ]
+  },
+  {
+    "mutation": "Do not update interrupt-enable mask",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "(u64::from(enabled) << pin)",
+    "after": "0",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "Do not clear interrupt-enable mask",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "(self.int_ena_pins & !(1 << pin))",
+    "after": "self.int_ena_pins",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib gpio_output_level_irqs_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::gpio_output_level_irqs_notify_for_both_banks_and_polarities"
+    ]
+  },
+  {
+    "mutation": "Dirty IRQs for unchanged board inputs",
+    "file": "esp-soc/src/gpio.rs",
+    "before": "changed |= gpio.set_input(edge.pin, edge.level);",
+    "after": "gpio.set_input(edge.pin, edge.level); changed = true;",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback unchanged_board_",
+    "exit": 101,
+    "killed_by": [
+      "unchanged_board_levels_do_not_dirty_irqs"
+    ]
+  },
+  {
+    "mutation": "Return IRQ rather than input change",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "        input_changed\n",
+    "after": "        input_changed && self.irq()\n",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release input_change_result_",
+    "exit": 101,
+    "killed_by": [
+      "input_change_result_does_not_depend_on_irq_configuration"
+    ]
+  },
+  {
+    "mutation": "Track output latch instead of resolved input for IRQs",
+    "file": "esp32s3/src/bus.rs",
+    "before": "(old_input ^ self.periph.gpio.input)",
+    "after": "(old_gpio_out ^ self.periph.gpio.out)",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib output_irq_cache_tracks_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::output_irq_cache_tracks_resolved_input_not_output_latch"
+    ]
+  },
+  {
+    "mutation": "Forget other matrix routes when updating one",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.func_in_sel.iter().fold",
+    "after": "std::iter::once(&v).fold",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release output_edges_",
+    "exit": 101,
+    "killed_by": [
+      "output_edges_only_queue_for_selected_matrix_inputs"
     ]
   }
 ]

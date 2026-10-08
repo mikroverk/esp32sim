@@ -23,7 +23,7 @@
       "exit": 0,
       "environment": "empty HOME; only ROM fixture setting",
       "results": {
-        "passed": 665,
+        "passed": 677,
         "failed": 0,
         "ignored": 0
       }
@@ -34,7 +34,7 @@
       "exit": 0,
       "environment": "empty HOME; no ESP32SIM settings",
       "results": {
-        "passed": 644,
+        "passed": 656,
         "failed": 0,
         "ignored": 35
       }
@@ -60,6 +60,18 @@
     {
       "check": "virtual-quantum",
       "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "timing-api",
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "ble-api",
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
       "exit": 0,
       "environment": "normal build environment"
     }
@@ -121,13 +133,13 @@
     "events": 19
   },
   "mutations": {
-    "killed": 39,
+    "killed": 54,
     "survived": 0,
     "build_errors": 0
   },
   "symbol_inspection": {
     "command": "nm target/release/esp32sim target/release/esp32sim-c3 target/release/esp32sim-c6",
-    "result": "No deliver_board_inputs symbol in any binary; helper is forced inline."
+    "result": "No deliver_board_inputs or release_and_report symbol in any binary; both helpers are forced inline."
   },
   "goldens": "unchanged",
   "JIT_differential": "not run: no JIT code changes",
@@ -136,5 +148,6 @@
   "limits": [
     "No CPU benchmark or hardware verification.",
     "Historical sonar result was not rerun; default instruction timing at quantum 1 remains a limitation."
-  ]
+  ],
+  "review_base": "45e2211b6e149a2623936437cec86152a250f8eb"
 }

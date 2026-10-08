@@ -72,7 +72,7 @@ fn gpio_edges_and_interrupt_types() {
     assert_eq!(g.changes, vec![(5, true), (5, false)], "output edges in order, only for enabled pins");
     // pin 7: rising-edge interrupt, enabled for core 0
     Device::write(&mut g, 0x74 + 4 * 7, (1 << 7) | (1 << 13));
-    assert!(!g.set_input(7, false)); assert!(!Device::irq_sources(&g) != 0 || true);
+    assert!(g.set_input(7, false)); assert_eq!(Device::irq_sources(&g), 0);
     assert!(g.set_input(7, true), "a rising edge latches STATUS");
     assert_eq!(Device::irq_sources(&g), 1);
     Device::write(&mut g, 0x4c, 1 << 7);                     // STATUS_W1TC

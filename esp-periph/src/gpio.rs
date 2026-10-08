@@ -13,9 +13,13 @@ pub struct Gpio {
     pub strap: u32,
     pull_up: u64, pull_down: u64,
     external_mask: u64, external_levels: u64,
+    pub int_ena_pins: u64,
+    matrix_input_pins: u64,
+    /// GPIO matrix input-select bit: 6 on C3, 7 on S3/C6.
+    pub input_select: u32,
 }
 impl Gpio {
-    pub fn new() -> Self { Gpio { out: 0, enable: 0, input: (1u64 << 49) - 1, status: 0, pin: [0; 49], func_in_sel: [0x3c; 256], func_out_sel: [0x100; 49], ram: RegRam::new(), changes: Vec::new(), strap: 0x0f, input_changes: Vec::new(), pull_up: 0, pull_down: 0, external_mask: 0, external_levels: 0 } }
+    pub fn new() -> Self { Gpio { out: 0, enable: 0, input: (1u64 << 49) - 1, status: 0, pin: [0; 49], func_in_sel: [0x3c; 256], func_out_sel: [0x100; 49], ram: RegRam::new(), changes: Vec::new(), strap: 0x0f, input_changes: Vec::new(), pull_up: 0, pull_down: 0, external_mask: 0, external_levels: 0, int_ena_pins: 0, matrix_input_pins: 0, input_select: 0x80 } }
     /// Report every pin whose driven level changed: `out & enable` before against after. Both
     /// words matter — a driver that toggles the output *enable* to produce a level (IDF 5.5's
     /// esp_lcd releases the D/C line after each colour transfer and re-enables it before the
@@ -29,37 +33,42 @@ impl Gpio {
             diff &= diff - 1;
         }
     }
+    /// Drive an input; returns whether its resolved level changed.
     pub fn set_input(&mut self, pin: u8, level: bool) -> bool {
         if pin >= 49 { return false; }
         let mask = 1u64 << pin;
         self.external_mask |= mask;
         if level { self.external_levels |= mask; } else { self.external_levels &= !mask; }
-        self.resolve(mask)
+        self.resolve(mask, u64::MAX)
     }
-    /// Stop driving a pin externally; resolve it from output enable and IO_MUX pulls.
+    /// Stop driving a pin externally; return whether output/pull resolution changed its level.
     pub fn release_input(&mut self, pin: u8) -> bool {
         if pin >= 49 { return false; }
         let mask = 1u64 << pin;
         self.external_mask &= !mask;
-        self.resolve(mask)
+        self.resolve(mask, u64::MAX)
+    }
+    /// IDF v5.5.4 components/soc/esp32{c3,c6,s3}/register/soc/io_mux_reg.h:42-50.
+    pub fn set_pad(&mut self, pin: u8, v: u32) {
+        self.set_pulls(pin, v & (1 << 8) != 0, v & (1 << 7) != 0);
     }
     pub fn set_pulls(&mut self, pin: u8, up: bool, down: bool) {
         if pin >= 49 { return; }
         let mask = 1u64 << pin;
         self.pull_up = (self.pull_up & !mask) | if up { mask } else { 0 };
         self.pull_down = (self.pull_down & !mask) | if down { mask } else { 0 };
-        self.resolve(mask);
+        self.resolve(mask, u64::MAX);
     }
     /// Preserve host drives across a chip reset, without retaining pad configuration or edges.
     pub fn restore_external(&mut self, old: &Self) {
         self.external_mask = old.external_mask;
         self.external_levels = old.external_levels;
-        self.resolve(self.external_mask);
+        self.resolve(self.external_mask, u64::MAX);
         self.input_changes.clear();
     }
     // INT_TYPE/INT_ENA: IDF v5.5.4 components/soc/esp32s3/register/soc/gpio_reg.h:278-301.
     // C3/C6 use the same fields; see docs/evidence/gpio-input-feedback/README.md.
-    fn resolve(&mut self, mask: u64) -> bool {
+    fn resolve(&mut self, mask: u64, record: u64) -> bool {
         let mask = mask & ((1u64 << 49) - 1);
         // Host-driven levels are ideal digital sources; opposing output drivers do not
         // model electrical contention. Floating and simultaneous pulls retain HIGH.
@@ -68,20 +77,19 @@ impl Gpio {
         let levels = (self.external_levels & self.external_mask) | (driven & !self.external_mask);
         let mut changed = (self.input ^ levels) & mask;
         self.input = (self.input & !mask) | (levels & mask);
-        let mut irq = false;
+        let input_changed = changed != 0;
         while changed != 0 {
             let pin = changed.trailing_zeros() as u8;
             let bit = 1u64 << pin;
             let level = self.input & bit != 0;
-            self.input_changes.push((pin, level));
+            if record & bit != 0 { self.input_changes.push((pin, level)); }
             let typ = (self.pin[pin as usize] >> 7) & 7;
             if (level && typ == 1) || (!level && typ == 2) || typ == 3 {
                 self.status |= bit;
-                irq = true;
             }
             changed &= changed - 1;
         }
-        irq
+        input_changed
     }
     /// The pin the matrix routes peripheral output signal `sig` to, if any.
     pub fn pin_for_signal(&self, sig: u32) -> Option<u8> {
@@ -132,13 +140,24 @@ impl Gpio {
             0x50 => self.status = (self.status & 0xffff_ffff) | ((v as u64) << 32),
             0x54 => self.status |= (v as u64) << 32,
             0x58 => self.status &= !((v as u64) << 32),
-            0x74..=0x134 => self.pin[((off - 0x74) / 4) as usize] = v,
-            0x154..=0x550 => self.func_in_sel[((off - 0x154) / 4) as usize] = v,
+            0x74..=0x134 => {
+                let pin = ((off - 0x74) / 4) as usize;
+                self.pin[pin] = v;
+                let enabled = v & (1 << 13) != 0 && matches!((v >> 7) & 7, 1..=5);
+                self.int_ena_pins = (self.int_ena_pins & !(1 << pin)) | (u64::from(enabled) << pin);
+            },
+            0x154..=0x550 => {
+                self.func_in_sel[((off - 0x154) / 4) as usize] = v;
+                self.matrix_input_pins = self.func_in_sel.iter().fold(0, |mask, &sel| {
+                    let pin = sel & (self.input_select / 2 - 1);
+                    if sel & self.input_select != 0 && pin < 49 { mask | (1 << pin) } else { mask }
+                });
+            },
             0x554..=0x614 => self.func_out_sel[((off - 0x554) / 4) as usize] = v,
             _ => self.ram.write(off, v),
         }
         // enable changes also change what's visible on pins
-        if matches!(off, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) { self.note_out(old, old_enable); self.resolve((old ^ self.out) | (old_enable ^ self.enable)); }
+        if matches!(off, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) { self.note_out(old, old_enable); self.resolve((old ^ self.out) | (old_enable ^ self.enable), self.matrix_input_pins); }
     }
 }
 

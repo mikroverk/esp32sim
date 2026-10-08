@@ -230,3 +230,33 @@ fn first_read_delivers_feedback_for_each_width_and_bank() {
         assert_eq!(b.cycles, 0);
     }
 }
+
+#[test]
+fn unchanged_board_levels_do_not_dirty_irqs() {
+    struct Stable;
+    impl BoardModel for Stable {
+        fn name(&self) -> &'static str { "stable" }
+        fn take_edges(&mut self) -> Vec<BoardEdge> {
+            vec![BoardEdge { cycle: 0, pin: 4, level: true }]
+        }
+    }
+    let mut m = machine!();
+    let b = &mut m.bus;
+    b.board = Box::new(Stable);
+    b.attach_board_devices();
+    b.irq_dirty = false;
+    b.read32(GPIO + 0x3c).unwrap();
+    assert!(!b.irq_dirty);
+}
+
+#[test]
+fn matrix_output_queue_uses_chip_selector_width() {
+    let mut m = machine!();
+    let b = &mut m.bus;
+    let select = b.periph.gpio.input_select;
+    assert_eq!(select, if CPU_HZ == 160_000_000 && GPIO == 0x6000_4000 { 0x40 } else { 0x80 });
+    b.write32(GPIO + 0x24, 1 << 4).unwrap();
+    b.write32(GPIO + 0x154, select | 4).unwrap();
+    b.write32(GPIO + 8, 1 << 4).unwrap();
+    assert_eq!(b.periph.gpio.input_changes, [(4, true)]);
+}
