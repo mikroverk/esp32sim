@@ -29,11 +29,13 @@ pub struct UartLayout {
     pub rxfifo_rst: u32,
     /// STATUS rxfifo_cnt: mask of the field at bit 0
     pub rxfifo_cnt_mask: u32,
+    /// Optional receive FIFO pointer register (classic ESP32 UART_MEM_RX_STATUS).
+    pub rx_status: Option<u32>,
 }
 impl UartLayout {
-    pub const S3: UartLayout = UartLayout { thrhd_mask: 0x3ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff };
-    pub const C3: UartLayout = UartLayout { thrhd_mask: 0x1ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff };
-    pub const C6: UartLayout = UartLayout { thrhd_mask: 0xff, rxfifo_rst: 1 << 22, rxfifo_cnt_mask: 0xff };
+    pub const S3: UartLayout = UartLayout { thrhd_mask: 0x3ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff, rx_status: None };
+    pub const C3: UartLayout = UartLayout { thrhd_mask: 0x1ff, rxfifo_rst: 1 << 17, rxfifo_cnt_mask: 0x3ff, rx_status: None };
+    pub const C6: UartLayout = UartLayout { thrhd_mask: 0xff, rxfifo_rst: 1 << 22, rxfifo_cnt_mask: 0xff, rx_status: None };
 }
 
 // ------------------------------------------------------------------ UART
@@ -91,6 +93,7 @@ impl Uart {
             0xc => self.int_ena,
             0x1c => 0xe000_c000 | (self.rx.len() as u32 & self.layout.rxfifo_cnt_mask),   // STATUS: rxfifo_cnt, tx count 0, TXD/RTSN/DSRN idle levels as on silicon
             0x98 => 0,                              // REG_UPDATE (C6 and later): the driver sets it and spins until hardware clears it
+            _ if self.layout.rx_status == Some(off) => ((self.rx.len() % RX_FIFO_SIZE) as u32) << 13,
             _ => self.ram.read(off),
         }
     }

@@ -31,6 +31,11 @@ const WDEV_RND: u32 = 0x6003_5144;
 // FIFO AHB windows are aliases, not separate UART register banks.
 const UART_FIFO_AHB: [u32; 3] = [0x6000_0000, 0x6001_0000, 0x6002_e000];
 
+fn merge(old: u32, value: u32, addr: u32, size: u32) -> u32 {
+    let (shift, mask) = match size { 1 => ((addr & 3) * 8, 0xff), 2 => ((addr & 2) * 8, 0xffff), _ => return value };
+    (old & !(mask << shift)) | ((value & mask) << shift)
+}
+
 pub struct SocBus {
     pub dram: Vec<u8>,
     pub iram: Vec<u8>,
@@ -75,6 +80,31 @@ impl SocBus {
             gpio_events: None,
             debug: Default::default(),
             page_ver: vec![0; 0x10021],
+        }
+    }
+    fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
+        if Self::is_periph(a) {
+            return Ok(self.periph_read(a, N as u32).to_le_bytes()[..N].try_into().unwrap());
+        }
+        match self.memory(a) {
+            Some((b, o, _)) if b.len().saturating_sub(o) >= N => Ok(b[o..o + N].try_into().unwrap()),
+            _ => { self.last_fault = Some((a, false)); Err(Fault::Unmapped) }
+        }
+    }
+    fn store(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
+        if Self::is_periph(a) {
+            let mut value = [0; 4];
+            value[..bytes.len()].copy_from_slice(bytes);
+            self.periph_write(a, u32::from_le_bytes(value), bytes.len() as u32);
+            return Ok(());
+        }
+        match self.memory(a) {
+            Some((b, o, true)) if b.len().saturating_sub(o) >= bytes.len() => {
+                b[o..o + bytes.len()].copy_from_slice(bytes);
+                self.written(a, bytes.len());
+                Ok(())
+            }
+            _ => { self.last_fault = Some((a, true)); Err(Fault::Prohibited) }
         }
     }
     // 256-byte decode pages. RTC FAST's data and instruction windows share backing bytes.
@@ -170,7 +200,6 @@ impl SocBus {
         None
     }
     fn periph_read(&mut self, addr: u32, size: u32) -> u32 {
-        self.deliver_board_inputs();
         if let Some((cpu, n)) = Self::mmu_slot(addr) {
             return self.mmu[cpu][n];
         }
@@ -203,47 +232,17 @@ impl SocBus {
         }
         if let Some(n) = UART_FIFO_AHB.iter().position(|&fifo| fifo == a) {
             self.periph.uart[n].write(0, value);
-            self.board.uart_tx(self.cycles, self.periph.uart_route(n), value as u8);
             self.irq_dirty = true;
             return;
         }
         if (0x6000_e000..0x6000_f000).contains(&a) {
             let old = self.ana.read(a - 0x6000_e000);
-            let v = match size {
-                4 => value,
-                1 => {
-                    let sh = (addr & 3) * 8;
-                    (old & !(0xff << sh)) | ((value & 0xff) << sh)
-                }
-                _ => {
-                    let sh = (addr & 2) * 8;
-                    (old & !(0xffff << sh)) | ((value & 0xffff) << sh)
-                }
-            };
+            let v = merge(old, value, addr, size);
             self.ana.write(a - 0x6000_e000, v);
             return;
         }
-        let v = match size {
-            4 => value,
-            1 => {
-                let old = self.periph.read32(a);
-                let sh = (addr & 3) * 8;
-                (old & !(0xff << sh)) | ((value & 0xff) << sh)
-            }
-            _ => {
-                let old = self.periph.read32(a);
-                let sh = (addr & 2) * 8;
-                (old & !(0xffff << sh)) | ((value & 0xffff) << sh)
-            }
-        };
-        let old_enable = self.periph.gpio.gpio.enable;
+        let v = if size == 4 { value } else { merge(self.periph.read32(a), value, addr, size) };
         self.periph.write32(a, v);
-        if let Some(port) = [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) {
-            self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8);
-        }
-        if old_enable != self.periph.gpio.gpio.enable && self.periph.gpio.gpio.changes.is_empty() {
-            self.board.gpio_output_at(self.cycles, &[], self.periph.gpio.gpio.enable, self.periph.gpio.gpio.out);
-        }
         if self.periph.spi_exec {
             self.run_spi();
         }
@@ -254,19 +253,8 @@ impl SocBus {
                     events.push((self.cycles, pin, level));
                 }
             }
-            self.board.gpio_output_at(self.cycles, &changes, self.periph.gpio.gpio.enable, self.periph.gpio.gpio.out);
-            self.deliver_board_inputs();
-        }
+            }
         self.irq_dirty = true;
-    }
-    fn deliver_board_inputs(&mut self) {
-        self.board.advance_to(self.cycles);
-        for edge in self.board.take_edges() {
-            self.periph.gpio.set_input(edge.pin, edge.level);
-            self.irq_dirty = true;
-            if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
-        }
-        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }
     }
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
@@ -296,96 +284,14 @@ impl SocBus {
     }
 }
 
-macro_rules! read {
-    ($self:ident, $addr:expr, $n:expr, $conv:expr) => {{
-        let addr = $addr;
-        match $self.memory(addr) {
-            Some((b, o, _)) if b.len().saturating_sub(o) >= $n => Ok($conv(&b[o..o + $n])),
-            _ => {
-                $self.last_fault = Some((addr, false));
-                Err(Fault::Unmapped)
-            }
-        }
-    }};
-}
 impl Bus for SocBus {
     fn note_code_page(&mut self, _vidx: u32) {}
-    fn read8(&mut self, a: u32) -> Result<u8, Fault> {
-        if Self::is_periph(a) {
-            Ok(self.periph_read(a, 1) as u8)
-        } else {
-            read!(self, a, 1, |b: &[u8]| b[0])
-        }
-    }
-    fn read16(&mut self, a: u32) -> Result<u16, Fault> {
-        if Self::is_periph(a) {
-            Ok(self.periph_read(a, 2) as u16)
-        } else {
-            read!(self, a, 2, |b: &[u8]| u16::from_le_bytes(
-                b.try_into().unwrap()
-            ))
-        }
-    }
-    fn read32(&mut self, a: u32) -> Result<u32, Fault> {
-        if Self::is_periph(a) {
-            Ok(self.periph_read(a, 4))
-        } else {
-            read!(self, a, 4, |b: &[u8]| u32::from_le_bytes(
-                b.try_into().unwrap()
-            ))
-        }
-    }
-    fn write8(&mut self, a: u32, v: u8) -> Result<(), Fault> {
-        if Self::is_periph(a) {
-            self.periph_write(a, v as u32, 1);
-            return Ok(());
-        }
-        match self.memory(a) {
-            Some((b, o, true)) if o < b.len() => {
-                b[o] = v;
-                self.written(a, 1);
-                Ok(())
-            }
-            _ => {
-                self.last_fault = Some((a, true));
-                Err(Fault::Prohibited)
-            }
-        }
-    }
-    fn write16(&mut self, a: u32, v: u16) -> Result<(), Fault> {
-        if Self::is_periph(a) {
-            self.periph_write(a, v as u32, 2);
-            return Ok(());
-        }
-        match self.memory(a) {
-            Some((b, o, true)) if o + 2 <= b.len() => {
-                b[o..o + 2].copy_from_slice(&v.to_le_bytes());
-                self.written(a, 2);
-                Ok(())
-            }
-            _ => {
-                self.last_fault = Some((a, true));
-                Err(Fault::Prohibited)
-            }
-        }
-    }
-    fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> {
-        if Self::is_periph(a) {
-            self.periph_write(a, v, 4);
-            return Ok(());
-        }
-        match self.memory(a) {
-            Some((b, o, true)) if o + 4 <= b.len() => {
-                b[o..o + 4].copy_from_slice(&v.to_le_bytes());
-                self.written(a, 4);
-                Ok(())
-            }
-            _ => {
-                self.last_fault = Some((a, true));
-                Err(Fault::Prohibited)
-            }
-        }
-    }
+    fn read8(&mut self, a: u32) -> Result<u8, Fault> { self.load(a).map(u8::from_le_bytes) }
+    fn read16(&mut self, a: u32) -> Result<u16, Fault> { self.load(a).map(u16::from_le_bytes) }
+    fn read32(&mut self, a: u32) -> Result<u32, Fault> { self.load(a).map(u32::from_le_bytes) }
+    fn write8(&mut self, a: u32, v: u8) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
+    fn write16(&mut self, a: u32, v: u16) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
+    fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
         match self.memory(pc) {
             Some((b, o, _)) if o < b.len() => {
@@ -417,8 +323,6 @@ impl Bus for SocBus {
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
-        self.deliver_board_inputs();
-        for input in self.board.uart_rx(self.cycles) { self.periph.uart_pin_input(&input); self.irq_dirty = true; }
         self.periph.tick(cycles as u64);
         1
     }

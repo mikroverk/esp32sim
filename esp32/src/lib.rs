@@ -6,5 +6,3 @@ pub mod timers;
 
 pub use esp_soc::Stop;
 pub use soc::{machine, Esp32, Machine};
-
-pub mod board;

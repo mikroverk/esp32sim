@@ -1,7 +1,8 @@
 //! Classic ESP32 peripheral map. Shared models are adapted only where this chip's register layout
 //! predates the S3/C3 layout.
 //! Register sources: ESP-IDF v5.5.4 components/soc/esp32/register/soc/{dport,gpio,
-//! io_mux,spi,rtc_cntl,uart,efuse,sha}_reg.h. Adapter completion behavior is inferred;
+//! io_mux,spi,rtc_cntl,uart,efuse}_reg.h and include/soc/hwcrypto_reg.h:43-46.
+//! Adapter completion behavior is inferred;
 //! no hardware timing validation is claimed.
 use crate::timers::ClassicTimer;
 use emu_core::{ClockDomain, ClockTree};
@@ -137,46 +138,11 @@ impl Device for ClassicSpi {
 // Pad offsets and function selectors: io_mux_reg.h:90-359.
 const IOMUX: u32 = 0x1000;
 const IOMUX_OFFSETS: [u32; 40] = [
-    0x44,
-    0x88,
-    0x40,
-    0x84,
-    0x48,
-    0x6c,
-    0x60,
-    0x64,
-    0x68,
-    0x54,
-    0x58,
-    0x5c,
-    0x34,
-    0x38,
-    0x30,
-    0x3c,
-    0x4c,
-    0x50,
-    0x70,
-    0x74,
-    0x78,
-    0x7c,
-    0x80,
-    0x8c,
-    0x90,
-    0x24,
-    0x28,
-    0x2c,
-    u32::MAX,
-    u32::MAX,
-    u32::MAX,
-    u32::MAX,
-    0x1c,
-    0x20,
-    0x14,
-    0x18,
-    0x04,
-    0x08,
-    0x0c,
-    0x10,
+    0x44, 0x88, 0x40, 0x84, 0x48, 0x6c, 0x60, 0x64,
+    0x68, 0x54, 0x58, 0x5c, 0x34, 0x38, 0x30, 0x3c,
+    0x4c, 0x50, 0x70, 0x74, 0x78, 0x7c, 0x80, 0x8c,
+    0x90, 0x24, 0x28, 0x2c, u32::MAX, u32::MAX, u32::MAX, u32::MAX,
+    0x1c, 0x20, 0x14, 0x18, 0x04, 0x08, 0x0c, 0x10,
 ];
 
 /// Classic GPIO and IO_MUX share pad state, so they are one device mounted at both blocks.
@@ -184,8 +150,6 @@ pub struct ClassicGpio {
     pub gpio: Gpio,
     io_mux: RegRam,
     external: u64,
-    signal_out: [bool; 256],
-    signal_oe: [bool; 256],
 }
 impl ClassicGpio {
     fn new() -> Self {
@@ -193,8 +157,6 @@ impl ClassicGpio {
             gpio: Gpio::new(),
             io_mux: RegRam::new(),
             external: 0,
-            signal_out: [false; 256],
-            signal_oe: [false; 256],
         }
     }
     // Classic PINn and matrix select banks precede the shared S3 offsets.
@@ -225,18 +187,9 @@ impl ClassicGpio {
         let cfg = self.gpio.func_out_sel[pin];
         let sig = (cfg & 0x1ff) as usize;
         let gpio_oe = self.gpio.enable & (1 << pin) != 0;
-        let (mut level, mut oe) = if sig == 256 {
-            (self.gpio.out & (1 << pin) != 0, gpio_oe)
-        } else {
-            (
-                self.signal_out[sig],
-                if cfg & (1 << 10) != 0 {
-                    gpio_oe
-                } else {
-                    self.signal_oe[sig]
-                },
-            )
-        };
+        if sig != 256 { return None; }
+        let mut level = self.gpio.out & (1 << pin) != 0;
+        let mut oe = gpio_oe;
         level ^= cfg & (1 << 9) != 0;
         oe ^= cfg & (1 << 11) != 0;
         oe.then_some(level)
@@ -318,39 +271,7 @@ impl ClassicGpio {
             self.gpio.set_input(pin as u8, false);
         }
     }
-    pub fn input_pin(&self, signal: usize) -> Option<u8> {
-        let cfg = *self.gpio.func_in_sel.get(signal)?;
-        if cfg & 0xc0 == 0x80 {
-            let pin = (cfg & 63) as usize;
-            return (pin < 40 && self.input_enabled(pin)).then_some(pin as u8);
-        }
-        None
-    }
-    /// Resolve a peripheral input routed through GPIO_FUNCm_IN_SEL_CFG.
-    pub fn signal_input(&self, signal: usize) -> Option<bool> {
-        let cfg = *self.gpio.func_in_sel.get(signal)?;
-        if cfg & (1 << 7) == 0 {
-            return None;
-        }
-        let source = (cfg & 0x3f) as usize;
-        let level = match source {
-            0x30 => false,
-            0x38 => true,
-            pin @ 0..=39 if self.matrix_pad(pin) && self.input_enabled(pin) => self.pad_level(pin),
-            _ => return None,
-        };
-        Some(level ^ (cfg & (1 << 6) != 0))
-    }
-    /// Set one peripheral output and its output-enable signal for GPIO matrix routing.
-    pub fn set_output_signal(&mut self, signal: usize, level: bool, enable: bool) {
-        if signal >= self.signal_out.len() {
-            return;
-        }
-        let old = self.driven_levels();
-        self.signal_out[signal] = level;
-        self.signal_oe[signal] = enable;
-        self.note_driven(old);
-    }
+
 }
 impl Device for ClassicGpio {
     fn read(&mut self, off: u32) -> u32 {
@@ -392,21 +313,17 @@ impl Device for ClassicGpio {
         self.note_driven(old);
         WriteEffect::NONE
     }
-    fn irq_sources(&self) -> u64 {
-        self.irq(0, false) as u64
-    }
 }
 
 // RTC_CNTL uses the classic register layout; the shared device owns watchdog state.
 pub struct ClassicRtc(pub RtcCntl);
 impl ClassicRtc {
     fn new() -> Self {
-        Self(RtcCntl::new())
+        Self(RtcCntl::with_wdt_base(0x8c))
     }
     fn off(off: u32) -> u32 {
         match off {
             0x34 => 0x38,
-            0x8c..=0xa4 => off + 0xc,
             0xb0..=0xbc => off + 0x10,
             _ => off,
         }
@@ -432,55 +349,10 @@ impl Device for ClassicRtc {
         (self.0.ram.read(0x44) & self.0.ram.read(0x3c) != 0) as u64
     }
     fn clock(&self) -> Option<ClockDomain> {
-        Some(ClockDomain::RtcSlow)
+        Device::clock(&self.0)
     }
     fn tick(&mut self, ticks: u64) {
-        self.0.slow_ticks += ticks;
-        self.0.wdt_tick(ticks);
-    }
-}
-
-pub struct ClassicUart(pub Uart);
-
-impl ClassicUart {
-    pub fn read(&mut self, off: u32) -> u32 {
-        if off == 0x60 {
-            return ((self.rx_pending() % 128) as u32) << 13;
-        }
-        self.0.read(off)
-    }
-
-    pub fn write(&mut self, off: u32, v: u32) {
-        self.0.write(off, v);
-    }
-}
-
-impl std::ops::Deref for ClassicUart {
-    type Target = Uart;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for ClassicUart {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Device for ClassicUart {
-    fn read(&mut self, off: u32) -> u32 {
-        ClassicUart::read(self, off)
-    }
-
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        ClassicUart::write(self, off, v);
-        WriteEffect::NONE
-    }
-
-    fn irq_sources(&self) -> u64 {
-        self.irq() as u64
+        Device::tick(&mut self.0, ticks);
     }
 }
 
@@ -536,7 +408,6 @@ impl Device for ClassicSha {
     fn read(&mut self, off: u32) -> u32 {
         match off {
             0x00..=0x7c => self.text[(off / 4) as usize],
-            0x8c | 0x9c | 0xac | 0xbc => 0,
             _ => 0,
         }
     }
@@ -554,7 +425,7 @@ impl Device for ClassicSha {
 
 pub struct Peripherals {
     pub dport: Dport,
-    pub uart: [ClassicUart; 3],
+    pub uart: [Uart; 3],
     pub spi0: ClassicSpi,
     pub spi1: ClassicSpi,
     pub gpio: ClassicGpio,
@@ -602,15 +473,16 @@ impl Peripherals {
             thrhd_mask: 0x7f,
             rxfifo_rst: 1 << 17,
             rxfifo_cnt_mask: 0xff,
+            rx_status: Some(0x60),
         };
         let mut gpio = ClassicGpio::new();
         gpio.gpio.strap = 0x13; // normal SPI-fast-flash boot, with ROM messages enabled
         let mut p = Self {
             dport: Dport::new(),
             uart: [
-                ClassicUart(Uart::new(uart)),
-                ClassicUart(Uart::new(uart)),
-                ClassicUart(Uart::new(uart)),
+                Uart::new(uart),
+                Uart::new(uart),
+                Uart::new(uart),
             ],
             spi0: ClassicSpi::new(false),
             spi1: ClassicSpi::new(true),
@@ -626,25 +498,6 @@ impl Peripherals {
         for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
         p
     }
-    // IDF v5.5.4 include/soc/gpio_sig_map.h:46,52,360: UART output signal indices.
-    pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
-        let signal = [14, 17, 198][port];
-        let native = [(1, 3), (10, 9), (17, 16)][port];
-        let mut tx_pins = (0..34).filter(|&pin| self.gpio.matrix_pad(pin) && self.gpio.gpio.func_out_sel[pin] & 0x3ff == signal as u32 && self.gpio.gpio.enable & (1 << pin) != 0).fold(0, |mask, pin| mask | (1 << pin));
-        if self.gpio.mux(native.0) >> 12 & 7 == 0 { tx_pins |= 1 << native.0; }
-        let rx_pin = self.gpio.input_pin(signal).or_else(||
-            (self.gpio.mux(native.1) >> 12 & 7 == 0 && self.gpio.input_enabled(native.1)).then_some(native.1 as u8));
-        esp_soc::uart::UartRoute::new(port, tx_pins, rx_pin, self.uart[port].classic_baud())
-    }
-    pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
-        for port in 0..3 {
-            let route = self.uart_route(port);
-            if route.rx_pin == Some(input.pin) {
-                if route.matches_baud(input.baud) { self.uart[port].host_input(&input.data); }
-                else { self.uart[port].int_raw |= 1 << 3; }
-            }
-        }
-    }
     pub fn block_name(block: u32) -> &'static str {
         match block {
             0x03 => "SHA",
@@ -656,16 +509,9 @@ impl Peripherals {
             0x48 => "RTCCNTL",
             0x49 => "IO_MUX",
             0x50 => "UART1",
-            0x53 => "I2C0",
-            0x56 => "RMT",
-            0x59 => "LEDC",
             0x5a => "EFUSE",
             0x5f => "TIMG0",
             0x60 => "TIMG1",
-            0x64 => "SPI2",
-            0x65 => "SPI3",
-            0x66 => "SYSCON",
-            0x67 => "I2C1",
             0x6e => "UART2",
             _ => "?",
         }
@@ -688,14 +534,7 @@ impl Peripherals {
     }
     pub fn tick(&mut self, cycles: u64) {
         Dispatch::tick(self, cycles);
-        for timer in &mut self.timg {
-            if let Some(cause) = timer.take_reset() {
-                if !self.rtc.0.sw_reset {
-                    self.rtc.0.sw_reset = true;
-                    self.rtc.0.reset_cause = cause;
-                }
-            }
-        }
+
     }
     pub fn source_status(&self, core: usize) -> [u32; 3] {
         let all = Dispatch::source_status(self);
@@ -749,23 +588,6 @@ mod tests {
         assert_eq!(p.gpio.driven(pin), Some(false));
         p.write32(0x3ff4_4530 + 4 * pin as u32, 256 | (1 << 11));
         assert_eq!(p.gpio.driven(pin), None);
-
-        let signal = 17usize;
-        p.write32(0x3ff4_4130 + 4 * signal as u32, (1 << 7) | 0x30);
-        assert_eq!(p.gpio.signal_input(signal), Some(false));
-        p.write32(0x3ff4_4130 + 4 * signal as u32, (1 << 7) | 0x38);
-        assert_eq!(p.gpio.signal_input(signal), Some(true));
-        p.write32(
-            0x3ff4_4130 + 4 * signal as u32,
-            (1 << 7) | (1 << 6) | pin as u32,
-        );
-        assert_eq!(p.gpio.signal_input(signal), Some(true));
-        p.write32(0x3ff4_9048, 1 << 9);
-        assert_eq!(
-            p.gpio.signal_input(signal),
-            None,
-            "direct IO_MUX mode bypasses the matrix"
-        );
 
         p.write32(0x3ff4_9014, (2 << 12) | (1 << 9));
         p.write32(0x3ff4_45b8, 256);
@@ -847,15 +669,6 @@ mod tests {
         p.tick(60);
         assert_ne!(p.cpu_lines(0) & (1 << 9), 0);
 
-        p.write32(0x3ff0_0104 + 4 * SRC_TG0_WDT as u32, 10);
-        p.write32(0x3ff5_f064, 0x50d8_3aa1);
-        p.write32(0x3ff5_f04c, 1 << 16);
-        p.write32(0x3ff5_f050, 2);
-        p.write32(0x3ff5_f048, (1 << 31) | (1 << 29) | (1 << 21));
-        p.write32(0x3ff5_f098, 1 << 2);
-        p.tick(6);
-        assert_ne!(p.cpu_lines(0) & (1 << 10), 0);
-
         p.write32(0x3ff0_0104 + 4 * SRC_RTC_CORE as u32, 11);
         p.rtc.0.ram.write(0x3c, 1 << 3);
         p.rtc.0.ram.write(0x44, 1 << 3);
@@ -883,18 +696,10 @@ mod tests {
     }
 
     #[test]
-    fn classic_timer_and_rtc_watchdogs_request_resets() {
+    fn classic_rtc_watchdog_requests_reset() {
         let mut p = Peripherals::new([0; 6]);
 
-        p.write32(0x3ff5_f064, 0x50d8_3aa1);
-        p.write32(0x3ff5_f04c, 1 << 16);
-        p.write32(0x3ff5_f050, 2);
-        p.write32(0x3ff5_f048, (1 << 31) | (3 << 29));
-        p.tick(6);
-        assert!(p.rtc.0.sw_reset);
-        assert_eq!(p.rtc.0.reset_cause, 7);
 
-        let mut p = Peripherals::new([0; 6]);
         p.write32(0x3ff4_80a4, 0x50d8_3aa1);
         p.write32(0x3ff4_8090, 2);
         p.write32(0x3ff4_808c, (1 << 31) | (3 << 28));
@@ -905,7 +710,7 @@ mod tests {
 
     #[test]
     fn classic_uart_reports_receive_fifo_pointers() {
-        let mut uart = ClassicUart(Uart::new(UartLayout::S3));
+        let mut uart = Uart::new(UartLayout { rx_status: Some(0x60), ..UartLayout::S3 });
         uart.host_input(b"ok");
         assert_eq!((uart.read(0x60) >> 13) & 0x7ff, 2);
         assert_eq!(uart.read(0), b'o' as u32);

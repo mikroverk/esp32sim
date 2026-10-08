@@ -23,9 +23,9 @@ See the [reproducible build recipe](../examples/hello_world-classic/README.md).
 
 The core includes DRAM, IRAM, RTC RAM, flash MMUs, DPORT interrupt routing and
 secondary-core control, eFuse, SPI flash, three UARTs, GPIO/IO_MUX, RTC control,
-and timer groups including LACT. `none`, `bare` and `esp32dev` are bare modules.
-S3 board names are rejected. WASM accepts the `esp32` chip identifier.
+and timer groups including LACT. `none` and `esp32dev` select the bare module.
+The default board option also selects the bare module for this chip.
+WASM accepts the `esp32` chip identifier. Boot applications through ROM.
 
-Timer-group T0/T1 reuse the shared 54-bit counter model; the classic hardware
-has 64-bit counters. LACT sleep-time RTC stepping and per-core watchdog resets
-are not modeled. Peripheral extensions are separate changes in the stack.
+T0/T1 and LACT use 64-bit counters and the shared timer stepping logic.
+LACT sleep-time RTC stepping and timer-group watchdog execution are not modeled. Peripheral extensions are separate changes in the stack.

@@ -1,8 +1,9 @@
 # EX223: classic ESP32 core
 
 Base: upstream `017af524`. The classic chip uses the shared hooks merged in
-#183, including the LX6-only UR 234-236 gate. No shared CPU, bus trait or
-existing chip tick implementation changes. Native and WASM front ends select
+#183, including the LX6-only UR 234-236 gate. No shared CPU or bus trait changes. Timer stepping is shared through an
+`#[inline]` helper with unchanged 54-bit masks on S3/C3/C6; classic uses 64-bit masks.
+The extraction adds no per-tick work to the existing chips. Native and WASM front ends select
 the new chip outside execution loops.
 
 The chip models the ECO3 memory map, PRO flash MMU, 256-byte decode-cache
@@ -10,9 +11,11 @@ invalidation, DPORT routing, UART, GPIO/IO_MUX, eFuse, flash and boot SHA-256,
 RTC control and TIMG including LACT. TIMG edge sources are 58 and 62.
 The APP MMU table is stored but execution currently uses the PRO mapping.
 The fixed clock model is 240 MHz CPU, 80 MHz APB and 150 kHz RTC slow.
-No PSRAM, DFP arithmetic or hardware timing validation is claimed. T0/T1 use
-the shared 54-bit counter; classic hardware has 64-bit counters. LACT sleep
-stepping and per-core watchdog resets remain outside the model.
+No PSRAM, DFP arithmetic or hardware timing validation is claimed. LACT sleep
+stepping and timer-group watchdog execution remain outside the model.
+Board callbacks and matrix peripheral signals belong to the peripherals part;
+the core has no board callbacks in its tick or MMIO paths. Shared UART layout
+selects the classic receive-pointer register. Direct app boot is rejected.
 
 ## Inputs and reproduction
 
@@ -43,8 +46,8 @@ remain unchanged. JIT implementation files are unchanged.
 ## Results
 
 Rust 1.99.0: native and WASM Clippy pass with warnings denied. Empty-HOME
-CI-mode workspace: 664 passed, zero failed. Plain workspace with no firmware
-variables: 642 passed, 36 ignored, zero failed. All eight production WASM
+CI-mode workspace: 661 passed, zero failed. Plain workspace with no firmware
+variables: 639 passed, 36 ignored, zero failed. All eight production WASM
 scenarios pass. Evidence privacy check passes. Existing goldens are unchanged.
 The fixture reports silicon revision v2.0 despite using the ECO3 ROM; the
 model does not supply the additional revision-3 date bit. Its boot output
@@ -54,7 +57,7 @@ not hardware equivalence claims.
 ## Mutation checks
 
 [Mutation table](mutations.json): each row names the changed expression and
-the test that fails. All 13 mutations are killed by assertions, not compile
+the test that fails. All 14 mutations are killed by assertions, not compile
 errors. Reproduce each with `cargo +1.99.0 test -p esp32 --lib TEST` after
 applying the named one-line replacement, then restore the expression.
 The GPIO test drives an undriven pad low with a pull-down before enabling

@@ -1,4 +1,4 @@
-use crate::bus::{SocBus, DBUS_HIGH, DBUS_LOW, IBUS_HIGH, IBUS_LOW};
+use crate::bus::SocBus;
 use crate::periph::{self, Peripherals};
 use esp_periph::Misc;
 use esp_soc::{BoardModel, CoreState, Soc};
@@ -13,12 +13,6 @@ pub fn machine(mac: [u8; 6], flash_size: usize) -> Machine {
     m
 }
 
-fn core(i: usize) -> Cpu {
-    let mut c = Cpu::new(if i == 0 { 0xcdcd } else { 0xabab });
-    c.lx6 = true;
-    c.configid = [0xC2BC_FFFE, 0x1CC5_FE96];
-    c
-}
 impl Soc for Esp32 {
     type Core = Cpu;
     type Bus = SocBus;
@@ -30,13 +24,12 @@ impl Soc for Esp32 {
     const IDLE_CHUNK: u64 = 512;
     const ROM_DATA_TABLE: &'static [&'static str] = &["_data_start"];
     fn new_core(i: usize) -> Cpu {
-        core(i)
-    }
-    fn reset_core(c: &mut Cpu, i: usize) {
-        c.reset();
-        c.prid = if i == 0 { 0xcdcd } else { 0xabab };
+        let mut c = Cpu::new(if i == 0 { 0xcdcd } else { 0xabab });
+        c.lx6 = true;
         c.configid = [0xC2BC_FFFE, 0x1CC5_FE96];
+        c
     }
+    fn reset_core(c: &mut Cpu, _i: usize) { c.reset(); }
     fn boot_core(c: &mut Cpu, entry: u32) {
         c.reset();
         c.pc = entry;
@@ -64,11 +57,10 @@ impl esp_soc::SocBus for SocBus {
         self.cycles
     }
     fn next_deadline(&self) -> Option<u64> {
-        let timer = match self.periph.cycles_until_timer() {
+        match self.periph.cycles_until_timer() {
             u32::MAX => None,
             n => Some(n.max(1) as u64),
-        };
-        timer.into_iter().chain(self.board.next_deadline().map(|n| n.saturating_sub(self.cycles).max(1))).min()
+        }
     }
     fn irq_dirty(&mut self) -> &mut bool {
         &mut self.irq_dirty
@@ -85,32 +77,8 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
         SocBus::write_flash(self, offset, data)
     }
-    fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
-        let img =
-            esp_soc::image::parse(self.flash.get(app_off..).ok_or("app offset beyond flash")?)?;
-        for s in &img.segments {
-            let start = app_off + s.file_off as usize;
-            let end = start + s.len as usize;
-            if end > self.flash.len() {
-                return Err("segment beyond flash".into());
-            }
-            if (DBUS_LOW..DBUS_HIGH).contains(&s.load_addr)
-                || (IBUS_LOW..IBUS_HIGH).contains(&s.load_addr)
-            {
-                let table = if s.load_addr < DBUS_HIGH { 0 } else { 64 };
-                let origin = if table == 0 { DBUS_LOW } else { 0x4000_0000 };
-                let first = (start as u32) >> 16;
-                let pages = ((s.load_addr & 0xffff) + s.len + 0xffff) >> 16;
-                for i in 0..pages {
-                    self.mmu[0][table + ((s.load_addr - origin) >> 16) as usize + i as usize] =
-                        first + i;
-                }
-            } else {
-                let data = self.flash[start..end].to_vec();
-                self.load_bytes(s.load_addr, &data)?;
-            }
-        }
-        Ok(img.entry)
+    fn boot_app(&mut self, _app_off: usize) -> Result<u32, String> {
+        Err("boot from ROM on the classic ESP32".into())
     }
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
         let cause = self.periph.rtc.0.reset_cause;
@@ -218,5 +186,15 @@ impl esp_soc::SocBus for SocBus {
     fn set_reset_cause(&mut self, cause: u32) {
         self.periph.rtc.0.ram.write(0x38, cause | cause << 6);
         self.periph.rtc.0.reset_cause = cause;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn direct_app_boot_requires_rom() {
+        let mut bus = super::SocBus::new(4 << 20, [0; 6]);
+        assert_eq!(esp_soc::SocBus::boot_app(&mut bus, 0x10000),
+            Err("boot from ROM on the classic ESP32".into()));
     }
 }

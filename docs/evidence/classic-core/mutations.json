@@ -13,7 +13,7 @@
   },
   {
     "file": "esp32/src/bus.rs",
-    "mutation": "self.written(a, 2); -> self.written(a, 0);",
+    "mutation": "self.written(a, bytes.len()); -> self.written(a, 0);",
     "test": "stores_invalidate_only_the_written_code_pages_and_rtc_alias",
     "killed": true
   },
@@ -61,20 +61,26 @@
   },
   {
     "file": "esp32/src/timers.rs",
-    "mutation": "self.lact.tick(ticks, &mut self.timer.int_raw); -> self.lact.tick(0, &mut self.timer.int_raw);",
+    "mutation": "self.lact.step(ticks, u64::MAX) -> self.lact.step(0, u64::MAX)",
     "test": "classic_lact_counts_and_raises_its_interrupt",
     "killed": true
   },
   {
-    "file": "esp32/src/timers.rs",
-    "mutation": "self.wdt_tick(ticks); -> self.wdt_tick(0);",
-    "test": "classic_timer_and_rtc_watchdogs_request_resets",
+    "file": "esp-periph/src/uart.rs",
+    "mutation": "((self.rx.len() % RX_FIFO_SIZE) as u32) << 13 -> 0",
+    "test": "classic_uart_reports_receive_fifo_pointers",
     "killed": true
   },
   {
-    "file": "esp32/src/periph.rs",
-    "mutation": "return ((self.rx_pending() % 128) as u32) << 13; -> return 0;",
-    "test": "classic_uart_reports_receive_fifo_pointers",
+    "file": "esp32/src/timers.rs",
+    "mutation": "timer.step(ticks, u64::MAX) -> timer.step(ticks, (1 << 54) - 1)",
+    "test": "all_classic_timers_keep_full_width_and_share_alarm_semantics",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "Err(\"boot from ROM on the classic ESP32\".into()) -> Ok(0)",
+    "test": "direct_app_boot_requires_rom",
     "killed": true
   }
 ]

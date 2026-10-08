@@ -46,7 +46,7 @@ impl RtcCntl {
     }
     pub fn new() -> Self { let mut r = Self::with_wdt_base(0x98); r.sens_adc = true; r }
     pub fn new_c3() -> Self { Self::with_wdt_base(0x90) }
-    fn with_wdt_base(wdt_base: u32) -> Self {
+    pub fn with_wdt_base(wdt_base: u32) -> Self {
         let mut r = RtcCntl { ram: RegRam::new(), slow_ticks: 0, time_latch: 0, sw_reset: false, reset_cause: RST_POWERON, wdt_base, wdt_count: 0, wdt_stage: 0, wdt_unlocked: false,
                               sens_adc: false, analog: crate::analog::AnalogInputs::new(240_000_000), now_cycles: 0 };
         r.ram.write(0x38, 1 | (1 << 6));           // RESET_STATE: reset cause POWERON for both CPUs
