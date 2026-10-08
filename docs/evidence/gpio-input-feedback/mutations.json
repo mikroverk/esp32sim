@@ -1,0 +1,431 @@
+[
+  {
+    "mutation": "Do not remember host drive mask",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.external_mask |= mask;",
+    "after": "self.external_mask |= 0;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Do not remember host low level",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.external_levels &= !mask;",
+    "after": "self.external_levels |= mask;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Keep released drive active",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.external_mask &= !mask;",
+    "after": "self.external_mask |= mask;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Ignore pull-down",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "let passive = self.pull_up | !self.pull_down;",
+    "after": "let passive = u64::MAX;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Floating pad defaults low",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "let passive = self.pull_up | !self.pull_down;",
+    "after": "let passive = self.pull_up;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Ignore enabled output",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "(passive & !self.enable)",
+    "after": "passive",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Skip output pad resolution",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.resolve((old ^ self.out) | (old_enable ^ self.enable));",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Do not latch GPIO edges",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.status |= bit;",
+    "after": "self.status |= 0;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "Do not guard invalid release pin",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "if pin >= 49 { return false; }\n        let mask = 1u64 << pin;\n        self.external_mask &= !mask;",
+    "after": "let mask = 1u64 << pin;\n        self.external_mask &= !mask;",
+    "command": "cargo +1.99.0 test -p esp-periph --test=gpio_release",
+    "exit": 101,
+    "killed_by": [
+      "released_pad_resolves_output_pulls_and_interrupts"
+    ]
+  },
+  {
+    "mutation": "c3: skip same-cycle read delivery",
+    "file": "esp32c3/src/bus.rs",
+    "before": "if matches!(addr & !3, 0x6000_403c | 0x6000_4040)",
+    "after": "if false",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback gpio_reads_",
+    "exit": 101,
+    "killed_by": [
+      "gpio_reads_deliver_same_cycle_feedback_and_preserve_future_edges"
+    ]
+  },
+  {
+    "mutation": "c3: do not restore host drives",
+    "file": "esp32c3/src/soc.rs",
+    "before": "p.gpio.restore_external(&old.gpio);",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback reboot_",
+    "exit": 101,
+    "killed_by": [
+      "reboot_preserves_host_drives_but_resets_pad_state"
+    ]
+  },
+  {
+    "mutation": "c3: ignore host release",
+    "file": "esp32c3/src/soc.rs",
+    "before": "self.periph.gpio.release_input(pin);",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "c3: skip board release callbacks",
+    "file": "esp32c3/src/bus.rs",
+    "before": "for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback board_releases_",
+    "exit": 101,
+    "killed_by": [
+      "board_releases_on_attachment_and_deadline"
+    ]
+  },
+  {
+    "mutation": "c3: ignore pull registers",
+    "file": "esp32c3/src/periph.rs",
+    "before": "v & (1 << 8) != 0, v & (1 << 7) != 0);",
+    "after": "false, false);",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "c6: skip same-cycle read delivery",
+    "file": "esp32c6/src/bus.rs",
+    "before": "if matches!(addr & !3, 0x6009_103c | 0x6009_1040)",
+    "after": "if false",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback gpio_reads_",
+    "exit": 101,
+    "killed_by": [
+      "gpio_reads_deliver_same_cycle_feedback_and_preserve_future_edges"
+    ]
+  },
+  {
+    "mutation": "c6: do not restore host drives",
+    "file": "esp32c6/src/soc.rs",
+    "before": "p.gpio.restore_external(&old.gpio);",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback reboot_",
+    "exit": 101,
+    "killed_by": [
+      "reboot_preserves_host_drives_but_resets_pad_state"
+    ]
+  },
+  {
+    "mutation": "c6: ignore host release",
+    "file": "esp32c6/src/soc.rs",
+    "before": "self.periph.gpio.release_input(pin);",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "c6: skip board release callbacks",
+    "file": "esp32c6/src/bus.rs",
+    "before": "for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback board_releases_",
+    "exit": 101,
+    "killed_by": [
+      "board_releases_on_attachment_and_deadline"
+    ]
+  },
+  {
+    "mutation": "c6: ignore pull registers",
+    "file": "esp32c6/src/periph.rs",
+    "before": "v & (1 << 8) != 0, v & (1 << 7) != 0);",
+    "after": "false, false);",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "s3: skip same-cycle read delivery",
+    "file": "esp32s3/src/bus.rs",
+    "before": "if matches!(addr & !3, 0x6000_403c | 0x6000_4040)",
+    "after": "if false",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback gpio_reads_",
+    "exit": 101,
+    "killed_by": [
+      "gpio_reads_deliver_same_cycle_feedback_and_preserve_future_edges"
+    ]
+  },
+  {
+    "mutation": "s3: do not restore host drives",
+    "file": "esp32s3/src/soc.rs",
+    "before": "p.gpio.restore_external(&old.gpio);",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback reboot_",
+    "exit": 101,
+    "killed_by": [
+      "reboot_preserves_host_drives_but_resets_pad_state"
+    ]
+  },
+  {
+    "mutation": "s3: ignore host release",
+    "file": "esp32s3/src/soc.rs",
+    "before": "self.periph.gpio.release_input(pin);",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "s3: skip board release callbacks",
+    "file": "esp32s3/src/bus.rs",
+    "before": "for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback board_releases_",
+    "exit": 101,
+    "killed_by": [
+      "board_releases_on_attachment_and_deadline"
+    ]
+  },
+  {
+    "mutation": "s3: ignore pull registers",
+    "file": "esp32s3/src/periph.rs",
+    "before": "v & (1 << 8) != 0, v & (1 << 7) != 0);",
+    "after": "false, false);",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "S3: ignore edge IRQs on output writes",
+    "file": "esp32s3/src/bus.rs",
+    "before": "matches!((config >> 7) & 7, 1..=5)",
+    "after": "matches!((config >> 7) & 7, 4 | 5)",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "S3: keep quiet cadence after a host release",
+    "file": "esp32s3/src/soc.rs",
+    "before": "self.periph.gpio.release_input(pin);\n        self.refresh_tick_budget();",
+    "after": "self.periph.gpio.release_input(pin);",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib released_and_same_cycle_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::released_and_same_cycle_inputs_restore_pcnt_cadence"
+    ]
+  },
+  {
+    "mutation": "S3: keep quiet cadence after a same-cycle read",
+    "file": "esp32s3/src/bus.rs",
+    "before": "self.deliver_board_inputs();\n            self.refresh_tick_budget();",
+    "after": "self.deliver_board_inputs();",
+    "command": "cargo +1.99.0 test -p esp32s3 --lib released_and_same_cycle_",
+    "exit": 101,
+    "killed_by": [
+      "bus::gp_spi_board_tests::released_and_same_cycle_inputs_restore_pcnt_cadence"
+    ]
+  },
+  {
+    "mutation": "Reboot: drop high host drive levels",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.external_levels = old.external_levels;",
+    "after": "self.external_levels = 0;",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback reboot_",
+    "exit": 101,
+    "killed_by": [
+      "reboot_preserves_host_drives_but_resets_pad_state"
+    ]
+  },
+  {
+    "mutation": "Reboot: leave synthetic input changes queued",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "self.input_changes.clear();",
+    "after": "",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback reboot_",
+    "exit": 101,
+    "killed_by": [
+      "reboot_preserves_host_drives_but_resets_pad_state"
+    ]
+  },
+  {
+    "mutation": "C6: use consecutive CS matrix signals",
+    "file": "esp32c6/src/bus.rs",
+    "before": "[63, 64, 65, 68, 101, 102, 103, 104, 105]",
+    "after": "[63, 64, 65, 68, 69, 70, 71, 72, 73]",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=spi_routes spi_additional_",
+    "exit": 101,
+    "killed_by": [
+      "spi_additional_selects_mirrors_and_disabled_routes"
+    ]
+  },
+  {
+    "mutation": "C6: omit native additional CS pins",
+    "file": "esp32c6/src/bus.rs",
+    "before": "&[16, 17, 18, 19, 20, 21]",
+    "after": "&[16]",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=spi_routes spi_additional_",
+    "exit": 101,
+    "killed_by": [
+      "spi_additional_selects_mirrors_and_disabled_routes"
+    ]
+  },
+  {
+    "mutation": "C6: bypass pin-aware callback",
+    "file": "esp32c6/src/bus.rs",
+    "before": "if self.board.uses_spi_pins()",
+    "after": "if false",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=spi_routes spi_native_",
+    "exit": 101,
+    "killed_by": [
+      "spi_native_matrix_and_software_chip_select_routes"
+    ]
+  },
+  {
+    "mutation": "SPI: ignore CS disable and polarity",
+    "file": "esp-soc/src/pins.rs",
+    "before": "spi.read(0x20) & ((1 << cs) | (1 << (cs + 7))) == 0",
+    "after": "true",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=spi_routes spi_additional_",
+    "exit": 101,
+    "killed_by": [
+      "spi_additional_selects_mirrors_and_disabled_routes"
+    ]
+  },
+  {
+    "mutation": "SPI: omit native CS routes",
+    "file": "esp-soc/src/pins.rs",
+    "before": "selects.get(cs) == Some(&pin) && self.function(pin, f)",
+    "after": "selects.get(cs) == Some(&pin) && self.function(pin, f) && false",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=spi_routes spi_native_",
+    "exit": 101,
+    "killed_by": [
+      "spi_native_matrix_and_software_chip_select_routes"
+    ]
+  },
+  {
+    "mutation": "Pull-up must win simultaneous pulls",
+    "file": "esp-periph/src/gpio.rs",
+    "before": "let passive = self.pull_up | !self.pull_down;",
+    "after": "let passive = !self.pull_down;",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback released_inputs_",
+    "exit": 101,
+    "killed_by": [
+      "released_inputs_resolve_pulls_outputs_and_irq"
+    ]
+  },
+  {
+    "mutation": "s3: omit deadline-driven release",
+    "file": "esp32s3/src/bus.rs",
+    "before": "        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }\n    }\n\n    fn periph_read",
+    "after": "    }\n\n    fn periph_read",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback board_releases_",
+    "exit": 101,
+    "killed_by": [
+      "board_releases_on_attachment_and_deadline"
+    ]
+  },
+  {
+    "mutation": "c3: omit deadline-driven release",
+    "file": "esp32c3/src/bus.rs",
+    "before": "        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }\n    }\n\n    fn periph_read",
+    "after": "    }\n\n    fn periph_read",
+    "command": "cargo +1.99.0 test -p esp32c3 --test=gpio_feedback board_releases_",
+    "exit": 101,
+    "killed_by": [
+      "board_releases_on_attachment_and_deadline"
+    ]
+  },
+  {
+    "mutation": "c6: omit deadline-driven release",
+    "file": "esp32c6/src/bus.rs",
+    "before": "        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }\n    }\n\n    fn periph_read",
+    "after": "    }\n\n    fn periph_read",
+    "command": "cargo +1.99.0 test -p esp32c6 --test=gpio_feedback board_releases_",
+    "exit": 101,
+    "killed_by": [
+      "board_releases_on_attachment_and_deadline"
+    ]
+  },
+  {
+    "mutation": "S3: omit upper-bank input-read delivery",
+    "file": "esp32s3/src/bus.rs",
+    "before": "0x6000_403c | 0x6000_4040",
+    "after": "0x6000_403c",
+    "command": "cargo +1.99.0 test -p esp32s3 --test=gpio_feedback first_read_",
+    "exit": 101,
+    "killed_by": [
+      "first_read_delivers_feedback_for_each_width_and_bank"
+    ]
+  }
+]

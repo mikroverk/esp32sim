@@ -1,0 +1,219 @@
+{
+  "headers": [
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32c3/include/soc/gpio_reg.h",
+      "sha256": "b489baeabeafbd2df1bf1c27a0cc86b68170d35c7f7b0055f9ce7adcea833361"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32c3/include/soc/gpio_sig_map.h",
+      "sha256": "8bef488049b35f180cff49800fc6bf8752fa2c98c660aa6df74de569f99bdfdb"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32c3/include/soc/io_mux_reg.h",
+      "sha256": "cefbf7ef44fec12d2decc99d45df471f9e714b6d95a8eb07bd7322b0bd230b41"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32c3/include/soc/spi_reg.h",
+      "sha256": "f1663b251e1baa69727257b47da49fab015201a227e0672b02ca679524ac5b69"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32s3/include/soc/gpio_reg.h",
+      "sha256": "3baba0922f02c1cbd767efd9b754b902e2be5e4aecadfdbde9b74f568856c107"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32s3/include/soc/gpio_sig_map.h",
+      "sha256": "126e03e4fa7c3fe15c7d48c90e08785ae89a88513067b4c77b963705d4b828aa"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32s3/include/soc/io_mux_reg.h",
+      "sha256": "a2064d39ec5538aeabb91a80cb484443a1ccb48d1ad0df4095e3a64b2be8a11d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.8/components/soc/esp32s3/include/soc/spi_reg.h",
+      "sha256": "3cf76a029a7aa3cd1f9eb694cec9d4c7478409e1f7e8d8912b7e1c0163136c20"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c3/register/soc/gpio_reg.h",
+      "sha256": "4b245ea8c457ad56a15f30311e0cfcca59f0600ed53d3e433b1b07e9621dd76c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c3/include/soc/gpio_sig_map.h",
+      "sha256": "88cb507e4cfe8b53e95dd965bcaafb4d25647167bd51cca3b89c065f547296af"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c3/register/soc/io_mux_reg.h",
+      "sha256": "bb45d201fad3f433da44cb7a1fd28511cd5158fcad1d8c5c70048e70c3f4ac6e"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c3/register/soc/spi_reg.h",
+      "sha256": "a1fbb999e60626e6cf77755750482fc85603e15c1276ec42e0776f1146f6b24c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/register/soc/gpio_reg.h",
+      "sha256": "cdfd68565fd88be714a14748d02395acf5fbe98261568460a442a76aafe574b0"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/include/soc/gpio_sig_map.h",
+      "sha256": "b9e9efaedd97f98f464a0a860f713abf1cd3bb0b393d5bc60446c28231c5824b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/register/soc/io_mux_reg.h",
+      "sha256": "50aacf3b80d05cc6f291b5df569e8403fc92f3d53fb916f52b6ac4a199af3c93"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32c6/register/soc/spi_reg.h",
+      "sha256": "5c86a4d8d66cb02acd303a64cba5d5ca4dfac480e2da5455aea16cc8757ab124"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32s3/register/soc/gpio_reg.h",
+      "sha256": "f8302ac3dffdf5d4b4f987ac76aec780c5130b489529b22d8f59f371b552df3f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32s3/include/soc/gpio_sig_map.h",
+      "sha256": "eede7f33a5b4569dfbc828baf35c2827aacb935602110863e5839e19c5a5a8d9"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32s3/register/soc/io_mux_reg.h",
+      "sha256": "1f409189248d612c028a16a604caadb37e2266347054180edd3432901bb21768"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32s3/register/soc/spi_reg.h",
+      "sha256": "2df49ba69f6fd9f65759b0dbc2065023386efe34833c28724ee28f12413be1c2"
+    }
+  ],
+  "historical_sonar_inputs": {
+    "esp32s3": {
+      "flashBytes": 8388608,
+      "psramBytes": 0,
+      "flash": [
+        {
+          "filename": "bootloader.bin",
+          "offset": 0,
+          "bytes": 19984,
+          "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432"
+        },
+        {
+          "filename": "partitions.bin",
+          "offset": 32768,
+          "bytes": 3072,
+          "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+        },
+        {
+          "filename": "boot_app0.bin",
+          "offset": 57344,
+          "bytes": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "filename": "firmware.bin",
+          "offset": 65536,
+          "bytes": 331808,
+          "sha256": "0ed9255bae36cb81fcec725475c89e81aebdfec07e171690781181bacf9cfd36"
+        }
+      ],
+      "sketchSha256": "9c491d47e13c82ce0ac93437ccf6153bf8bb7a7f8cffecb6b8000a98e757c3d1",
+      "pinsSha256": "28ba4546faced115da7f6ae624f49f561264594730025de21a4990ffd8f14109",
+      "rom": {
+        "filename": "esp32s3_rev0_rom.elf",
+        "bytes": 949552,
+        "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+      }
+    },
+    "esp32c3": {
+      "flashBytes": 4194304,
+      "psramBytes": 0,
+      "flash": [
+        {
+          "filename": "bootloader.bin",
+          "offset": 0,
+          "bytes": 19520,
+          "sha256": "da409642ea1619c16b4ef485219a91c3c2ae873ce3bae37330c24100bd747439"
+        },
+        {
+          "filename": "partitions.bin",
+          "offset": 32768,
+          "bytes": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "filename": "boot_app0.bin",
+          "offset": 57344,
+          "bytes": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "filename": "firmware.bin",
+          "offset": 65536,
+          "bytes": 319504,
+          "sha256": "1729d1a19d12aa0316d08774c2772dc87bd246b5b1ad180a2094f5d669a2d02d"
+        }
+      ],
+      "sketchSha256": "9c491d47e13c82ce0ac93437ccf6153bf8bb7a7f8cffecb6b8000a98e757c3d1",
+      "pinsSha256": "6e20d2300287c70602b0338da5de50d7c68b16e65dada5c99278b3af94977115",
+      "rom": {
+        "filename": "esp32c3_rev3_rom.elf",
+        "bytes": 556332,
+        "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+      }
+    },
+    "esp32c6": {
+      "flashBytes": 4194304,
+      "psramBytes": 0,
+      "flash": [
+        {
+          "filename": "bootloader.bin",
+          "offset": 0,
+          "bytes": 20976,
+          "sha256": "d8499f4367c3a8377d513a2fd0e94b5ad6974d2c13591b52bad56183aa7002e7"
+        },
+        {
+          "filename": "partitions.bin",
+          "offset": 32768,
+          "bytes": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "filename": "boot_app0.bin",
+          "offset": 57344,
+          "bytes": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "filename": "firmware.bin",
+          "offset": 65536,
+          "bytes": 296192,
+          "sha256": "551afb4bd5288f1f74811134b5b18c805c8641edc0818d6180e6681a1fa93a87"
+        }
+      ],
+      "sketchSha256": "9c491d47e13c82ce0ac93437ccf6153bf8bb7a7f8cffecb6b8000a98e757c3d1",
+      "pinsSha256": "394ead72ae8523a5c3f4ebd2511676e3558a6b8bfd7baec2d4e17275ed5dad41",
+      "rom": {
+        "filename": "esp32c6_rev0_rom.elf",
+        "bytes": 489768,
+        "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+      }
+    }
+  },
+  "curation": {
+    "original_results_sha256": "c682437cb3f5f6ada9a5266b3cfe6bb6e2fde4682c0fb3530e17ccfdd35b62dd",
+    "curated_results_sha256": "edfa7f7f2e97bf2d0552b860222da933820815b2cc7d42041ea1e54daeb7787e",
+    "original_inputs_sha256": "5da22f40389e510427d302b25252b0736420ed8e0f5e1c6bae2749772803039a",
+    "removed": "Unrelated checks, unavailable source identities, local paths and session descriptions. Artifact hashes and selected numeric observations retained."
+  },
+  "current_roms": [
+    {
+      "path": "web/wasm/fw/esp32c3_rev3_rom.elf",
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+    },
+    {
+      "path": "web/wasm/fw/esp32c6_rev0_rom.elf",
+      "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+    },
+    {
+      "path": "web/wasm/fw/esp32s3_rev0_rom.elf",
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+    }
+  ],
+  "implementation": "b58d96d884fd4e1c0dd629faa651f6874d6cbc68",
+  "production_wasm_sha256": "d1fcc8683e444ebc10dd72be670d3e9f2a6ed76ac354d099c21de122f82dbe7b"
+}

@@ -1,0 +1,89 @@
+{
+  "experiment": "EX217",
+  "status": "Historical observation, not rerun on this branch",
+  "arduino": "3.3.8",
+  "sonar": [
+    {
+      "chip": "esp32s3",
+      "timing": "instruction",
+      "quantum": 1,
+      "trigger_cycles": 2388,
+      "pulse_us": 0,
+      "cycles": 11500000,
+      "instructions": 11597756,
+      "pass": false
+    },
+    {
+      "chip": "esp32c3",
+      "timing": "instruction",
+      "quantum": 1,
+      "trigger_cycles": 1748,
+      "pulse_us": 5800,
+      "cycles": 5500000,
+      "instructions": 5500000,
+      "pass": true
+    },
+    {
+      "chip": "esp32c6",
+      "timing": "instruction",
+      "quantum": 1,
+      "trigger_cycles": 1779,
+      "pulse_us": 5799,
+      "cycles": 5500000,
+      "instructions": 5500000,
+      "pass": true
+    },
+    {
+      "chip": "esp32s3",
+      "timing": "ApproximateCostModel::default()",
+      "quantum": 1,
+      "trigger_cycles": 2624,
+      "pulse_us": 5800,
+      "cycles": 38665493,
+      "instructions": 5496393,
+      "pass": true
+    },
+    {
+      "chip": "esp32s3",
+      "timing": "instruction, virtual quanta disabled",
+      "quantum": 1,
+      "trigger_cycles": 2388,
+      "pulse_us": 0,
+      "cycles": 11500000,
+      "instructions": 11597756,
+      "pass": false
+    },
+    {
+      "chip": "esp32s3",
+      "timing": "instruction",
+      "quantum": 64,
+      "trigger_cycles": 2432,
+      "pulse_us": 5799,
+      "cycles": 6000274,
+      "instructions": 5784215,
+      "pass": true
+    }
+  ],
+  "trace_summary": {
+    "snapshots": 48,
+    "first": {
+      "cycle": 4142478,
+      "count": 91306,
+      "pc": "0x40384669"
+    },
+    "last": {
+      "cycle": 4144736,
+      "count": 91456,
+      "pc": "0x40384669"
+    },
+    "first_us": 5706,
+    "last_us": 5716,
+    "snapshot_elapsed_us": 9.408333333333333
+  },
+  "original_results_sha256": "c682437cb3f5f6ada9a5266b3cfe6bb6e2fde4682c0fb3530e17ccfdd35b62dd",
+  "raw_timer_trace": {
+    "sha256": "9f181b5a046d16e961ef8768a6ab0a2bc1ca7ea164f465f0bac8ef765528f4f3",
+    "bytes": 3503,
+    "availability": "Not retained in this branch; summary only"
+  }
+}
