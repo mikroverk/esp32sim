@@ -1,0 +1,22 @@
+[
+  {
+    "path": "tools/fetch-demo-assets.sh",
+    "sha256": "87caf4886a86c4c2010436e75a2dda1d73976e312e02d2ae2a455e90f3d818e7"
+  },
+  {
+    "path": "tools/fetch-rom-elfs.sh",
+    "sha256": "f19eff4a45bd16c0ef93bb9b62f2817d4f15cae7f1108cb98f6004cda52a2a15"
+  },
+  {
+    "path": "web/wasm/fw/esp32c3_rev3_rom.elf",
+    "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+  },
+  {
+    "path": "web/wasm/fw/esp32c6_rev0_rom.elf",
+    "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+  },
+  {
+    "path": "web/wasm/fw/esp32s3_rev0_rom.elf",
+    "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  }
+]

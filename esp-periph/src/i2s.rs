@@ -1,6 +1,8 @@
-//! I2S TX: the clock tree that sets the frame rate, and the sample sink the SoC's DMA pump fills.
+//! I2S RX and TX: the clock tree that sets the frame rate, and the sample sink the SoC's DMA pump fills.
 use crate::device::{Device, WriteEffect};
 use crate::regram::RegRam;
+mod rx;
+pub use rx::PcmInput;
 
 
 pub struct I2s {
@@ -19,9 +21,12 @@ pub struct I2s {
     pub frames_out: u64,
     pub tx_started_log: bool,
     cpu_hz: u64,
+    pub rx_input: PcmInput,
+    rx_acc: u64,
+    pub rx_buffer: Vec<u8>,
 }
 impl I2s {
-    pub fn new(cpu_hz: u64) -> Self { I2s { cpu_hz, rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram: RegRam::new(), tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, tx_started_log: false } }
+    pub fn new(cpu_hz: u64) -> Self { I2s { cpu_hz, rx_buffer: Vec::new(), rx_input: PcmInput::default(), rx_acc: 0, rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram: RegRam::new(), tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, tx_started_log: false } }
     pub fn tx_running(&self) -> bool { self.tx_conf & (1 << 2) != 0 }
     /// Packed DMA sample width, independent of padding in the wire's time slots.
     pub fn sample_bytes(&self) -> usize { (((self.tx_conf1 >> 13) & 0x1f) + 1).div_ceil(8) as usize }
@@ -38,7 +43,7 @@ impl I2s {
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
             0x14 => self.int_ena = v, 0x18 => self.int_raw &= !v,
-            0x20 => self.rx_conf = v, 0x24 => { self.tx_conf = v; self.update_rate(); }
+            0x20 => { self.rx_conf = v; if v & 3 != 0 { self.rx_acc = 0; } }, 0x24 => { self.tx_conf = v; self.update_rate(); }
             0x2c => { self.tx_conf1 = v; self.ram.write(off, v); self.update_rate(); }
             0x34 => { self.tx_clkm_conf = v; self.ram.write(off, v); self.update_rate(); }
             0x3c => { self.tx_clkm_div_conf = v; self.ram.write(off, v); self.update_rate(); }
@@ -55,18 +60,21 @@ impl I2s {
     ///   fs   = BCK / (2 · (half_sample_bits + 1))
     /// Returns None while the clock is off or unprogrammed, so the default stays in force.
     pub fn derive_rate(&self) -> Option<u32> {
-        let c = self.tx_clkm_conf;
+        Self::clock_rate(self.tx_clkm_conf, self.tx_clkm_div_conf, self.tx_conf1, 2 * (((self.tx_conf1 >> 18) & 0x3f) as u64 + 1))
+    }
+    // ESP-IDF v5.5.5 components/hal/esp32s3/include/hal/i2s_ll.h,
+    // i2s_ll_rx_clk_set_src and i2s_ll_rx_set_mclk: XTAL/PLL240/PLL160,
+    // integer plus fractional divider. C6 i2s_ll.h:270-285 uses the same selectors.
+    fn clock_rate(c: u32, d: u32, conf1: u32, frame_bits: u64) -> Option<u32> {
         if c & (1 << 26) == 0 { return None; }                                   // TX_CLK_ACTIVE
         let src: u64 = match (c >> 27) & 3 { 0 => 40_000_000, 1 => 240_000_000, 2 => 160_000_000, _ => return None };   // XTAL / PLL240M / PLL160M / external
         let n = (c & 0xff) as u64;
         if n == 0 { return None; }
-        let d = self.tx_clkm_div_conf;
         let (z, y, x, yn1) = ((d & 0x1ff) as u64, ((d >> 9) & 0x1ff) as u64, ((d >> 18) & 0x1ff) as u64, d & (1 << 27) != 0);
         let (a, b) = if z == 0 { (1, 0) } else { let a = (x + 1) * z + y; (a, if yn1 { a - z } else { z }) };
-        let bck = ((self.tx_conf1 >> 7) & 0x3f) as u64 + 1;
+        let bck = ((conf1 >> 7) & 0x3f) as u64 + 1;
         // WS_WIDTH controls the WS pulse, not the frame duration. IDF programs
         // HALF_SAMPLE_BITS = slot_bits * total_slots / 2 - 1 for standard/TDM TX.
-        let frame_bits = 2 * (((self.tx_conf1 >> 18) & 0x3f) as u64 + 1);
         let denom = (n * a + b) * bck * frame_bits;
         if denom == 0 { return None; }
         let fs = (src * a + denom / 2) / denom;

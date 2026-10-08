@@ -1,0 +1,72 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "ci-tests",
+    "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+    "exit_code": 0,
+    "empty_home": true,
+    "passed": 653,
+    "ignored": 0
+  },
+  {
+    "check": "plain-tests",
+    "command": "cargo +1.99.0 test --release --workspace",
+    "exit_code": 0,
+    "empty_home": true,
+    "passed": 632,
+    "ignored": 35
+  },
+  {
+    "check": "wasm",
+    "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "vq",
+    "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "wasm-apis",
+    "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm && node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm && node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "browser",
+    "command": "node tools/worker-pacing-test.mjs && node tools/worker-channel-test.mjs && node --test tools/touch-input-test.mjs tools/wasm-build-policy.test.mjs tools/browser-benchmark/*.test.mjs && python3 -m unittest discover -s tools/browser-benchmark -p \"test_*.py\"",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "evidence",
+    "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs && node docs/evidence/perf-x5-2026-09-22/verify-results.mjs && node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs && node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs && node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs && node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+    "exit_code": 0,
+    "empty_home": true
+  },
+  {
+    "check": "profiling-build",
+    "command": ". ./tools/wasm-rustflags.sh && cargo +1.99.0 build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+    "exit_code": 0,
+    "empty_home": true
+  }
+]

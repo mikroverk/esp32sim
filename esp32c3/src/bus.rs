@@ -319,14 +319,28 @@ impl SocBus {
         Ok(())
     }
 
+    // ESP-IDF v5.5.5 components/soc/esp32c3/include/soc/gdma_channel.h:13, I2S0 trigger 3.
+    fn i2s_rx_step(&mut self, cycles: u64) {
+        let Some(ch) = self.periph.gdma.state.in_channel_for(3) else { return };
+        let bytes = self.periph.i2s0.rx_data(cycles, false);
+        let eof = self.periph.i2s0.read(0x64);
+        let mut channel = self.periph.gdma.state.inp[ch];
+        let mut irq_changed = false;
+        let _ = channel.receive(self, &bytes, Some(eof), false, Self::is_periph, &mut irq_changed);
+        self.periph.i2s0.rx_buffer = bytes;
+        self.irq_dirty |= irq_changed;
+        self.periph.gdma.state.inp[ch] = channel;
+    }
+
     #[inline(always)]
     fn devices(&mut self, cycles: u32) {
-        if self.periph.work_pending { self.pending_work(); }
+        if self.periph.work_pending { self.pending_work(cycles); }
         self.periph.tick(cycles as u64);
     }
 
     #[inline(never)]
-    fn pending_work(&mut self) {
+    fn pending_work(&mut self, cycles: u32) {
+        if self.periph.i2s0.rx_running() { self.i2s_rx_step(u64::from(cycles)); }
         if self.periph.ble_lc.enabled() {
             self.periph.ble_lc.service(&mut self.sram);
             esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x31);

@@ -1,5 +1,7 @@
 use crate::device::{Device, WriteEffect};
 use crate::regram::RegRam;
+mod receive;
+pub use receive::{DescriptorWalk, DmaDescriptorFault, DmaDescriptorWord, GDMA_DESCRIPTOR_STEP_BUDGET};
 
 // ------------------------------------------------------------------ GDMA (out/TX channels only for now) + I2S0 TX
 pub const GDMA_CHANNELS: usize = 5;
@@ -99,7 +101,12 @@ impl Default for Gdma { fn default() -> Self { Self::new() } }
 pub struct DmaDesc { pub addr: u32, pub size: u32, pub length: u32, pub eof: bool, pub owner_dma: bool, pub buf: u32, pub next: u32 }
 pub fn read_desc(mem: &dyn Fn(u32) -> u32, addr: u32) -> DmaDesc {
     let dw0 = mem(addr);
-    DmaDesc { addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf: mem(addr + 4), next: mem(addr + 8) }
+    DmaDesc::decode(addr, dw0, mem(addr + 4), mem(addr + 8))
+}
+impl DmaDesc {
+    fn decode(addr: u32, dw0: u32, buf: u32, next: u32) -> Self {
+    Self { addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf, next }
+    }
 }
 impl Device for Gdma {
     fn read(&mut self, off: u32) -> u32 { Gdma::read(self, off) }

@@ -773,7 +773,7 @@ impl Bus for SocBus {
 impl SocBus {
     fn cadence_active(&self) -> bool {
         let p = &self.periph;
-        p.i2s0.tx_running() || p.i2s1.tx_running()
+        p.i2s0.tx_running() || p.i2s1.tx_running() || p.i2s0.rx_running() || p.i2s1.rx_running()
             || p.lcd_cam.cam_active() || p.lcd_cam.lcd_running()
             // EX157: a running GDMA IN channel is passive. Its only producers are the camera
             // (capture or VSYNC enabled), AES (dma_pending) and mem-to-mem (needs the OUT side running),

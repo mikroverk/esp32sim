@@ -1,0 +1,162 @@
+[
+  {
+    "mutation": "RX start",
+    "test": "pcm_clock_slots_width_silence_and_reset",
+    "killed": true
+  },
+  {
+    "mutation": "slot mask",
+    "test": "pcm_clock_slots_width_silence_and_reset",
+    "killed": true
+  },
+  {
+    "mutation": "wide sample alignment",
+    "test": "pcm_clock_slots_width_silence_and_reset",
+    "killed": true
+  },
+  {
+    "mutation": "PDM capability",
+    "test": "pcm_clock_slots_width_silence_and_reset",
+    "killed": true
+  },
+  {
+    "mutation": "PDM conversion",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "PDM decimation",
+    "test": "pcm_clock_slots_width_silence_and_reset",
+    "killed": true
+  },
+  {
+    "mutation": "sample width",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "two slots",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "frame accumulator",
+    "test": "reset_discards_fractional_receiver_time",
+    "killed": true
+  },
+  {
+    "mutation": "reset accumulator",
+    "test": "reset_discards_fractional_receiver_time",
+    "killed": true
+  },
+  {
+    "mutation": "input bound",
+    "test": "bounded_input_and_tone",
+    "killed": true
+  },
+  {
+    "mutation": "tone clear",
+    "test": "bounded_input_and_tone",
+    "killed": true
+  },
+  {
+    "mutation": "C3 pump",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "C6 clock",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "S3 RX port one",
+    "test": "absent_controllers_and_s3_second_receiver",
+    "killed": true
+  },
+  {
+    "mutation": "mono packing",
+    "test": "mono_consumes_one_sample_with_both_slots_enabled",
+    "killed": true
+  },
+  {
+    "mutation": "PDM double decimation",
+    "test": "pdm_double_decimation_halves_pcm_rate",
+    "killed": true
+  },
+  {
+    "mutation": "tone replaces queue",
+    "test": "tone_replaces_queue_and_push_replaces_tone",
+    "killed": true
+  },
+  {
+    "mutation": "push replaces tone",
+    "test": "tone_replaces_queue_and_push_replaces_tone",
+    "killed": true
+  },
+  {
+    "mutation": "c3 RX deadline",
+    "test": "active_receiver_bounds_scheduler_sleep_with_and_without_pin_work",
+    "killed": true
+  },
+  {
+    "mutation": "c6 RX deadline",
+    "test": "active_receiver_bounds_scheduler_sleep_with_and_without_pin_work",
+    "killed": true
+  },
+  {
+    "mutation": "C3 pin deadline bypass",
+    "test": "active_receiver_bounds_scheduler_sleep_with_and_without_pin_work",
+    "killed": true
+  },
+  {
+    "mutation": "unsupported 1 << 3",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "unsupported 1 << 7",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "unsupported 3 << 10",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "unsupported 1 << 18",
+    "test": "unsupported_modes_preserve_queued_input",
+    "killed": true
+  },
+  {
+    "mutation": "c3 reset persistence",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "c6 reset persistence",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "s3 reset persistence",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "receive error flag",
+    "test": "shared_receive_reports_interrupt_changes",
+    "killed": true
+  },
+  {
+    "mutation": "receive interrupt change",
+    "test": "shared_receive_reports_interrupt_changes",
+    "killed": true
+  },
+  {
+    "mutation": "receive stops on fault",
+    "test": "shared_receive_reports_interrupt_changes",
+    "killed": true
+  }
+]
