@@ -2,12 +2,14 @@
   <img src="docs/assets/esp32sim-logo-icon.png" alt="esp32sim — a smiling chip in an emulator window" width="320">
 </p>
 
-# esp32sim — an ESP32 emulator in Rust: **Xtensa (S3) and RISC-V (C3, C6)**
+# esp32sim — an ESP32 emulator in Rust: **Xtensa (ESP32, S3) and RISC-V (C3, C6)**
 
-Instruction-level emulation of three ESP32 SoCs, across **both of Espressif's CPU architectures**.
+Instruction-level emulation of four ESP32 SoCs, across **both of Espressif's CPU architectures**.
 Each boots the **real mask ROM**, the real 2nd-stage bootloader and an unmodified application
 image — no patched firmware, no stubs in the way — with enough of the SoC modelled to run real
 projects end to end. No cloud, no accounts. MIT.
+
+The [classic ESP32](docs/esp32.md) also boots its ECO3 ROM on dual LX6 cores, with GPIO, UART and timers.
 
 | | **ESP32-S3** | **ESP32-C3** | **ESP32-C6** |
 | --- | --- | --- | --- |
