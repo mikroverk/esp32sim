@@ -146,10 +146,13 @@ on any chip. Changes reachable on that path, relative to main:
 | C3 tick (`SocBus::tick`) | `pins_active()` includes `i2c.is_active()` | None while `pins_active` is false: `tick_with_pins()` is skipped as on main. |
 | S3/C6 tick (`tick_impl`/`devices`) | The board advance moves ahead of `periph.tick` under the same `board_edges` test; edges and releases drain after it | Same calls as main: one `advance_to` and one edge/release drain per tick, only when `board_edges`; one extra test of the cached flag. |
 | C3 MMIO write (`periph_write`) | `Peripherals::write32` returns its existing I2C/RMT/SPI2 block test; the bus refreshes `pins_active` on it | No new address test; SPI2 writes also refresh `pins_active` (idempotent). |
+| Controller layout (`I2c`) | `remaining: Option<u64>` (`None` while idle) takes main's `cur: Option<usize>` slot; the command list and C6 clock override are boxed; step indices are `u8` in tail padding | None: `I2c` keeps main's 184 bytes and its largest niche at offset 0, so S3 `Peripherals`/`SocBus` field offsets equal main's (`offset_of!` on every field). C3/C6 embed the same type. |
+| S3 interrupt sources (`source_status`) | I2C0/I2C1 bits come from the optional-source cache | Two fewer controller register tests per scan. |
+| S3 MMIO write (`periph_write_inner`) | I2C0/I2C1 write arms refresh the optional list | No new test on other blocks; register allocation differs from main. |
 
 Deadline equivalence: an optional device is listed whenever `clock()` is
 `Some`; `refresh_optional` runs after its writes and ticks. I2C `has_deadline()`,
-`next_deadline()` and `clock()` all follow `active`. C3 `BLE_LC` is enabled
+`next_deadline()` and `clock()` all follow `remaining`. C3 `BLE_LC` is enabled
 iff `clock()` is `Some`; `enable_ble_full` refreshes it and nothing disables
 it. LEDC and MCPWM implement no deadline. Deadline values, divider and
 rounding are unchanged.
@@ -162,6 +165,16 @@ and completion leaves C3 pin service, with a 6-cycle STOP deadline.
 `wifi_and_pin_sources_survive_interrupt_refresh` rejects C3 pin-source bits in
 the optional cache. `controller_leaves_optional_dispatch_after_completion_and_reset`
 checks I2C deadline methods before, during and after a transfer and after reset.
+
+S3 machine code: release `esp32sim` binaries of main and this branch
+(`cargo +1.99.0 build --release -p esp32sim --bins`, arm64 macOS) were
+disassembled and compared per function with addresses normalised.
+`Machine::run`, `run_unmodeled`, `run_modeled`, `step_core`,
+`settle_modeled_time`, `function_hook`, the Xtensa core and `periph_read`
+match main apart from alignment padding. S3 hot functions that differ:
+`tick_impl` (one `board_edges` test before the peripheral tick),
+`refresh_tick_budget` (the deadline query's active-list length test),
+`periph_write_inner` and `source_status` (rows above).
 
 ## CPU comparison
 

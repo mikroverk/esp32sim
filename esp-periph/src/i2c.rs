@@ -35,27 +35,35 @@ pub struct I2c {
     rx: VecDeque<u8>,
     pub int_raw: u32,
     pub int_ena: u32,
-    cmd: [u32; 8],
+    /// Boxed so the controller keeps main's size and field layout.
+    program: Box<Program>,
     devices: Vec<(u8, Box<dyn I2cDevice>)>,
     cur: Vec<usize>,
+    /// Controller clock ticks until the current command step completes; `None` while idle.
+    remaining: Option<u64>,
     pins: Option<(u8, u8)>,
     expect_addr: bool,
     nack: bool,
     pub log: bool,
     pub transactions: u64,
-    active: bool,
-    command_index: usize,
-    byte_index: usize,
-    remaining: u64,
+    command_index: u8,
+    byte_index: u8,
+}
+
+struct Program {
+    cmd: [u32; 8],
     /// C6 supplies its PCR divider in the S3/C3 CLK_CONF layout.
-    pub external_clock_config: Option<u32>,
+    external_clock_config: Option<u32>,
 }
 
 impl I2c {
     pub fn new() -> Self {
-        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 8], devices: Vec::new(), cur: Vec::new(), pins: None, expect_addr: false, nack: false,
-              log: false, transactions: 0, active: false, command_index: 0, byte_index: 0, remaining: 0, external_clock_config: None }
+        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, program: Box::new(Program { cmd: [0; 8], external_clock_config: None }),
+              devices: Vec::new(), cur: Vec::new(), remaining: None, pins: None, expect_addr: false, nack: false, log: false, transactions: 0,
+              command_index: 0, byte_index: 0 }
     }
+    /// C6 supplies its PCR divider in the S3/C3 CLK_CONF layout.
+    pub fn set_external_clock_config(&mut self, config: Option<u32>) { self.program.external_clock_config = config; }
     /// A device attached at an occupied address and pin pair replaces the one there: a board swapped before
     /// boot (`esp32sim_set_measured_te`) must not leave the old board's devices answering.
     pub fn attach(&mut self, addr: u8, dev: Box<dyn I2cDevice>) {
@@ -84,19 +92,19 @@ impl I2c {
     }
     pub fn has_device(&self, addr: u8) -> bool { self.devices.iter().any(|(attached, _)| *attached == addr) }
     #[inline(always)]
-    pub fn is_active(&self) -> bool { self.active }
+    pub fn is_active(&self) -> bool { self.remaining.is_some() }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
 
     pub fn read(&mut self, off: u32) -> u32 {
         match off {
             // IDF v5.5.4 S3 i2c_reg.h:173-179: BUS_BUSY bit 4.
-            0x08 => (self.nack as u32) | ((self.active as u32) << 4) | ((self.rx.len() as u32 & 0x3f) << 8) | ((self.tx.len() as u32 & 0x3f) << 18),   // SR: resp_rec, bus_busy, rxfifo_cnt, txfifo_cnt
+            0x08 => (self.nack as u32) | ((self.is_active() as u32) << 4) | ((self.rx.len() as u32 & 0x3f) << 8) | ((self.tx.len() as u32 & 0x3f) << 18),   // SR: resp_rec, bus_busy, rxfifo_cnt, txfifo_cnt
             0x14 => ((self.rx.len() as u32 & 0x1f) << 5) | ((self.tx.len() as u32 & 0x1f) << 15),                        // FIFO_ST: waddr = count, raddr = 0
             0x1c => self.rx.pop_front().unwrap_or(0) as u32,
             0x20 => self.int_raw,
             0x28 => self.int_ena,
             0x2c => self.int_raw & self.int_ena,
-            0x58..=0x74 => self.cmd[((off - 0x58) / 4) as usize],
+            0x58..=0x74 => self.program.cmd[((off - 0x58) / 4) as usize],
             _ => self.regs.read(off),
         }
     }
@@ -111,20 +119,20 @@ impl I2c {
             0x04 => {
                 let reset = v & (1 << 10) != 0;
                 self.regs.write(off, v & !((1 << 5) | (1 << 10)));
-                if reset { self.active = false; self.cur.clear(); self.expect_addr = false; self.nack = false; }
+                if reset { self.remaining = None; self.cur.clear(); self.expect_addr = false; self.nack = false; }
                 if v & (1 << 5) != 0 { self.run(); }
             }               // CTR.TRANS_START
             0x18 => { if v & (1 << 13) != 0 { self.tx.clear(); } if v & (1 << 12) != 0 { self.rx.clear(); } self.regs.write(off, v & !(3 << 12)); }
             0x1c => { if self.tx.len() < 32 { self.tx.push_back(v as u8); } }
             0x24 => self.int_raw &= !v,
             0x28 => self.int_ena = v,
-            0x58..=0x74 => self.cmd[((off - 0x58) / 4) as usize] = v & !(1 << 31),
+            0x58..=0x74 => self.program.cmd[((off - 0x58) / 4) as usize] = v & !(1 << 31),
             _ => self.regs.write(off, v),
         }
     }
 
     fn op(&self) -> u32 {
-        (self.cmd[self.command_index] >> 11) & 7
+        (self.program.cmd[usize::from(self.command_index)] >> 11) & 7
     }
 
     // IDF v5.5.4 components/hal/esp32s3/include/hal/i2c_ll.h:205-235:
@@ -134,7 +142,7 @@ impl I2c {
     // RC_FAST; XTAL is modeled at 40 MHz and APB at 80 MHz. IDF 4.4 uses a
     // nominal 20 MHz RC clock; this model does not reproduce oscillator calibration.
     fn clock_ticks(&self, cycles: u64) -> u64 {
-        let c = self.external_clock_config.unwrap_or_else(|| self.regs.read(0x54));
+        let c = self.program.external_clock_config.unwrap_or_else(|| self.regs.read(0x54));
         let a = u64::from((c >> 8) & 63);
         let b = u64::from((c >> 14) & 63);
         let denominator = a.max(1);
@@ -150,10 +158,10 @@ impl I2c {
     // S3:160-171 and C3:164-175 use the same convention.
     // S3 i2c_reg.h:16-26, 932-1006 gives 9-bit periods and 7-bit wait-high.
     fn schedule(&mut self) {
-        if self.command_index >= 8 { self.active = false; return; }
+        if self.command_index >= 8 { self.remaining = None; return; }
         let mask = 0x1ff;
         let cycles = match self.op() {
-            1 | 3 if self.cmd[self.command_index] & 255 != 0 => {
+            1 | 3 if self.program.cmd[usize::from(self.command_index)] & 255 != 0 => {
                 let high = self.regs.read(0x38);
                 let extra = (high >> 9) & 127;
                 ((self.regs.read(0) & mask) + 1 + (high & mask) + extra) * 9
@@ -164,32 +172,31 @@ impl I2c {
             }
             _ => 0,
         };
-        self.remaining = self.clock_ticks(cycles.into());
+        self.remaining = Some(self.clock_ticks(cycles.into()));
     }
 
     fn run(&mut self) {
-        if self.active { return; }
+        if self.is_active() { return; }
         self.nack = false;
         self.transactions += 1;
-        self.active = true;
         self.command_index = 0;
         self.byte_index = 0;
         self.schedule();
     }
 
     fn advance(&mut self, mut ticks: u64) {
-        while self.active && ticks >= self.remaining {
-            ticks -= self.remaining;
+        while let Some(remaining) = self.remaining {
+            if ticks < remaining { self.remaining = Some(remaining - ticks); return; }
+            ticks -= remaining;
             self.step();
-            if self.active { self.schedule(); }
+            if self.is_active() { self.schedule(); }
         }
-        if self.active { self.remaining -= ticks; }
     }
 
     fn step(&mut self) {
-        let i = self.command_index;
-        let c = self.cmd[i];
-        let n = (c & 255) as usize;
+        let i = usize::from(self.command_index);
+        let c = self.program.cmd[i];
+        let n = c as u8;
         match self.op() {
             6 => self.expect_addr = true,
             1 if self.byte_index < n => {
@@ -216,8 +223,8 @@ impl I2c {
                     ack
                 };
                 if !ack && c & (1 << 8) != 0 {
-                    self.nack = true; self.int_raw |= INT_NACK; self.cmd[i] |= 1 << 31;
-                    self.cur.clear(); self.active = false;
+                    self.nack = true; self.int_raw |= INT_NACK; self.program.cmd[i] |= 1 << 31;
+                    self.cur.clear(); self.remaining = None;
                     return;
                 }
                 self.byte_index += 1;
@@ -234,12 +241,12 @@ impl I2c {
             1 | 3 => {}
             2 => {
                 for &k in &self.cur { self.devices[k].1.stop(); }
-                self.cur.clear(); self.int_raw |= INT_TRANS_COMPLETE; self.active = false;
+                self.cur.clear(); self.int_raw |= INT_TRANS_COMPLETE; self.remaining = None;
             }
-            4 => { self.int_raw |= INT_END_DETECT; self.active = false; }
-            _ => self.active = false,
+            4 => { self.int_raw |= INT_END_DETECT; self.remaining = None; }
+            _ => self.remaining = None,
         }
-        self.cmd[i] |= 1 << 31;
+        self.program.cmd[i] |= 1 << 31;
         self.command_index += 1;
         self.byte_index = 0;
     }
@@ -266,9 +273,9 @@ impl Device for I2c {
     fn read(&mut self, off: u32) -> u32 { I2c::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { I2c::write(self, off, v); WriteEffect::NONE }
     fn irq_sources(&self) -> u64 { self.irq() as u64 }
-    fn clock(&self) -> Option<ClockDomain> { self.active.then_some(ClockDomain::Apb) }
+    fn clock(&self) -> Option<ClockDomain> { self.is_active().then_some(ClockDomain::Apb) }
     fn tick(&mut self, ticks: u64) { self.advance(ticks); }
-    fn has_deadline(&self) -> bool { self.active }
-    fn next_deadline(&self) -> Option<u64> { self.active.then_some(self.remaining) }
+    fn has_deadline(&self) -> bool { self.is_active() }
+    fn next_deadline(&self) -> Option<u64> { self.remaining }
     fn debug(&mut self, on: bool) { self.log = on; }
 }

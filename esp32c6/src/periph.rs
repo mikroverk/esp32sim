@@ -418,7 +418,7 @@ impl DeviceSet for Peripherals {
         // Repack PCR's A/B/NUM/SEL fields into the shared S3/C3 layout.
         if block == 0x04 {
             let clock = self.pcr.read(0x24);
-            self.i2c.external_clock_config = Some(((clock >> 12) & 255) | ((clock & 63) << 8) | (((clock >> 6) & 63) << 14) | (clock & (1 << 20)));
+            self.i2c.set_external_clock_config(Some(((clock >> 12) & 255) | ((clock & 63) << 8) | (((clock >> 6) & 63) << 14) | (clock & (1 << 20))));
         }
         if block == 0x0e { self.adc.now_cycles = self.clock.cycles(); }
         if block == 0xb2 { self.rng.now = self.clock.cycles() as u32; }

@@ -1,6 +1,6 @@
 {
   "files": {
-    "esp-periph/src/i2c.rs": "c728b8a310099ae8359248b7b60f5bff0f87a7640163d8a36dc5381d0f1f1834",
+    "esp-periph/src/i2c.rs": "1864aac258b80f21388d6fc0c004102068f6175c88857582bd6ee2dd37c884d1",
     "cli/tests/i2c_address.rs": "8b4eee07a4b6802658964c395728af77a0a18c6984341e6c0b023a27dec46fe4",
     "cli/tests/goldens.rs": "87d27f942bb52b43dc2125d74276ce466f0d30f1883766169ab012e9774962a2",
     "esp32s3/src/bus.rs": "404941a8f04a3347d7c3fb9e0909da263a920d12b3591025763b88538825d23f",
@@ -8,7 +8,7 @@
     "esp32c3/src/bus.rs": "ca22a6f6ef10fa50b6d494f9f601d4f6d826f634b017d0e007b5cb16cd35186e",
     "esp32c3/src/periph.rs": "9f25db995caffee2b3ff527594e72215ff33a75f9fb08d01d65b2584251a7cdf",
     "esp32c6/src/bus.rs": "0aa7da3059f983570a83c3b137773c2dea1edf417b5b7a24537715c82d339d78",
-    "esp32c6/src/periph.rs": "2a65c644472c4819c9a4b55661fd7882a813f0350e8e026f279f35a26ceacf13",
+    "esp32c6/src/periph.rs": "1e12ec57d06c9fd9fd44efe32ca4a6e0a24e4ad5ec58638f830143b1225e071a",
     "esp-periph/src/mmio.rs": "bd3e1ea15f08bc2b5724017a8fcd2edc632c1e061f026df03173d9d0ae956b9f",
     "esp-periph/tests/devices.rs": "69204e588346c2ecddfdafe8d17cf1713b61f33f8f9e8649964ee7b506e1be10",
     "esp-soc/src/gpio.rs": "87fd7fe00c15a05f006ad1de725a6d1fa7c331b877c58531eb3fa8156e58ae62",
