@@ -181,14 +181,87 @@ comparison must include C6 hello.
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 954f2a68 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
+
+Measured on `e3aefb93bcf5dac06653a8a7ad6d67ce17c226e4` against main `954f2a68`; the branch was later rebased onto `2f9443a9` with no change to its own diff. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C6 hello | 3.3037 (3.2643–3.8944) | 3.3320 (3.2987–3.6422) | +0.86% | 5/7 | 4800000000 | 3.90 |
+| C3 hello | 2.5193 (2.4666–2.7821) | 2.5483 (2.5192–2.7967) | +1.15% | 5/7 | 4800000000 | 4.31 |
+| S3 hello | 25.0660 (24.5564–28.6332) | 24.7702 (24.5346–27.6966) | -1.18% | 2/7 | 1789819657 | 5.44 |
+| Pocket Tank | 35.6546 (35.2570–36.5770) | 35.9444 (35.0265–37.9563) | +0.81% | 4/7 | 10073833775 | 5.54 |
+
+### C6 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 3.282571 | 3.843635 | 2.81/3.07/3.07 | 2.89/2.81/2.89 | accepted |
+| 1 | 2 | M→B | 3.270256 | 3.298681 | 3.07/3.07/3.07 | 3.07/3.14/3.14 | accepted |
+| 2 | 3 | B→M | 3.298709 | 3.324059 | 3.13/3.13/3.13 | 3.14/3.13/3.14 | accepted |
+| 3 | 4 | M→B | 3.264350 | 3.332014 | 3.13/3.04/3.13 | 3.04/2.96/3.04 | accepted |
+| 4 | 5 | B→M | 3.306566 | 3.308866 | 2.96/3.20/3.20 | 2.96/2.96/2.96 | accepted |
+| 5 | 6 | M→B | 3.303749 | 3.488665 | 3.20/3.10/3.20 | 3.10/3.10/3.10 | accepted |
+| 6 | 7 | B→M | 3.894396 | 3.642231 | 3.26/3.64/3.64 | 3.10/3.26/3.26 | accepted |
+| 7 | 8 | M→B | 3.631364 | 3.474084 | 3.64/3.64/3.64 | 3.64/3.90/3.90 | accepted |
+
+### C3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 2.485146 | 2.519265 | 4.31/4.31/4.31 | 3.90/4.31/4.31 | accepted |
+| 1 | 2 | M→B | 2.519326 | 2.519179 | 4.31/4.29/4.31 | 4.29/4.29/4.29 | accepted |
+| 2 | 3 | B→M | 2.480610 | 2.582611 | 4.10/4.10/4.10 | 4.29/4.10/4.29 | accepted |
+| 3 | 4 | M→B | 2.466618 | 2.548317 | 4.10/4.18/4.18 | 4.18/4.18/4.18 | accepted |
+| 4 | 5 | B→M | 2.661798 | 2.522541 | 4.08/4.08/4.08 | 4.18/4.08/4.18 | accepted |
+| 5 | 6 | M→B | 2.782068 | 2.796716 | 4.08/4.07/4.08 | 4.07/4.07/4.07 | accepted |
+| 6 | 7 | B→M | 2.681770 | 2.750300 | 4.07/3.90/4.07 | 4.07/4.07/4.07 | accepted |
+| 7 | 8 | M→B | 2.503895 | 2.520618 | 3.90/3.90/3.90 | 3.90/3.75/3.90 | accepted |
+
+### S3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 25.091025 | 25.523782 | 3.79/3.71/3.92 | 3.75/3.79/3.85 | accepted |
+| 1 | 2 | M→B | 25.119988 | 24.535718 | 3.71/3.09/3.71 | 3.09/2.88/3.09 | accepted |
+| 2 | 3 | B→M | 25.288635 | 25.800910 | 2.98/3.00/3.40 | 2.88/2.98/2.98 | accepted |
+| 3 | 4 | M→B | 24.910248 | 24.770172 | 3.00/2.65/3.00 | 2.65/2.28/2.68 | accepted |
+| 4 | 5 | B→M | 28.633189 | 27.696565 | 4.74/5.32/5.44 | 2.28/4.74/4.74 | accepted |
+| 5 | 6 | M→B | 24.578343 | 24.534623 | 4.59/4.30/4.59 | 4.30/3.52/4.43 | accepted |
+| 6 | 7 | B→M | 24.556407 | 24.568998 | 3.30/2.96/3.43 | 3.52/3.30/3.52 | accepted |
+| 7 | 8 | M→B | 25.065986 | 24.826962 | 2.96/2.84/2.96 | 2.84/3.55/3.55 | accepted |
+
+### Pocket Tank
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 37.914729 | 47.451150 | 11.78/7.91/12.20 | 3.55/11.78/13.36 | discarded: load >7 |
+| warmup | 2 | B→M | 36.409331 | 36.700058 | 4.84/3.59/4.84 | 4.81/4.84/4.84 | accepted |
+| 1 | 3 | M→B | 36.576996 | 37.956348 | 3.59/4.22/4.42 | 4.22/4.12/4.51 | accepted |
+| 2 | 4 | B→M | 36.456056 | 36.686776 | 5.63/15.07/16.13 | 4.12/5.63/5.69 | discarded: load >7 |
+| 2 | 5 | B→M | 35.592760 | 35.944414 | 4.26/3.14/4.26 | 4.97/4.26/5.54 | accepted |
+| 3 | 6 | M→B | 35.757709 | 35.162997 | 3.14/2.63/3.14 | 2.63/2.76/2.91 | accepted |
+| 4 | 7 | B→M | 35.638270 | 35.026516 | 2.04/1.97/2.04 | 2.76/2.04/2.76 | accepted |
+| 5 | 8 | M→B | 35.257001 | 35.958228 | 1.97/1.85/1.97 | 1.85/1.66/1.85 | accepted |
+| 6 | 9 | B→M | 35.864536 | 35.436634 | 1.47/1.88/1.95 | 1.66/1.47/1.66 | accepted |
+| 7 | 10 | M→B | 35.654557 | 36.878955 | 1.88/1.87/1.98 | 1.87/2.68/2.92 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
 
 An MMIO write tests SHA `dma_pending` once; the SHA/GDMA address filter and
 the transfer are in a `#[cold]`, `#[inline(never)]` C3/C6 helper. Calibration
 has no clock, timer, deadline or added field. ECC is boxed, so C6 `Peripherals`
 grows by one pointer; it uses the existing optional source cache on MMIO
 writes and never joins the periodic device list. No per-tick transfer check is
-added. S3's DMA call sites are unchanged. No CPU benchmark was run.
+added. S3's DMA call sites are unchanged.
 
 Static code comparison: `cargo +1.99.0 build --release -p esp32sim --bin esp32sim`
 (aarch64-apple-darwin, the workspace's fat-LTO release profile) at `954f2a68`
