@@ -130,10 +130,52 @@ server tests remain ignored and named `external_*`; their inputs are not CI fixt
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 954f2a68 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
 
-No CPU benchmarks were run. All added radio state is inside the existing optional
+Measured on `771b56f91a208353f8f768e06a32b441406611b9` against main `954f2a68`; the branch was later rebased onto `954f2a68` with no code change. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C3 hello | 2.5622 (2.5402–2.5785) | 2.5497 (2.5046–2.5990) | -0.49% | 3/7 | 4800000000 | 4.91 |
+| S3 hello | 26.6897 (25.3917–29.0711) | 26.5465 (25.7646–27.3782) | -0.54% | 3/7 | 1789819657 | 6.07 |
+
+### C3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 2.522524 | 2.556374 | 4.91/4.60/4.91 | 4.91/4.91/4.91 | accepted |
+| 1 | 2 | M→B | 2.548344 | 2.549680 | 4.60/4.60/4.60 | 4.60/4.55/4.60 | accepted |
+| 2 | 3 | B→M | 2.546778 | 2.559879 | 4.55/4.27/4.55 | 4.55/4.55/4.55 | accepted |
+| 3 | 4 | M→B | 2.569238 | 2.550684 | 4.27/4.27/4.27 | 4.27/4.33/4.33 | accepted |
+| 4 | 5 | B→M | 2.568473 | 2.598981 | 4.33/4.30/4.33 | 4.33/4.33/4.33 | accepted |
+| 5 | 6 | M→B | 2.540249 | 2.536239 | 4.30/4.30/4.30 | 4.30/4.03/4.30 | accepted |
+| 6 | 7 | B→M | 2.562198 | 2.505018 | 4.03/4.19/4.19 | 4.03/4.03/4.03 | accepted |
+| 7 | 8 | M→B | 2.578463 | 2.504644 | 4.19/4.19/4.19 | 4.19/4.10/4.19 | accepted |
+
+### S3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 25.700724 | 26.046650 | 5.00/7.66/7.90 | 4.10/5.00/5.08 | discarded: load >7 |
+| warmup | 2 | B→M | 26.149283 | 26.069809 | 4.40/4.04/4.40 | 4.96/4.40/4.96 | accepted |
+| 1 | 3 | M→B | 25.391733 | 25.764575 | 4.04/3.77/4.12 | 3.77/4.35/4.77 | accepted |
+| 2 | 4 | B→M | 25.639041 | 26.011693 | 7.57/11.20/11.20 | 4.35/7.57/7.57 | discarded: load >7 |
+| 2 | 5 | B→M | 26.689726 | 26.546507 | 4.55/5.90/6.07 | 4.97/4.55/4.98 | accepted |
+| 3 | 6 | M→B | 26.513916 | 26.691071 | 4.81/4.24/4.83 | 4.24/4.16/4.27 | accepted |
+| 4 | 7 | B→M | 27.670317 | 26.370161 | 4.91/5.00/5.17 | 4.16/4.91/4.91 | accepted |
+| 5 | 8 | M→B | 29.071090 | 26.857799 | 4.69/5.48/5.48 | 5.48/5.38/5.54 | accepted |
+| 6 | 9 | B→M | 26.688934 | 27.378237 | 5.32/5.53/5.78 | 4.94/5.32/5.74 | accepted |
+| 7 | 10 | M→B | 26.962300 | 26.327239 | 4.60/4.76/5.08 | 4.76/5.34/5.66 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
+
+All added radio state is inside the existing optional
 boxed BLE state. UUID discovery is full-controller-only, so the existing HCI
 Peer/Session fields and sizes are unchanged; no fields were added to the bus/peripheral hot structures. The
 disabled tick path, optional-device registration and instruction dispatch are
 unchanged. Observation formatting stays behind the merged lazy observer gate.
+
