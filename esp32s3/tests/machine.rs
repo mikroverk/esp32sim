@@ -795,3 +795,31 @@ fn reboot_preserves_camera_host_settings_and_stream_but_resets_capture() {
     assert!(m.bus.periph.misc.log_all);
     assert!(m.bus.periph.misc.log_unknown);
 }
+
+#[test]
+fn busy_runs_honor_cycle_ceiling_with_virtual_and_batched_rounds() {
+    for peer in [false, true] {
+        for batching in [false, true] {
+            let mut m = machine();
+            m.quantum = 256;
+            for core in &mut m.cores { core.set_jit(false); }
+            m.vq_max = if batching { 16 } else { 1 };
+            m.bb_max = if batching { 16 } else { 1 };
+            park(&mut m, 0, IRAM, &SPIN);
+            if peer {
+                esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
+                // IDF v5.5.5 components/soc/esp32s3/register/soc/system_reg.h:15-33:
+                // CORE_1_CONTROL_0 enables its clock and clears reset/stall.
+                m.bus.write32(0x600c_0000, 0b010).unwrap();
+            }
+            for cycles in [1, 255, 256, 257, 1025, 1] {
+                m.max_cycles = m.bus.cycles + cycles;
+                assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                assert_eq!(m.bus.cycles, m.max_cycles);
+            }
+            if batching && esp_soc::SocBus::can_defer(&m.bus) {
+                assert!(if peer { m.bb_stats[0] } else { m.vq_stats[0] } > 0);
+            }
+        }
+    }
+}

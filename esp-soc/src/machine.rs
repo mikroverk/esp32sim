@@ -487,7 +487,8 @@ impl<S: Soc> Machine<S> {
 
     /// Run until something stops us or the `max_insns` scheduling-step budget is reached. The no-model path
     /// uses complete quanta (`QUANTUM` by default), so a busy round can exceed the budget by up to
-    /// `quantum - 1` steps. The modeled path schedules one priced event at a time.
+    /// `quantum - 1` steps, but the cycle ceiling cuts the final round short.
+    /// The modeled path schedules one priced event at a time.
     pub fn run(&mut self, max_insns: u64) -> Stop {
         self.web_poll_input();
         self.refresh_irq();
@@ -670,9 +671,10 @@ impl<S: Soc> Machine<S> {
                 // Use the round-entry idle snapshot: a busy core that reached WAITI in a
                 // partial virtual round has already advanced by resume_at. Its remaining
                 // timer delta cannot shorten that original round, which must match VQ-off.
-                self.cores.iter().enumerate().filter(|(i, _)| on[*i] && idle[*i])
+                let quantum = self.cores.iter().enumerate().filter(|(i, _)| on[*i] && idle[*i])
                     .filter_map(|(_, core)| core.cycles_until_wake())
-                    .fold(self.quantum, |limit, wake| limit.min(wake.max(1)))
+                    .fold(self.quantum, |limit, wake| limit.min(wake.max(1)));
+                if self.max_cycles != u64::MAX { quantum.min(self.max_cycles - self.bus.cycles()) } else { quantum }
             };
             let elapsed = quantum * u64::from(cpi);
             let mut stalls = [0u64; 4];
@@ -761,7 +763,7 @@ impl<S: Soc> Machine<S> {
         if self.rt.enabled { return 1; }
         let now = self.bus.cycles();
         let mut k = self.vq_max.min(deadline.div_ceil(self.quantum)).min(insns_left.div_ceil(self.quantum))
-            .min(self.max_cycles.saturating_sub(now).div_ceil(self.quantum));
+            .min(self.max_cycles.saturating_sub(now) / self.quantum);
         for (i, (core, &enabled)) in self.cores.iter().zip(on).enumerate() {
             if enabled && i != busy { if let Some(wake) = core.cycles_until_wake() { k = k.min(wake / self.quantum); } }
         }
@@ -791,7 +793,7 @@ impl<S: Soc> Machine<S> {
         let q = self.quantum;
         let now = self.bus.cycles();
         let mut k = self.bb_max.min(deadline.div_ceil(q)).min(insns_left.div_ceil(q))
-            .min(self.max_cycles.saturating_sub(now).div_ceil(q))
+            .min(self.max_cycles.saturating_sub(now) / q)
             // the console is drained when the scheduling counter crosses a 64Ki boundary
             .min((0x1_0000 - (n & 0xffff)).div_ceil(q));
         if let Some((at, _)) = self.script.events.get(self.script.pos) { k = k.min(at.saturating_sub(now).div_ceil(q)); }

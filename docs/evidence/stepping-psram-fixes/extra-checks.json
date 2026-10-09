@@ -1,0 +1,62 @@
+[
+  {
+    "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+    "exit_code": 0
+  },
+  {
+    "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+    "exit_code": 0
+  },
+  {
+    "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+    "exit_code": 0
+  },
+  {
+    "command": "node tools/worker-pacing-test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node tools/worker-channel-test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node --test tools/touch-input-test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node --test tools/wasm-build-policy.test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "node --test tools/browser-benchmark/*.test.mjs",
+    "exit_code": 0
+  },
+  {
+    "command": "python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+    "exit_code": 0
+  }
+]

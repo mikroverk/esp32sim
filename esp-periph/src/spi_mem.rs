@@ -59,17 +59,34 @@ impl SpiMem {
         let addr = if addr_bits > 24 { addr_reg } else { addr_reg & 0xff_ffff };
         let fsize = flash.len();
         let rd = |a: u32, n: usize| -> Vec<u8> { (0..n).map(|i| { let x = a as usize + i; if x < fsize { flash[x] } else { 0xff } }).collect() };
+        // IDF v5.5.5 components/soc/esp32s3/register/soc/spi_mem_reg.h:
+        // USR bit 18 (110-113), MISO/MOSI bits 28/27 (383-391), CS disable (560-570).
         let misc = self.regs.read(0x34);
-        if self.has_psram && cmd & (1 << 18) != 0 && misc & 1 != 0 && misc & 2 == 0 {   // USR command with CS0 disabled, CS1 enabled: the octal PSRAM
+        if self.has_psram && cmd & (1 << 18) != 0 && misc & 1 != 0 && misc & 2 == 0 {   // USR command with CS0 disabled, CS1 enabled: PSRAM
             let c16 = user2 & 0xffff;
             let has_miso = user & (1 << 28) != 0; let has_mosi = user & (1 << 27) != 0;
             if self.log { eprintln!("[spi1] psram cmd {:#06x} addr {:#x} miso {} mosi {}", c16, addr, if has_miso { miso_bytes } else { 0 }, if has_mosi { mosi_bytes } else { 0 }); }
             let psize = psram.len();
+            if psize == 0 {
+                if has_miso { self.set_w_bytes(&vec![0xff; miso_bytes]); }
+                return;
+            }
+            // IDF v5.5.5 components/esp_psram/device/esp_quad_psram_defs_ap.h:21-60;
+            // v4.4.8 components/esp_hw_support/port/esp32s3/spiram_psram.c:46-83
+            // use the same commands, KGD and 2/4/8 MiB density encoding.
+            // Revision bits and absent-device 0xff are inferred model choices.
             match c16 {
+                0x9f => {
+                    let density = match psize {
+                        0x200000 => 0x02, 0x400000 => 0x22, 0x800000 => 0x42,
+                        _ => { self.set_w_bytes(&vec![0xff; miso_bytes]); return; }
+                    };
+                    self.set_w_bytes(&[0x0d, 0x5d, density][..miso_bytes.min(3)]);
+                }
                 0x4040 => { let i = (addr & 0xf) as usize; let d: Vec<u8> = (0..miso_bytes).map(|k| *self.psram_mr.get(i + k).unwrap_or(&0)).collect(); self.set_w_bytes(&d); }   // mode register read
                 0xC0C0 => { let d = self.w_bytes(mosi_bytes); let i = (addr & 0xf) as usize; for (k, b) in d.iter().enumerate() { if i + k == 0 || i + k == 8 { self.psram_mr[i + k] = *b; } } }   // mode register write (MR0/MR8 writable)
-                0x8080 => { let d = self.w_bytes(mosi_bytes); self.dirty.push((DirtyMem::Psram, addr as usize, d.len())); for (k, b) in d.iter().enumerate() { let x = addr as usize + k; if x < psize { psram[x] = *b; } } }   // sync write
-                0x0000 => { let d: Vec<u8> = (0..miso_bytes).map(|k| { let x = addr as usize + k; if x < psize { psram[x] } else { 0 } }).collect(); self.set_w_bytes(&d); }   // sync read
+                0x02 | 0x38 | 0x8080 => { let d = self.w_bytes(mosi_bytes); self.dirty.push((DirtyMem::Psram, addr as usize, d.len())); for (k, b) in d.iter().enumerate() { let x = addr as usize + k; if x < psize { psram[x] = *b; } } }   // sync write
+                0x03 | 0x0b | 0xeb | 0x0000 => { let d: Vec<u8> = (0..miso_bytes).map(|k| { let x = addr as usize + k; if x < psize { psram[x] } else { 0 } }).collect(); self.set_w_bytes(&d); }   // sync read
                 _ => { if has_miso { self.set_w_bytes(&vec![0u8; miso_bytes]); } }
             }
             return;
@@ -122,4 +139,55 @@ impl Device for SpiMem {
     /// Only SPI1 is the command engine; SPI0 is the cache path and its command bit is ignored.
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { if SpiMem::write(self, off, v) && self.is_spi1 { WriteEffect::SPI_EXEC } else { WriteEffect::NONE } }
     fn debug(&mut self, on: bool) { self.log = on; }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SpiMem;
+
+    #[test]
+    fn cs1_quad_id_tracks_capacity_and_keeps_octal_and_flash_ids() {
+        for (size, id) in [(0, 0xffffff), (0x100000, 0xffffff), (0x200000, 0x025d0d), (0x400000, 0x225d0d), (0x800000, 0x425d0d)] {
+            let mut spi = SpiMem::new(true);
+            let mut psram = vec![0; size];
+            spi.write(0x18, (1 << 31) | (1 << 28));
+            spi.write(0x20, 0x9f);
+            spi.write(0x28, 47);
+            spi.write(0x34, 1);
+            spi.write(0, 1 << 18);
+            spi.execute(&mut [], &mut psram);
+            assert_eq!(spi.w[0] & 0xffffff, id);
+            if size == 0 {
+                spi.write(0x20, 0x4040);
+                spi.write(0, 1 << 18);
+                spi.execute(&mut [], &mut psram);
+                assert_eq!(spi.w[0], u32::MAX);
+            } else {
+                spi.write(0x20, 0x4040);
+                spi.write(0, 1 << 18);
+                spi.execute(&mut [], &mut psram);
+                assert_eq!(spi.w[0] & 0xffffff, 0x8b0d09);
+                for write in [0x02, 0x38, 0x8080] {
+                    spi.write(0x24, 31);
+                    let value = 0x12340000 | write;
+                    spi.write(0x58, value);
+                    spi.write(0x20, write);
+                    spi.write(0, 1 << 18);
+                    spi.execute(&mut [], &mut psram);
+                    for read in [0x03, 0x0b, 0xeb, 0x0000] {
+                        spi.write(0x58, 0);
+                        spi.write(0x20, read);
+                        spi.write(0, 1 << 18);
+                        spi.execute(&mut [], &mut psram);
+                        assert_eq!(spi.w[0], value);
+                    }
+                }
+            }
+            spi.write(0x34, 2);
+            spi.write(0x20, 0x9f);
+            spi.write(0, 1 << 18);
+            spi.execute(&mut [], &mut psram);
+            assert_eq!(spi.w[0] & 0xffffff, 0x174020);
+        }
+    }
 }
