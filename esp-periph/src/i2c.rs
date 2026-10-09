@@ -20,15 +20,16 @@ pub trait I2cDevice {
 
 pub const INT_END_DETECT: u32 = 1 << 3;
 pub const INT_TRANS_COMPLETE: u32 = 1 << 7;
+pub const INT_TIMEOUT: u32 = 1 << 8;
 pub const INT_NACK: u32 = 1 << 10;
 
-pub struct I2c {
+pub struct I2c<const N: usize = 8> {
     pub regs: RegRam,
     tx: VecDeque<u8>,
     rx: VecDeque<u8>,
     pub int_raw: u32,
     pub int_ena: u32,
-    cmd: [u32; 8],
+    cmd: [u32; N],
     devices: Vec<(u8, Box<dyn I2cDevice>)>,
     cur: Option<usize>,
     pins: Option<(u8, u8)>,
@@ -38,9 +39,15 @@ pub struct I2c {
     pub transactions: u64,
 }
 
-impl I2c {
-    pub fn new() -> Self {
-        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 8], devices: Vec::new(), cur: None, pins: None, expect_addr: false, nack: false,
+impl I2c { pub fn new() -> Self { Self::with_slots() } }
+/// ESP-IDF v5.5.4 esp32 i2c_reg.h: sixteen commands; i2c_ll.h: opcodes 0/1/2/3/4.
+impl I2c<16> { pub fn new_classic() -> Self { Self::with_slots() } }
+// Each slot count gets its own non-generic code, so S3/C3/C6 compile exactly one copy of each
+// method as before; a generic impl would be instantiated per calling crate.
+macro_rules! i2c_impl { ($n:literal) => {
+impl I2c<$n> {
+    fn with_slots() -> Self {
+        I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; $n], devices: Vec::new(), cur: None, pins: None, expect_addr: false, nack: false,
               log: false, transactions: 0 }
     }
     /// A device attached at an occupied address and pin pair replaces the one there: a board swapped before
@@ -74,13 +81,14 @@ impl I2c {
 
     pub fn read(&mut self, off: u32) -> u32 {
         match off {
-            0x08 => (self.nack as u32) | ((self.rx.len() as u32 & 0x3f) << 8) | ((self.tx.len() as u32 & 0x3f) << 18),   // SR: resp_rec, rxfifo_cnt, txfifo_cnt
+            0x08 => (self.nack as u32) | (u32::from($n == 16 && self.int_raw & INT_TIMEOUT != 0) << 2) | ((self.rx.len() as u32 & 0x3f) << 8) | ((self.tx.len() as u32 & 0x3f) << 18),   // SR: resp_rec, rxfifo_cnt, txfifo_cnt
             0x14 => ((self.rx.len() as u32 & 0x1f) << 5) | ((self.tx.len() as u32 & 0x1f) << 15),                        // FIFO_ST: waddr = count, raddr = 0
             0x1c => self.rx.pop_front().unwrap_or(0) as u32,
             0x20 => self.int_raw,
             0x28 => self.int_ena,
             0x2c => self.int_raw & self.int_ena,
             0x58..=0x74 => self.cmd[((off - 0x58) / 4) as usize],
+            0x78..=0x94 if $n == 16 => self.cmd[((off - 0x58) / 4) as usize],
             _ => self.regs.read(off),
         }
     }
@@ -95,6 +103,7 @@ impl I2c {
             0x24 => self.int_raw &= !v,
             0x28 => self.int_ena = v,
             0x58..=0x74 => self.cmd[((off - 0x58) / 4) as usize] = v & !(1 << 31),
+            0x78..=0x94 if $n == 16 => self.cmd[((off - 0x58) / 4) as usize] = v & !(1 << 31),
             _ => self.regs.write(off, v),
         }
     }
@@ -102,9 +111,11 @@ impl I2c {
     fn run(&mut self) {
         self.nack = false;
         self.transactions += 1;
-        for i in 0..8 {
+        for i in 0..$n {
             let c = self.cmd[i];
             let op = (c >> 11) & 7;
+            // Classic opcodes RSTART 0, READ 2, STOP 3 map onto the S3 numbering below.
+            let op = if $n == 16 { match op { 0 => 6, 2 => 3, 3 => 2, op => op } } else { op };
             let n = (c & 0xff) as usize;
             let ack_check = c & (1 << 8) != 0;
             match op {
@@ -148,6 +159,16 @@ impl I2c {
         }
     }
 }
+/// Waveshare's CH32V003 IO expander: regs 0x02 direction, 0x03 output, 0x04 input, 0x05 PWM, 0x06 ADC, 0x07 RTC.
+impl Device for I2c<$n> {
+    fn read(&mut self, off: u32) -> u32 { I2c::<$n>::read(self, off) }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect { I2c::<$n>::write(self, off, v); WriteEffect::NONE }
+    fn irq_sources(&self) -> u64 { self.irq() as u64 }
+    fn debug(&mut self, on: bool) { self.log = on; }
+}
+} }
+i2c_impl!(8);
+i2c_impl!(16);
 
 impl Default for I2c { fn default() -> Self { Self::new() } }
 
@@ -165,10 +186,22 @@ impl I2cDevice for Reg8Device {
     fn read(&mut self) -> u8 { let v = self.regs[self.ptr as usize]; self.ptr = self.ptr.wrapping_add(1); v }
 }
 
-/// Waveshare's CH32V003 IO expander: regs 0x02 direction, 0x03 output, 0x04 input, 0x05 PWM, 0x06 ADC, 0x07 RTC.
-impl Device for I2c {
-    fn read(&mut self, off: u32) -> u32 { I2c::read(self, off) }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect { I2c::write(self, off, v); WriteEffect::NONE }
-    fn irq_sources(&self) -> u64 { self.irq() as u64 }
-    fn debug(&mut self, on: bool) { self.log = on; }
+#[cfg(test)]
+mod classic_tests {
+    use super::*;
+    #[test]
+    fn classic_executes_sixteen_slots_and_old_stop_opcode() {
+        let mut classic = I2c::new_classic();
+        for i in 0..15 { classic.write(0x58 + 4 * i, 0); }
+        classic.write(0x94, 3 << 11);
+        classic.write(4, 1 << 5);
+        assert_ne!(classic.read(0x94) & (1 << 31), 0);
+        assert_ne!(classic.int_raw & INT_TRANS_COMPLETE, 0);
+        let mut modern = I2c::new();
+        modern.write(0x94, 3 << 11);
+        modern.write(0x58, 2 << 11);
+        modern.write(4, 1 << 5);
+        assert_eq!(modern.read(0x94), 3 << 11);
+        assert_ne!(modern.int_raw & INT_TRANS_COMPLETE, 0);
+    }
 }

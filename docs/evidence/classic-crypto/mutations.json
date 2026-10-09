@@ -1,0 +1,142 @@
+[
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "words.reverse(); -> words.rotate_left(1);",
+    "test": "aes_fips197_all_key_lengths_directions_and_endianness",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "*word = word.swap_bytes(); -> *word = *word;",
+    "test": "aes_fips197_all_key_lengths_directions_and_endianness",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "self.mode & 4 != 0 -> self.mode & 4 == 0",
+    "test": "aes_fips197_all_key_lengths_directions_and_endianness",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "0x3ff0_1000 => Some(0) -> 0x3ff0_1000 => Some(1)",
+    "test": "each_crypto_command_obeys_its_own_dport_clock",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "algorithm.min(2) -> 0",
+    "test": "sha_parallel_engines_and_shared_sha384_sha512_state",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "if off & 15 == 0 { 0x10 } else { 0x14 } -> 0x10",
+    "test": "sha_all_algorithms_start_continue_load",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "src.swap_bytes() -> src",
+    "test": "sha_all_algorithms_start_continue_load",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "0x3ff0_30b8 => Some(1) -> 0x3ff0_30b8 => Some(0)",
+    "test": "each_crypto_command_obeys_its_own_dport_clock",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "wrapping_mul(self.inner.m_prime) -> wrapping_mul(1)",
+    "test": "classic_rsa_montgomery_steps_match_independent_values",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "product[i + j] = sum as u32;\n                carry = sum >> 32; -> product[i + j] = sum as u32;\n                carry = 0;",
+    "test": "classic_rsa_all_montgomery_lengths_carry_and_zero",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/rsa.rs",
+    "mutation": "unwrap_or(&0) -> unwrap_or(&1)",
+    "test": "classic_rsa_all_montgomery_lengths_carry_and_zero",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "0x3ff0_2810 => Some(2) -> 0x3ff0_2810 => Some(0)",
+    "test": "each_crypto_command_obeys_its_own_dport_clock",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/rsa.rs",
+    "mutation": "self.int_raw = 1; -> self.int_raw = 0;",
+    "test": "classic_rsa_modexp_registers_interrupt_reset_and_clock",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "0x814 if value & 1 != 0 -> 0x814 if value & 1 == 0",
+    "test": "classic_rsa_modexp_registers_interrupt_reset_and_clock",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "reset & 0x19 == 0 -> reset & 1 == 0",
+    "test": "crypto_clocks_resets_power_and_rsa_interrupt_routing",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "reset & 0x0a == 0 -> reset & 2 == 0",
+    "test": "crypto_clocks_resets_power_and_rsa_interrupt_routing",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "reset & 0x14 == 0 && !rsa_down -> reset & 4 == 0",
+    "test": "crypto_clocks_resets_power_and_rsa_interrupt_routing",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/rsa.rs",
+    "mutation": "self.block(128 + n, n) -> self.block(128, n)",
+    "test": "classic_rsa_plain_multiply_lengths_and_invalid_mode",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "self.inner.length = 16 * (self.modexp_mode + 1) - 1; -> self.inner.length = 15;",
+    "test": "classic_rsa_modexp_maps_every_operand_width",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/crypto.rs",
+    "mutation": "blocks: 0,\n            debug: false,\n        }\n    }\n\n    pub fn reset(&mut self) { *self = Self::new(); } -> blocks: 0,\n            debug: false,\n        }\n    }\n\n    pub fn reset(&mut self) { self.mode = 0; }",
+    "test": "reset_clears_crypto_state_and_reserved_modes_do_not_execute",
+    "crate": "esp32",
+    "killed": true
+  }
+]

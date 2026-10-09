@@ -2,6 +2,23 @@ use crate::device::{Device, WriteEffect};
 use crate::regram::RegRam;
 use emu_core::ClockDomain;
 
+/// The WS2812 bit of one RMT symbol's durations and levels: 1 when its high time exceeds its
+/// low time. A macro so the RMT engine's per-symbol loop keeps exactly this inline code.
+#[macro_export]
+macro_rules! ws2812_bit {
+    ($d0:ident, $l0:ident, $d1:ident, $l1:ident) => {{
+        let high = if $l0 { $d0 } else { 0 } + if $l1 { $d1 } else { 0 };
+        let low = if !$l0 { $d0 } else { 0 } + if !$l1 { $d1 } else { 0 };
+        high > low
+    }};
+}
+
+/// Decode the WS2812 bit carried by one RMT symbol.
+pub fn symbol_bit(sym: u32) -> bool {
+    let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
+    ws2812_bit!(d0, l0, d1, l1)
+}
+
 // ------------------------------------------------------------------ RMT (TX channels 0-3) — enough for WS2812 via the legacy driver
 pub const RMT_MEM_WORDS: usize = 48;
 #[derive(Clone, Default)]
@@ -119,10 +136,7 @@ impl Rmt {
                     c.end_pending = true;
                     continue;
                 }
-                // decode WS2812 bit: compare high vs low durations
-                let high = if l0 { d0 } else { 0 } + if l1 { d1 } else { 0 };
-                let low = if !l0 { d0 } else { 0 } + if !l1 { d1 } else { 0 };
-                c.bits.push(high > low);
+                c.bits.push(ws2812_bit!(d0, l0, d1, l1));
                 c.acc_cycles -= (d0 + d1) * cycles_per_tick;
                 c.rd += 1;
                 c.since_thr += 1;
