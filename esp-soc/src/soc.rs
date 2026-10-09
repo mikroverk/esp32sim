@@ -22,7 +22,7 @@ pub enum Stop {
     Exceptions(u64),
     /// The model could not price an execution event. Its effects remain committed.
     CostModel { core: usize, pc: u32, reason: String },
-    /// The model refused a reset event, which has no instruction pc.
+    /// A timing configuration or lifecycle event was rejected.
     CostModelLifecycle { kind: LifecycleKind, reason: String },
 }
 
