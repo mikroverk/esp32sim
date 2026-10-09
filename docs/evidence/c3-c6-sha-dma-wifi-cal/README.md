@@ -1,7 +1,7 @@
 # EX220: C3/C6 SHA DMA and C6 Wi-Fi calibration/ECC
 
-Base `017af5241f48855c412d912ff91f0a801dd3c1bd` on upstream/main.
-Implementation `3df32945e91e61c574ed64de84bbfb541c225681`. This change
+Base `954f2a683f68e04d994152f7e19da2b35a3e8ccb` on upstream/main.
+The source is the commits on this branch. This change
 extends EX202's station contract to unstubbed C6 PHY startup and TLS accelerator
 use. EX210's shared StationLink from merged #193 remains the only Wi-Fi link.
 S3, C3 and C6 share SHA DMA execution. The S3 crypto OUT reader moves to `esp-periph`; C3/C6 reuse it with SRAM-only
@@ -172,7 +172,7 @@ env -i PATH="$PATH" HOME="$PWD/target/ex220-home" TMPDIR="$PWD/target/ex220-tmp"
   cargo +1.99.0 test --release --workspace
 ```
 
-Final results: **668** CI-policy tests pass; **645** plain tests pass with
+Final results: **669** CI-policy tests pass; **646** plain tests pass with
 **37** ignored. Both Clippy targets, the WASM build, all eight requested WASM
 scenarios, evidence privacy and **44/44** mutation checks pass.
 
@@ -183,12 +183,31 @@ comparison must include C6 hello.
 
 PENDING
 
-SHA work runs only on SHA/GDMA writes. Calibration has no clock, timer, deadline
-or added field. ECC is appended to Peripherals and uses the existing optional
-source cache on MMIO writes; it never joins the periodic device list. No new
-per-tick transfer check or helper is added. S3's DMA call sites are unchanged.
-No CPU benchmark was run. Interrupt source refresh still includes the ECC bit;
-the central CPU comparison must assess the final build's layout and dispatch.
+An MMIO write tests SHA `dma_pending` once; the SHA/GDMA address filter and
+the transfer are in a `#[cold]`, `#[inline(never)]` C3/C6 helper. Calibration
+has no clock, timer, deadline or added field. ECC is boxed, so C6 `Peripherals`
+grows by one pointer; it uses the existing optional source cache on MMIO
+writes and never joins the periodic device list. No per-tick transfer check is
+added. S3's DMA call sites are unchanged. No CPU benchmark was run.
+
+Static code comparison: `cargo +1.99.0 build --release -p esp32sim --bin esp32sim`
+(aarch64-apple-darwin, the workspace's fat-LTO release profile) at `954f2a68`
+and at this commit, disassembled per function with `objdump -d`, with absolute
+addresses, branch targets and page offsets normalised. For C6:
+
+* `Machine::run`, `step_core`, `Bus::tick` and the `Bus` read/write/fetch
+  entry points execute the same instruction sequences; immediates differ by the
+  8-byte field shift after `Peripherals`. In `run`, one block that calls the
+  allocator has one load fewer.
+* `periph_write` adds one byte load and branch on the common path (`dma_pending`)
+  and the ECC_MULT arm in its block dispatch.
+* `refresh_irq` adds the ECC word to the cached optional-source merge
+  (`OPTIONAL_SOURCES[2]`); this runs once per interrupt-line refresh.
+* `ModemBb::read` is now out of line from `Peripherals::read32`; it runs only
+  for baseband reads.
+* New functions (`Ecc`, point arithmetic, `sha_dma_write`) and changed cold
+  functions (`Peripherals::new`, `reboot`, `refresh_optional`, `tick_optional`
+  ECC arm, drop glue) are not on the idle path.
 
 ## Limits and evidence curation
 

@@ -365,7 +365,8 @@ pub struct Peripherals {
     last_status: [u32; 4],
     pub ledc: Ledc,
     pub mcpwm: Mcpwm,
-    pub ecc: crate::ecc::Ecc,
+    /// Boxed: Peripherals grows by one pointer, not by the ECC parameter RAM.
+    pub ecc: Box<crate::ecc::Ecc>,
 }
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.

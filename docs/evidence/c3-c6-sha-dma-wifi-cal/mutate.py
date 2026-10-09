@@ -11,8 +11,8 @@ SHA = ["-p", "esp32c3", "-p", "esp32c6", "--test", "sha_dma"]
 ECC = ["-p", "esp32c6", "--lib", "ecc::tests"]
 WIFI = ["-p", "esp32c6", "--test", "wifi"]
 CASES = [
-    ("SHA start wiring C3", "esp32c3/src/bus.rs", "self.periph.sha.dma_pending &&", "false &&", SHA),
-    ("SHA start wiring C6", "esp32c6/src/bus.rs", "self.periph.sha.dma_pending &&", "false &&", SHA),
+    ("SHA start wiring C3", "esp32c3/src/bus.rs", "if self.periph.sha.dma_pending {", "if false {", SHA),
+    ("SHA start wiring C6", "esp32c6/src/bus.rs", "if self.periph.sha.dma_pending {", "if false {", SHA),
     ("GDMA late start C3", "esp32c3/src/bus.rs", "0x6003_b000 | 0x6003_f000", "0x6003_b000", SHA),
     ("GDMA late start C6", "esp32c6/src/bus.rs", "0x6008_9000 | 0x6008_0000", "0x6008_9000", SHA),
     ("DMA first resets digest", "esp-periph/src/sha.rs", "let mut first = self.dma_first;", "let mut first = false;", SHA),
@@ -56,8 +56,8 @@ firmware = sys.argv[1:] == ["--firmware"]
 if firmware:
     tests = lambda chip: ["--release", "-p", "esp32sim", "--test", "goldens", "crypto_tls_" + chip, "--", "--ignored"]
     CASES = [
-        ("TLS needs C3 SHA DMA", "esp32c3/src/bus.rs", "self.periph.sha.dma_pending &&", "false &&", tests("c3")),
-        ("TLS needs C6 SHA DMA", "esp32c6/src/bus.rs", "self.periph.sha.dma_pending &&", "false &&", tests("c6")),
+        ("TLS needs C3 SHA DMA", "esp32c3/src/bus.rs", "if self.periph.sha.dma_pending {", "if false {", tests("c3")),
+        ("TLS needs C6 SHA DMA", "esp32c6/src/bus.rs", "if self.periph.sha.dma_pending {", "if false {", tests("c6")),
         ("TLS needs C6 ECC", "esp32c6/src/ecc.rs", "if value & 1 != 0 {", "if false {", tests("c6")),
         ("Unstubbed C6 PHY needs TX DC completion", "esp32c6/src/wifi.rs", "u32::from(self.ram.read(off) & 1 != 0) << 22", "0", tests("c6")),
         ("Unstubbed C6 PHY needs calibration completion", "esp32c6/src/wifi.rs", "{ 7 << 14 } else { 0 }", "{ 0 } else { 0 }", tests("c6")),

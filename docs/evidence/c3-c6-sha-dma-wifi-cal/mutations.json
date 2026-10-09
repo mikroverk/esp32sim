@@ -2,16 +2,16 @@
   {
     "mutation": "SHA start wiring C3",
     "file": "esp32c3/src/bus.rs",
-    "old": "self.periph.sha.dma_pending &&",
-    "new": "false &&",
+    "old": "if self.periph.sha.dma_pending {",
+    "new": "if false {",
     "command": "cargo +1.99.0 test -p esp32c3 -p esp32c6 --test sha_dma",
     "killed_by": [
-      "owner_check_is_optional_and_requested_length_bounds_input",
-      "one_dma_request_hashes_every_block_without_reinitializing",
-      "invalid_chains_raise_descriptor_error_without_hashing",
-      "cycle_detection_is_independent_of_owner_checking",
       "sha_before_gdma_waits_for_channel_and_never_ticks",
+      "invalid_chains_raise_descriptor_error_without_hashing",
+      "owner_check_is_optional_and_requested_length_bounds_input",
       "dma_continue_preserves_the_previous_hash_state",
+      "cycle_detection_is_independent_of_owner_checking",
+      "one_dma_request_hashes_every_block_without_reinitializing",
       "sha256_split_descriptor_completes_on_start_write"
     ],
     "exit": 101
@@ -19,17 +19,17 @@
   {
     "mutation": "SHA start wiring C6",
     "file": "esp32c6/src/bus.rs",
-    "old": "self.periph.sha.dma_pending &&",
-    "new": "false &&",
+    "old": "if self.periph.sha.dma_pending {",
+    "new": "if false {",
     "command": "cargo +1.99.0 test -p esp32c3 -p esp32c6 --test sha_dma",
     "killed_by": [
-      "owner_check_is_optional_and_requested_length_bounds_input",
+      "invalid_chains_raise_descriptor_error_without_hashing",
       "sha_before_gdma_waits_for_channel_and_never_ticks",
       "one_dma_request_hashes_every_block_without_reinitializing",
-      "sha256_split_descriptor_completes_on_start_write",
       "dma_continue_preserves_the_previous_hash_state",
       "cycle_detection_is_independent_of_owner_checking",
-      "invalid_chains_raise_descriptor_error_without_hashing"
+      "owner_check_is_optional_and_requested_length_bounds_input",
+      "sha256_split_descriptor_completes_on_start_write"
     ],
     "exit": 101
   },

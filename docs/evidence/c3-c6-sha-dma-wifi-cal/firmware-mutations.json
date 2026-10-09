@@ -2,8 +2,8 @@
   {
     "mutation": "TLS needs C3 SHA DMA",
     "file": "esp32c3/src/bus.rs",
-    "old": "self.periph.sha.dma_pending &&",
-    "new": "false &&",
+    "old": "if self.periph.sha.dma_pending {",
+    "new": "if false {",
     "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c3 -- --ignored",
     "killed_by": [
       "crypto_tls_c3"
@@ -13,8 +13,8 @@
   {
     "mutation": "TLS needs C6 SHA DMA",
     "file": "esp32c6/src/bus.rs",
-    "old": "self.periph.sha.dma_pending &&",
-    "new": "false &&",
+    "old": "if self.periph.sha.dma_pending {",
+    "new": "if false {",
     "command": "cargo +1.99.0 test --release -p esp32sim --test goldens crypto_tls_c6 -- --ignored",
     "killed_by": [
       "crypto_tls_c6"
