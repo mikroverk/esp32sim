@@ -45,8 +45,19 @@ runner.CASES = [
     ('ADC hold last sample', QUEUE, 'if self.hold', 'if false', UNIT, 'stream_clock_bound_hold_and_shared_handle'),
     ('PCM silence on underrun', QUEUE, 'if self.hold', 'if true', UNIT, 'source_clock_bound_and_underrun'),
 ]
+# Conversions keep main's peripheral-clock timestamp; attached streams carry its bus-cycle offset.
+ACROSS_RESET = 'stream_conversions_follow_time_across_reset'
+runner.CASES.append(('stream clock offset applied', ADC, 'now.saturating_add(self.clock_offset)', 'now', BUS_ADC, ACROSS_RESET))
+for variant in ['Stream', 'RawStream']:
+    runner.CASES.append((variant + ' offset recorded', 'esp-periph/src/analog.rs', 'AnalogSource::' + variant + '(stream) => stream.clock_offset = offset,', 'AnalogSource::' + variant + '(_) => {}', BUS_ADC, ACROSS_RESET))
 for chip,device in [('s3','rtc'),('c3','adc'),('c6','adc')]:
-    runner.CASES.append((chip + ' conversion timestamp', 'esp32' + chip + '/src/bus.rs', 'self.periph.' + device + '.now_cycles = self.cycles;', 'self.periph.' + device + '.now_cycles = 0;', BUS_ADC, 'stream_conversions_follow_time_across_reset'))
+    soc = 'esp32' + chip + '/src/soc.rs'
+    runner.CASES.append((chip + ' offset at reset', soc, 'p.' + device + '.analog.set_stream_clock_offset(self.cycles);', '', BUS_ADC, ACROSS_RESET))
+    runner.CASES.append((chip + ' offset at attach', soc, 'self.periph.' + device + '.analog.set_stream_clock_offset(offset);', '', BUS_ADC, ACROSS_RESET))
+for chip in ['c3', 'c6']:
+    runner.CASES.append((chip + ' offset excludes peripheral time', 'esp32' + chip + '/src/bus.rs', 'self.cycles - self.periph.clock_cycles()', 'self.cycles', BUS_ADC, ACROSS_RESET))
+runner.CASES.append(('s3 offset excludes deferred ticks', 'esp32s3/src/bus.rs', ' - u64::from(self.tick_pending)', '', BUS_ADC, ACROSS_RESET))
+runner.CASES.append(('s3 offset excludes peripheral time', 'esp32s3/src/bus.rs', ' - self.periph.clock_cycles()', '', BUS_ADC, ACROSS_RESET))
 runner.CASES.append(('bank returned after RX interval', RX, 'rx.sources = bank;', '', BUS_PCM, 'routing_timing_dma_stall_and_reset_on_all_chips'))
 runner.CASES.append(('shared lazy host synchronization', 'esp-soc/src/soc.rs', 'sources.advance_to(cycles, cpu_hz);', '', BUS_PCM, 'routing_timing_dma_stall_and_reset_on_all_chips'))
 

@@ -497,7 +497,6 @@ impl SocBus {
         if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 && !self.periph.spi2.has_pending_transfer() {
             self.spi2_pins = self.board.uses_spi_pins().then(|| self.periph.spi2_pins());
         }
-        if a >> 12 == 0x60008 { self.periph.rtc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         if old_gpio_out != self.periph.gpio.out || old_gpio_enable != self.periph.gpio.enable {
             let changes = &self.periph.gpio.changes;
@@ -805,6 +804,11 @@ impl SocBus {
             budget = budget.min(until_deadline as u32);
         }
         self.tick_budget = budget;
+    }
+
+    /// Bus cycles at which the current peripheral clock started (deferred ticks excluded).
+    pub(crate) fn peripheral_clock_offset(&self) -> u64 {
+        self.cycles - u64::from(self.tick_pending) - self.periph.clock_cycles()
     }
 
     /// Deliver the deferred cycles to the device models now.

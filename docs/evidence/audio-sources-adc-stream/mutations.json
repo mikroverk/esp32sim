@@ -145,17 +145,67 @@
     "killed": true
   },
   {
-    "mutation": "s3 conversion timestamp",
+    "mutation": "stream clock offset applied",
     "test": "stream_conversions_follow_time_across_reset",
     "killed": true
   },
   {
-    "mutation": "c3 conversion timestamp",
+    "mutation": "Stream offset recorded",
     "test": "stream_conversions_follow_time_across_reset",
     "killed": true
   },
   {
-    "mutation": "c6 conversion timestamp",
+    "mutation": "RawStream offset recorded",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "s3 offset at reset",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "s3 offset at attach",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c3 offset at reset",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c3 offset at attach",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c6 offset at reset",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c6 offset at attach",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c3 offset excludes peripheral time",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c6 offset excludes peripheral time",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "s3 offset excludes deferred ticks",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "s3 offset excludes peripheral time",
     "test": "stream_conversions_follow_time_across_reset",
     "killed": true
   },

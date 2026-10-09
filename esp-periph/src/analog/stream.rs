@@ -1,28 +1,31 @@
 use crate::clocked_queue::ClockedQueue;
 use std::sync::{Arc, Mutex};
 
-/// A shared host stream. Timestamps use the attached chip's cycle clock.
+/// A shared host stream. Host timestamps use the attached chip's bus cycle count.
 /// Voltage samples are volts; raw samples are post-attenuation 12-bit counts.
+/// An attached copy also records the bus cycle count at which the chip's peripheral clock
+/// restarted, because conversions sample at peripheral time.
 #[derive(Clone)]
-pub struct AnalogStream<T = f32>(Arc<Mutex<State<T>>>);
+pub struct AnalogStream<T = f32> { state: Arc<Mutex<State<T>>>, pub(super) clock_offset: u64 }
 struct State<T> { queue: ClockedQueue<T>, now: u64 }
 impl<T: Copy> AnalogStream<T> {
     fn create(rate: u32, initial: T, now: u64) -> Result<Self, &'static str> {
-        Ok(Self(Arc::new(Mutex::new(State { queue: ClockedQueue::new(rate, initial, true)?, now }))))
+        Ok(Self { state: Arc::new(Mutex::new(State { queue: ClockedQueue::new(rate, initial, true)?, now })), clock_offset: 0 })
     }
     fn append(&self, samples: &[T], now: u64, cpu_hz: u64) {
-        let mut state = self.0.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
         state.advance(now, cpu_hz);
         state.queue.push(samples.iter().copied());
     }
     pub fn queued_samples(&self, now: u64, cpu_hz: u64) -> usize {
-        let mut state = self.0.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
         state.advance(now, cpu_hz);
         state.queue.frames.len()
     }
+    /// Sample at peripheral-clock time `now`.
     pub(super) fn sample(&self, now: u64, cpu_hz: u64) -> T {
-        let mut state = self.0.lock().unwrap();
-        state.advance(now, cpu_hz);
+        let mut state = self.state.lock().unwrap();
+        state.advance(now.saturating_add(self.clock_offset), cpu_hz);
         state.queue.current
     }
 }

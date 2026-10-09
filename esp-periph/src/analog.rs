@@ -44,6 +44,17 @@ impl AnalogInputs {
         self.pins.remove(&pin); self.raw.insert(pin, raw); true
     }
     pub fn observation(&self, pin: u8) -> AdcObservation { self.observed.get(&pin).copied().unwrap_or_default() }
+    /// Record that the chip's peripheral clock reads `bus_cycles - offset`. Conversions keep
+    /// sampling at peripheral time; attached streams translate it to host bus cycles.
+    pub fn set_stream_clock_offset(&mut self, offset: u64) {
+        for source in self.pins.values_mut() {
+            match source {
+                AnalogSource::Stream(stream) => stream.clock_offset = offset,
+                AnalogSource::RawStream(stream) => stream.clock_offset = offset,
+                AnalogSource::Const(_) | AnalogSource::Wave { .. } => {}
+            }
+        }
+    }
     /// Complete one sample. Reading or replacing a source never advances its generation.
     pub(crate) fn convert(&mut self, pin: u8, now: u64, code: impl FnOnce(f32) -> u32) -> u32 {
         let raw = self.raw.get(&pin).copied().unwrap_or_else(|| match self.pins.get(&pin) {

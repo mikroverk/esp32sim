@@ -419,6 +419,7 @@ impl DeviceSet for Peripherals {
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
     fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+        if block == 0x0e { self.adc.now_cycles = self.clock.cycles(); }
         if block == 0xb2 { self.rng.now = self.clock.cycles() as u32; }
         if block == 0xa3 { self.radio.log_unknown = self.misc.log_unknown; }
     }
@@ -525,6 +526,8 @@ impl Peripherals {
     /// timer countdowns, a running RMT channel), conservative by one device tick;
     /// `u32::MAX` when nothing is armed. What a host that skips idle time may skip.
     pub fn cycles_until_timer(&self) -> u32 { Dispatch::cycles_until_deadline(self) }
+    /// CPU cycles since this peripheral set was built.
+    pub(crate) fn clock_cycles(&self) -> u64 { self.clock.cycles() }
 
     /// Which interrupt sources are asserted right now.
     pub fn source_status(&self) -> [u32; 4] { Dispatch::source_status(self) }

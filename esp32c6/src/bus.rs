@@ -144,7 +144,6 @@ impl SocBus {
         }
         let v = if size == 4 { v } else { merge(self.periph.read32(a)) };
         let old_drive = (self.periph.gpio.enable, self.periph.gpio.out);
-        if a >> 12 == 0x6000e { self.periph.adc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         if old_drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
@@ -423,14 +422,14 @@ impl SocBus {
 
     /// Run the SPI1 controller if the guest just kicked it, advance device time, deliver what
     /// the devices produced to the board.
+    /// Bus cycles at which the current peripheral clock started.
+    pub(crate) fn peripheral_clock_offset(&self) -> u64 { self.cycles - self.periph.clock_cycles() }
+
     // ESP-IDF v5.5.5 components/soc/esp32c6/include/soc/gdma_channel.h:13, I2S0 trigger 3.
     fn i2s_rx_step(&mut self, cycles: u64) {
         let Some(ch) = self.periph.gdma.gdma.in_channel_for(3) else { return };
         self.periph.i2s0.rx_pcr_clock(self.periph.pcr.read(0x78), self.periph.pcr.read(0x7c));
-        let signals = esp_periph::i2s::RxSignals { data: 15, input_select_bit: 7, output_mask: 0x1ff };
-        let mut bank = self.periph.i2s0.take_pcm_bank();
-        let bytes = self.periph.i2s0.receive(cycles, self.cycles, false, &self.periph.gpio, signals, bank.as_deref_mut());
-        self.periph.i2s0.restore_pcm_bank(bank);
+        let bytes = self.i2s_receive(cycles);
         let eof = self.periph.i2s0.read(0x64);
         let mut channel = self.periph.gdma.gdma.inp[ch];
         let mut irq_changed = false;
@@ -438,6 +437,17 @@ impl SocBus {
         self.periph.i2s0.recycle_rx_buffer(bytes);
         self.irq_dirty |= irq_changed;
         self.periph.gdma.gdma.inp[ch] = channel;
+    }
+
+    /// PCM for one RX interval: pin-routed sources when a bank is attached, else controller input.
+    /// Kept out of line so the RX DMA pump keeps the EX214 call shape.
+    #[inline(never)]
+    fn i2s_receive(&mut self, cycles: u64) -> Vec<u8> {
+        let signals = esp_periph::i2s::RxSignals { data: 15, input_select_bit: 7, output_mask: 0x1ff };
+        let mut bank = self.periph.i2s0.take_pcm_bank();
+        let bytes = self.periph.i2s0.receive(cycles, self.cycles, false, &self.periph.gpio, signals, bank.as_deref_mut());
+        self.periph.i2s0.restore_pcm_bank(bank);
+        bytes
     }
 
     #[inline(never)]

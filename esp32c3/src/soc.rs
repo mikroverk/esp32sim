@@ -130,6 +130,7 @@ impl esp_soc::SocBus for SocBus {
         p.efuse = old.efuse;
         p.i2s0.keep_rx_input(&mut old.i2s0);
         p.adc.analog = old.adc.analog;
+        p.adc.analog.set_stream_clock_offset(self.cycles); // the new peripheral clock starts at zero
         p.misc.log_unknown = old.misc.log_unknown;
         p.usb.connected = old.usb.connected;
         p.rtc.reset_cause = cause;
@@ -163,7 +164,11 @@ impl esp_soc::SocBus for SocBus {
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
-    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.adc.analog.set(pin, src); }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) {
+        let offset = self.peripheral_clock_offset();
+        self.periph.adc.analog.set(pin, src);
+        self.periph.adc.analog.set_stream_clock_offset(offset);
+    }
     fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { pin <= 5 && self.periph.adc.analog.set_raw(pin, raw) }
     fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
         (pin <= 5).then(|| self.periph.adc.analog.observation(pin))

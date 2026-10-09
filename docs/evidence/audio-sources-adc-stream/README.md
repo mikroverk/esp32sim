@@ -1,6 +1,7 @@
 # EX215: pin-routed audio sources and ADC streams
 
-Builds on the local `i2s-rx-input` branch, EX214, above upstream `017af524`.
+Builds on the local `i2s-rx-input` branch (EX214, `06c04176`), above upstream
+main `2f9443a9`.
 This adds host source clocks and pin routing to the existing receiver. It does
 not add a second DMA walker or input transport. ADC streams use main's analog
 source replacement and completed-conversion observation paths.
@@ -26,7 +27,10 @@ per-tick loop. Obtain `SocBus::pcm_sources()` before pushing or inspecting its
 slots. Sources, clock phase and buffered samples survive a chip reset.
 
 `AnalogStream` attaches through `AnalogSource::Stream`. Host handles share a
-bounded queue; conversion samples it at the bus cycle. Voltage streams carry finite `f32` volts through the existing calibration
+bounded queue. Host timestamps are bus cycles (`bus.cycles()`). Conversions
+keep main's peripheral-clock timestamp. Each attached copy records the bus
+cycle at which that clock started, set on attach and on chip reset, so samples
+stay aligned to bus time across resets. Attach a stream to one chip only. Voltage streams carry finite `f32` volts through the existing calibration
 curve. `AnalogSource::RawStream` carries `u16` counts, accepts only `push_raw`,
 and bypasses attenuation/calibration. Both use the same `ClockedQueue<T>` as
 I2S for sample clocks, phase and the two-second drop-old buffer. Conversion
@@ -65,7 +69,7 @@ The source tests pin route changes, multiple rates, both S3 ports, PDM wiring,
 reset, DMA stalls and exact samples. ADC tests pin exact raw counts for all
 attenuations on three chips and conversion generations. Unit tests cover
 phase, long stalls, source priority, replacement, validation and drop-old
-queues. `mutations.json` maps 34 removal mutations to their killing tests.
+queues. `mutations.json` maps 44 removal mutations to their killing tests.
 
 `checks.json` records required native/WASM checks. Workspace tests run with an
 empty `HOME`, with only `ESP32SIM_ROM_DIR` as a firmware-input variable for the
@@ -80,17 +84,28 @@ No JIT implementation changes are included.
 PENDING
 
 No source-bank or ADC-stream tick hook is installed. The bank lives in I2S0's
-lazily allocated receiver state, so no bus or peripheral struct gains a field;
-hosts and the already-active EX214 RX path are its only users. Analog source
-variants hold one shared handle and do not enlarge `AnalogSource`. ADC time is
-set in the bus write path for the converter block, moving the existing block
-check out of the per-access hook (reads included) on `954f2a68`. Idle
-structure of the EX214 base is described in its receipt.
+lazily allocated receiver state, so no bus or peripheral struct gains a field.
+Its users are hosts and the already-active EX214 RX path. The C3/C6 RX pump calls one out-of-line
+`i2s_receive` helper where EX214 called `rx_data`. ADC conversion time still
+comes from main's per-block `pre_access` assignment. Stream time offsets are
+written only on attach and on chip reset; the MMIO paths are unchanged.
 
-Release-binary disassembly (same method as EX214) against the EX214 commit on
-this branch: C3/C6 `SocBus::tick`, S3 `tick_impl` and `refresh_tick_budget`,
-and C3/C6 `next_deadline` are instruction-identical. C6 `periph_write` goes
-1656 → 1651 and S3 `periph_write_inner` 1664 → 1632 instructions.
+Release-binary disassembly (`cargo +1.99.0 build --release --bins`, aarch64,
+addresses, padding and page offsets normalised) against EX214 `06c04176`:
+
+- Identical: C3/C6 `SocBus::tick`, `next_deadline`, `refresh_irq`,
+  `periph_read`, `periph_write` and `Peripherals::read32`; S3 `tick_impl`,
+  `refresh_tick_budget`, `periph_read` and `periph_write_inner`;
+  `Machine::step_core` on all three chips.
+- C3/C6 `pending_work` (SPI command or RX active): the RX call site changes
+  from `rx_data` to `i2s_receive`, one instruction fewer. Receiver-buffer
+  offsets in the boxed `RxState` also differ.
+- Script-event stride: `AnalogSource` grows from 24 to 32 bytes; four variants
+  no longer fit the `Arc` niche. `(u64, ScriptAction)` therefore grows from 48 to 56 bytes. `Machine::run`,
+  `run_unmodeled`, `settle_modeled_time`, `after_round` and S3 `bb_quanta`
+  replace an `add`+`lsl` index pair with `sub`+`lsl`. Only the `pos < len`
+  pending-script branch reaches that code. Script parsing, reboot,
+  constructors and drop glue are cold.
 
 ## Limits
 

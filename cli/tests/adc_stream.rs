@@ -24,6 +24,18 @@ fn conversions<S: Soc>(mut m: esp_soc::Machine<S>, pin: u8, control: u32, select
     );
     assert_eq!(readings[2], readings[3]);
     assert_eq!(stream.queued_samples(m.bus.cycles(), S::CPU_HZ), 0);
+    // Attached after the reset, behind time the bus has counted but not yet delivered.
+    m.bus.tick((S::CPU_HZ / 8000) as u32);
+    let now = m.bus.cycles();
+    let late = AnalogStream::new_raw(8000, 4000, now).unwrap();
+    late.push_raw(&[100], now, S::CPU_HZ).unwrap();
+    m.bus.analog_set(pin, AnalogSource::RawStream(late));
+    for expected in [4000, 100] {
+        m.bus.write32(control, select).unwrap();
+        m.bus.write32(control, select | start).unwrap();
+        assert_eq!(m.bus.adc_observation(pin).unwrap().raw, expected);
+        m.bus.tick((S::CPU_HZ / 8000) as u32);
+    }
 }
 
 #[test]

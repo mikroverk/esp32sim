@@ -16,7 +16,7 @@
     "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
     "exit_code": 0,
     "empty_home": true,
-    "passed": 669,
+    "passed": 713,
     "ignored": 0
   },
   {
@@ -24,7 +24,7 @@
     "command": "cargo +1.99.0 test --release --workspace",
     "exit_code": 0,
     "empty_home": true,
-    "passed": 648,
+    "passed": 692,
     "ignored": 35
   },
   {
