@@ -250,7 +250,7 @@ impl Peripherals {
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
             wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, rtc: RtcCntl::new_c3(), ledc: Ledc::new(LedcLayout::C3),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g.input_select = esp_soc::pins::ChipPins::C3.input_select; g }, rtc: RtcCntl::new_c3(), ledc: Ledc::new(LedcLayout::C3),
             efuse: efuse_c3(mac, 0, 4, 3), system: {
                 let mut s = SystemRegs::new(0x28);
                 // IDF v5.5.5 soc/esp32c3/register/soc/system_reg.h:
@@ -307,6 +307,10 @@ impl Peripherals {
     }
 
     pub fn write32(&mut self, addr: u32, v: u32) {
+        // IDF v5.5.4 components/soc/esp32c3/register/soc/io_mux_reg.h:42-50 (FUN_PD/PU).
+        if (0x60009004..=0x60009058).contains(&addr) {
+            self.gpio.set_pad(((addr - 0x60009004) / 4) as u8, v);
+        }
         if addr == 0x6001_3004 && v & (1 << 5) != 0 && self.i2c.has_pinned_devices() {
             let pins = self.i2c_pin(54).zip(self.i2c_pin(53));
             self.i2c.set_pins(pins);

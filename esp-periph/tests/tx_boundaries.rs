@@ -12,7 +12,7 @@ fn gpio_rejects_every_nonexistent_input_without_mutating_state() {
     assert_eq!(gpio.input, initial);
     assert_eq!(gpio.status, 0);
     assert!(gpio.input_changes.is_empty());
-    assert!(!gpio.set_input(48, false));
+    assert!(gpio.set_input(48, false));
     assert!(!gpio.level(48));
     assert_eq!(gpio.input_changes, [(48, false)]);
 }

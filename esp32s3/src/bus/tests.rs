@@ -805,7 +805,7 @@ fn host_input_notifies_without_a_periodic_irq_scan() {
     bus.irq_dirty = false;
     esp_soc::SocBus::serial_input(&mut bus, b"y");
     assert!(!bus.irq_dirty, "same asserted source");
-    bus.periph.gpio.pin[7] = (5 << 7) | (1 << 13);
+    bus.periph.gpio.write(0x74 + 4 * 7, (5 << 7) | (1 << 13));
     bus.periph.gpio.set_input(7, true);
     esp_soc::SocBus::gpio_set_input(&mut bus, 7, false);
     assert!(bus.irq_dirty, "host GPIO falling level");
@@ -817,8 +817,8 @@ fn gpio_output_level_irqs_notify_for_both_banks_and_polarities() {
     for pin in [7, 40] {
         for typ in [4, 5] {
             let mut bus = SocBus::new(1024, 1024, [0; 6]);
-            bus.periph.gpio.enable = 1u64 << pin;
-            bus.periph.gpio.pin[pin] = (typ << 7) | (1 << 13);
+            bus.periph.gpio.write(if pin < 32 { 0x24 } else { 0x30 }, 1 << (pin % 32));
+            bus.periph.gpio.write(0x74 + 4 * pin as u32, (typ << 7) | (1 << 13));
             let base = if pin < 32 { 0x6000_4004 } else { 0x6000_4010 };
             let bit = 1 << (pin % 32);
             // OUT, W1TC, W1TS, OUT all change the level in this sequence.
@@ -828,7 +828,7 @@ fn gpio_output_level_irqs_notify_for_both_banks_and_polarities() {
                 assert!(bus.irq_dirty, "pin {pin}, type {typ}, register {addr:x}");
                 assert_eq!(bus.periph.gpio.irq(), if typ == 5 { high } else { !high });
             }
-            bus.periph.gpio.pin[pin] = 0;
+            bus.periph.gpio.write(0x74 + 4 * pin as u32, 0);
             bus.irq_dirty = false;
             bus.write32(base + 4, bit).unwrap();
             assert!(!bus.irq_dirty, "ordinary output toggles remain cheap");
@@ -903,7 +903,7 @@ fn read_flush_reports_timer_and_rmt_threshold_sources() {
 #[test]
 fn read_flush_reports_pcnt_without_a_gpio_interrupt() {
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
-    bus.periph.gpio.func_in_sel[33] = 0x80 | 7;
+    bus.periph.gpio.write(0x154 + 4 * 33, 0x80 | 7);
     bus.periph.pcnt.conf[0][0] = (1 << 18) | (1 << 14);
     bus.periph.pcnt.conf[0][1] = 1;
     bus.periph.pcnt.int_ena = 1;
@@ -952,7 +952,7 @@ fn read_flush_reports_falling_board_level_interrupt() {
     }
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
     bus.board = Box::new(FallingEdge);
-    bus.periph.gpio.pin[7] = (5 << 7) | (1 << 13);
+    bus.periph.gpio.write(0x74 + 4 * 7, (5 << 7) | (1 << 13));
     bus.periph.gpio.set_input(7, true);
     assert!(bus.periph.gpio.irq());
     read_flush(&mut bus, 1);
@@ -972,7 +972,7 @@ fn host_touch_uses_the_current_bus_horizon_and_keeps_its_edge_timestamp() {
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
     bus.board = Box::new(crate::board::WaveshareAmoled18V2::new());
     bus.gpio_events = Some(Vec::new());
-    bus.periph.gpio.pin[crate::board::PIN_AMOLED_TOUCH_INT as usize] = (2 << 7) | (1 << 13);
+    bus.periph.gpio.write(0x74 + 4 * u32::from(crate::board::PIN_AMOLED_TOUCH_INT), (2 << 7) | (1 << 13));
     bus.tick_budget = MAX_TICK_DEFER;
 
     assert_eq!(Bus::tick(&mut bus, 37), 0);
@@ -1013,7 +1013,7 @@ fn reattaching_board_inputs_notifies_configured_level_irqs() {
         fn input_levels(&self) -> Vec<(u8, bool)> { vec![(7, self.0)] }
     }
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
-    bus.periph.gpio.pin[7] = (5 << 7) | (1 << 13);
+    bus.periph.gpio.write(0x74 + 4 * 7, (5 << 7) | (1 << 13));
     for level in [false, true, false] {
         bus.board = Box::new(InputBoard(level));
         bus.irq_dirty = false;
@@ -1060,7 +1060,7 @@ fn non_mmio_gpio_activation_restores_cadence_without_losing_pending_time() {
     for attach in [false, true] {
         for pending in [0, 100, 300] {
             let mut bus = SocBus::new(1024, 1024, [0; 6]);
-            bus.periph.gpio.func_in_sel[33] = 0x80 | 4;
+            bus.periph.gpio.write(0x154 + 4 * 33, 0x80 | 4);
             bus.periph.pcnt.conf[0][0] = (1 << 16) | (1 << 14); // falling increment, threshold 0
             bus.periph.pcnt.conf[0][1] = 1;
             bus.periph.pcnt.int_ena = 1;
@@ -1291,4 +1291,114 @@ fn stable_pages_move_their_epoch() {
     }
     assert_eq!(bus.stable_pages().1, first - 1, "the last flash page is left to per-page compares");
     assert_eq!(bus.page_versions()[first as usize - 1], before[first as usize - 1] + 3);
+}
+
+#[test]
+fn released_and_same_cycle_inputs_restore_pcnt_cadence() {
+    struct Falling(bool);
+    impl crate::board::BoardModel for Falling {
+        fn name(&self) -> &'static str { "falling" }
+        fn take_edges(&mut self) -> Vec<crate::board::BoardEdge> {
+            if std::mem::take(&mut self.0) {
+                vec![crate::board::BoardEdge { cycle: 64, pin: 4, level: false }]
+            } else { Vec::new() }
+        }
+    }
+    for release in [true, false] {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.gpio.write(0x154 + 4 * 33, 0x80 | 4);
+        bus.periph.pcnt.conf[0][0] = (1 << 16) | (1 << 14);
+        bus.periph.pcnt.conf[0][1] = 1;
+        bus.periph.pcnt.int_ena = 1;
+        bus.periph.gpio.set_input(4, true);
+        bus.periph.gpio.set_pulls(4, false, true);
+        Bus::tick(&mut bus, 64);
+        assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+        if release {
+            esp_soc::SocBus::gpio_release_input(&mut bus, 4);
+        } else {
+            bus.board = Box::new(Falling(true));
+            bus.attach_board_devices();
+            bus.read32(0x6000_403c).unwrap();
+        }
+        assert_eq!(bus.next_deadline(), u64::from(MAX_TICK_DEFER));
+        Bus::tick(&mut bus, MAX_TICK_DEFER);
+        assert_eq!(bus.periph.pcnt.cnt[0], 1);
+        assert!(bus.periph.pcnt.irq());
+    }
+}
+
+#[test]
+fn bare_gpio_toggle_loop_keeps_quiet_cadence_and_no_pcnt_work() {
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.board = Box::new(esp_soc::NoBoard);
+    bus.attach_board_devices();
+    bus.write32(0x6000_4024, 1 << 4).unwrap();
+    bus.write32(0x6000_4030, 1 << 8).unwrap();
+    bus.flush_ticks();
+    for _ in 0..100 {
+        for offset in [8, 12, 20, 24] {
+            bus.write32(0x6000_4000 + offset, if offset < 16 { 1 << 4 } else { 1 << 8 }).unwrap();
+            bus.read32(0x6000_403c).unwrap();
+            bus.read32(0x6000_4040).unwrap();
+            assert!(bus.periph.gpio.input_changes.is_empty());
+            assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+            assert!(!bus.cadence_active());
+            bus.tick(1);
+        }
+    }
+    assert_eq!(bus.periph.pcnt.cnt, [0; 4]);
+    assert_eq!(bus.periph.gpio.input_changes.capacity(), 0);
+}
+
+#[test]
+fn bare_input_reads_do_not_refresh_board_deadlines() {
+    struct Idle;
+    impl crate::board::BoardModel for Idle {
+        fn name(&self) -> &'static str { "idle" }
+        fn uses_gpio_edges(&self) -> bool { false }
+        fn next_deadline(&self) -> Option<u64> { panic!("unexpected budget refresh"); }
+    }
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.board_edges = false;
+    bus.tick_pending = 0;
+    bus.board = Box::new(Idle);
+    bus.read32(0x6000_403c).unwrap();
+    bus.read32(0x6000_4040).unwrap();
+}
+
+#[test]
+fn routed_output_edges_reach_pcnt_and_retain_queue_capacity() {
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.board = Box::new(esp_soc::NoBoard);
+    bus.attach_board_devices();
+    bus.write32(0x6000_4024, 1 << 4).unwrap();
+    bus.write32(0x6000_4154 + 33 * 4, 0x80 | 4).unwrap();
+    bus.periph.pcnt.conf[0][0] = (1 << 16) | (1 << 18);
+    for n in 1..=4 {
+        bus.write32(0x6000_4008, 1 << 4).unwrap();
+        assert_eq!(bus.periph.gpio.input_changes, [(4, true)]);
+        let capacity = bus.periph.gpio.input_changes.capacity();
+        bus.tick(1);
+        bus.flush_ticks();
+        assert_eq!(bus.periph.gpio.input_changes.capacity(), capacity);
+        assert_eq!(bus.periph.pcnt.cnt[0], 2 * n - 1);
+        bus.write32(0x6000_400c, 1 << 4).unwrap();
+        bus.tick(1);
+        bus.flush_ticks();
+        assert_eq!(bus.periph.pcnt.cnt[0], 2 * n);
+    }
+}
+
+#[test]
+fn output_irq_cache_tracks_resolved_input_not_output_latch() {
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.periph.gpio.write(0x74 + 4 * 4, (3 << 7) | (1 << 13));
+    bus.write32(0x6000_4024, 1 << 4).unwrap();
+    bus.periph.gpio.set_input(4, false);
+    bus.irq_dirty = false;
+    bus.write32(0x6000_4008, 1 << 4).unwrap();
+    assert!(!bus.irq_dirty, "host drive masks the output transition");
+    esp_soc::SocBus::gpio_release_input(&mut bus, 4);
+    assert!(bus.irq_dirty);
 }

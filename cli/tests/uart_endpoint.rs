@@ -218,7 +218,7 @@ fn s3_uart2_receive_has_an_interrupt_source() {
     p.uart[2].write(0x14, 2083 | (5 << 20));
     p.uart[2].write(0xc, 1);
     p.io_mux.write(4 + 4 * 4, 1 << 9);
-    p.gpio.func_in_sel[18] = 0x80 | 4;
+    p.gpio.write(0x154 + 4 * 18, 0x80 | 4);
     p.uart_pin_input(&UartInput::new(4, 9600, vec![42]));
     assert_eq!(p.uart[2].read(0), 42);
     assert_ne!(p.source_status()[0] & (1 << 29), 0);
@@ -231,7 +231,7 @@ fn c3_matrix_enable_and_inversion_bits_match_silicon() {
     mux.write(4 + 4 * 4, 1 << 9);
     mux.write(4 + 5 * 4, 1 << 12);
     gpio.enable = 1 << 5;
-    gpio.func_in_sel[9] = 0x44;
+    gpio.write(0x154 + 4 * 9, 0x44);
     // C3 bit 9 selects GPIO output enable, not signal inversion.
     gpio.func_out_sel[5] = 9 | (1 << 9);
     let route = esp_soc::uart::UartPins::C3.route(1, &gpio, &mux, Some(9600));
