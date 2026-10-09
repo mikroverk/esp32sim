@@ -234,15 +234,21 @@ impl SocBus {
         let eof = i2s.read(0x64);
         let _ = self.scatter_dma_in(ch, &bytes, Some(eof), false);
         let i2s = if port == 0 { &mut self.periph.i2s0 } else { &mut self.periph.i2s1 };
-        i2s.rx_buffer = bytes;
+        i2s.recycle_rx_buffer(bytes);
     }
 
-    /// Move I2S TX data out of DMA descriptors at the sample rate.
+    /// Move I2S TX data out of, and RX data into, DMA descriptors at the sample rate. One cached
+    /// flag per controller gates both directions, so an idle controller costs what TX alone did.
     pub(super) fn dma_i2s_step(&mut self, cycles: u64) {
-        self.dma_i2s_one(cycles, 0);
-        self.dma_i2s_one(cycles, 1);
-        if self.periph.i2s0.rx_running() { self.dma_i2s_rx(cycles, 0); }
-        if self.periph.i2s1.rx_running() { self.dma_i2s_rx(cycles, 1); }
+        if self.periph.i2s0.poll_active() { self.dma_i2s_port(cycles, 0); }
+        if self.periph.i2s1.poll_active() { self.dma_i2s_port(cycles, 1); }
+    }
+
+    #[inline(never)]
+    fn dma_i2s_port(&mut self, cycles: u64, which: usize) {
+        self.dma_i2s_one(cycles, which);
+        let i2s = if which == 0 { &self.periph.i2s0 } else { &self.periph.i2s1 };
+        if i2s.rx_running() { self.dma_i2s_rx(cycles, which as u32); }
     }
 
     /// Move I2S TX data for controller `which` (0 = I2S0 on GDMA trigger 3, 1 = I2S1 on trigger 4).

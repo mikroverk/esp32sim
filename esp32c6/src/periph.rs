@@ -365,7 +365,9 @@ pub struct Peripherals {
     last_status: [u32; 4],
     pub ledc: Ledc,
     pub mcpwm: Mcpwm,
-    pub i2s0: esp_periph::I2s,
+    /// Boxed: the controller is cold unless firmware uses I2S.
+    pub i2s0: Box<esp_periph::I2s>,
+    /// SPI command or I2S RX pending, refreshed only when either changes.
     pub work_pending: bool,
 }
 
@@ -437,7 +439,7 @@ impl Peripherals {
             intmtx: IntMatrix::new(), intc: Intc::new(), cache: Cache::new(), lpsys: LpSys::new(), pcr: Pcr::new(), ana_mst: AnaMst::new(), assist_debug: AssistDebug::new(),
             rng: Rng::new(), cpu_sub: RegRam::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
-            i2s0: esp_periph::I2s::new(CPU_HZ), work_pending: false,
+            i2s0: Box::new(esp_periph::I2s::new(CPU_HZ)), work_pending: false,
             last_status: [0; 4],
         }
     }
@@ -485,7 +487,12 @@ impl Peripherals {
         }
         if addr == PERIPH_BASE + 0x96034 && v & 2 != 0 { self.ledc = Ledc::new(LedcLayout::C6); }
         if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { self.mcpwm = Mcpwm::new(87, 8); }
-        if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        let fx = mmio::write32(self, addr, v);
+        // One test covers both effects, as the SPI test alone did before RX existed.
+        if fx.contains(WriteEffect::SPI_EXEC | WriteEffect::RX_CONF) {
+            self.spi_exec |= fx.contains(WriteEffect::SPI_EXEC);
+            self.refresh_work();
+        }
         if addr == PERIPH_BASE + 0x96034 || addr == PERIPH_BASE + 0x96038 {
             let conf = self.pcr.read(0x34); let clock = self.pcr.read(0x38);
             self.ledc.external_clock_hz = if conf & 3 != 1 || clock & (1 << 22) == 0 { 0 } else { match (clock >> 20) & 3 { 1 => 80_000_000, 2 => 17_500_000, 3 => 40_000_000, _ => 0 } };
@@ -498,7 +505,6 @@ impl Peripherals {
             self.mcpwm.clock_enabled = conf & 3 == 1 && clock & (1 << 22) != 0 && source != 0;
             self.refresh_optional(0x14);
         }
-        self.refresh_work();
     }
 
     pub fn refresh_work(&mut self) { self.work_pending = self.spi_exec || self.i2s0.rx_running(); }

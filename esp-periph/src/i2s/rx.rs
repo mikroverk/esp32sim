@@ -53,10 +53,40 @@ impl PcmInput {
     }
 }
 
+/// Cold receiver state behind one pointer, so an idle controller embeds no queue.
+#[derive(Default)]
+pub(super) struct RxState {
+    input: PcmInput,
+    acc: u64,
+    buffer: Vec<u8>,
+}
+
 impl I2s {
     #[inline(always)]
     pub fn rx_running(&self) -> bool {
         self.rx_conf & 4 != 0
+    }
+    /// Host input for this receiver, allocating the receiver state on first use.
+    pub fn rx_input(&mut self) -> &mut PcmInput {
+        &mut self.rx.get_or_insert_with(Box::default).input
+    }
+    /// Carry host input across a chip reset; the rebuilt receiver restarts its frame phase.
+    pub fn keep_rx_input(&mut self, old: &mut I2s) {
+        self.rx = old.rx.take().map(|mut rx| {
+            rx.acc = 0;
+            rx
+        });
+    }
+    /// Return a buffer from `rx_data` for reuse by the next interval.
+    pub fn recycle_rx_buffer(&mut self, bytes: Vec<u8>) {
+        if let Some(rx) = &mut self.rx {
+            rx.buffer = bytes;
+        }
+    }
+    pub(super) fn reset_rx_phase(&mut self) {
+        if let Some(rx) = &mut self.rx {
+            rx.acc = 0;
+        }
     }
     /// Standard I2S frame rate, or S3 PDM-to-PCM output rate. No external slave clock.
     pub fn rx_rate(&self) -> Option<u32> {
@@ -99,16 +129,18 @@ impl I2s {
                 (tdm >> 16) & 15 == 1
             };
         let Some(rate) = self.rx_rate().filter(|_| supported) else {
-            self.rx_acc = 0;
+            self.reset_rx_phase();
             return Vec::new();
         };
-        self.rx_acc += cycles * u64::from(rate);
-        let frames = self.rx_acc / self.cpu_hz;
-        self.rx_acc %= self.cpu_hz;
-        let mut bytes = std::mem::take(&mut self.rx_buffer);
+        let (cpu_hz, mono) = (self.cpu_hz, self.rx_conf & (1 << 5) != 0);
+        let rx = self.rx.get_or_insert_with(Box::default);
+        rx.acc += cycles * u64::from(rate);
+        let frames = rx.acc / cpu_hz;
+        rx.acc %= cpu_hz;
+        let mut bytes = std::mem::take(&mut rx.buffer);
         bytes.clear();
         for _ in 0..frames {
-            let frame = self.rx_input.next(rate);
+            let frame = rx.input.next(rate);
             for (lane, sample) in frame.into_iter().enumerate() {
                 if mask & (1 << lane) == 0 {
                     continue;
@@ -118,7 +150,7 @@ impl I2s {
                 } else {
                     bytes.extend_from_slice(&(i32::from(sample) << 16).to_le_bytes());
                 }
-                if self.rx_conf & (1 << 5) != 0 {
+                if mono {
                     break;
                 }
             }
@@ -142,7 +174,7 @@ mod tests {
     fn pcm_clock_slots_width_silence_and_reset() {
         let mut i = receiver();
         assert_eq!(i.rx_rate(), Some(8000));
-        assert_eq!(i.rx_input.push(&[[1234, -2345], [111, 222]]), 2);
+        assert_eq!(i.rx_input().push(&[[1234, -2345], [111, 222]]), 2);
         assert!(i.rx_data(19999, true).is_empty());
         assert_eq!(i.rx_data(1, true), [0xd2, 4, 0xd7, 0xf6]);
         i.write(0x20, 1); // peripheral reset keeps host input
@@ -156,21 +188,21 @@ mod tests {
                 0x28,
                 (24 << 7) | ((bits - 1) << 13) | (15 << 18) | (31 << 24),
             );
-            i.rx_input.push(&[[123, -123]]);
+            i.rx_input().push(&[[123, -123]]);
             assert_eq!(i.rx_data(20000, true), (-123i32 << 16).to_le_bytes());
         }
         i.write(0x20, 4 | (1 << 20) | (1 << 21));
         i.write(0x28, (24 << 7) | (15 << 13));
         assert_eq!(i.rx_rate(), Some(4000));
         assert!(i.rx_data(40000, false).is_empty());
-        i.rx_input.push(&[[1, 2]]);
+        i.rx_input().push(&[[1, 2]]);
         assert_eq!(i.rx_data(40000, true), [2, 0]);
     }
     #[test]
     fn unsupported_modes_preserve_queued_input() {
         for flag in [1 << 3, 1 << 7, 1 << 10, 1 << 11, 1 << 18, 1 << 20] {
             let mut i = receiver();
-            i.rx_input.push(&[[17, -19]]);
+            i.rx_input().push(&[[17, -19]]);
             i.write(0x20, 4 | flag);
             assert!(i.rx_data(40000, true).is_empty(), "flag {flag}");
             i.write(0x20, 4);
@@ -186,12 +218,49 @@ mod tests {
     #[test]
     fn reset_discards_fractional_receiver_time() {
         let mut i = receiver();
-        i.rx_input.push(&[[1, 2]]);
+        i.rx_input().push(&[[1, 2]]);
         assert!(i.rx_data(19999, true).is_empty());
         i.write(0x20, 1);
         i.write(0x20, 4);
         assert!(i.rx_data(1, true).is_empty());
         assert_eq!(i.rx_data(19999, true), [1, 0, 2, 0]);
+    }
+
+    #[test]
+    fn idle_and_unsupported_receivers_allocate_nothing() {
+        let mut i = I2s::new(160_000_000);
+        i.write(0x24, 4);
+        i.write(0x20, 4 | (1 << 3));
+        assert!(i.rx_data(20000, true).is_empty());
+        i.write(0x20, 1);
+        i.recycle_rx_buffer(Vec::with_capacity(8));
+        assert!(i.rx.is_none());
+        let mut r = receiver();
+        assert!(r.rx.is_none());
+        assert_eq!(r.rx_data(20000, true), [0; 4]);
+        assert!(r.rx.is_some());
+    }
+
+    #[test]
+    fn active_gate_covers_both_directions_and_rx_writes_report() {
+        use crate::{Device, WriteEffect};
+        let mut i = I2s::new(160_000_000);
+        assert!(!i.active());
+        assert_eq!(Device::write(&mut i, 0x20, 4), WriteEffect::RX_CONF);
+        assert!(i.active());
+        assert_eq!(Device::write(&mut i, 0x24, 4), WriteEffect::NONE);
+        Device::write(&mut i, 0x20, 0);
+        assert!(i.active());
+        Device::write(&mut i, 0x24, 0);
+        assert!(!i.active());
+        // A stopped transmitter loses its fractional frame phase at the next gate poll.
+        i.write(0x24, 4);
+        assert_eq!(i.frames_due(3000), 0);
+        i.write(0x24, 0);
+        assert!(!i.poll_active());
+        i.write(0x24, 4);
+        assert!(i.poll_active());
+        assert_eq!(i.frames_due(1000), 0);
     }
 
     #[test]

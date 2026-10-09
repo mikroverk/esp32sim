@@ -173,7 +173,10 @@ pub struct Peripherals {
     pub fe_iq: crate::wifi::FeIq,
     pub i2c_mst: crate::wifi::I2cMst,
     pub ledc: Ledc,
-    pub i2s0: esp_periph::I2s,
+    /// Boxed: the controller is cold unless firmware uses I2S.
+    pub i2s0: Box<esp_periph::I2s>,
+    /// I2S0 RX running, cached from RX_CONF writes for the per-write work refresh.
+    pub i2s_rx: bool,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
@@ -274,7 +277,7 @@ impl Peripherals {
                 m.generic.entry(0x26).or_default().write(0x14, 0xfffc_e030);
                 m
             }, spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
-            i2s0: esp_periph::I2s::new(CPU_HZ),
+            i2s0: Box::new(esp_periph::I2s::new(CPU_HZ)), i2s_rx: false,
             last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
@@ -320,7 +323,12 @@ impl Peripherals {
             let pins = self.i2c_pin(54).zip(self.i2c_pin(53));
             self.i2c.set_pins(pins);
         }
-        if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        let fx = mmio::write32(self, addr, v);
+        // One test covers both effects, as the SPI test alone did before RX existed.
+        if fx.contains(WriteEffect::SPI_EXEC | WriteEffect::RX_CONF) {
+            self.spi_exec |= fx.contains(WriteEffect::SPI_EXEC);
+            if fx.contains(WriteEffect::RX_CONF) { self.i2s_rx = self.i2s0.rx_running(); }
+        }
         if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
             self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
         }
@@ -341,7 +349,7 @@ impl Peripherals {
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
         self.wifi_irq = self.wifi.irq();
-        self.work_pending = self.i2s0.rx_running() || self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some();
+        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some() || self.i2s_rx;
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz

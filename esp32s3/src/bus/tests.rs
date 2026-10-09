@@ -733,8 +733,8 @@ fn deferred_extension_bases_include_preoffset_boundary_crossings() {
 fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
     type Activation = (&'static str, fn(&mut Peripherals));
     let cases: &[Activation] = &[
-        ("i2s0", |p| p.i2s0.tx_conf |= 1 << 2),
-        ("i2s1", |p| p.i2s1.tx_conf |= 1 << 2),
+        ("i2s0", |p| p.i2s0.write(0x24, 1 << 2)),
+        ("i2s1", |p| p.i2s1.write(0x24, 1 << 2)),
         ("camera", |p| { p.lcd_cam.set_clock_enabled(true); p.lcd_cam.write(0x04, 1 << 29); p.lcd_cam.write(0x08, 1 << 29); }),
         ("camera-vsync", |p| { p.lcd_cam.set_clock_enabled(true); p.lcd_cam.write(0x04, 1 << 29); p.lcd_cam.write(0x64, 1 << 2); }),
         ("lcd", |p| { p.lcd_cam.lcd_user |= 1 << 27; p.lcd_cam.lcd_ctrl |= 1 << 31; }),

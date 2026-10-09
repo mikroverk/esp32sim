@@ -75,6 +75,11 @@
     "killed": true
   },
   {
+    "mutation": "S3 RX pump",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
     "mutation": "mono packing",
     "test": "mono_consumes_one_sample_with_both_slots_enabled",
     "killed": true
@@ -157,6 +162,41 @@
   {
     "mutation": "receive stops on fault",
     "test": "shared_receive_reports_interrupt_changes",
+    "killed": true
+  },
+  {
+    "mutation": "lazy RX state",
+    "test": "idle_and_unsupported_receivers_allocate_nothing",
+    "killed": true
+  },
+  {
+    "mutation": "RX_CONF effect",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "gate covers RX",
+    "test": "absent_controllers_and_s3_second_receiver",
+    "killed": true
+  },
+  {
+    "mutation": "gate covers TX",
+    "test": "active_gate_covers_both_directions_and_rx_writes_report",
+    "killed": true
+  },
+  {
+    "mutation": "gate discards TX phase",
+    "test": "active_gate_covers_both_directions_and_rx_writes_report",
+    "killed": true
+  },
+  {
+    "mutation": "C3 cached RX flag",
+    "test": "pcm_to_guest_dma_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "C6 RX work term",
+    "test": "pcm_to_guest_dma_on_all_chips",
     "killed": true
   }
 ]

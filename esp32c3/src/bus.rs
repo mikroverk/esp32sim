@@ -327,7 +327,7 @@ impl SocBus {
         let mut channel = self.periph.gdma.state.inp[ch];
         let mut irq_changed = false;
         let _ = channel.receive(self, &bytes, Some(eof), false, Self::is_periph, &mut irq_changed);
-        self.periph.i2s0.rx_buffer = bytes;
+        self.periph.i2s0.recycle_rx_buffer(bytes);
         self.irq_dirty |= irq_changed;
         self.periph.gdma.state.inp[ch] = channel;
     }
@@ -340,7 +340,7 @@ impl SocBus {
 
     #[inline(never)]
     fn pending_work(&mut self, cycles: u32) {
-        if self.periph.i2s0.rx_running() { self.i2s_rx_step(u64::from(cycles)); }
+        if self.periph.i2s_rx { self.i2s_rx_step(u64::from(cycles)); }
         if self.periph.ble_lc.enabled() {
             self.periph.ble_lc.service(&mut self.sram);
             esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x31);

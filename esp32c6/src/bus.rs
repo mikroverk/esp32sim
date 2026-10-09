@@ -431,7 +431,7 @@ impl SocBus {
         let mut channel = self.periph.gdma.gdma.inp[ch];
         let mut irq_changed = false;
         let _ = channel.receive(self, &bytes, Some(eof), false, Self::is_periph, &mut irq_changed);
-        self.periph.i2s0.rx_buffer = bytes;
+        self.periph.i2s0.recycle_rx_buffer(bytes);
         self.irq_dirty |= irq_changed;
         self.periph.gdma.gdma.inp[ch] = channel;
     }

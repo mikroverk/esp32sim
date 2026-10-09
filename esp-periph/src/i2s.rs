@@ -6,7 +6,8 @@ pub use rx::PcmInput;
 
 
 pub struct I2s {
-    pub rx_conf: u32, pub tx_conf: u32, pub int_raw: u32, pub int_ena: u32,
+    /// RX_CONF/TX_CONF change only through `write`, which keeps `streaming` current.
+    pub(crate) rx_conf: u32, pub(crate) tx_conf: u32, pub int_raw: u32, pub int_ena: u32,
     ram: RegRam,
     /// TX_CONF1 (0x2c: data/slot/frame widths, BCK divider), TX_CLKM_CONF (0x34: source, integer MCLK divider),
     /// TX_CLKM_DIV_CONF (0x3c: fractional MCLK divider x/y/z/yn1), TX_TDM_CTRL (0x54: slot count)
@@ -20,14 +21,25 @@ pub struct I2s {
     pub pcm: Vec<i16>,
     pub frames_out: u64,
     pub tx_started_log: bool,
+    /// TX or RX enabled, cached on RX_CONF/TX_CONF writes for the SoC's per-flush gate.
+    streaming: bool,
     cpu_hz: u64,
-    pub rx_input: PcmInput,
-    rx_acc: u64,
-    pub rx_buffer: Vec<u8>,
+    /// Receiver state, allocated on first host input or first supported RX interval.
+    rx: Option<Box<rx::RxState>>,
 }
 impl I2s {
-    pub fn new(cpu_hz: u64) -> Self { I2s { cpu_hz, rx_buffer: Vec::new(), rx_input: PcmInput::default(), rx_acc: 0, rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram: RegRam::new(), tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, tx_started_log: false } }
+    pub fn new(cpu_hz: u64) -> Self { I2s { cpu_hz, streaming: false, rx: None, rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram: RegRam::new(), tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, tx_started_log: false } }
     pub fn tx_running(&self) -> bool { self.tx_conf & (1 << 2) != 0 }
+    /// TX or RX running.
+    #[inline(always)]
+    pub fn active(&self) -> bool { self.streaming }
+    /// The SoC's per-flush gate: false while neither direction runs, discarding the TX frame
+    /// phase exactly as `frames_due` does for a stopped transmitter.
+    #[inline(always)]
+    pub fn poll_active(&mut self) -> bool {
+        if !self.streaming { self.acc = 0; }
+        self.streaming
+    }
     /// Packed DMA sample width, independent of padding in the wire's time slots.
     pub fn sample_bytes(&self) -> usize { (((self.tx_conf1 >> 13) & 0x1f) + 1).div_ceil(8) as usize }
     pub fn read(&self, off: u32) -> u32 {
@@ -43,7 +55,8 @@ impl I2s {
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
             0x14 => self.int_ena = v, 0x18 => self.int_raw &= !v,
-            0x20 => { self.rx_conf = v; if v & 3 != 0 { self.rx_acc = 0; } }, 0x24 => { self.tx_conf = v; self.update_rate(); }
+            0x20 => { self.rx_conf = v; if v & 3 != 0 { self.reset_rx_phase(); } self.streaming = (self.rx_conf | self.tx_conf) & 4 != 0; }
+            0x24 => { self.tx_conf = v; self.update_rate(); self.streaming = (self.rx_conf | self.tx_conf) & 4 != 0; }
             0x2c => { self.tx_conf1 = v; self.ram.write(off, v); self.update_rate(); }
             0x34 => { self.tx_clkm_conf = v; self.ram.write(off, v); self.update_rate(); }
             0x3c => { self.tx_clkm_div_conf = v; self.ram.write(off, v); self.update_rate(); }
@@ -103,6 +116,9 @@ impl I2s {
 
 impl Device for I2s {
     fn read(&mut self, off: u32) -> u32 { I2s::read(self, off) }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect { I2s::write(self, off, v); WriteEffect::NONE }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        I2s::write(self, off, v);
+        if off == 0x20 { WriteEffect::RX_CONF } else { WriteEffect::NONE }
+    }
     fn irq_sources(&self) -> u64 { self.irq() as u64 }
 }

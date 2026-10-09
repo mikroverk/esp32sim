@@ -55,19 +55,43 @@ python3 docs/evidence/i2s-rx-input/mutations.py
 
 `mutations.json` is the mutation-to-killing-test table. The script requires a
 clean source snapshot and restores each file before starting the next mutation.
-All 32 mutations fail an assertion, rather than merely failing compilation.
+All 40 mutations fail an assertion, rather than merely failing compilation.
 Existing golden files remain byte-identical; none were regenerated.
 
 ## CPU comparison
 
 PENDING
 
-C3 RX uses its existing cached pending-work branch. C6 combines SPI and RX in
-one cached work flag, refreshed on MMIO writes and SPI completion. Both keep
-plain I2S fields at the end of the peripheral structs. RX pumps return their
-sample buffer for reuse; no buffer allocation occurs on an idle tick. S3 retains
-its existing active-cadence gate. No generic device tick was added. Scheduler
-deadline selection includes active RX; central CPU qualification remains pending.
+Idle structure, for firmware that never enables I2S RX:
+
+- Receiver queue, frame phase and sample buffer sit behind one lazily allocated
+  pointer; an unused controller allocates no receiver state. C3 and C6 hold the
+  whole controller in a `Box`.
+- S3: one cached flag per controller (TX or RX enabled, refreshed on RX_CONF and
+  TX_CONF writes) gates the per-flush DMA pump and the active-cadence check. It
+  replaces the TX-only test there, so an idle flush does main's work.
+  RX_CONF/TX_CONF are crate-private so nothing bypasses the flag; the existing
+  S3 cadence test now enables TX by register write instead of a field poke.
+- C3/C6: an RX_CONF write returns a write effect. The SoC tests it in the same
+  mask test as the existing SPI effect, and only then refreshes pending work.
+  C6's pending-work flag replaces its SPI check in the device step. C3 keeps its
+  existing per-write pending-work refresh, with one cached boolean term added.
+- Remaining idle work: a C3/C6 deadline query tests one cached boolean (C3
+  `i2s_rx`, C6 `work_pending`) before applying the 256-cycle RX bound.
+
+Disassembly of `cargo +1.99.0 build --release --bins` output (fat LTO) via
+`objdump -d --disassemble-symbols=<symbol>`, against `954f2a68`:
+
+| Function | Instructions | Difference |
+| --- | ---: | --- |
+| C3 `SocBus::tick` | 279 → 282 | alignment padding only |
+| C6 `SocBus::tick` | 1968 → 1968 | SPI branch outlined; two field offsets +8 bytes |
+| S3 `SocBus::tick_impl` | 3648 → 3600 | — |
+| S3 `SocBus::refresh_tick_budget` | 280 → 279 | — |
+| C3 `next_deadline` | 185 → 200 | byte load and branch on the idle path |
+| C6 `next_deadline` | 285 → 290 | byte load and branch on the idle path |
+| C6 `SocBus::periph_write` | 1594 → 1656 | I2S block arm; RX_CONF shares the SPI effect test |
+| S3 `SocBus::periph_write_inner` | 1632 → 1664 | field offsets +16 bytes; I2S write arms longer |
 
 ## Limits
 

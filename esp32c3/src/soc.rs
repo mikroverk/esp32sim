@@ -67,7 +67,7 @@ impl esp_soc::SocBus for SocBus {
         let timer = if self.pins_active { self.pin_deadline() } else {
             match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }
         };
-        if self.periph.i2s0.rx_running() { Some(timer.unwrap_or(u64::MAX).min(256)) } else { timer }
+        if self.periph.i2s_rx { Some(timer.unwrap_or(u64::MAX).min(256)) } else { timer }
     }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
     fn refresh_irq(&mut self) -> bool { self.periph.refresh_lines(); true }
@@ -128,7 +128,7 @@ impl esp_soc::SocBus for SocBus {
         }
         p.refresh_work();
         p.efuse = old.efuse;
-        p.i2s0.rx_input = old.i2s0.rx_input;
+        p.i2s0.keep_rx_input(&mut old.i2s0);
         p.adc.analog = old.adc.analog;
         p.misc.log_unknown = old.misc.log_unknown;
         p.usb.connected = old.usb.connected;
@@ -204,7 +204,7 @@ impl esp_soc::SocBus for SocBus {
 
     fn board(&mut self) -> &mut dyn BoardModel { &mut *self.board }
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
-    fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { if port == 0 { Some(&mut self.periph.i2s0.rx_input) } else { None } }
+    fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { if port == 0 { Some(self.periph.i2s0.rx_input()) } else { None } }
     fn audio(&self) -> (&[i16], u32) { (&[], 44100) }
     fn irq_sources_of(&self, _core: usize, line: u32) -> Vec<usize> { (0..src::COUNT).filter(|&s| self.periph.intc.map[s] == line).collect() }
 }
