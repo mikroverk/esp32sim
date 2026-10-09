@@ -51,3 +51,15 @@ PENDING
 No CPU benchmark was run. The change executes only when rebuilding peripherals
 on reboot; idle execution is structurally unchanged. No performance or hardware
 measurement claim. No private captures or machine identifiers are retained.
+
+Static code comparison: `cargo +1.99.0 build --release -p esp32sim --bin esp32sim`
+(aarch64-apple-darwin, the workspace's fat-LTO release profile) at `954f2a68` and
+at `eb1f2bfc`, disassembled per function with `objdump -d`, with absolute
+addresses, branch targets and page offsets normalised. 10 of 2056 functions differ.
+Six are the C3/C6 `Machine::reboot`, `SocBus::set_debug` and
+`Peripherals::Dispatch::debug`, now out of line and shared by both callers.
+The other four (C3 `Machine::peek` and `Bus::fetch`, one C6 `RawVec::grow_one`
+instance and one S3 `Debug` impl) differ only in trailing alignment `nop`s. C6 `Machine::run`,
+`step_core`, `Bus::tick`, `periph_write`, `refresh_irq` and
+every other C6 function outside reboot and `set_debug` are instruction-identical.
+Struct layouts are unchanged; only function addresses move.
