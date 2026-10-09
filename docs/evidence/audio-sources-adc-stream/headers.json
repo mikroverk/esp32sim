@@ -1,0 +1,32 @@
+[
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32s3/include/soc/gpio_sig_map.h",
+    "sha256": "eede7f33a5b4569dfbc828baf35c2827aacb935602110863e5839e19c5a5a8d9"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32s3/register/soc/gpio_reg.h",
+    "sha256": "f8302ac3dffdf5d4b4f987ac76aec780c5130b489529b22d8f59f371b552df3f"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c3/include/soc/gpio_sig_map.h",
+    "sha256": "88cb507e4cfe8b53e95dd965bcaafb4d25647167bd51cca3b89c065f547296af"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c3/register/soc/gpio_reg.h",
+    "sha256": "4b245ea8c457ad56a15f30311e0cfcca59f0600ed53d3e433b1b07e9621dd76c"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c6/include/soc/gpio_sig_map.h",
+    "sha256": "b9e9efaedd97f98f464a0a860f713abf1cd3bb0b393d5bc60446c28231c5824b"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c6/register/soc/gpio_reg.h",
+    "sha256": "cdfd68565fd88be714a14748d02395acf5fbe98261568460a442a76aafe574b0"
+  }
+]

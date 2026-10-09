@@ -1,0 +1,67 @@
+[
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32s3/register/soc/i2s_reg.h",
+    "sha256": "79f4a80f5f730d09ab59e5963cf6ac11f5aefceecc2ee3e0c7fd6b0b00c6f360"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32s3/register/soc/gdma_reg.h",
+    "sha256": "38d0378340c6378732848616915fcfea0a2f5f6f6b10869c4a5b75deb38aa80c"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32s3/include/soc/gpio_sig_map.h",
+    "sha256": "eede7f33a5b4569dfbc828baf35c2827aacb935602110863e5839e19c5a5a8d9"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/hal/esp32s3/include/hal/i2s_ll.h",
+    "sha256": "014c710fe6c81879b61189c5b8bae9e9461d27e1b90bb4a42860a84d9cdefbc2"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c3/register/soc/i2s_reg.h",
+    "sha256": "265abe148cd116b667165afb0023c0f5143d7b397157047d67b6d0a9de4df491"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c3/register/soc/gdma_reg.h",
+    "sha256": "649c025520424fe002024ea990f8972fe4d90813e0c96436b64b3d5c8e2aff7c"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c3/include/soc/gpio_sig_map.h",
+    "sha256": "88cb507e4cfe8b53e95dd965bcaafb4d25647167bd51cca3b89c065f547296af"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/hal/esp32c3/include/hal/i2s_ll.h",
+    "sha256": "9782e3616aa806fd0afb6f3efcb09daf92d34181c843a44b9bee3bcea6d749eb"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c6/register/soc/i2s_reg.h",
+    "sha256": "52fb3203921a79c9b6d134824e2fc9f511fbcaad4f88e547f7ca63490d232d64"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c6/register/soc/gdma_reg.h",
+    "sha256": "e7eb0afb5236f8af8237689dfadceb6860f466b33ed2c2aee69083b35672720e"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c6/include/soc/gpio_sig_map.h",
+    "sha256": "b9e9efaedd97f98f464a0a860f713abf1cd3bb0b393d5bc60446c28231c5824b"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/hal/esp32c6/include/hal/i2s_ll.h",
+    "sha256": "179bc808375bb217b1ba392e5aaf4f6edb53ac82e698a4da3844810bb16a20f3"
+  },
+  {
+    "version": "ESP-IDF v5.5.5",
+    "path": "components/soc/esp32c6/register/soc/pcr_reg.h",
+    "sha256": "8972e97ee3629b97db85b4b41b11e2223d4429ec0b2f154a4a5bafa42f8eed21"
+  }
+]

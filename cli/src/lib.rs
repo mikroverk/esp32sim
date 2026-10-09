@@ -74,6 +74,7 @@ pub struct Opts {
     pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
+    pub i2s_tone: Vec<String>,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
     pub trace: bool, pub trace_from: u64, pub breaks: Vec<u32>, pub watch: Option<u32>, pub peeks: Vec<(u32, usize)>, pub pwm_pins: Vec<u8>, pub disasms: Vec<(u32, usize)>,
     pub profile: bool, pub profile_blocks: bool, pub coverage: Option<Option<String>>, pub irq_latency: bool, pub vcd: Option<String>,
@@ -134,6 +135,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--web" => o.web_port = Some(next().parse().expect("port")),
             "--web-dir" => o.web_dir = Some(next()),
             "--no-reboot" => o.no_reboot = true,
+            "--i2s-tone" => o.i2s_tone.push(next()),
             "--wav" => o.wav = Some(next()),
             "--tft-png" => o.tft_png = Some(next()),
             "--gram-png" => o.gram_png = Some(next()),
@@ -484,6 +486,18 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }
     if let Some(p) = &o.vcd { m.add_observer(Box::new(Vcd::new(p, S::CPU_HZ))); }
+    for tone in &o.i2s_tone {
+        let fields: Vec<_> = tone.split(':').collect();
+        let configure = || -> Result<(usize, f64, f64), String> {
+            let [p, h, a] = fields[..] else { return Err("expected PORT:HZ:AMPLITUDE".into()); };
+            Ok((p.parse().map_err(|_| "invalid port")?, h.parse().map_err(|_| "invalid frequency")?, a.parse().map_err(|_| "invalid amplitude")?))
+        };
+        let result = configure().and_then(|(port, hz, amplitude)| {
+            m.bus.i2s_input(port).ok_or_else(|| "controller absent".to_string())?.tone(hz, amplitude).map_err(String::from)
+        });
+        if let Err(e) = result { eprintln!("--i2s-tone: {e}"); std::process::exit(2); }
+    }
+
     if let Some(sec) = o.max_seconds { m.max_cycles = (sec * S::CPU_HZ as f64) as u64; }
     boot
 }

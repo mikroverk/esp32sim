@@ -502,6 +502,8 @@ impl DeviceSet for Peripherals {
 }
 
 impl Peripherals {
+    /// CPU cycles since this peripheral set was built.
+    pub(crate) fn clock_cycles(&self) -> u64 { self.clock.cycles() }
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             usb: UsbSerialJtag::new(CPU_HZ), uart: [Uart::new(UartLayout::S3), Uart::new(UartLayout::S3), Uart::new(UartLayout::S3)], systimer: Systimer::new(),

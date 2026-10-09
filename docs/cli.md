@@ -42,6 +42,7 @@ PSRAM and register presets.
 | --- | --- |
 | `--max-seconds S` | stop after this much emulated time, including all reboots; also applies to `--cooja` |
 | `--max-insns N` | cap scheduler work across all reboots (details below); unavailable with `--cooja`, which uses `--max-seconds` |
+| `--i2s-tone PORT:HZ:AMPLITUDE` | continuous RX sine on I2S controller 0 or 1; amplitude 0..1, for example `0:1000:0.5`; repeat for multiple controllers |
 | `--script F` | host actions at emulated times (below) |
 | `--console usb\|uart0\|both\|all\|none`, `--console-prefix` | which consoles to print |
 | `--realtime` | pace to wall time without the UI |
@@ -228,3 +229,47 @@ mirror/flip, exposure and sensor clock calibration are not modeled.
 Camera crop/scale does not model ISP offsets (0x3810–0x3813), mirror/flip
 (0x3820/0x3821), or binning. Typical driver settings can differ from the sensor
 by about 2.5% horizontally and 1.6% vertically; mirror/flip is not applied.
+
+## I2S microphone input
+
+Standard I2S RX supports 16/24/32-bit mono or stereo on S3 controllers 0/1 and
+C3/C6 controller 0. S3 controller 0 also accepts PDM-to-PCM RX at 16 bits.
+`--i2s-tone 0:1000:0.5` supplies a continuous 1 kHz sine at half full scale;
+omit it for silence. The source survives software resets.
+
+Rust hosts use `SocBus::i2s_input(port)` to access `PcmInput`. `push(&[[left, right]])`
+queues signed 16-bit stereo frames at the firmware's programmed sample rate.
+For mono input, duplicate each sample into both lanes. `push` returns the number
+accepted, up to a queue limit of 65,536 frames; retry the remaining frames later.
+`clear()` removes queued data and disables the tone. Empty queues read as zero.
+Queued input pauses while RX or its DMA channel is stopped, including during reboot.
+24/32-bit guest buffers receive signed samples shifted left by 16 in 32-bit words.
+
+Input attaches to a controller at the PCM/DMA boundary. It does not simulate GPIO
+wiring, serial bit timing, or PDM filter response. Raw PDM, external slave clocks,
+more than two slots, companding, and reversed bit/byte order are unsupported.
+C3/C6 and S3 controller 1 have no hardware PDM-to-PCM converter, so their raw PDM
+mode does not consume this PCM source. Existing I2S TX capture is unchanged.
+
+### Independent source clocks
+
+Rust hosts can append `PcmSource` values to the slot vector at
+`SocBus::pcm_sources().unwrap().inputs`. Each source names `PcmPins::I2s`
+with BCLK/WS/data pins, or `PcmPins::Pdm` with clock/data pins, and a rate from
+8 to 96 kHz. Pushes retain the newest two seconds. Obtain the bank through
+`pcm_sources()` before each push or inspection to synchronize its clock.
+Queues advance during RX/DMA stalls and survive resets. Matrix routes select
+the lowest matching slot; underrun and unmatched wiring produce silence.
+Accessing the bank selects routed input; an empty bank produces silence.
+Hosts that never attach a bank use the per-controller input API. This models matrix
+selection and PCM samples, not IO_MUX, pad enable, serial edges or PDM filtering.
+
+For ADC audio, attach `AnalogSource::Stream(stream.clone())` through `analog_set`.
+Create `AnalogStream::new(rate, bias_volts, cycles)` and push finite `f32` volts
+with `push(samples, cycles, CPU_HZ)`. For exact 12-bit counts, create
+`AnalogStream::new_raw(rate, bias_count, cycles)`, attach it as
+`AnalogSource::RawStream`, and call `push_raw(samples, cycles, CPU_HZ)`.
+Invalid samples leave queue and time intact. Push between emulator runs at the
+bus's current cycle count. Conversion uses `AnalogInputs.cpu_hz`. Buffers retain
+two seconds, drop oldest samples on overflow, and hold the last value on
+underrun. Both forms preserve main's completed-conversion observation counters.
