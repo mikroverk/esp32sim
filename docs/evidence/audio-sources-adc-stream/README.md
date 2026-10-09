@@ -81,7 +81,62 @@ No JIT implementation changes are included.
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 2f9443a9 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
+
+Measured on `725b527e` against main `2f9443a9`; the branch was since rebased onto `fe3a9c08` (docs and web only) with no change to its own diff. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C6 hello | 3.0334 (3.0068–3.0673) | 3.0068 (2.9940–3.0870) | -0.88% | 1/7 | 4800000000 | 4.89 |
+| S3 hello | 23.8686 (23.7285–24.0412) | 23.8469 (23.6671–24.9067) | -0.09% | 2/7 | 1789819657 | 3.57 |
+| C3 hello | 2.3511 (2.3046–2.3642) | 2.3359 (2.2981–2.3749) | -0.64% | 5/7 | 4800000000 | 1.92 |
+
+### C6 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 3.029614 | 3.157441 | 2.18/4.89/4.89 | 2.28/2.18/2.28 | accepted |
+| 1 | 2 | M→B | 3.006775 | 2.995204 | 4.89/4.89/4.89 | 4.89/4.57/4.89 | accepted |
+| 2 | 3 | B→M | 3.040816 | 3.006795 | 4.57/4.29/4.57 | 4.57/4.57/4.57 | accepted |
+| 3 | 4 | M→B | 3.044706 | 3.008675 | 4.29/4.10/4.29 | 4.10/4.10/4.10 | accepted |
+| 4 | 5 | B→M | 3.019732 | 3.009810 | 3.85/3.85/3.85 | 4.10/3.85/4.10 | accepted |
+| 5 | 6 | M→B | 3.033365 | 2.993991 | 3.85/4.03/4.03 | 4.03/3.86/4.03 | accepted |
+| 6 | 7 | B→M | 3.029658 | 3.004105 | 3.86/3.79/3.86 | 3.86/3.86/3.86 | accepted |
+| 7 | 8 | M→B | 3.067250 | 3.087006 | 3.79/3.79/3.79 | 3.79/3.57/3.79 | accepted |
+
+### S3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 23.700089 | 23.734826 | 2.93/2.27/2.93 | 3.57/2.93/3.57 | accepted |
+| 1 | 2 | M→B | 24.041194 | 24.035328 | 2.27/2.06/2.27 | 2.06/1.77/2.06 | accepted |
+| 2 | 3 | B→M | 23.908291 | 23.721733 | 1.76/1.57/1.76 | 1.77/1.76/1.90 | accepted |
+| 3 | 4 | M→B | 23.743918 | 23.667108 | 1.57/1.61/1.61 | 1.61/2.06/2.15 | accepted |
+| 4 | 5 | B→M | 23.928048 | 23.846858 | 1.77/1.66/1.77 | 2.06/1.77/2.06 | accepted |
+| 5 | 6 | M→B | 23.728536 | 23.877840 | 1.66/1.70/1.82 | 1.70/1.59/1.70 | accepted |
+| 6 | 7 | B→M | 23.868581 | 24.906742 | 2.01/1.91/2.09 | 1.59/2.01/2.01 | accepted |
+| 7 | 8 | M→B | 23.800235 | 23.739825 | 1.91/1.79/1.93 | 1.79/1.65/1.83 | accepted |
+
+### C3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 2.342261 | 2.290093 | 1.92/1.92/1.92 | 1.65/1.92/1.92 | accepted |
+| 1 | 2 | M→B | 2.319549 | 2.298133 | 1.92/1.92/1.92 | 1.92/1.92/1.92 | accepted |
+| 2 | 3 | B→M | 2.357739 | 2.317445 | 1.92/1.85/1.92 | 1.92/1.92/1.92 | accepted |
+| 3 | 4 | M→B | 2.304637 | 2.326926 | 1.85/1.85/1.85 | 1.85/1.78/1.85 | accepted |
+| 4 | 5 | B→M | 2.364159 | 2.365696 | 1.78/1.80/1.80 | 1.78/1.78/1.78 | accepted |
+| 5 | 6 | M→B | 2.358388 | 2.374883 | 1.80/1.80/1.80 | 1.80/1.81/1.81 | accepted |
+| 6 | 7 | B→M | 2.351075 | 2.362864 | 1.81/1.75/1.81 | 1.81/1.81/1.81 | accepted |
+| 7 | 8 | M→B | 2.314663 | 2.335915 | 1.75/1.75/1.75 | 1.75/1.69/1.75 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
 
 No source-bank or ADC-stream tick hook is installed. The bank lives in I2S0's
 lazily allocated receiver state, so no bus or peripheral struct gains a field.
