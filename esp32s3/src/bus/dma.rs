@@ -64,17 +64,17 @@ impl SocBus {
     pub(super) fn stage_rmt_dma(&mut self) {
         if self.periph.rmt.ch[3].conf0 & (1 << 25) == 0 { return; }
         let Some(ch) = self.periph.gdma.out_channel_for(9) else { return; };
-        let limit = RMT_DMA_SYMBOL_LIMIT.saturating_sub(self.periph.rmt.dma_fifo.len()) * 4;
+        let limit = RMT_DMA_SYMBOL_LIMIT.saturating_sub(self.periph.rmt.dma_fifo_len()) * 4;
         match self.gather_dma_out(ch, limit + 1) {
             Ok(bytes) if bytes.len() <= limit => {
-                self.periph.rmt.dma_fifo.extend(bytes.as_chunks::<4>().0.iter().map(|&word| u32::from_le_bytes(word)));
+                self.periph.rmt.dma_fifo().extend(bytes.as_chunks::<4>().0.iter().map(|&word| u32::from_le_bytes(word)));
                 self.periph.gdma.out[ch].running = false;
                 self.periph.gdma.out[ch].int_raw |= 8;
             }
             _ => {
                 self.fail_dma_out(ch);
                 self.periph.rmt.int_raw |= 1 << 28;
-                self.periph.rmt.dma_fifo.clear();
+                self.periph.rmt.clear_dma_fifo();
             }
         }
         self.irq_dirty = true;

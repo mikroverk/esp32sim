@@ -498,7 +498,16 @@ impl SocBus {
             self.spi2_pins = self.board.uses_spi_pins().then(|| self.periph.spi2_pins());
         }
         self.periph.write32(a, v);
-        if a == 0x6001_602c || (0x6003_f000..0x6004_0000).contains(&a) { self.stage_rmt_dma(); }
+        match a >> 12 {
+            0x60016 if a & 0xfff == 0x2c => self.stage_rmt_dma(),
+            0x6003f => {
+                let channel = ((a & 0xfff) / crate::periph::GDMA_CH_STRIDE) as usize;
+                if self.periph.gdma.out.get(channel).is_some_and(|c| c.running && c.peri_sel == 9) {
+                    self.stage_rmt_dma();
+                }
+            }
+            _ => {}
+        }
         if old_gpio_out != self.periph.gpio.out || old_gpio_enable != self.periph.gpio.enable {
             let changes = &self.periph.gpio.changes;
             if let Some(events) = &mut self.gpio_events {

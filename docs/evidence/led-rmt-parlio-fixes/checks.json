@@ -17,7 +17,7 @@
       "ESP32SIM_ROM_DIR=web/wasm/fw"
     ],
     "exit": 0,
-    "passed": 655,
+    "passed": 658,
     "failed": 0,
     "ignored": 0
   },
@@ -27,7 +27,7 @@
     "HOME": "empty",
     "emulator_environment": [],
     "exit": 0,
-    "passed": 634,
+    "passed": 637,
     "failed": 0,
     "ignored": 35
   },

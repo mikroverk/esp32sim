@@ -256,7 +256,7 @@ pub struct GdmaC6 { pub gdma: Gdma, ram: RegRam }
 impl Default for GdmaC6 { fn default() -> Self { Self::new() } }
 impl GdmaC6 {
     pub fn new() -> Self { let mut g = Gdma::new(); g.addr_base = 0x4080_0000; GdmaC6 { gdma: g, ram: RegRam::new() } }
-    fn map(off: u32) -> Option<u32> {
+    pub(crate) fn map(off: u32) -> Option<u32> {
         // the shared (S3) layout per channel: IN conf0 0x00, conf1 0x04, [int 0x08..0x14], fifo 0x18, pop 0x1c,
         // link 0x20, state 0x24, suc_eof 0x28, err_eof 0x2c, dscr 0x30, bf0 0x34, bf1 0x38, pri 0x44, peri_sel 0x48;
         // OUT the same at +0x60. The C6 orders a channel block conf0, conf1, fifo, push, link, state, eof, eof_bfr, dscr, bf0, bf1, pri, peri_sel.

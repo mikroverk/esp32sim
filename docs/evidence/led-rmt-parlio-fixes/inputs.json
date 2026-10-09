@@ -5,7 +5,7 @@
   },
   {
     "path": "esp32s3/src/bus/tests.rs",
-    "sha256": "12132076fe4efe2efbfa9fc3023708cce567fdf54b217c0b25719925778a7114"
+    "sha256": "45ce36f26fd1886dd2b8c3bc1331ad22aa2498be42a34e0e982d5fdf6e798d9b"
   },
   {
     "path": "esp32c6/src/parlio.rs",
@@ -25,7 +25,7 @@
   },
   {
     "path": "esp32c6/src/bus.rs",
-    "sha256": "680a8eb0c76e013afdbbbcdf2e1d66e492534028c76e28640f352bb1001341c2"
+    "sha256": "136bd36c81fe3117150cc944c4c5503b4514a26b62010c846a47ff2865045383"
   },
   {
     "path": "esp-soc/src/devices/ws2812.rs",
@@ -33,10 +33,10 @@
   },
   {
     "path": "esp-periph/src/rmt.rs",
-    "sha256": "b11f1711d5d098d9f3821daf7d0d33f2373492b188a5092e58a4229842abb39a"
+    "sha256": "e6eee7a02e017c1ba11d87947fe7f971de207114c494de1fa596d5d103c9aea9"
   },
   {
     "path": "esp32c6/src/periph.rs",
-    "sha256": "c2a4f2947c6c0c1134137ced116dbb3343bb387bc0e0944663f07188b0426820"
+    "sha256": "c684ce7e42fab9a7bb059115b7610e26f94f3945ccbdc36ec6238f5df65b490c"
   }
 ]

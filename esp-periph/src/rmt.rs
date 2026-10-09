@@ -26,12 +26,9 @@ pub struct Rmt {
     pub tx_count: u64,
     cpu_per_apb: i64,
     running: u8,
-    /// IDF v5.5.4 components/soc/esp32s3/register/soc/rmt_struct.h:117-120
-    /// puts DMA_ACCESS_EN at bit 25 (v4.4.8 calls bits 25..31 reserved); hal/esp32s3/include/hal/rmt_ll.h:237-240 restricts it to TX3.
-    pub dma_fifo: VecDeque<u32>,
 }
 impl Rmt {
-    pub fn new(cpu_hz: u64) -> Self { Rmt { running: 0, cpu_per_apb: (cpu_hz / crate::APB_HZ) as i64, ch: Default::default(), mem: [0; RMT_MEM_WORDS * 8], int_raw: 0, int_ena: 0, sys_conf: 0, ram: RegRam::new(), done: Vec::new(), tx_count: 0, dma_fifo: VecDeque::new() } }
+    pub fn new(cpu_hz: u64) -> Self { Rmt { running: 0, cpu_per_apb: (cpu_hz / crate::APB_HZ) as i64, ch: Default::default(), mem: [0; RMT_MEM_WORDS * 8], int_raw: 0, int_ena: 0, sys_conf: 0, ram: RegRam::new(), done: Vec::new(), tx_count: 0 } }
     pub fn is_running(&self) -> bool { self.running != 0 }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
@@ -54,7 +51,6 @@ impl Rmt {
                 let n = ((off - 0x20) / 4) as usize;
                 let c = &mut self.ch[n];
                 c.conf0 = v & !(1 << 7);   // TX_STOP is a command, not state: a read-modify-write after a stop must not stop the next start
-                if n == 3 && (v & (1 << 23) != 0 || v & (1 << 25) == 0) { self.dma_fifo.clear(); }
                 if v & (1 << 2) != 0 { c.wr = 0; }                          // APB_MEM_RST
                 if v & (1 << 1) != 0 { c.rd = 0; c.mem_empty = false; c.end_pending = false; }      // MEM_RD_RST
                 if v & (1 << 0) != 0 { c.running = true; c.rd = 0; c.mem_empty = false; c.end_pending = false; c.since_thr = 0; c.acc_cycles = 0; c.bits.clear(); c.loop_count = 0; }   // TX_START
@@ -71,76 +67,127 @@ impl Rmt {
     }
     /// Advance transmitters by CPU cycles; symbols are consumed at their programmed duration.
     pub fn tick(&mut self, cycles: u64) {
+        self.tick_tx::<false>(cycles, &mut None);
+    }
+    #[inline(always)]
+    fn tick_tx<const DMA: bool>(&mut self, cycles: u64, fifo: &mut Option<&mut VecDeque<u32>>) {
         if !self.is_running() { return; }
         for n in 0..4 {
-            let c = &mut self.ch[n];
-            if !c.running { continue; }
-            c.acc_cycles += cycles as i64;
-            let div = ((c.conf0 >> 8) & 0xff).max(1) as i64;
-            let cycles_per_tick = self.cpu_per_apb * div;   // RMT clock = APB 80 MHz / div
-            let mem_words = (((c.conf0 >> 16) & 0xf).max(1) as usize) * RMT_MEM_WORDS;
-            let base = n * RMT_MEM_WORDS;
-            let dma = n == 3 && c.conf0 & (1 << 25) != 0;
-            let mut guard = 0;
-            while (c.acc_cycles > 0 || (c.acc_cycles == 0 && c.end_pending)) && guard < 4096 {
-                guard += 1;
-                if c.end_pending {
-                    c.end_pending = false;
-                    if c.conf0 & (1 << 3) != 0 {
-                        let progressed = c.rd != 0;
-                        // Continuous output is not a completed WS2812 frame. Retain only
-                        // the current lap, so a buzzer cannot accumulate host memory.
-                        c.bits.clear();
-                        c.rd = 0;
-                        if c.tx_lim & (1 << 19) != 0 {
-                            c.loop_count += 1;
-                            if c.loop_count >= ((c.tx_lim >> 9) & 0x3ff).max(1) {
-                                self.int_raw |= 1 << (12 + n); // TX_LOOP
-                                c.loop_count = 0;
-                                if c.tx_lim & (1 << 21) != 0 { c.running = false; break; }
-                            }
-                        }
-                        if !progressed { c.acc_cycles = 0; break; }
-                        continue;
-                    }
-                    c.running = false;
-                    self.int_raw |= 1 << n;
-                    self.tx_count += 1;
-                    self.done.push((n, std::mem::take(&mut c.bits)));
-                    break;
-                }
-                // No-wrap exhaustion is an empty-memory error, not an end marker
-                // (S3 TRM 37.4). Invalid block allocations must not index host RAM.
-                let repeats = c.conf0 & ((1 << 3) | (1 << 4)) != 0; // continuous or wrap TX
-                if !dma && (mem_words > self.mem.len() - base || (c.rd >= mem_words && !repeats)) {
-                    c.running = false;
-                    c.mem_empty = true;
-                    self.int_raw |= 1 << (4 + n);
-                    break;
-                }
-                if !dma && c.rd != 0 && c.rd.is_multiple_of(mem_words) && c.conf0 & (1 << 3) != 0 { c.bits.clear(); }
-                let sym = if dma {
-                    let Some(symbol) = self.dma_fifo.pop_front() else { c.acc_cycles = 0; break; };
-                    symbol
-                } else { self.mem[base + (c.rd % mem_words)] };
-                let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
-                if d0 == 0 { // end marker
-                    c.end_pending = true;
-                    continue;
-                }
-                // decode WS2812 bit: compare high vs low durations
-                let high = if l0 { d0 } else { 0 } + if l1 { d1 } else { 0 };
-                let low = if !l0 { d0 } else { 0 } + if !l1 { d1 } else { 0 };
-                c.bits.push(high > low);
-                c.acc_cycles -= (d0 + d1) * cycles_per_tick;
-                c.rd += 1;
-                c.since_thr += 1;
-                if !dma && c.tx_lim & 0x1ff != 0 && c.since_thr >= c.tx_lim & 0x1ff { c.since_thr = 0; self.int_raw |= 1 << (8 + n); }   // TX_THR_EVENT
-                c.end_pending = d1 == 0;
+            if !self.ch[n].running { continue; }
+            if DMA && n == 3 && self.ch[n].conf0 & (1 << 25) != 0 {
+                self.tick_channel::<true>(n, cycles, fifo);
+            } else {
+                self.tick_channel::<false>(n, cycles, fifo);
             }
-            if !c.running { self.running &= !(1 << n); }
         }
     }
+    #[inline(always)]
+    fn tick_channel<const DMA: bool>(&mut self, n: usize, cycles: u64, fifo: &mut Option<&mut VecDeque<u32>>) {
+        let c = &mut self.ch[n];
+        c.acc_cycles += cycles as i64;
+        let div = ((c.conf0 >> 8) & 0xff).max(1) as i64;
+        let cycles_per_tick = self.cpu_per_apb * div;   // RMT clock = APB 80 MHz / div
+        let mem_words = (((c.conf0 >> 16) & 0xf).max(1) as usize) * RMT_MEM_WORDS;
+        let base = n * RMT_MEM_WORDS;
+        let mut guard = 0;
+        while (c.acc_cycles > 0 || (c.acc_cycles == 0 && c.end_pending)) && guard < 4096 {
+            guard += 1;
+            if c.end_pending {
+                c.end_pending = false;
+                if c.conf0 & (1 << 3) != 0 {
+                    let progressed = c.rd != 0;
+                    // Continuous output is not a completed WS2812 frame. Retain only
+                    // the current lap, so a buzzer cannot accumulate host memory.
+                    c.bits.clear();
+                    c.rd = 0;
+                    if c.tx_lim & (1 << 19) != 0 {
+                        c.loop_count += 1;
+                        if c.loop_count >= ((c.tx_lim >> 9) & 0x3ff).max(1) {
+                            self.int_raw |= 1 << (12 + n); // TX_LOOP
+                            c.loop_count = 0;
+                            if c.tx_lim & (1 << 21) != 0 { c.running = false; break; }
+                        }
+                    }
+                    if !progressed { c.acc_cycles = 0; break; }
+                    continue;
+                }
+                c.running = false;
+                self.int_raw |= 1 << n;
+                self.tx_count += 1;
+                self.done.push((n, std::mem::take(&mut c.bits)));
+                break;
+            }
+            // No-wrap exhaustion is an empty-memory error, not an end marker
+            // (S3 TRM 37.4). Invalid block allocations must not index host RAM.
+            let repeats = c.conf0 & ((1 << 3) | (1 << 4)) != 0; // continuous or wrap TX
+            if !DMA && (mem_words > self.mem.len() - base || (c.rd >= mem_words && !repeats)) {
+                c.running = false;
+                c.mem_empty = true;
+                self.int_raw |= 1 << (4 + n);
+                break;
+            }
+            if !DMA && c.rd != 0 && c.rd.is_multiple_of(mem_words) && c.conf0 & (1 << 3) != 0 { c.bits.clear(); }
+            let sym = if DMA {
+                let Some(symbol) = fifo.as_deref_mut().and_then(VecDeque::pop_front) else { c.acc_cycles = 0; break; };
+                symbol
+            } else { self.mem[base + (c.rd % mem_words)] };
+            let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
+            if d0 == 0 { // end marker
+                c.end_pending = true;
+                continue;
+            }
+            // decode WS2812 bit: compare high vs low durations
+            let high = if l0 { d0 } else { 0 } + if l1 { d1 } else { 0 };
+            let low = if !l0 { d0 } else { 0 } + if !l1 { d1 } else { 0 };
+            c.bits.push(high > low);
+            c.acc_cycles -= (d0 + d1) * cycles_per_tick;
+            c.rd += 1;
+            c.since_thr += 1;
+            if !DMA && c.tx_lim & 0x1ff != 0 && c.since_thr >= c.tx_lim & 0x1ff { c.since_thr = 0; self.int_raw |= 1 << (8 + n); }   // TX_THR_EVENT
+            c.end_pending = d1 == 0;
+        }
+        if !c.running { self.running &= !(1 << n); }
+    }
+}
+
+/// S3 TX3 DMA storage; compact C3/C6 transmitters retain the plain RMT layout.
+/// IDF v5.5.4 components/soc/esp32s3/register/soc/rmt_struct.h:117-120 puts
+/// DMA_ACCESS_EN at bit 25 (v4.4.8 calls bits 25..31 reserved).
+/// The queue is allocated only when staged symbols are inserted.
+#[repr(C)]
+pub struct RmtDma {
+    rmt: Rmt,
+    #[allow(clippy::box_collection, reason = "the unused queue handle stays pointer-sized")]
+    dma_fifo: Option<Box<VecDeque<u32>>>,
+}
+impl std::ops::Deref for RmtDma {
+    type Target = Rmt;
+    fn deref(&self) -> &Rmt { &self.rmt }
+}
+impl std::ops::DerefMut for RmtDma {
+    fn deref_mut(&mut self) -> &mut Rmt { &mut self.rmt }
+}
+impl RmtDma {
+    pub fn new(cpu_hz: u64) -> Self { Self { rmt: Rmt::new(cpu_hz), dma_fifo: None } }
+    pub fn dma_fifo(&mut self) -> &mut VecDeque<u32> { self.dma_fifo.get_or_insert_with(Default::default) }
+    pub fn dma_fifo_len(&self) -> usize { self.dma_fifo.as_ref().map_or(0, |fifo| fifo.len()) }
+    pub fn clear_dma_fifo(&mut self) { self.dma_fifo = None; }
+    pub fn write(&mut self, off: u32, v: u32) {
+        self.rmt.write(off, v);
+        // IDF v5.5.4 components/hal/esp32s3/include/hal/rmt_ll.h:237-240: DMA is TX3 only.
+        // components/soc/esp32s3/register/soc/rmt_reg.h:575-581: AFIFO_RST bit 23.
+        if off == 0x2c && (v & (1 << 23) != 0 || v & (1 << 25) == 0) { self.clear_dma_fifo(); }
+    }
+    #[inline]
+    pub fn tick(&mut self, cycles: u64) { self.rmt.tick_tx::<true>(cycles, &mut self.dma_fifo.as_deref_mut()); }
+}
+impl Device for RmtDma {
+    fn read(&mut self, off: u32) -> u32 { self.rmt.read(off) }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect { RmtDma::write(self, off, v); WriteEffect::NONE }
+    fn irq_sources(&self) -> u64 { self.rmt.irq() as u64 }
+    fn clock(&self) -> Option<ClockDomain> { Some(ClockDomain::Cpu) }
+    #[inline]
+    fn tick(&mut self, cycles: u64) { RmtDma::tick(self, cycles) }
 }
 
 impl Device for Rmt {
@@ -187,21 +234,27 @@ mod dma_tests {
     use super::*;
     #[test]
     fn dma_reset_disable_starvation_and_threshold_suppression() {
-        let mut r = Rmt::new(240_000_000);
+        assert_eq!(std::mem::offset_of!(RmtDma, rmt), 0);
+        assert_eq!(std::mem::offset_of!(RmtDma, dma_fifo), size_of::<Rmt>());
+        assert!(size_of::<RmtDma>() <= size_of::<Rmt>() + 8);
+        let mut r = RmtDma::new(240_000_000);
+        assert!(r.dma_fifo.is_none());
         r.write(0x2c, (1 << 25) | 1);
         r.tick(1000);
+        assert!(r.dma_fifo.is_none());
         assert!(r.is_running());
         assert_eq!(r.int_raw, 0);
         r.write(0xac, 1);
-        r.dma_fifo.extend([0x8000 | 35 | (15 << 16), 0]);
+        r.dma_fifo().extend([0x8000 | 35 | (15 << 16), 0]);
         r.tick(1000);
         assert_eq!(r.done, [(3, vec![true])]);
         assert_eq!(r.int_raw, 1 << 3);
-        r.dma_fifo.push_back(123);
+        r.dma_fifo().push_back(123);
         r.write(0x2c, (1 << 25) | (1 << 23));
-        assert!(r.dma_fifo.is_empty());
-        r.dma_fifo.push_back(456);
+        assert_eq!(r.dma_fifo_len(), 0);
+        r.dma_fifo().push_back(456);
         r.write(0x2c, 0);
-        assert!(r.dma_fifo.is_empty());
+        assert_eq!(r.dma_fifo_len(), 0);
+        assert!(r.dma_fifo.is_none());
     }
 }

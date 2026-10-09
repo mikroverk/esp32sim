@@ -4,7 +4,8 @@
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{GpSpi, Ledc, LedcLayout, Mcpwm};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect};
-pub use esp_periph::{read_desc, reset_cause_name, Aes, DirtyMem, DmaDesc, Efuse, Gdma, GdmaInCh, GdmaOutCh, Gpio, I2s, RegRam, Rmt, RmtTxCh, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, Timer, TimerGroup, Uart, UartLayout, UsbSerialJtag,
+pub use esp_periph::rmt::RmtDma as Rmt;
+pub use esp_periph::{read_desc, reset_cause_name, Aes, DirtyMem, DmaDesc, Efuse, Gdma, GdmaInCh, GdmaOutCh, Gpio, I2s, RegRam, RmtTxCh, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, Timer, TimerGroup, Uart, UartLayout, UsbSerialJtag,
                     APB_HZ, DMA_ADDR_BASE, GDMA_CHANNELS, GDMA_CH_STRIDE, RMT_MEM_WORDS, RST_POWERON, RST_RTCWDT_CPU, RST_RTCWDT_RTC, RST_RTCWDT_SYS, RST_SW_CPU, RST_SW_SYS, RTC_SLOW_HZ, SYSTIMER_HZ, XTAL_HZ};
 use std::collections::HashMap;
 

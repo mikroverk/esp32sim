@@ -145,8 +145,18 @@ impl SocBus {
         let v = if size == 4 { v } else { merge(self.periph.read32(a)) };
         let old_drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
-        if (0x6001_5000..0x6001_6000).contains(&a) || (0x6008_0000..0x6008_1000).contains(&a) || a == 0x6009_60ac {
-            self.stage_parlio_dma();
+        match a >> 12 {
+            0x60015 => self.stage_parlio_dma(),
+            0x60096 if a & 0xfff == 0xac => self.stage_parlio_dma(),
+            0x60080 => {
+                if let Some(off) = crate::periph::GdmaC6::map(a & 0xfff) {
+                    let channel = (off / esp_periph::GDMA_CH_STRIDE) as usize;
+                    if self.periph.gdma.gdma.out.get(channel).is_some_and(|c| c.running && c.peri_sel == 9) {
+                        self.stage_parlio_dma();
+                    }
+                }
+            }
+            _ => {}
         }
         if old_drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
@@ -578,6 +588,47 @@ mod parlio_dma_tests {
         assert_eq!(bus.periph.parlio.clock(), None);
         bus.periph.tick(64);
         assert!(bus.periph.misc.active_optional.is_empty());
+    }
+
+    #[test]
+    fn unrelated_gdma_channel_does_not_allocate_or_stage_parlio() {
+        let mut bus = SocBus::new(1024, [0; 6]);
+        let desc = SRAM_LOW + 32;
+        for (addr, word) in [(desc, (1 << 31) | (1 << 30) | (1 << 12) | 1),
+            (desc + 4, SRAM_LOW + 64), (desc + 8, 0)] {
+            bus.write32(addr, word).unwrap();
+        }
+        let c = &mut bus.periph.gdma.gdma.out[0];
+        c.running = true; c.desc = desc; c.peri_sel = 9;
+        bus.write32(0x6008_004c, u32::MAX).unwrap();
+        assert!(bus.periph.parlio.tx.is_none());
+        assert!(bus.periph.gdma.gdma.out[0].running);
+        bus.write32(0x6008_003c, u32::MAX).unwrap();
+        assert_eq!(bus.periph.parlio.tx().fifo.len(), 1);
+        assert!(!bus.periph.gdma.gdma.out[0].running);
+    }
+
+    #[test]
+    fn parlio_start_write_completes_staged_payload() {
+        let mut bus = SocBus::new(1024, [0; 6]);
+        let frames = Frames::default();
+        bus.board = Box::new(Board(frames.clone()));
+        bus.write32(0x6009_0014, 1 << 12).unwrap();
+        bus.write32(0x6009_1564, 47).unwrap();
+        bus.write32(0x6009_60ac, (1 << 18) | (1 << 16) | 74).unwrap();
+        let desc = SRAM_LOW + 32;
+        let data = SRAM_LOW + 64;
+        bus.write32(desc, (1 << 31) | (1 << 30) | (24 << 12) | 24).unwrap();
+        bus.write32(desc + 4, data).unwrap();
+        bus.write32(desc + 8, 0).unwrap();
+        for i in 0..24 { bus.write8(data + i, 0b00_00_10_11).unwrap(); }
+        let c = &mut bus.periph.gdma.gdma.out[0];
+        c.running = true; c.desc = desc; c.peri_sel = 9; c.conf1 = 1 << 12;
+        bus.write32(0x6008_003c, u32::MAX).unwrap();
+        assert_eq!(bus.periph.parlio.tx().fifo.len(), 24);
+        assert!(frames.lock().unwrap().is_empty());
+        bus.write32(0x6001_5008, (24 << 2) | (1 << 19) | (3 << 27)).unwrap();
+        assert_eq!(*frames.lock().unwrap(), [(4, vec![false; 24])]);
     }
 
     #[test]

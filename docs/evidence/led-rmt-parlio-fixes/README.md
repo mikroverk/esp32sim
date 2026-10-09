@@ -11,15 +11,17 @@ for IO_MUX, chip-specific masks, output inversion and output-enable selection.
 Two enabled pins on the same signal each receive a frame. A disabled
 software-enable route, inverted route, or non-GPIO mux function does not.
 
-S3 stages finite DMA chains when RMT/GDMA registers are written. It reuses the
-existing `gather_dma_out` Result-based helper and bounded descriptor walker.
+S3 stages finite DMA chains when RMT TX3 CONF0 is written, or when a GDMA
+register of a running trigger-9 OUT channel is written. It reuses the existing
+`gather_dma_out` Result-based helper and bounded descriptor walker.
 Automatic owner writeback is gated once in this shared helper. Channel 3 consumes
 the staged symbols through the existing timed RMT transmitter. DMA mode bypasses
 CPU-fed RMT memory exhaustion and threshold interrupts. FIFO reset and disabling
 DMA discard staged symbols; starvation waits for more data.
 
-C6 stages finite PARLIO chains on PARLIO/GDMA/PCR TX-clock writes, including
-prefill while the TX clock is disabled. A single C6 gather helper, also used by
+C6 stages finite PARLIO chains on PARLIO and PCR TX-clock writes, and on GDMA
+register writes of a running trigger-9 OUT channel, including prefill while the
+TX clock is disabled. A single C6 gather helper, also used by
 SPI2 and AES, owns descriptor validation, bounded traversal and writeback.
 Malformed OUT chains report a GDMA error without delivering partial SPI/AES output.
 A configured start, complete payload and enabled clock produce lane samples and
@@ -37,25 +39,45 @@ plus one end marker; C6 queues at most 65535 bytes. These are emulator limits.
 
 ## Idle path
 
+The S3 TX3 DMA queue is not part of the shared `Rmt`. The C3/C6 `RmtCompact`
+embeds `Rmt` with the same fields as upstream main. S3 uses an `RmtDma` wrapper
+(`repr(C)`: `Rmt` at offset 0, then a nullable boxed queue). The queue is
+allocated when staged symbols are inserted. FIFO reset, DMA disable and a staging
+failure release it. The transmitter receives the queue only as an optional
+borrow, so ticking cannot allocate it. A test pins the wrapper layout and checks
+that a started DMA channel without staged data allocates nothing.
+
+The transmitter loop is one inlined, const-specialized function. Plain
+`Rmt::tick` (C3/C6) instantiates only the non-DMA variant, which contains no DMA
+condition. S3 selects the DMA variant per running channel (TX3 with bit 25 set).
+Both return before the channel loop while no transmitter runs, as on main.
+
+MMIO staging is filtered by the written block. On S3, only a write to RMT TX3
+CONF0, or a GDMA write to a channel that is running with trigger 9, calls
+`stage_rmt_dma`. Writes to other GDMA channels (SPI2, LCD, I2S, camera, crypto)
+do not. On C6, PARLIO and PCR PARLIO-clock writes stage; a GDMA write stages only
+when the written channel, mapped through the existing `GdmaC6::map`, is running
+with trigger 9. Tests write an unrelated GDMA channel and require no staging,
+then write the selected channel and require staging. No DMA pump or staging call
+runs from a device tick. Each MMIO write still performs the block classification;
+C6 `Peripherals::write32` keeps one address comparison for the PARLIO PCR clock.
+
 PARLIO keeps a nullable boxed TX state at the end of `Peripherals`. Before its
 first MMIO access or selected DMA transfer, no TX state or register RAM is
 allocated. The pointer-sized handle avoids placing the 128-byte TX state among
 hot fields through Rust's field reordering. Layout tests require the handle to
 follow the system timer, clock tree and cached interrupt status.
 
-No DMA pump or PARLIO callback runs from a device tick. `clock()` remains `None`,
-including during a configured transfer, so PARLIO never enters the optional-device
-active list. Staging runs only on relevant register writes. RMT retains its
-existing idle return. There is exactly one PARLIO PCR `set_clock` call.
+PARLIO `clock()` remains `None`, including during a configured transfer, so
+PARLIO never enters the optional-device active list. There is exactly one
+PARLIO PCR `set_clock` call.
 
 Source 63 uses the existing optional interrupt cache in status word 1, which
 already contains LEDC and MCPWM. The `OPTIONAL_SOURCES` mask admits PARLIO's
 cached bit without adding a device callback or another status-word load. Shared
 interrupt routing is identical to upstream. Tests cover PARLIO's routed assertion
 and acknowledgement, and prove the unused device has no storage, clock or active
-entry. There is no new PARLIO tick callback; the possible source-63 route remains
-part of the existing matrix scan. No CPU parity claim is made without central
-measurement.
+entry.
 
 ## Register sources
 
@@ -109,11 +131,12 @@ payloads, AES-128 zero-key/zero-input ciphertext, owner handback and completion
 interrupt state with automatic writeback enabled and disabled. These are register-level workloads, not
 a claim of running a particular FastLED or NeoPixel firmware release.
 
-`mutations.json` records 27 exact mutations and the tests that kill them, including
-both MMIO staging hooks, multi-route fanout, DMA mode, reset, ownership, lengths,
-writeback selection, EOF interrupts, queue bounds and PARLIO packing/clock/IRQ.
-Three storage/idle mutations force eager allocation, inline TX storage and an
-active PARLIO clock.
+`mutations.json` records 34 exact mutations and the tests that kill them, including
+the MMIO staging hooks and channel gates, multi-route fanout, DMA mode, reset,
+ownership, lengths, writeback selection, EOF interrupts, queue bounds and PARLIO
+packing/clock/IRQ. Storage/idle mutations force eager PARLIO and RMT DMA
+allocation, retained RMT queue storage after disable, inline PARLIO TX storage
+and an active PARLIO clock.
 Each changed source is restored before the next mutation. Every mutation fails
 an assertion in a previously passing focused test.
 
@@ -133,14 +156,6 @@ These tolerances and completion rules are not silicon timing claims.
 ## CPU comparison
 
 PENDING
-
-The supplied central comparison for PR #205 against main `017af524` used seven
-alternating pairs, each starting with one-minute load below 3. C6 hello was 1.58%
-slower and slower in all seven pairs; S3 hello was 0.17% faster. Pocket Tank was
-reported unaffected, without a numeric result. Raw samples and measurement
-commands were not supplied here. These results describe the inline PARLIO version,
-not the lazy-storage change. Central remeasurement
-is required; no local CPU comparison was performed.
 
 ## Evidence privacy
 
