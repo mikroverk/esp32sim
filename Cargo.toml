@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["emu-core", "esp-periph", "esp-soc", "xtensa-lx7", "esp32s3", "cli", "wasm", "wasm-jit", "riscv-rv32", "esp32c3", "esp32c6"]
+members = ["emu-core", "esp-periph", "esp-soc", "xtensa-lx7", "esp32s3", "cli", "wasm", "wasm-jit", "riscv-rv32", "esp32c3", "esp32c6", "esp32"]
 
 [workspace.package]
 version = "0.2.0"

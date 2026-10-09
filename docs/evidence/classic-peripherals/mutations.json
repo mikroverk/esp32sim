@@ -1,0 +1,215 @@
+[
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "if !seen.insert(desc) -> if seen.insert(desc)",
+    "test": "classic_spi_dma_walks_native_descriptors_and_stores_loopback_rx",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/dma.rs",
+    "mutation": "if self.remaining == 0 -> if self.remaining == usize::MAX",
+    "test": "descriptor_reader_decodes_words_bounds_visits_and_names_faulting_word",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ledc.rs",
+    "mutation": "8_500_000 -> 8_000_000",
+    "test": "low_speed_clock_selection_uses_idf_rc_fast_and_ref_tick",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ledc.rs",
+    "mutation": "g == 0 || value & (1 << 26) != 0 -> g < 2",
+    "test": "low_speed_shadow_registers_require_para_up",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/i2c.rs",
+    "mutation": "0 => 6, 2 => 3, 3 => 2 -> 0 => 6, 2 => 3, 3 => 3",
+    "test": "classic_executes_sixteen_slots_and_old_stop_opcode",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/i2c.rs",
+    "mutation": "for i in 0..$n { -> for i in 0..8 {",
+    "test": "classic_executes_sixteen_slots_and_old_stop_opcode",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "self.gpio.signal_input(scl) != Some(true) || self.gpio.signal_input(sda) != Some(true) -> false",
+    "test": "classic_i2c_commands_devices_matrix_timeout_and_interrupts",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ledc.rs",
+    "mutation": "g == 0 || reg == 0 && value & 16 != 0 -> g < 2",
+    "test": "low_speed_shadow_registers_require_para_up",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/ledc.rs",
+    "mutation": "total % modulus }, total >= modulus) -> total % modulus }, total > modulus)",
+    "test": "high_and_low_speed_channels_latch_duty_and_report_pwm",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/ledc.rs",
+    "mutation": "0xcc => self.raw &= !value -> 0xcc => self.raw &= value",
+    "test": "interrupt_status_and_clear_cover_timer_and_duty_completion",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "let div = if div == 0 { 256 } else { div }; -> let div = if div == 0 { 1 } else { div };",
+    "test": "zero_divider_is_256_for_both_clock_sources",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "% self.mem.len() -> % WORDS",
+    "test": "borrowed_blocks_share_ram_and_wrap_after_word_511",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "if duration == 0 { -> if duration == 1 {",
+    "test": "zero_duration_ends_at_the_first_or_second_half_boundary",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "self.raw |= 1 << (24 + n); -> self.raw |= 1 << n;",
+    "test": "threshold_interrupts_allow_refilling_a_wrapped_96_word_stream",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "self.ch[n].remaining = self.divider(n); -> self.ch[n].remaining = 2 * self.divider(n);",
+    "test": "continuous_output_has_an_idle_tick_and_stops_after_eof",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "c.phase = 0;\n                    c.remaining = 0;\n                    c.errors -> c.phase = 0;\n                    c.remaining = 42;\n                    c.errors",
+    "test": "pointer_reset_discards_the_old_pulse_deadline",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/spi.rs",
+    "mutation": "self.pending = None; -> self.pending.as_mut().map(|t| t.dma_tx_len = 0);",
+    "test": "classic_spi_dma_fault_does_not_publish_success_or_send_a_transfer",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/spi.rs",
+    "mutation": "(command >> (8 * i)) as u8 -> (command >> (8 * (1-i))) as u8",
+    "test": "command_address_and_dma_state_form_one_transaction",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "if !d.owner_dma { return Err(DmaDescriptorFault::NotOwned { descriptor: d.addr }); }\n            for i in 0..(d.length -> if d.owner_dma { return Err(DmaDescriptorFault::NotOwned { descriptor: d.addr }); }\n            for i in 0..(d.length",
+    "test": "classic_spi_dma_walks_native_descriptors_and_stores_loopback_rx",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "(control & !(0xfff << 12) & !(1 << 31)) -> (control & !(0xfff << 12))",
+    "test": "classic_spi_dma_walks_native_descriptors_and_stores_loopback_rx",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "if self.pins_active { self.deliver_board_inputs(); }\n        if let Some((cpu, n)) = Self::mmu_slot(addr) -> self.deliver_board_inputs();\n        if let Some((cpu, n)) = Self::mmu_slot(addr)",
+    "test": "inactive_board_skips_tick_and_mmio_callbacks",
+    "crate": "esp32",
+    "target": "host_devices",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/rmt.rs",
+    "mutation": "high > low -> high < low",
+    "test": "eight_channels_have_independent_ram_and_tx_interrupts",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "self.route_mux.write(4 + 4 * pin as u32, -> self.route_mux.write(4 * pin as u32,",
+    "test": "uart_matrix_receive_does_not_require_gpio_output_mux",
+    "crate": "esp32",
+    "target": "host_devices",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ledc.rs",
+    "mutation": "self.clock_enabled && self.groups.iter().any(|g| g.any_timer()) -> true",
+    "test": "high_and_low_speed_channels_latch_duty_and_report_pwm",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "&& self.ch[n].bits.len() <= 4096 -> && true",
+    "test": "unending_stream_bounds_bits_and_does_not_publish_truncation",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/rmt.rs",
+    "mutation": "if bits.len() <= 4096 { -> if true {",
+    "test": "unending_stream_bounds_bits_and_does_not_publish_truncation",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/ledc.rs",
+    "mutation": "if value & (1 << 24) != 0 { self.groups[g].write -> if false { self.groups[g].write",
+    "test": "timer_reset_restarts_without_leaving_the_timer_stopped",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "1 => 2, 2 => 1, f => f -> 1 => 2, 2 => 2, f => f",
+    "test": "uart_apb_ahb_and_pin_receive",
+    "crate": "esp32",
+    "target": "host_devices",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/ledc.rs",
+    "mutation": "u32::from($classic || matches!(self.layout, LedcLayout::C6)) -> u32::from(matches!(self.layout, LedcLayout::C6))",
+    "test": "high_and_low_speed_channels_latch_duty_and_report_pwm",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/ledc.rs",
+    "mutation": "if $classic { self.pending[n] = false; } -> if false { self.pending[n] = false; }",
+    "test": "clearing_duty_start_before_the_wrap_cancels_a_pending_update",
+    "crate": "esp32",
+    "killed": true
+  }
+]

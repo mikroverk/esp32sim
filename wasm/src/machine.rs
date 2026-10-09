@@ -78,6 +78,7 @@ pub(super) enum MachineKind {
     S3(Box<esp32s3::Machine>),
     C3(Box<esp32c3::Machine>),
     C6(Box<esp32c6::Machine>),
+    Esp32(Box<esp32::Machine>),
 }
 
 impl MachineKind {
@@ -89,13 +90,13 @@ impl MachineKind {
 impl std::ops::Deref for MachineKind {
     type Target = dyn MachineApi;
     fn deref(&self) -> &Self::Target {
-        match self { Self::S3(m) => m.as_ref(), Self::C3(m) => m.as_ref(), Self::C6(m) => m.as_ref() }
+        match self { Self::S3(m) => m.as_ref(), Self::C3(m) => m.as_ref(), Self::C6(m) => m.as_ref(), Self::Esp32(m) => m.as_ref() }
     }
 }
 
 impl std::ops::DerefMut for MachineKind {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        match self { Self::S3(m) => m.as_mut(), Self::C3(m) => m.as_mut(), Self::C6(m) => m.as_mut() }
+        match self { Self::S3(m) => m.as_mut(), Self::C3(m) => m.as_mut(), Self::C6(m) => m.as_mut(), Self::Esp32(m) => m.as_mut() }
     }
 }
 

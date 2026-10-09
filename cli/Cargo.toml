@@ -27,4 +27,5 @@ esp-periph = { path = "../esp-periph" }
 esp-soc = { path = "../esp-soc" }
 esp32s3 = { path = "../esp32s3" }
 esp32c3 = { path = "../esp32c3" }
+esp32 = { path = "../esp32" }
 esp32c6 = { path = "../esp32c6" }

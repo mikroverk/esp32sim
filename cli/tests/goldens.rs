@@ -280,3 +280,18 @@ fn ble_advertiser_c3() {
     expect_text("ble-advertiser-c3.observer.txt", &(packets.join("\n") + "\n"));
     expect_u64("ble-advertiser-c3.insns", r.insns);
 }
+
+/// Classic ECO3 ROM, stock IDF bootloader and hello_world application.
+#[test]
+#[ignore = "needs the ESP32 ECO3 mask ROM ELF"]
+fn hello_world_classic() {
+    let rom = rom("esp32_rev300");
+    let r = run(BIN, &["--chip", "esp32", "--rom", rom.to_str().unwrap(), "--board", "esp32dev", "--boot", "rom", "--no-dump", "--console", "uart0",
+        "--bootloader", &format!("{FW}/classic-hello-bootloader.bin"), "--ptable", &format!("{FW}/classic-hello-ptable.bin"), "--app", &format!("{FW}/classic-hello_world.bin"), "--max-seconds", "3"]);
+    for text in ["ets Jul 29 2019", "2nd stage bootloader", "Hello world!"] { assert!(r.stdout.contains(text), "missing {text}: {}", r.stdout); }
+    expect_text("hello-classic.console.txt", &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("  core")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text("hello-classic.report.txt", &report);
+}
