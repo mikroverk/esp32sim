@@ -130,6 +130,7 @@ pub struct Machine<S: Soc> {
 /// Default scheduling quantum; `Machine::quantum` can change it (not bit-exact with the default). q256: 256 on wasm32,
 /// 64 native (M3 CLI at 256: Pocket Tank 5.4% slower, cheap native quantum switches lose to +15% spin-waiting).
 const QUANTUM: u64 = if cfg!(target_arch = "wasm32") { 256 } else { 64 };
+const GPIO_WAVEFORM_TIMING_ERROR: &str = "GPIO waveform decoding cannot be combined with a timing model";
 /// EX133 default for `Machine::vq_max`; a build can pin another with `ESP32SIM_VQ_BUILD=<n>`.
 const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
     Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
@@ -180,6 +181,7 @@ impl<S: Soc> Machine<S> {
     }
     /// Attach a timing model before the machine has executed or reset.
     pub fn set_cost_model(&mut self, mut model: Box<dyn CostModel>) -> Result<(), String> {
+        if self.bus.board_ref().uses_gpio_waveform() { return Err(GPIO_WAVEFORM_TIMING_ERROR.into()); }
         if self.cost.is_some() || self.approximate_jit_timing.is_some() { return Err("a timing model is already attached".into()); }
         if let Some(reason) = self.model_attach_error { return Err(reason.into()); }
         if self.bus.cycles() != 0 || self.reboots != 0 || self.cores.iter().any(|core| core.insn_count() != 0) {
@@ -205,6 +207,7 @@ impl<S: Soc> Machine<S> {
     /// Uniform CPI and deadline-bounded instruction batches for an explicitly rough JIT experiment.
     /// Within-batch memory ordering and memory latency are not modeled by this setting.
     pub fn set_approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> Result<(), String> {
+        if self.bus.board_ref().uses_gpio_waveform() { return Err(GPIO_WAVEFORM_TIMING_ERROR.into()); }
         if self.cost.is_some() || self.insns() != 0 { return Err("configure approximate JIT timing before execution, without CostModel".into()); }
         if !(1..=256).contains(&cpi) || !(1..=4096).contains(&quantum) { return Err("CPI must be 1..256 and quantum 1..4096".into()); }
         self.approximate_jit_timing = Some((cpi, quantum));
@@ -489,6 +492,13 @@ impl<S: Soc> Machine<S> {
     pub fn run(&mut self, max_insns: u64) -> Stop {
         self.web_poll_input();
         self.refresh_irq();
+        if self.bus.board_ref().uses_gpio_waveform() {
+            if self.has_timing_model() { return Stop::CostModelLifecycle { kind: LifecycleKind::Attach, reason: GPIO_WAVEFORM_TIMING_ERROR.into() }; }
+            let quantum = std::mem::replace(&mut self.quantum, 1);
+            let stop = self.run_unmodeled::<false>(max_insns);
+            self.quantum = quantum;
+            return stop;
+        }
         if self.cost.is_some() { self.run_modeled(max_insns) } else if self.approximate_jit_frontiers { self.run_approximate_jit_frontiers(max_insns) } else if self.approximate_jit_timing.is_some() { self.run_unmodeled::<true>(max_insns) } else { self.run_unmodeled::<false>(max_insns) }
     }
 
@@ -499,7 +509,8 @@ impl<S: Soc> Machine<S> {
     /// still has to enforce architectural boundaries such as
     /// CCOMPARE and register-window overflow for the block it proposes.
     pub fn browser_external_block_budget(&self, requested: u32) -> Option<u32> {
-        if u64::from(requested) < self.quantum
+        if self.bus.board_ref().uses_gpio_waveform()
+            || u64::from(requested) < self.quantum
             || self.cost.is_some()
             || self.approximate_jit_timing.is_some()
             || self.probes.0 != 0
@@ -901,6 +912,10 @@ impl<S: Soc> Machine<S> {
     /// Nothing else about a run changes: stubs, probes, observers, scripts and the console work
     /// as in `run`; `max_cycles` is not consulted.
     pub fn run_until_cycle(&mut self, target: u64) -> RunUntil {
+        let quantum = if self.bus.board_ref().uses_gpio_waveform() {
+            if self.has_timing_model() { return RunUntil::Stop(Stop::CostModelLifecycle { kind: LifecycleKind::Attach, reason: GPIO_WAVEFORM_TIMING_ERROR.into() }); }
+            1
+        } else { self.quantum };
         self.web_poll_input();
         self.refresh_irq();
         self.stub_bloom = self.stubs.keys().chain(S::function_hooks(&self.bus)).fold(0, |m, &pc| m | pc_bit(pc));
@@ -930,7 +945,7 @@ impl<S: Soc> Machine<S> {
                 if let Some((at, _)) = self.script.events.get(self.script.pos) {
                     deadline = deadline.min(at.saturating_sub(now).max(1));
                 }
-                let mut budget = left.min(self.quantum).min(deadline) as u32;
+                let mut budget = left.min(quantum).min(deadline) as u32;
                 let (mut used_total, mut yielded, mut stop) = (0u64, false, None);
                 while budget > 0 {
                     let (used, s) = if blocks { self.step_blocks(0, budget) } else { (1, self.step_core(0)) };

@@ -1,0 +1,153 @@
+{
+  "experiment": "EX217",
+  "base": "017af5241f48855c412d912ff91f0a801dd3c1bd",
+  "implementation": "b58d96d884fd4e1c0dd629faa651f6874d6cbc68",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "node": "v22.23.1",
+  "checks": [
+    {
+      "check": "clippy-native",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "clippy-wasm",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "ci-tests",
+      "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit": 0,
+      "environment": "empty HOME; only ROM fixture setting",
+      "results": {
+        "passed": 677,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "plain-tests",
+      "command": "cargo +1.99.0 test --release --workspace",
+      "exit": 0,
+      "environment": "empty HOME; no ESP32SIM settings",
+      "results": {
+        "passed": 656,
+        "failed": 0,
+        "ignored": 35
+      }
+    },
+    {
+      "check": "wasm-build",
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "wasm-tests",
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "wasm-sections",
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "virtual-quantum",
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "timing-api",
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm",
+      "exit": 0,
+      "environment": "normal build environment"
+    },
+    {
+      "check": "ble-api",
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "exit": 0,
+      "environment": "normal build environment"
+    }
+  ],
+  "additional_CI_checks": [
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node tools/worker-pacing-test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node tools/worker-channel-test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test tools/touch-input-test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test tools/wasm-build-policy.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "node --test tools/browser-benchmark/*.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+      "exit": 0
+    }
+  ],
+  "timing_ABI": "pass",
+  "BLE_ABI": {
+    "result": "pass",
+    "packets": 57,
+    "events": 19
+  },
+  "mutations": {
+    "killed": 54,
+    "survived": 0,
+    "build_errors": 0
+  },
+  "symbol_inspection": {
+    "command": "nm target/release/esp32sim target/release/esp32sim-c3 target/release/esp32sim-c6",
+    "result": "No deliver_board_inputs or release_and_report symbol in any binary; both helpers are forced inline."
+  },
+  "goldens": "unchanged",
+  "JIT_differential": "not run: no JIT code changes",
+  "privacy": "pattern check and manual review pass",
+  "CPU_comparison": "PENDING",
+  "limits": [
+    "No CPU benchmark or hardware verification.",
+    "Historical sonar result was not rerun; default instruction timing at quantum 1 remains a limitation."
+  ],
+  "review_base": "45e2211b6e149a2623936437cec86152a250f8eb"
+}

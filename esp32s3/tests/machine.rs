@@ -386,7 +386,7 @@ fn host_touch_is_delivered_on_the_next_fast_path_bus_tick() {
     park(&mut m, 0, IRAM, &SPIN);
     m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::new());
     m.bus.attach_board_devices();
-    m.bus.periph.gpio.pin[esp32s3::board::PIN_AMOLED_TOUCH_INT as usize] = (2 << 7) | (1 << 13);
+    m.bus.periph.gpio.write(0x74 + 4 * u32::from(esp32s3::board::PIN_AMOLED_TOUCH_INT), (2 << 7) | (1 << 13));
     m.max_cycles = 64;
     assert!(matches!(m.run(u64::MAX), Stop::Halted));
     let horizon = m.bus.cycles;

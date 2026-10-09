@@ -42,14 +42,17 @@ impl PinRoutes<'_> {
     pub fn i2c_pin(&self, signal: usize) -> Option<u8> {
         self.matrix_input(signal).filter(|&pin| self.matrix_output(pin as usize, signal as u32))
     }
-    pub fn spi_pins(&self, spi: &GpSpi, signals: [u32; 4], gpio_signal: u32, native: &[(u32, usize, usize, usize, usize)]) -> SpiPins {
+    /// Signals are CLK, MISO, MOSI, CS0..5; native tuples hold function, CLK/MOSI/MISO and CS pins.
+    /// IDF v5.5.4 components/soc/esp32c6/register/soc/spi_reg.h:365-403,497-559
+    /// defines the shared USER phase and MISC CS disable/polarity fields.
+    pub fn spi_pins(&self, spi: &GpSpi, signals: [u32; 9], gpio_signal: u32, native: &[(u32, usize, usize, usize, &[usize])]) -> SpiPins {
         let outputs = |signal, role| {
             let mut mask = 0;
             for pin in 0..64 {
                 if self.valid_pin(pin)
                     && (self.matrix_output(pin, signal)
-                        || native.iter().any(|&(f, c, o, _, s)| {
-                            self.mux(pin) & (7 << 12) == f << 12 && [c, o, s][role] == pin
+                        || native.iter().any(|&(f, c, o, _, _)| {
+                            self.mux(pin) & (7 << 12) == f << 12 && [c, o][role] == pin
                         }))
                 {
                     mask |= 1 << pin;
@@ -77,14 +80,14 @@ impl PinRoutes<'_> {
             }
             for cs in 0..6 {
                 if spi.read(0x20) & ((1 << cs) | (1 << (cs + 7))) == 0
-                    && self.matrix_output(pin, signals[3] + cs)
+                    && (self.matrix_output(pin, signals[3 + cs])
+                        || native.iter().any(|&(f, _, _, _, selects)| {
+                            selects.get(cs) == Some(&pin) && self.function(pin, f)
+                        }))
                 {
                     pins.cs |= 1 << pin;
                 }
             }
-        }
-        if spi.read(0x20) & (1 | 1 << 7) == 0 {
-            pins.cs |= outputs(signals[3], 2);
         }
         if user & (1 << 28) != 0 {
             pins.miso = self.matrix_input(signals[1] as usize);

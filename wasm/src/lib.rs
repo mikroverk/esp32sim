@@ -430,3 +430,15 @@ pub extern "C" fn esp32sim_test_block_jit() -> u32 {
     std::panic::set_hook(Box::new(|info| log(&format!("[jit test] {info}"))));
     xtensa_lx7::jit::tests::run_tests() + jit_tests::run() + jit_memory_tests::run()
 }
+
+#[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
+#[path = "../../tests/gpio_waveform.rs"]
+mod gpio_waveform_tests;
+
+#[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
+#[no_mangle]
+pub extern "C" fn esp32sim_test_gpio_waveform() -> u32 {
+    std::panic::set_hook(Box::new(|info| log(&format!("[waveform test] {info}"))));
+    gpio_waveform_tests::run();
+    24
+}

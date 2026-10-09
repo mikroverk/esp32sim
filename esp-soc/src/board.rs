@@ -104,13 +104,16 @@ pub trait BoardModel {
     fn input_levels(&self) -> Vec<(u8, bool)> { Vec::new() }
     /// Whether GPIO edge polling is needed. Cached by `attach_board_devices`.
     fn uses_gpio_edges(&self) -> bool { true }
+    /// Use instruction-sized, unmodeled quanta for GPIO pulse decoding, overriding timing models.
+    fn uses_gpio_waveform(&self) -> bool { false }
     /// Earliest autonomous transition strictly after the board's current cycle.
     fn next_deadline(&self) -> Option<VirtualCycle> { None }
     /// Advance monotonically through every board transition due by `cycle`.
     fn advance_to(&mut self, _cycle: VirtualCycle) {}
     /// Host GPIO drives to release after advancing the board.
     fn released_inputs(&mut self) -> Vec<u8> { Vec::new() }
-    /// Timestamped GPIO input edges emitted by the last advance.
+    /// GPIO edges due by the last advance, including synchronous output responses.
+    /// GPIO reads drain these even without elapsed cycles; retain future edges until due.
     fn take_edges(&mut self) -> Vec<BoardEdge> { Vec::new() }
     /// A pin by the name scripts and the UI use (`btn1`, `sw`, ...).
     fn named_pin(&self, _name: &str) -> Option<u8> { None }
