@@ -159,33 +159,35 @@ mod tests {
         i.write(0x20, 4);
         i
     }
+    const SIG: super::super::RxSignals = super::super::RxSignals { data: 15, clock: [16, 17], input_select_bit: 6, output_mask: 0x1ff };
+
     #[test]
     fn pcm_clock_slots_width_silence_and_reset() {
         let mut i = receiver();
         assert_eq!(i.rx_rate(), Some(8000));
         assert_eq!(i.rx_input().push(&[[1234, -2345], [111, 222]]), 2);
-        assert!(i.receive(19999, 19999, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
-        assert_eq!(i.receive(1, 1, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [0xd2, 4, 0xd7, 0xf6]);
+        assert!(i.receive(19999, 19999, true, &crate::Gpio::new(), SIG, None).is_empty());
+        assert_eq!(i.receive(1, 1, true, &crate::Gpio::new(), SIG, None), [0xd2, 4, 0xd7, 0xf6]);
         i.write(0x20, 1); // peripheral reset keeps host input
-        assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+        assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None).is_empty());
         i.write(0x20, 4 | (1 << 5));
         i.write(0x50, (1 << 16) | 2);
-        assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), 222i16.to_le_bytes());
-        assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [0; 2]);
+        assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None), 222i16.to_le_bytes());
+        assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None), [0; 2]);
         for bits in [24, 32] {
             i.write(
                 0x28,
                 (24 << 7) | ((bits - 1) << 13) | (15 << 18) | (31 << 24),
             );
             i.rx_input().push(&[[123, -123]]);
-            assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), (-123i32 << 16).to_le_bytes());
+            assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None), (-123i32 << 16).to_le_bytes());
         }
         i.write(0x20, 4 | (1 << 20) | (1 << 21));
         i.write(0x28, (24 << 7) | (15 << 13));
         assert_eq!(i.rx_rate(), Some(4000));
-        assert!(i.receive(40000, 40000, false, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+        assert!(i.receive(40000, 40000, false, &crate::Gpio::new(), SIG, None).is_empty());
         i.rx_input().push(&[[1, 2]]);
-        assert_eq!(i.receive(40000, 40000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [2, 0]);
+        assert_eq!(i.receive(40000, 40000, true, &crate::Gpio::new(), SIG, None), [2, 0]);
     }
     #[test]
     fn unsupported_modes_preserve_queued_input() {
@@ -193,14 +195,14 @@ mod tests {
             let mut i = receiver();
             i.rx_input().push(&[[17, -19]]);
             i.write(0x20, 4 | flag);
-            assert!(i.receive(40000, 40000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty(), "flag {flag}");
+            assert!(i.receive(40000, 40000, true, &crate::Gpio::new(), SIG, None).is_empty(), "flag {flag}");
             i.write(0x20, 4);
-            assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [17, 0, 237, 255]);
+            assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None), [17, 0, 237, 255]);
         }
         for (off, value) in [(0x28, (24 << 7) | (7 << 13) | (15 << 18)), (0x50, 0x10000), (0x50, 0x10004), (0x50, 0x20003), (0x30, 0)] {
             let mut i = receiver();
             i.write(off, value);
-            assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+            assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None).is_empty());
         }
     }
 
@@ -208,11 +210,11 @@ mod tests {
     fn reset_discards_fractional_receiver_time() {
         let mut i = receiver();
         i.rx_input().push(&[[1, 2]]);
-        assert!(i.receive(19999, 19999, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+        assert!(i.receive(19999, 19999, true, &crate::Gpio::new(), SIG, None).is_empty());
         i.write(0x20, 1);
         i.write(0x20, 4);
-        assert!(i.receive(1, 1, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
-        assert_eq!(i.receive(19999, 19999, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [1, 0, 2, 0]);
+        assert!(i.receive(1, 1, true, &crate::Gpio::new(), SIG, None).is_empty());
+        assert_eq!(i.receive(19999, 19999, true, &crate::Gpio::new(), SIG, None), [1, 0, 2, 0]);
     }
 
     #[test]
@@ -220,13 +222,13 @@ mod tests {
         let mut i = I2s::new(160_000_000);
         i.write(0x24, 4);
         i.write(0x20, 4 | (1 << 3));
-        assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+        assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None).is_empty());
         i.write(0x20, 1);
         i.recycle_rx_buffer(Vec::with_capacity(8));
         assert!(i.rx.is_none());
         let mut r = receiver();
         assert!(r.rx.is_none());
-        assert_eq!(r.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [0; 4]);
+        assert_eq!(r.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None), [0; 4]);
         assert!(r.rx.is_some());
     }
 

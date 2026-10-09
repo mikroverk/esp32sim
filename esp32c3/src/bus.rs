@@ -339,7 +339,7 @@ impl SocBus {
     /// Kept out of line so the RX DMA pump keeps the EX214 call shape.
     #[inline(never)]
     fn i2s_receive(&mut self, cycles: u64) -> Vec<u8> {
-        let signals = esp_periph::i2s::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff };
+        let signals = esp_periph::i2s::RxSignals { data: 15, clock: [16, 17], input_select_bit: 6, output_mask: 0x1ff };
         let mut bank = self.periph.i2s0.take_pcm_bank();
         let bytes = self.periph.i2s0.receive(cycles, self.cycles, false, &self.periph.gpio, signals, bank.as_deref_mut());
         self.periph.i2s0.restore_pcm_bank(bank);

@@ -127,3 +127,197 @@ fn inactive_board_skips_tick_and_mmio_callbacks() {
     b.read32(0x3ff4_0008).unwrap();
     assert_eq!(b.next_deadline(), None);
 }
+
+#[test]
+fn i2s_native_dma_packs_pcm_and_raises_eof() {
+    let mut b = bus(); let base = 0x3ff4_f000;
+    b.write32(0x3ff0_00c0, 1 << 4).unwrap();
+    for (address, value) in [(0x3ffb_0100, 0x8000_0008), (0x3ffb_0104, 0x3ffb_0200), (0x3ffb_0108, 0)] { b.write32(address, value).unwrap(); }
+    b.i2s_input(0).unwrap().push(&[[123, -456], [789, -123]]);
+    b.write32(base + 0xac, 25 | (1 << 20)).unwrap();
+    b.write32(base + 0xb0, (25 << 6) | (16 << 18)).unwrap();
+    b.write32(base + 0x14, 1 << 9).unwrap();
+    b.write32(base + 0x24, 2).unwrap();
+    b.write32(base + 0x34, (1 << 29) | 0xb0100).unwrap(); b.write32(base + 8, 1 << 5).unwrap();
+    b.tick(60_000);
+    assert_eq!(b.read32(0x3ffb_0200), Ok(123 | ((-456i16 as u16 as u32) << 16)));
+    assert_eq!(b.read32(base + 0x3c), Ok(0x3ffb_0100));
+    assert_ne!(b.read32(base + 0x10).unwrap() & (1 << 9), 0);
+    assert_eq!(b.read32(0x3ffb_0100).unwrap() >> 31, 0);
+    assert_eq!(b.read32(base + 0xc).unwrap() & (1 << 13), 0);
+}
+fn receiver(b: &mut SocBus, port: usize, size: u32, buffer: u32) -> (u32, u32) {
+    let base = [0x3ff4_f000, 0x3ff6_d000][port];
+    let desc = 0x3ffb_0100 + port as u32 * 12;
+    for (off, value) in [(0, (1 << 31) | size), (4, buffer), (8, 0)] { b.write32(desc + off, value).unwrap(); }
+    b.write32(base + 0xac, 25 | (1 << 20)).unwrap();
+    b.write32(base + 0xb0, (25 << 6) | (16 << 18)).unwrap();
+    b.write32(base + 0x14, (1 << 9) | (1 << 13)).unwrap();
+    b.write32(base + 0x24, size / 4).unwrap();
+    b.write32(base + 0x34, (1 << 29) | (desc & 0xfffff)).unwrap();
+    b.write32(base + 8, 1 << 5).unwrap();
+    (base, desc)
+}
+
+#[test]
+fn i2s_clock_gate_partial_dma_faults_interrupts_and_code_invalidation() {
+    for port in 0..2 {
+        let mut b = bus();
+        let (base, desc) = receiver(&mut b, port, 8, 0x4008_0100);
+        b.i2s_input(port).unwrap().push(&[[1, 2], [3, 4]]);
+        b.tick(30_000);
+        assert_eq!(b.read32(0x4008_0100), Ok(0));
+        b.write32(0x3ff0_00c0, 1 << [4, 21][port]).unwrap();
+        b.write32(0x3ff0_0104 + 4 * (32 + port as u32), 7).unwrap();
+        let page = b.code_page(0x4008_0100) as usize;
+        b.tick(30_000);
+        assert_eq!(b.read32(0x4008_0100), Ok(1 | 2 << 16));
+        assert!(b.page_versions()[page] > 0);
+        assert_ne!(b.read32(desc).unwrap() & (1 << 31), 0);
+        assert_eq!(b.periph.cpu_lines(0) & (1 << 7), 0);
+        b.irq_dirty = false;
+        b.tick(30_000);
+        assert!(b.irq_dirty);
+        assert_eq!(b.read32(0x4008_0104), Ok(3 | 4 << 16));
+        assert_ne!(b.periph.cpu_lines(0) & (1 << 7), 0);
+        b.write32(base + 0x18, 1 << 9).unwrap();
+        assert_eq!(b.periph.cpu_lines(0) & (1 << 7), 0);
+        // DMA must reject MMIO rather than writing a UART FIFO.
+        receiver(&mut b, port, 4, 0x3ff4_0000);
+        b.tick(30_000);
+        assert_ne!(b.read32(base + 0x10).unwrap() & (1 << 13), 0);
+        assert_eq!(b.read32(base + 0x10).unwrap() & (1 << 9), 0);
+        assert!(b.periph.uart[0].tx_out.is_empty());
+        assert_ne!(b.read32(desc).unwrap() & (1 << 31), 0);
+    }
+}
+
+#[test]
+fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
+    use esp_periph::i2s::{PcmPins, PcmSource};
+    for (port, data_signal, clock_signal, ws_signal) in [(0, 155, 27, 28), (1, 181, 164, 165)] {
+        let mut b = bus();
+        let mut source = PcmSource::new(8000, PcmPins::I2s { bclk: 4, ws: 5, data: 18 }).unwrap();
+        source.push(&[[11, 22]; 16]);
+        b.pcm_sources().unwrap().inputs.push(Some(source));
+        let mut second = PcmSource::new(8000, PcmPins::I2s { bclk: 4, ws: 5, data: 18 }).unwrap();
+        second.push(&[[55, 66]; 16]);
+        b.pcm_sources().unwrap().inputs.push(Some(second));
+        b.i2s_input(port).unwrap().push(&[[33, 44]]);
+        b.reboot([0; 6]);
+        assert_eq!(b.pcm_sources().unwrap().inputs[0].as_ref().unwrap().queued_frames(), 16);
+        b.tick(30_000);
+        assert_eq!(b.pcm_sources().unwrap().inputs[0].as_ref().unwrap().queued_frames(), 15);
+        b.write32(0x3ff0_00c0, 1 << [4, 21][port]).unwrap();
+        for mux in [0x48, 0x6c, 0x70] { b.write32(0x3ff4_9000 + mux, (2 << 12) | (1 << 9)).unwrap(); }
+        b.write32(0x3ff4_4130 + data_signal * 4, (1 << 7) | 18).unwrap();
+        b.write32(0x3ff4_4530 + 4 * 4, clock_signal).unwrap();
+        b.write32(0x3ff4_4530 + 5 * 4, ws_signal).unwrap();
+        receiver(&mut b, port, 4, 0x3ffb_0200);
+        b.tick(30_000);
+        assert_eq!(b.read32(0x3ffb_0200), Ok(11 | 22 << 16));
+        for (address, value) in [
+            (0x3ff4_4130 + data_signal * 4, (1 << 7) | 19),
+            (0x3ff4_4530 + 4 * 4, clock_signal ^ 1),
+            (0x3ff4_4530 + 5 * 4, ws_signal ^ 1),
+        ] {
+            let old = b.read32(address).unwrap();
+            b.write32(address, value).unwrap();
+            receiver(&mut b, port, 4, 0x3ffb_0200);
+            b.tick(30_000);
+                assert_eq!(b.read32(0x3ffb_0200), Ok(0));
+            b.write32(address, old).unwrap();
+        }
+        b.pcm_sources().unwrap().inputs[0] = None;
+        b.pcm_sources().unwrap().inputs[1] = None;
+        receiver(&mut b, port, 4, 0x3ffb_0200);
+        b.tick(30_000);
+        assert_eq!(b.read32(0x3ffb_0200), Ok(0)); // An attached empty bank remains silent.
+    }
+}
+
+
+#[test]
+fn i2s_rejects_unowned_empty_and_unwritable_descriptors() {
+    for (address, control) in [(0x3ffb_0100, 4u32), (0x3ffb_0100, 1 << 31), (0x3ff9_1000, (1 << 31) | 4)] {
+        let mut b = bus();
+        let (base, _) = receiver(&mut b, 0, 4, 0x3ffb_0200);
+        b.write32(0x3ff0_00c0, 1 << 4).unwrap();
+        b.load_bytes(address, &control.to_le_bytes()).unwrap();
+        b.load_bytes(address + 4, &0x3ffb_0200u32.to_le_bytes()).unwrap();
+        b.load_bytes(address + 8, &0u32.to_le_bytes()).unwrap();
+        b.write32(base + 0x34, (1 << 29) | (address & 0xfffff)).unwrap();
+        b.i2s_input(0).unwrap().push(&[[7, 8]]);
+        b.tick(30_000);
+        assert_eq!(b.read32(base + 0x10).unwrap(), 1 << 13);
+        assert_eq!(b.read32(address), Ok(control));
+    }
+}
+
+#[test]
+fn controller_pcm_queue_survives_classic_reset_without_a_source_bank() {
+    let mut b = bus();
+    b.i2s_input(0).unwrap().push(&[[33, 44]]);
+    b.reboot([0; 6]);
+    b.write32(0x3ff0_00c0, 1 << 4).unwrap();
+    receiver(&mut b, 0, 4, 0x3ffb_0200);
+    b.tick(30_000);
+    assert_eq!(b.read32(0x3ffb_0200), Ok(33 | 44 << 16));
+}
+
+#[test]
+fn classic_raw_stream_uses_shared_clock_and_survives_reset() {
+    use esp_periph::analog::{AnalogSource, AnalogStream};
+    let mut b = bus();
+    let stream = AnalogStream::new_raw(8000, 17, 0).unwrap();
+    stream.push_raw(&[1234, 2345], 0, 240_000_000).unwrap();
+    b.analog_set(34, AnalogSource::RawStream(stream));
+    for (time, raw) in [(0, 17), (30_000, 1234), (60_000, 2345), (90_000, 2345)] {
+        b.tick((time - b.cycles) as u32);
+        b.reboot([0; 6]);
+        b.write32(0x3ff4_8800, 1 << 28).unwrap();
+        for attenuation in 0..4 {
+            b.write32(0x3ff4_8834, attenuation << 12).unwrap();
+            let start = (1 << 31) | (1 << 25) | (1 << 18);
+            b.write32(0x3ff4_8854, start).unwrap();
+            b.write32(0x3ff4_8854, start | (1 << 17)).unwrap();
+            assert_eq!(b.read32(0x3ff4_8854).unwrap() & 0xffff, raw);
+        }
+    }
+    assert_eq!(b.adc_observation(34).unwrap().generation, 16);
+}
+
+#[test]
+fn i2s_eof_words_span_descriptors_and_reject_unrepresentable_counts() {
+    for port in 0..2 {
+        let mut b = bus();
+        let base = [0x3ff4_f000, 0x3ff6_d000][port];
+        assert_eq!(b.read32(base + 0x24), Ok(64));
+        let (_, desc) = receiver(&mut b, port, 4, 0x3ffb_0200);
+        let next = desc + 0x40;
+        b.write32(desc + 8, next).unwrap();
+        for (off, v) in [(0, (1 << 31) | 4), (4, 0x3ffb_0204), (8, 0)] { b.write32(next + off, v).unwrap(); }
+        b.write32(base + 0x24, 2).unwrap();
+        b.write32(0x3ff0_00c0, 1 << [4, 21][port]).unwrap();
+        b.i2s_input(port).unwrap().push(&[[1, 2], [3, 4]]);
+        b.tick(30_000);
+        assert_eq!(b.read32(base + 0x10), Ok(0));
+        assert_eq!(b.read32(desc).unwrap() & (3 << 30), 0);
+        b.tick(30_000);
+        assert_eq!(b.read32(base + 0x3c), Ok(next));
+        assert_eq!(b.read32(base + 0x10), Ok(1 << 9));
+        assert_eq!(b.read32(0x3ffb_0204), Ok(3 | 4 << 16));
+        b.write32(base + 0x18, u32::MAX).unwrap();
+        receiver(&mut b, port, 4, 0x3ffb_0200);
+        b.tick(60_000);
+        assert_eq!(b.read32(base + 0x10), Ok((1 << 9) | (1 << 13)));
+        for words in [0, u32::MAX] {
+            b.write32(base + 0x18, u32::MAX).unwrap();
+            receiver(&mut b, port, 4, 0x3ffb_0200);
+            b.write32(base + 0x24, words).unwrap();
+            b.tick(30_000);
+            assert_eq!(b.read32(base + 0x10), Ok(1 << 13));
+            assert_ne!(b.read32(desc).unwrap() & (1 << 31), 0);
+        }
+    }
+}

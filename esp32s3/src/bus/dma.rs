@@ -229,7 +229,7 @@ impl SocBus {
 
     fn dma_i2s_rx(&mut self, cycles: u64, port: u32) {
         let Some(ch) = self.periph.gdma.in_channel_for(3 + port) else { return };
-        let signals = esp_periph::i2s::RxSignals { data: if port == 0 { 25 } else { 30 }, input_select_bit: 7, output_mask: 0x3ff };
+        let signals = esp_periph::i2s::RxSignals { data: if port == 0 { 25 } else { 30 }, clock: if port == 0 { [26, 27] } else { [31, 32] }, input_select_bit: 7, output_mask: 0x3ff };
         let mut bank = self.periph.i2s0.take_pcm_bank();
         let i2s = if port == 0 { &mut self.periph.i2s0 } else { &mut self.periph.i2s1 };
         let bytes = i2s.receive(cycles, self.cycles, port == 0, &self.periph.gpio, signals, bank.as_deref_mut());

@@ -574,6 +574,7 @@ pub struct Peripherals {
     pub analog: crate::wifi::Analog,
     pub fe: crate::wifi::FrontEnd,
     pub adc: ClassicAdc,
+    pub i2s: [crate::i2s::ClassicI2s; 2],
 }
 
 device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (ClockDomain::RtcSlow, 1600)];
@@ -585,6 +586,8 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Apb, 3), (Clock
     0x42 "SPI1" (spi1) => [];
     0x43 "SPI0" (spi0) => [];
     0x44 "GPIO" (gpio) => [];
+    0x4f "I2S0" (i2s[0]) => [32];
+    0x6d "I2S1" (i2s[1]) => [33];
     0x46 "FE" (fe) => [];
     0x4e "I2C_MST" (analog) => [];
     0x73 "WIFI_MAC" (wifi) => [SRC_WIFI_MAC];
@@ -655,6 +658,7 @@ impl Peripherals {
             analog: crate::wifi::Analog::default(),
             fe: crate::wifi::FrontEnd::default(),
             adc: ClassicAdc::new(),
+            i2s: Default::default(),
         };
         for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
         p.sync_crypto();
@@ -685,6 +689,8 @@ impl Peripherals {
             0x73..=0x75 => "WIFI_MAC",
             0x48 => "RTCCNTL",
             0x49 => "IO_MUX",
+            0x4f => "I2S0",
+            0x6d => "I2S1",
             0x50 => "UART1",
             0x5a => "EFUSE",
             0x5f => "TIMG0",
