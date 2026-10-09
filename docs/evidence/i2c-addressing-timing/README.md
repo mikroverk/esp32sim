@@ -178,7 +178,62 @@ match main apart from alignment padding. S3 hot functions that differ:
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 2f9443a9 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
+
+Measured on `b1c67907` against main `2f9443a9`, which differs from its base `fe3a9c08` only in docs and web. Pocket Tank is not compared: finite I2C transfer time changes the game's time-derived seed, so its console differs from main by design. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| S3 hello | 24.0373 (23.6903–25.0699) | 24.1383 (23.7769–25.3374) | +0.42% | 5/7 | 1789819657 | 4.62 |
+| C3 hello | 2.3552 (2.3254–2.5007) | 2.3553 (2.3160–2.3796) | +0.00% | 2/7 | 4800000000 | 3.10 |
+| C6 hello | 3.0831 (3.0423–3.1483) | 3.0920 (3.0332–3.1513) | +0.29% | 4/7 | 4800000000 | 2.83 |
+
+### S3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 23.941341 | 23.846167 | 3.64/3.10/3.64 | 4.62/3.64/4.62 | accepted |
+| 1 | 2 | M→B | 23.690272 | 23.821893 | 3.10/2.45/3.10 | 2.45/1.95/2.45 | accepted |
+| 2 | 3 | B→M | 23.822947 | 23.863793 | 1.70/1.46/1.70 | 1.95/1.70/1.95 | accepted |
+| 3 | 4 | M→B | 24.240985 | 24.534307 | 1.46/1.44/1.48 | 1.44/1.65/1.68 | accepted |
+| 4 | 5 | B→M | 23.853731 | 23.776909 | 1.88/1.65/1.88 | 1.65/1.88/1.95 | accepted |
+| 5 | 6 | M→B | 24.037307 | 24.812378 | 1.65/1.72/1.72 | 1.72/2.38/2.38 | accepted |
+| 6 | 7 | B→M | 25.008786 | 24.138289 | 2.04/2.11/2.12 | 2.38/2.04/2.38 | accepted |
+| 7 | 8 | M→B | 25.069922 | 25.337400 | 2.11/2.35/2.35 | 2.35/2.67/2.67 | accepted |
+
+### C3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 2.478101 | 2.548989 | 3.10/3.10/3.10 | 2.67/3.10/3.10 | accepted |
+| 1 | 2 | M→B | 2.409126 | 2.332956 | 3.10/3.09/3.10 | 3.09/3.09/3.09 | accepted |
+| 2 | 3 | B→M | 2.349123 | 2.316006 | 3.00/3.00/3.00 | 3.09/3.00/3.09 | accepted |
+| 3 | 4 | M→B | 2.325419 | 2.372879 | 3.00/2.84/3.00 | 2.84/2.84/2.84 | accepted |
+| 4 | 5 | B→M | 2.500651 | 2.373659 | 2.93/2.93/2.93 | 2.84/2.93/2.93 | accepted |
+| 5 | 6 | M→B | 2.382596 | 2.379636 | 2.93/2.94/2.94 | 2.94/2.94/2.94 | accepted |
+| 6 | 7 | B→M | 2.329875 | 2.355290 | 2.94/2.86/2.94 | 2.94/2.94/2.94 | accepted |
+| 7 | 8 | M→B | 2.355221 | 2.351089 | 2.86/2.86/2.86 | 2.86/2.71/2.86 | accepted |
+
+### C6 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 3.171948 | 3.062761 | 2.74/2.74/2.74 | 2.71/2.74/2.74 | accepted |
+| 1 | 2 | M→B | 3.101561 | 3.151329 | 2.74/2.60/2.74 | 2.60/2.60/2.60 | accepted |
+| 2 | 3 | B→M | 3.048916 | 3.071167 | 2.63/2.82/2.82 | 2.63/2.63/2.63 | accepted |
+| 3 | 4 | M→B | 3.148267 | 3.092029 | 2.82/2.82/2.82 | 2.82/2.83/2.83 | accepted |
+| 4 | 5 | B→M | 3.042312 | 3.100649 | 2.77/2.77/2.77 | 2.83/2.77/2.83 | accepted |
+| 5 | 6 | M→B | 3.087219 | 3.047839 | 2.77/2.62/2.77 | 2.62/2.62/2.62 | accepted |
+| 6 | 7 | B→M | 3.079720 | 3.033229 | 2.57/2.45/2.57 | 2.62/2.57/2.62 | accepted |
+| 7 | 8 | M→B | 3.083089 | 3.104397 | 2.45/2.45/2.45 | 2.45/2.41/2.45 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
 
 No CPU benchmarks were run for this revision. Central comparison remains required before merge.
 
