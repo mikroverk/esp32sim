@@ -50,6 +50,7 @@ jobs:
         run: |
           node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm
           node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf
+          node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf
       - name: Worker pacing, channel and experiment tests
         run: |
           node tools/worker-pacing-test.mjs

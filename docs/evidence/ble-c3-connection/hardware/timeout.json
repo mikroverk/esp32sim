@@ -1,0 +1,253 @@
+{
+  "hardware": {
+    "sha256": "70ba402124c23ff348812c8814b81c6b559d60680aaed0e09ec01cd062f1719e",
+    "bytes": 93269,
+    "stages": [
+      "advertising",
+      "connected",
+      "advertising",
+      "connected",
+      "advertising"
+    ],
+    "memory_records": 290,
+    "static_cs": [
+      [
+        3,
+        2049,
+        4352,
+        0,
+        0,
+        0,
+        0,
+        0,
+        32768,
+        11,
+        251,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "control_structures": [
+      {
+        "activity": 1,
+        "csa2": true,
+        "format": 3,
+        "hop": 15,
+        "map": "ffffffff1f",
+        "rx_rate": 1,
+        "stage": "advertising",
+        "tx_rate": 1
+      },
+      {
+        "activity": 1,
+        "csa2": true,
+        "format": 3,
+        "hop": 15,
+        "map": "ffffffff1f",
+        "rx_rate": 1,
+        "stage": "connected",
+        "tx_rate": 1
+      },
+      {
+        "activity": 1,
+        "csa2": true,
+        "format": 3,
+        "hop": 7,
+        "map": "ffffffff1f",
+        "rx_rate": 1,
+        "stage": "connected",
+        "tx_rate": 1
+      }
+    ],
+    "rx_by_stage": {
+      "advertising": {
+        "samples": 30,
+        "owned": 3,
+        "invalid": 30
+      },
+      "connected": {
+        "samples": 20,
+        "owned": 3,
+        "invalid": 20
+      }
+    },
+    "rx_next_links": [
+      4096,
+      4116,
+      4136,
+      4156,
+      4176,
+      4196,
+      4216,
+      4236,
+      4256,
+      4276
+    ]
+  },
+  "emulator": {
+    "sha256": "e85c7a3fcabfe1e34f8eb133f6da54335ea99f88ce76fdd3f2499284e0106a12",
+    "bytes": 84756,
+    "stages": [
+      "advertising",
+      "connected",
+      "advertising",
+      "connected",
+      "advertising"
+    ],
+    "memory_records": 245,
+    "static_cs": [
+      [
+        3,
+        2049,
+        4352,
+        0,
+        0,
+        0,
+        0,
+        0,
+        32768,
+        11,
+        251,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "control_structures": [
+      {
+        "activity": 1,
+        "csa2": false,
+        "format": 3,
+        "hop": 5,
+        "map": "ffffffff1f",
+        "rx_rate": 0,
+        "stage": "advertising",
+        "tx_rate": 0
+      },
+      {
+        "activity": 1,
+        "csa2": false,
+        "format": 3,
+        "hop": 5,
+        "map": "ffffffff1f",
+        "rx_rate": 0,
+        "stage": "connected",
+        "tx_rate": 0
+      }
+    ],
+    "rx_by_stage": {
+      "advertising": {
+        "samples": 30,
+        "owned": 5,
+        "invalid": 28
+      },
+      "connected": {
+        "samples": 20,
+        "owned": 2,
+        "invalid": 20
+      }
+    },
+    "rx_next_links": [
+      4096,
+      4116,
+      4136,
+      4156,
+      4176,
+      4196,
+      4216,
+      4236,
+      4256,
+      4276
+    ]
+  },
+  "comparison": {
+    "static_cs": "equal under declared masks in every format-3 sample",
+    "static_masks": {
+      "0": "0xf9ff",
+      "2": "0xffff",
+      "4": "0xfff0",
+      "6": "0xffff",
+      "8": "0xffff",
+      "10": "0xffff",
+      "18": "0xff00",
+      "20": "0xffff",
+      "22": "0xa0c0",
+      "24": "0xff",
+      "40": "0xffff",
+      "42": "0xffff",
+      "44": "0xffff",
+      "46": "0xffff",
+      "48": "0xffff",
+      "50": "0xffff",
+      "52": "0xffff",
+      "54": "0xffff",
+      "56": "0xffff",
+      "58": "0xffff",
+      "60": "0xffff",
+      "62": "0xffff",
+      "64": "0xffff",
+      "66": "0xffff",
+      "68": "0xffff",
+      "70": "0xffff",
+      "72": "0xffff",
+      "74": "0xffff",
+      "76": "0xffff",
+      "78": "0xffff",
+      "82": "0xffff",
+      "84": "0xffff",
+      "88": "0xffff"
+    },
+    "rx_ring": "ten 20-byte descriptors; all links checked in every snapshot",
+    "post_disconnect": "advertising snapshot after each disconnect; stale event/CS entries retained",
+    "configuration": "hardware CSA#2, varying hop, 2M PHY; emulator CSA#1 hop 5, 1M PHY; all 37 channels",
+    "excluded_cs_bytes": {
+      "0 bits9:10": "coexistence control, r_lld_con_start; asynchronous updates",
+      "4 bits0:3": "TX/RX PHY selectors, r_lld_con_start",
+      "12..18": "central-selected access address/CRC; omitted",
+      "22 channel/hop/CSA, 34..39": "channel state and negotiated configuration; validated separately",
+      "24 high byte, 86..87": "live radio status; exact semantics/updates remain unproven",
+      "26..33": "receive window, TX pointer, event duration; r_lld_con_evt_start_cbk / r_lld_con_evt_time_update",
+      "80..81": "event counter; asynchronous snapshots"
+    },
+    "limits": "No synchronized packet/IRQ capture, CRC-error injection, hardware empty-first case or raw advertising bytes."
+  }
+}

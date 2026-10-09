@@ -38,3 +38,19 @@ fn guest_esp_restart_preserves_full_ble_and_advertises_again() {
     while let Some(line) = m.bus.periph.ble_lc.take_observation() { second += usize::from(line.starts_with("[ble-air]")); }
     assert_eq!(second, 57);
 }
+
+#[test]
+#[ignore = "needs the ESP32-C3 mask ROM ELF fetched by CI; set ESP32SIM_ROM_DIR"]
+fn bluetooth_rom_initializer_has_its_rom_source_copy() {
+    use emu_core::Bus;
+    let dir = std::env::var_os("ESP32SIM_ROM_DIR").expect("set ESP32SIM_ROM_DIR to the fetched mask ROM directory");
+    let bytes = std::fs::read(std::path::Path::new(&dir).join("esp32c3_rev3_rom.elf")).unwrap();
+    let elf = esp_soc::elf::parse(&bytes).unwrap();
+    let data = elf.sections.iter().find(|s| s.name == ".data_btdm").unwrap();
+    assert!(data.data.iter().any(|&b| b != 0));
+    let mut m = esp32c3::machine([0;6], 4 << 20);
+    m.load_rom(&bytes).unwrap();
+    let source = m.bus.read32_unpriced(elf.by_name["_data_start_btdm_rom"]).unwrap();
+    let actual: Vec<_> = (0..data.data.len()).map(|i| m.bus.read8_unpriced(source + i as u32).unwrap()).collect();
+    assert_eq!(actual, data.data);
+}

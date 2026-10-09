@@ -1,0 +1,79 @@
+{
+  "base": "017af524",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "host": {
+    "os": "Darwin",
+    "release": "27.0.0",
+    "architecture": "arm64"
+  },
+  "environment": "Empty HOME; no ESP32SIM_* inputs except ESP32SIM_ROM_DIR for CI-policy and ROM tests. Plain workspace has no ESP32SIM_* variables. CARGO_HOME/RUSTUP_HOME locate toolchains; TMPDIR stays inside the worktree.",
+  "checks": [
+    {
+      "check": "clippy-native",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "check": "clippy-wasm",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "check": "workspace-ci",
+      "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit_code": 0,
+      "passed": 666,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "workspace-plain",
+      "command": "cargo +1.99.0 test --release --workspace",
+      "exit_code": 0,
+      "passed": 642,
+      "failed": 0,
+      "ignored": 42
+    },
+    {
+      "check": "wasm-build",
+      "command": "tools/wasm-build.sh",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-demos",
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-ble-advertising",
+      "command": "node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-ble-connection",
+      "command": "node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public web/wasm/fw/esp32c3_rev3_rom.elf",
+      "exit_code": 0
+    },
+    {
+      "check": "rom-initializer",
+      "command": "cargo +1.99.0 test --release -p esp32c3 --test ble_full bluetooth_rom_initializer -- --ignored",
+      "exit_code": 0
+    },
+    {
+      "check": "privacy",
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0
+    },
+    {
+      "check": "mutations",
+      "command": "python3 docs/evidence/ble-c3-connection/mutate.py",
+      "killed": 32,
+      "survived": 0
+    },
+    {
+      "check": "probe-comparator",
+      "command": "python3 docs/evidence/ble-c3-connection/hardware/check_compare.py",
+      "exit_code": 0
+    }
+  ]
+}

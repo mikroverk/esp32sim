@@ -1,0 +1,11 @@
+{
+  "elf_sha256": "91bea184af229c7ec294d27aec832af63314ce994c42ca11db7d46a339d51337",
+  "elf_sha256_offset_in_app": 176,
+  "defined_symbol_substring_counts": {
+    "mbedtls": 0,
+    "psa_crypto": 0,
+    "tlsf": 14,
+    "nimble": 11,
+    "freertos": 53
+  }
+}

@@ -1,9 +1,9 @@
-Licences of the C3 BLE advertiser firmware
+Licences of the C3 BLE advertiser and server firmware
 ==========================================
 
-Files: c3-ble-bootloader.bin, c3-ble-ptable.bin, c3-ble-advertiser.bin.
+Files: c3-ble-bootloader.bin, c3-ble-ptable.bin, c3-ble-advertiser.bin, c3-ble-server.bin.
 
-Source and reproducible build recipe: examples/c3-ble-advertiser (MIT, this
+Source and reproducible build recipe: examples/c3-ble-advertiser and examples/c3-ble-server (MIT, this
 repository's LICENSE). Built with ESP-IDF v5.5.5. Linked code includes ESP-IDF,
 Espressif's C3 BLE controller, PHY and coexistence libraries, Apache Mynewt NimBLE,
 FreeRTOS, TLSF and newlib. ESP-IDF and BLE/PHY/coexistence use Apache-2.0.
@@ -13,72 +13,6 @@ ESP-IDF
 -------
 ESP-IDF and Espressif's binary libraries are Copyright (C) 2015-2023
 Espressif Systems and licensed under Apache License 2.0, reproduced below.
-
-Third-party firmware inventory
-------------------------------
-ESP-IDF v5.5.5 docs/en/COPYRIGHT.rst lists the following possible firmware
-components. This is its general inventory, not a claim that every component
-is linked. The linked subset for these binaries is named above.
-
-These third party libraries can be included into the application (firmware) produced by ESP-IDF.
-
-* Newlib is licensed under the BSD License, with copyright held by the respective parties, as described in COPYING.NEWLIB. If CONFIG_LIBC_PICOLIBC is enabled, see also COPYING.picolibc.
-
-Picolibc is licensed under the BSD License, with copyright held by the respective parties, as described in COPYING.picolibc.
-
-* Xtensa header files are Copyright (C) 2013 Tensilica Inc and are licensed under the MIT License as reproduced in the individual header files.
-
-* Original parts of FreeRTOS (components/freertos) are Copyright (C) 2017 Amazon.com, Inc. or its affiliates, and are licensed under the MIT License, as described in license.txt.
-
-* Original parts of LWIP_ (components/lwip) are Copyright (C) 2001, 2002 Swedish Institute of Computer Science and are licensed under the BSD License as described in COPYING file.
-
-* wpa_supplicant, Copyright (C) 2003-2022 Jouni Malinen <j@w1.fi> and contributors and licensed under the BSD License.
-
-* Fast PBKDF2, Copyright (C) 2015 Joseph Birr-Pixton and licensed under CC0 Public Domain Dedication License.
-
-* FreeBSD net80211, Copyright (C) 2004-2008 Sam Leffler, Errno Consulting and licensed under the BSD License.
-
-* argtable3 argument parsing library, Copyright (C) 1998-2001,2003-2011,2013 Stewart Heitmann and licensed under 3-clause BSD license. argtable3 also includes the following software components. For details, please see argtable3 LICENSE file.
-
-    * C Hash Table library, Copyright (C) 2002 Christopher Clark and licensed under 3-clause BSD License.
-    * The Better String library, Copyright (C) 2014 Paul Hsieh and licensed under 3-clause BSD License.
-    * TCL library, Copyright the Regents of the University of California, Sun Microsystems, Inc., Scriptics Corporation, ActiveState Corporation and other parties, and licensed under TCL/TK License.
-
-* linenoise line editing library, Copyright (C) 2010-2014 Salvatore Sanfilippo, Copyright (C) 2010-2013 Pieter Noordhuis, licensed under 2-clause BSD License.
-
-* FatFS library, Copyright (C) 2017 ChaN, is licensed under a BSD-style license.
-
-* cJSON library, Copyright (C) 2009-2017 Dave Gamble and cJSON contributors, is licensed under MIT License as described in LICENSE file.
-
-* micro-ecc library, Copyright (C) 2014 Kenneth MacKay, is licensed under 2-clause BSD License.
-
-* Mbed TLS library, Copyright (C) 2006-2018 ARM Limited, is licensed under Apache License 2.0 as described in LICENSE file.
-
-* SPIFFS library, Copyright (C) 2013-2017 Peter Andersson, is licensed under MIT License as described in LICENSE file.
-
-* SD/MMC driver is derived from OpenBSD SD/MMC driver, Copyright (C) 2006 Uwe Stuehler, and is licensed under BSD License.
-
-* ESP-MQTT Package (contiki-mqtt), Copyright (C) 2014 Stephen Robinson, MQTT-ESP - Tuan PM <tuanpm at live dot com> is licensed under Apache License 2.0 as described in LICENSE file.
-
-* BLE Mesh is adapted from Zephyr Project, Copyright (C) 2017-2018 Intel Corporation and licensed under Apache License 2.0.
-
-* mynewt-nimble, Copyright (C) 2015-2018 The Apache Software Foundation, is licensed under Apache License 2.0 as described in LICENSE file.
-
-* TLSF allocator <https://github.com/espressif/tlsf>, Copyright (C) 2006-2016 Matthew Conte, and licensed under the BSD 3-clause license.
-
-* openthread, Copyright (C) The OpenThread Authors, is licensed under BSD License as described in LICENSE file.
-
-* UBSAN runtime, Copyright (C) 2016 Linaro Limited and Jiří Zárevúcky, licensed under the BSD 2-clause license.
-
-* HTTP Parser is based on src/http/ngx_http_parse.c from NGINX copyright Igor Sysoev. Additional changes are licensed under the same terms as NGINX and Joyent, Inc. and other Node contributors. For details please check LICENSE file.
-
-* SEGGER SystemView target-side library, Copyright (C) 1995-2024 SEGGER Microcontroller GmbH, is licensed under BSD 1-clause license.
-
-* protobuf-c is Protocol Buffers implementation in C, Copyright (C) 2008-2022 Dave Benson and the protobuf-c authors. For details please check LICENSE file.
-
-* CMock mock/stub generator for C, Copyright (C) 2007-14 Mike Karlesky, Mark VanderVoord, Greg Williams, is licensed under MIT License as described in LICENSE file.
-
-* Unity Simple Unit Testing library, Copyright (C) 2007-23 Mike Karlesky, Mark VanderVoord, Greg Williams, is licensed under MIT License as described in LICENSE file.
 
 Apache Mynewt NimBLE
 Copyright 2015-2022 The Apache Software Foundation
