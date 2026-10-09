@@ -61,20 +61,38 @@
   },
   {
     "file": "esp32/src/timers.rs",
-    "mutation": "self.lact.step(ticks, u64::MAX) -> self.lact.step(0, u64::MAX)",
+    "mutation": "self.lact.step(ticks, u64::MAX, -> self.lact.step(0, u64::MAX,",
     "test": "classic_lact_counts_and_raises_its_interrupt",
     "killed": true
   },
   {
-    "file": "esp-periph/src/uart.rs",
-    "mutation": "((self.rx.len() % RX_FIFO_SIZE) as u32) << 13 -> 0",
+    "file": "esp32/src/periph.rs",
+    "mutation": "((self.0.rx_pending() % 128) as u32) << 13 -> 0",
+    "test": "classic_uart_reports_receive_fifo_pointers",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "self.0.rx_pending() % 128 -> self.0.rx_pending() % 256",
     "test": "classic_uart_reports_receive_fifo_pointers",
     "killed": true
   },
   {
     "file": "esp32/src/timers.rs",
-    "mutation": "timer.step(ticks, u64::MAX) -> timer.step(ticks, (1 << 54) - 1)",
+    "mutation": "timer.step(ticks, u64::MAX, -> timer.step(ticks, (1 << 54) - 1,",
     "test": "all_classic_timers_keep_full_width_and_share_alarm_semantics",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/timg.rs",
+    "mutation": "steps.saturating_mul(div) -> steps.wrapping_mul(div)",
+    "test": "far_alarms_saturate_instead_of_wrapping",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/timers.rs",
+    "mutation": ".chain([&self.lact]) -> .chain([&self.timer.t[0]])",
+    "test": "far_alarms_saturate_instead_of_wrapping",
     "killed": true
   },
   {

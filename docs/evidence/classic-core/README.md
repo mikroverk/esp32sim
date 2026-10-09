@@ -1,10 +1,11 @@
 # EX223: classic ESP32 core
 
-Base: upstream `017af524`. The classic chip uses the shared hooks merged in
-#183, including the LX6-only UR 234-236 gate. No shared CPU or bus trait changes. Timer stepping is shared through an
-`#[inline]` helper with unchanged 54-bit masks on S3/C3/C6; classic uses 64-bit masks.
-The extraction adds no per-tick work to the existing chips. Native and WASM front ends select
-the new chip outside execution loops.
+Base: upstream `954f2a68`. The classic chip uses the shared hooks merged in
+#183, including the LX6-only UR 234-236 gate. No shared CPU or bus trait changes. Timer stepping and
+alarm-gap logic are shared through `#[inline(always)]` `Timer` helpers; S3/C3/C6 keep 54-bit
+masks and main's unsaturated deadline product, classic uses 64-bit masks and a saturating
+deadline. Shared structs keep their main layout. Native and WASM front ends select the new
+chip outside execution loops; the WASM chip enum appends the classic variant last.
 
 The chip models the ECO3 memory map, PRO flash MMU, 256-byte decode-cache
 invalidation, DPORT routing, UART, GPIO/IO_MUX, eFuse, flash and boot SHA-256,
@@ -14,8 +15,9 @@ The fixed clock model is 240 MHz CPU, 80 MHz APB and 150 kHz RTC slow.
 No PSRAM, DFP arithmetic or hardware timing validation is claimed. LACT sleep
 stepping and timer-group watchdog execution remain outside the model.
 Board callbacks and matrix peripheral signals belong to the peripherals part;
-the core has no board callbacks in its tick or MMIO paths. Shared UART layout
-selects the classic receive-pointer register. Direct app boot is rejected.
+the core has no board callbacks in its tick or MMIO paths. A classic UART
+wrapper adds the receive-pointer register; the shared UART is unchanged.
+Direct app boot is rejected.
 
 ## Inputs and reproduction
 
@@ -46,8 +48,8 @@ remain unchanged. JIT implementation files are unchanged.
 ## Results
 
 Rust 1.99.0: native and WASM Clippy pass with warnings denied. Empty-HOME
-CI-mode workspace: 661 passed, zero failed. Plain workspace with no firmware
-variables: 639 passed, 36 ignored, zero failed. All eight production WASM
+CI-mode workspace: 663 passed, zero failed. Plain workspace with no firmware
+variables: 641 passed, 36 ignored, zero failed. All eight production WASM
 scenarios pass. Evidence privacy check passes. Existing goldens are unchanged.
 The fixture reports silicon revision v2.0 despite using the ECO3 ROM; the
 model does not supply the additional revision-3 date bit. Its boot output
@@ -57,9 +59,9 @@ not hardware equivalence claims.
 ## Mutation checks
 
 [Mutation table](mutations.json): each row names the changed expression and
-the test that fails. All 14 mutations are killed by assertions, not compile
-errors. Reproduce each with `cargo +1.99.0 test -p esp32 --lib TEST` after
-applying the named one-line replacement, then restore the expression.
+the test that fails. All 17 mutations are killed by assertions, not compile
+errors. Reproduce each with `cargo +1.99.0 test --release -p esp32 --lib TEST`
+after applying the named one-line replacement, then restore the expression.
 The GPIO test drives an undriven pad low with a pull-down before enabling
 its pull-up; starting high alone cannot detect missing pull handling.
 
@@ -78,6 +80,18 @@ on hardware. This fixture does not establish an IDF 4.4 firmware contract.
 ## CPU comparison
 
 PENDING
+
+Static check (no timing): release `esp32sim` and `esp32sim-c6` binaries from
+main `954f2a68` and this branch were disassembled with `llvm-objdump -d` and
+compared function by function after normalising addresses, alignment `nop`s
+and linker-chosen symbol aliases. The S3/C3/C6 execution path is
+instruction-identical to main, including `Machine::run`, `step_core`, each
+`SocBus` `tick` and `next_deadline`, `TimerGroup::tick` and the UART, TIMG and
+SHA register paths. Shared `Gpio::write` and `RtcCntl::write`, which classic
+adapters also call, use `ubfx` instead of `lsr` for one register index each,
+with the same instruction count. Other differences are in CLI setup and
+reporting, `Cpu::dump`, a coverage report and the opt-in register-trace
+observer.
 
 ## Privacy
 

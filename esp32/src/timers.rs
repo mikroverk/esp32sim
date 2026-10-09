@@ -79,10 +79,11 @@ impl Device for ClassicTimer {
     }
 
     fn tick(&mut self, ticks: u64) {
-        for (i, timer) in self.timer.t.iter_mut().enumerate() {
-            if timer.step(ticks, u64::MAX) { self.timer.int_raw |= 1 << i; }
+        let TimerGroup { t, int_raw, .. } = &mut self.timer;
+        for (i, timer) in t.iter_mut().enumerate() {
+            timer.step(ticks, u64::MAX, || *int_raw |= 1 << i);
         }
-        if self.lact.step(ticks, u64::MAX) { self.timer.int_raw |= 1 << 3; }
+        self.lact.step(ticks, u64::MAX, || *int_raw |= 1 << 3);
     }
 
     fn has_deadline(&self) -> bool {
@@ -90,13 +91,8 @@ impl Device for ClassicTimer {
     }
 
     fn next_deadline(&self) -> Option<u64> {
-        [
-            <TimerGroup as Device>::next_deadline(&self.timer),
-            self.lact.deadline(),
-        ]
-        .into_iter()
-        .flatten()
-        .min()
+        // Timer::deadline saturates; the 64-bit counters can overflow TimerGroup's 54-bit product.
+        self.timer.t.iter().chain([&self.lact]).filter_map(Timer::deadline).min()
     }
 }
 
@@ -124,6 +120,20 @@ mod tests {
             assert_eq!(t.read(count + 4), 0x80000001);
             assert_ne!(t.read(0x9c), 0);
             assert_eq!(t.next_deadline(), None);
+        }
+    }
+
+    #[test]
+    fn far_alarms_saturate_instead_of_wrapping() {
+        // Divider field 0 means 65536; 2^64 - 1 steps times that overflows u64.
+        let mut t = ClassicTimer::new(0);
+        for base in [0x00, 0x24, 0x74] {
+            let config = if base == 0x74 { 0x70 } else { base };
+            t.write(base + 0x10, u32::MAX);
+            t.write(base + 0x14, u32::MAX);
+            t.write(config, (1 << 31) | (1 << 30) | (1 << 10));
+            assert_eq!(t.next_deadline(), Some(u64::MAX), "timer at {base:#x}");
+            t.write(config, 0);
         }
     }
 }

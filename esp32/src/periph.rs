@@ -315,6 +315,43 @@ impl Device for ClassicGpio {
     }
 }
 
+// The classic UART adds UART_MEM_RX_STATUS (uart_reg.h, UART_MEM_RX_STATUS_REG at 0x60):
+// bits 13-23 hold the receive FIFO write pointer, modelled as the queued count mod 128.
+pub struct ClassicUart(pub Uart);
+impl ClassicUart {
+    const MEM_RX_STATUS: u32 = 0x60;
+    fn new(layout: UartLayout) -> Self {
+        Self(Uart::new(layout))
+    }
+}
+impl std::ops::Deref for ClassicUart {
+    type Target = Uart;
+    fn deref(&self) -> &Uart {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for ClassicUart {
+    fn deref_mut(&mut self) -> &mut Uart {
+        &mut self.0
+    }
+}
+impl Device for ClassicUart {
+    fn read(&mut self, off: u32) -> u32 {
+        if off == Self::MEM_RX_STATUS {
+            ((self.0.rx_pending() % 128) as u32) << 13
+        } else {
+            self.0.read(off)
+        }
+    }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        self.0.write(off, v);
+        WriteEffect::NONE
+    }
+    fn irq_sources(&self) -> u64 {
+        self.0.irq() as u64
+    }
+}
+
 // RTC_CNTL uses the classic register layout; the shared device owns watchdog state.
 pub struct ClassicRtc(pub RtcCntl);
 impl ClassicRtc {
@@ -425,7 +462,7 @@ impl Device for ClassicSha {
 
 pub struct Peripherals {
     pub dport: Dport,
-    pub uart: [Uart; 3],
+    pub uart: [ClassicUart; 3],
     pub spi0: ClassicSpi,
     pub spi1: ClassicSpi,
     pub gpio: ClassicGpio,
@@ -473,16 +510,15 @@ impl Peripherals {
             thrhd_mask: 0x7f,
             rxfifo_rst: 1 << 17,
             rxfifo_cnt_mask: 0xff,
-            rx_status: Some(0x60),
         };
         let mut gpio = ClassicGpio::new();
         gpio.gpio.strap = 0x13; // normal SPI-fast-flash boot, with ROM messages enabled
         let mut p = Self {
             dport: Dport::new(),
             uart: [
-                Uart::new(uart),
-                Uart::new(uart),
-                Uart::new(uart),
+                ClassicUart::new(uart),
+                ClassicUart::new(uart),
+                ClassicUart::new(uart),
             ],
             spi0: ClassicSpi::new(false),
             spi1: ClassicSpi::new(true),
@@ -710,11 +746,16 @@ mod tests {
 
     #[test]
     fn classic_uart_reports_receive_fifo_pointers() {
-        let mut uart = Uart::new(UartLayout { rx_status: Some(0x60), ..UartLayout::S3 });
-        uart.host_input(b"ok");
-        assert_eq!((uart.read(0x60) >> 13) & 0x7ff, 2);
-        assert_eq!(uart.read(0), b'o' as u32);
-        assert_eq!((uart.read(0x60) >> 13) & 0x7ff, 1);
+        let mut p = Peripherals::new([0; 6]);
+        p.uart[0].host_input(b"ok");
+        assert_eq!((p.read32(0x3ff4_0060) >> 13) & 0x7ff, 2);
+        assert_eq!(p.read32(0x3ff4_0000), b'o' as u32);
+        assert_eq!((p.read32(0x3ff4_0060) >> 13) & 0x7ff, 1);
+        assert_eq!(p.read32(0x3ff4_0060) & !(0x7ff << 13), 0);
+        // A full 128-byte FIFO wraps the write pointer back to zero.
+        p.uart[1].host_input(&[0x55; 128]);
+        assert_eq!(p.read32(0x3ff5_0060), 0);
+        assert_eq!(p.read32(0x3ff5_001c) & 0xff, 128);
     }
 
     #[test]
