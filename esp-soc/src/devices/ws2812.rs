@@ -261,3 +261,56 @@ mod tests {
     #[should_panic(expected = "not a permutation")]
     fn a_map_must_be_a_permutation() { static BAD: [usize; 3] = [0, 0, 2]; Ws2812Chain::mapped(&BAD); }
 }
+
+/// Recover WS2812-class lane pulses from parallel samples and deliver them through
+/// the existing board frame callback. Timing windows are decoder policy, not calibration.
+pub fn parallel_output(board: &mut dyn crate::BoardModel, pins: impl IntoIterator<Item = (u8, u8)>, samples: &[u16], clock_hz: u32) {
+        for (pin, lane) in pins {
+            if lane >= 16 || clock_hz == 0 { continue; }
+            let mut bits=Vec::new();
+            let mut at=0;
+            while at<samples.len() {
+                while at<samples.len() && samples[at] & (1<<lane)==0 { at+=1; }
+                let start=at;
+                while at<samples.len() && samples[at] & (1<<lane)!=0 { at+=1; }
+                let high=at-start;
+                let start=at;
+                while at<samples.len() && samples[at] & (1<<lane)==0 { at+=1; }
+                let low=at-start;
+                if high==0 { break; }
+                let high_ns=high as u64*1_000_000_000/u64::from(clock_hz);
+                if !(MIN_PULSE_NS..=MAX_HIGH_NS).contains(&high_ns) { bits.clear(); continue; }
+                bits.push(high_ns>=ONE_HIGH_NS);
+                if low as u64*1_000_000>=RESET_US*u64::from(clock_hz) {
+                    board.rmt_frame(pin, &bits); bits.clear();
+                }
+            }
+            if !bits.is_empty() { board.rmt_frame(pin, &bits); }
+        }
+    }
+
+#[cfg(test)]
+mod parallel_tests {
+    use super::*;
+    use crate::BoardModel;
+    #[derive(Default)]
+    struct Frames(Vec<(u8, Vec<bool>)>);
+    impl BoardModel for Frames {
+        fn name(&self) -> &'static str { "parallel-test" }
+        fn rmt_frame(&mut self, pin: u8, bits: &[bool]) { self.0.push((pin, bits.to_vec())); }
+    }
+    #[test]
+    fn parallel_lanes_mirrors_and_reset_boundaries_reach_existing_boards() {
+        let mut samples = Vec::new();
+        for _ in 0..24 { samples.extend([3, 2, 0, 0]); }
+        samples.extend(std::iter::repeat_n(0, 200));
+        for _ in 0..24 { samples.extend([3, 1, 0, 0]); }
+        let mut board = Frames::default();
+        parallel_output(&mut board, [(4, 0), (5, 1), (6, 0)], &samples, 3_200_000);
+        assert_eq!(board.0, vec![(4, vec![false; 24]), (4, vec![true; 24]),
+            (5, vec![true; 24]), (5, vec![false; 24]), (6, vec![false; 24]), (6, vec![true; 24])]);
+        parallel_output(&mut board, [(4, 0)], &samples, 0);
+        parallel_output(&mut board, [(4, 16)], &samples, 3_200_000);
+        assert_eq!(board.0.len(), 6);
+    }
+}

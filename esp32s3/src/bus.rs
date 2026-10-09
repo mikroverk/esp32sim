@@ -454,6 +454,9 @@ impl SocBus {
     fn periph_write(&mut self, addr: u32, v: u32) {
         self.vq_backstop(addr);
         self.periph_write_inner(addr, v);
+        // RMT TX3 DMA is staged at MMIO boundaries once DMA_ACCESS_EN is set; one bit
+        // test keeps every other write on main's path.
+        if self.periph.rmt.ch[3].conf0 & (1 << 25) != 0 { self.rmt_dma_write(addr & !3); }
         self.refresh_tick_budget();   // the write may have armed something
     }
     fn periph_write_inner(&mut self, addr: u32, v: u32) {
@@ -845,14 +848,17 @@ impl SocBus {
             self.periph.gpio.changes.clear();
         }
         self.deliver_spi2_transfer();
-        if !self.periph.rmt.done.is_empty() {
-            for (ch, bits) in std::mem::take(&mut self.periph.rmt.done) {
-                let pin = self.periph.gpio.pin_for_signal(RMT_SIG_OUT0 + ch as u32).unwrap_or(u8::MAX);
-                self.board.rmt_frame(pin, &bits);
-            }
-            self.irq_dirty = true;
-        }
+        if !self.periph.rmt.done.is_empty() { self.deliver_rmt_frames(); }
         0
+    }
+    /// Every routed pin of a completed transmitter receives its frame (mirrored strips).
+    #[cold]
+    #[inline(never)]
+    fn deliver_rmt_frames(&mut self) {
+        for (ch, bits) in std::mem::take(&mut self.periph.rmt.done) {
+            for pin in esp_soc::pins::ChipPins::S3.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(RMT_SIG_OUT0 + ch as u32) { self.board.rmt_frame(pin, &bits); }
+        }
+        self.irq_dirty = true;
     }
 }
 #[cfg(test)]

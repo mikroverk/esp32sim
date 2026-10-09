@@ -39,6 +39,9 @@ impl PinRoutes<'_> {
         let oen = self.chip.output_mask + 1;
         sel & (self.chip.output_mask | oen << 1) == signal && (sel & oen == 0 || self.gpio.enable & (1 << pin) != 0)
     }
+    pub fn output_pins(&self, signal: u32) -> impl Iterator<Item = u8> + '_ {
+        (0..49).filter(move |&pin| self.matrix_output(pin, signal)).map(|pin| pin as u8)
+    }
     pub fn i2c_pin(&self, signal: usize) -> Option<u8> {
         self.matrix_input(signal).filter(|&pin| self.matrix_output(pin as usize, signal as u32))
     }
