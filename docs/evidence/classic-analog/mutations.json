@@ -1,0 +1,163 @@
+[
+  {
+    "file": "esp-periph/src/sar_adc.rs",
+    "mutation": "prev & (1 << 17) == 0 -> true",
+    "test": "adc_start_edge_read_only_result_and_controller_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "|| control & digital != 0 -> || false",
+    "test": "adc_start_edge_read_only_result_and_controller_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "value & (START_FORCE | PAD_FORCE) != START_FORCE | PAD_FORCE -> false",
+    "test": "adc_start_edge_read_only_result_and_controller_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "if powered && -> if true &&",
+    "test": "adc_start_edge_read_only_result_and_controller_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": ">> (12 - width) -> >> (11 - width.min(11))",
+    "test": "adc_channels_mux_width_attenuation_and_input_changes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "(1 << (28 + unit)) -> (1 << 28)",
+    "test": "adc_channels_mux_width_attenuation_and_input_changes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "(channel * 2) -> (channel * 1)",
+    "test": "adc_channels_mux_width_attenuation_and_input_changes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "(powered && !cw) -> (powered)",
+    "test": "dac_requires_power_and_dc_mode_with_either_gpio_mux",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "(powered && !cw) -> (!cw)",
+    "test": "dac_requires_power_and_dc_mode_with_either_gpio_mux",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "8 => 9 -> 8 => 8",
+    "test": "touch_oneshot_timer_and_t8_t9_routing",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "&& self.touch_timer && -> && false &&",
+    "test": "touch_oneshot_timer_and_t8_t9_routing",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "enabled & (1 << register_channel) != 0 -> true",
+    "test": "touch_oneshot_timer_and_t8_t9_routing",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "self.periph.adc.now_cycles = self.cycles -> self.periph.adc.now_cycles = 0",
+    "test": "classic_adc_samples_host_waveform_at_bus_time",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "self.periph.adc.restore_inputs(old.adc); -> drop(old.adc);",
+    "test": "reboot_preserves_host_analog_input_but_resets_dac_registers",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "self.rtc_pads & (1 << pin) == 0 && -> true &&",
+    "test": "rtc_mux_disconnects_digital_gpio_and_exposes_nominal_adc_vref",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "pin >= 34 || self.rtc_pads & (1 << pin) != 0 -> pin >= 34",
+    "test": "rtc_mux_disconnects_digital_gpio_and_exposes_nominal_adc_vref",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "self.gpio.status = status; false -> self.gpio.status = status | self.gpio.status; false",
+    "test": "rtc_mux_disconnects_digital_gpio_and_exposes_nominal_adc_vref",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/machine.rs",
+    "mutation": "if pn >= 64 -> if pn > 64",
+    "test": "analog_scripts_validate_inputs_and_keep_panel_touch_separate",
+    "crate": "esp32sim",
+    "killed": true
+  },
+  {
+    "file": "esp-soc/src/machine.rs",
+    "mutation": "ScriptAction::TouchPad(pin, touched) => self.bus.set_touch_input(pin, touched) -> ScriptAction::TouchPad(pin, touched) => self.bus.set_touch_input(pin, !touched)",
+    "test": "analog_scripts_reach_classic_adc_and_touch_registers",
+    "crate": "esp32sim",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "pads.count_ones() == 1 -> pads.count_ones() >= 1",
+    "test": "adc_start_edge_read_only_result_and_controller_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/sar_adc.rs",
+    "mutation": "value & 0xffff -> 0",
+    "test": "sens_edges_preserve_only_the_selected_hardware_result",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/sar_adc.rs",
+    "mutation": "out |= prev & 0x1_ffff; -> out |= 0;",
+    "test": "sens_edges_preserve_only_the_selected_hardware_result",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/sar_adc.rs",
+    "mutation": "out |= convert(); -> out |= 0;",
+    "test": "sens_edges_preserve_only_the_selected_hardware_result",
+    "crate": "esp-periph",
+    "killed": true
+  }
+]

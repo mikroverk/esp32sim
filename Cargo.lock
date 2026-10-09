@@ -22,6 +22,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp32"
+version = "0.2.0"
+dependencies = [
+ "emu-core",
+ "esp-periph",
+ "esp-soc",
+ "xtensa-lx7",
+]
+
+[[package]]
 name = "esp32c3"
 version = "0.2.0"
 dependencies = [
@@ -58,6 +68,7 @@ dependencies = [
  "emu-core",
  "esp-periph",
  "esp-soc",
+ "esp32",
  "esp32c3",
  "esp32c6",
  "esp32s3",
@@ -69,6 +80,7 @@ version = "0.2.0"
 dependencies = [
  "esp-periph",
  "esp-soc",
+ "esp32",
  "esp32c3",
  "esp32c6",
  "esp32s3",

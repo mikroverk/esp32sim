@@ -773,7 +773,7 @@ impl Bus for SocBus {
 impl SocBus {
     fn cadence_active(&self) -> bool {
         let p = &self.periph;
-        p.i2s0.tx_running() || p.i2s1.tx_running()
+        p.i2s0.active() || p.i2s1.active()
             || p.lcd_cam.cam_active() || p.lcd_cam.lcd_running()
             // EX157: a running GDMA IN channel is passive. Its only producers are the camera
             // (capture or VSYNC enabled), AES (dma_pending) and mem-to-mem (needs the OUT side running),
@@ -804,6 +804,11 @@ impl SocBus {
             budget = budget.min(until_deadline as u32);
         }
         self.tick_budget = budget;
+    }
+
+    /// Bus cycles at which the current peripheral clock started (deferred ticks excluded).
+    pub(crate) fn peripheral_clock_offset(&self) -> u64 {
+        self.cycles - u64::from(self.tick_pending) - self.periph.clock_cycles()
     }
 
     /// Deliver the deferred cycles to the device models now.

@@ -23,3 +23,7 @@ is 50 Hz with quiet-pixel deferral, including pocket-tank's full-frame rescans.
 This option changes host snapshots, not guest display timing. Unsupported boards
 or older WASM modules reject the opt-in before boot. The publication evidence is
 recorded in [EX117](../../../docs/experiments.md#ex117).
+
+The classic ESP32 hello inputs are `public/classic-hello-*`, built from
+[`examples/hello_world-classic`](../../../examples/hello_world-classic/README.md).
+`classic-hello-NOTICE.txt` lists only linked firmware components.

@@ -204,18 +204,15 @@ impl Device for SpiMemC6 {
 /// register), like the S3 model. Two things the blobs poll for must come back set:
 /// `ANA_CONF0.BBPLL_CAL_DONE`, and the RF block's (0x63) status bits — its registers read as
 /// 0xff until written, which is what the PHY's calibration loops wait for.
-pub struct AnaMst { ram: RegRam, pub ana: std::collections::HashMap<u32, u8> }
+pub struct AnaMst { ram: RegRam, pub ana: esp_periph::Regi2c }
 impl Default for AnaMst { fn default() -> Self { Self::new() } }
 impl AnaMst {
     pub fn new() -> Self { AnaMst { ram: RegRam::new(), ana: Default::default() } }
     fn ctrl_read(&self, off: u32) -> u32 {
         let c = self.ram.read(off);
-        if c & (1 << 24) != 0 { return c & !(1 << 25); }
-        let key = c & 0xffff;
         // the RF block (0x63): register 0 is the sigma-delta modulator status the PHY's
         // `wait_i2c_sdm_stable` polls for 0x5b; the other status registers read all-ones
-        let d = *self.ana.get(&key).unwrap_or(match key { 0x0063 => &0x5b, k if k & 0xff == 0x63 => &0xff, _ => &0 }) as u32;
-        (c & !(0xff << 16) & !(1 << 25)) | (d << 16)
+        self.ana.read(0, c, |key| match key { 0x0063 => &0x5b, k if k & 0xff == 0x63 => &0xff, _ => &0 })
     }
 }
 impl Device for AnaMst {
@@ -227,7 +224,7 @@ impl Device for AnaMst {
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        if (off == 0x00 || off == 0x04) && v & (1 << 24) != 0 { self.ana.insert(v & 0xffff, (v >> 16) as u8); }
+        if off == 0x00 || off == 0x04 { self.ana.write(0, v); }
         self.ram.write(off, v);
         WriteEffect::NONE
     }
@@ -365,6 +362,10 @@ pub struct Peripherals {
     last_status: [u32; 4],
     pub ledc: Ledc,
     pub mcpwm: Mcpwm,
+    /// Boxed: the controller is cold unless firmware uses I2S.
+    pub i2s0: Box<esp_periph::I2s>,
+    /// SPI command or I2S RX pending, refreshed only when either changes.
+    pub work_pending: bool,
 }
 
 // Every peripheral, where it sits (4 KB block number from 0x60000000), and its interrupt sources.
@@ -380,6 +381,7 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x08 "TIMG0" (timg[0]) => [src::TG0_T0];
     0x09 "TIMG1" (timg[1]) => [src::TG1_T0];
     0x0a "SYSTIMER" (systimer) => [src::SYSTIMER_T0, src::SYSTIMER_T1, src::SYSTIMER_T2];
+    0x0c "I2S" optional (i2s0) => [src::I2S];
     0x0f "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x10 "INTMTX" (intmtx) => [];
     0x14 "MCPWM" optional (mcpwm) => [src::MCPWM0];
@@ -434,6 +436,7 @@ impl Peripherals {
             intmtx: IntMatrix::new(), intc: Intc::new(), cache: Cache::new(), lpsys: LpSys::new(), pcr: Pcr::new(), ana_mst: AnaMst::new(), assist_debug: AssistDebug::new(),
             rng: Rng::new(), cpu_sub: RegRam::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
+            i2s0: Box::new(esp_periph::I2s::new(CPU_HZ)), work_pending: false,
             last_status: [0; 4],
         }
     }
@@ -481,7 +484,12 @@ impl Peripherals {
         }
         if addr == PERIPH_BASE + 0x96034 && v & 2 != 0 { self.ledc = Ledc::new(LedcLayout::C6); }
         if addr == PERIPH_BASE + 0x9609c && v & 2 != 0 { self.mcpwm = Mcpwm::new(87, 8); }
-        if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        let fx = mmio::write32(self, addr, v);
+        // One test covers both effects, as the SPI test alone did before RX existed.
+        if fx.contains(WriteEffect::SPI_EXEC | WriteEffect::RX_CONF) {
+            self.spi_exec |= fx.contains(WriteEffect::SPI_EXEC);
+            self.refresh_work();
+        }
         if addr == PERIPH_BASE + 0x96034 || addr == PERIPH_BASE + 0x96038 {
             let conf = self.pcr.read(0x34); let clock = self.pcr.read(0x38);
             self.ledc.external_clock_hz = if conf & 3 != 1 || clock & (1 << 22) == 0 { 0 } else { match (clock >> 20) & 3 { 1 => 80_000_000, 2 => 17_500_000, 3 => 40_000_000, _ => 0 } };
@@ -495,6 +503,8 @@ impl Peripherals {
             self.refresh_optional(0x14);
         }
     }
+
+    pub fn refresh_work(&mut self) { self.work_pending = self.spi_exec || self.i2s0.rx_running(); }
 
     /// The CPU-subsystem window (0x20001000): the machine-level PLIC is the interrupt controller;
     /// the user-level PLIC and the CLINT read back what was written.
@@ -513,6 +523,8 @@ impl Peripherals {
     /// timer countdowns, a running RMT channel), conservative by one device tick;
     /// `u32::MAX` when nothing is armed. What a host that skips idle time may skip.
     pub fn cycles_until_timer(&self) -> u32 { Dispatch::cycles_until_deadline(self) }
+    /// CPU cycles since this peripheral set was built.
+    pub(crate) fn clock_cycles(&self) -> u64 { self.clock.cycles() }
 
     /// Which interrupt sources are asserted right now.
     pub fn source_status(&self) -> [u32; 4] { Dispatch::source_status(self) }

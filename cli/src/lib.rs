@@ -1,4 +1,4 @@
-//! esp32sim — the command line, one front end for every chip (`--chip s3|c3|c6`; the `esp32sim-c3`
+//! esp32sim — the command line, one front end for every chip (`--chip esp32|s3|c3|c6`; the `esp32sim-c3`
 //! and `esp32sim-c6` binaries are `--chip c3` / `--chip c6`). Parsing and everything a run does are chip-agnostic over
 //! `Machine<S>`; the few flags a chip owns (board, WiFi, camera, PSRAM, register presets) live in
 //! its setup function.
@@ -11,7 +11,7 @@ pub mod cooja;
 mod camera;
 
 fn usage(chip: &str) -> ! {
-    eprintln!("usage: esp32sim [--chip s3|c3|c6] --boot rom|app --bootloader B.bin --ptable P.bin --app A.bin [--elf X.elf]... [options]");
+    eprintln!("usage: esp32sim [--chip esp32|s3|c3|c6] --boot rom|app --bootloader B.bin --ptable P.bin --app A.bin [--elf X.elf]... [options]");
     eprintln!("       see docs/cli.md for every flag (default chip here: {})", chip);
     std::process::exit(2)
 }
@@ -74,6 +74,7 @@ pub struct Opts {
     pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
+    pub i2s_tone: Vec<String>,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
     pub trace: bool, pub trace_from: u64, pub breaks: Vec<u32>, pub watch: Option<u32>, pub peeks: Vec<(u32, usize)>, pub pwm_pins: Vec<u8>, pub disasms: Vec<(u32, usize)>,
     pub profile: bool, pub profile_blocks: bool, pub coverage: Option<Option<String>>, pub irq_latency: bool, pub vcd: Option<String>,
@@ -134,6 +135,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--web" => o.web_port = Some(next().parse().expect("port")),
             "--web-dir" => o.web_dir = Some(next()),
             "--no-reboot" => o.no_reboot = true,
+            "--i2s-tone" => o.i2s_tone.push(next()),
             "--wav" => o.wav = Some(next()),
             "--tft-png" => o.tft_png = Some(next()),
             "--gram-png" => o.gram_png = Some(next()),
@@ -203,6 +205,7 @@ pub fn run_cli(default_chip: &str) {
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
     if o.cooja { return run_cooja(&mut o); }
     match o.chip.as_str() {
+        "esp32" => { let m = setup_esp32(&o); run(m, &o) }
         "s3" | "esp32s3" => { let m = setup_s3(&o); run(m, &o) }
         "c3" | "esp32c3" => { let m = setup_c3(&o); run(m, &o) }
         "c6" | "esp32c6" => { let m = setup_c6(&o); run(m, &o) }
@@ -315,6 +318,19 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
     }
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
+    }
+    m
+}
+
+fn setup_esp32(o: &Opts) -> esp32::Machine {
+    let mut m = esp32::machine(o.mac.unwrap_or([0x24, 0x6f, 0x28, 0x00, 0x11, 0x22]), o.flash_mb.unwrap_or(4) << 20);
+    m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);
+    if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
+    let board = if o.board == "atech14" { "none" } else { &o.board };
+    m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev)")));
+    m.bus.attach_board_devices();
+    for (flag, on) in [("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
+        if on { eprintln!("{} is not available on the classic ESP32", flag); std::process::exit(2); }
     }
     m
 }
@@ -484,6 +500,18 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }
     if let Some(p) = &o.vcd { m.add_observer(Box::new(Vcd::new(p, S::CPU_HZ))); }
+    for tone in &o.i2s_tone {
+        let fields: Vec<_> = tone.split(':').collect();
+        let configure = || -> Result<(usize, f64, f64), String> {
+            let [p, h, a] = fields[..] else { return Err("expected PORT:HZ:AMPLITUDE".into()); };
+            Ok((p.parse().map_err(|_| "invalid port")?, h.parse().map_err(|_| "invalid frequency")?, a.parse().map_err(|_| "invalid amplitude")?))
+        };
+        let result = configure().and_then(|(port, hz, amplitude)| {
+            m.bus.i2s_input(port).ok_or_else(|| "controller absent".to_string())?.tone(hz, amplitude).map_err(String::from)
+        });
+        if let Err(e) = result { eprintln!("--i2s-tone: {e}"); std::process::exit(2); }
+    }
+
     if let Some(sec) = o.max_seconds { m.max_cycles = (sec * S::CPU_HZ as f64) as u64; }
     boot
 }

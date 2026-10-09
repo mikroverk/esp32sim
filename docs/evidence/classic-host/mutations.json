@@ -1,0 +1,151 @@
+[
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "((conf >> 3) & 4) -> ((conf >> 3) & 0)",
+    "test": "i2s_native_dma_packs_pcm_and_raises_eof",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "0xc0) & (1 << clock_bit) == 0 -> 0xc0) & (1 << clock_bit) != 0",
+    "test": "i2s_clock_gate_partial_dma_faults_interrupts_and_code_invalidation",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "conf1: 1 << 12 -> conf1: 0",
+    "test": "i2s_rejects_unowned_empty_and_unwritable_descriptors",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp-periph/src/gdma/receive.rs",
+    "mutation": "d.size == 0 -> false",
+    "test": "i2s_rejects_unowned_empty_and_unwritable_descriptors",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "self.inner.int_raw |= 1 << 9 -> self.inner.int_raw |= 1 << 8",
+    "test": "i2s_native_dma_packs_pcm_and_raises_eof",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "self.inner.int_raw |= 1 << 13 -> self.inner.int_raw |= 1 << 12",
+    "test": "i2s_rejects_unowned_empty_and_unwritable_descriptors",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "self.irq_dirty |= irq -> self.irq_dirty |= false",
+    "test": "i2s_clock_gate_partial_dma_faults_interrupts_and_code_invalidation",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "b | ((a % b) << 9) | ((a / b - 1) << 18) -> 0",
+    "test": "classic_fractional_clock_width_and_slave_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "((conf & (1 << 7)) >> 4) -> 0",
+    "test": "classic_fractional_clock_width_and_slave_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "match channel { 1 => 2, 2 => 1, _ => 3 } -> 3",
+    "test": "classic_fractional_clock_width_and_slave_selection",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/i2s/sources.rs",
+    "mutation": "clock[usize::from(pdm)] as u32 -> data as u32 + 1",
+    "test": "i2s_pin_source_checks_all_wires_and_survives_reboot",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp-periph/src/i2s/sources.rs",
+    "mutation": "clock[1] as u32 -> data as u32 + 2",
+    "test": "i2s_pin_source_checks_all_wires_and_survives_reboot",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "for port in 0..2 { self.periph.i2s[port].inner.keep_rx_input -> for port in 0..0 { self.periph.i2s[port].inner.keep_rx_input",
+    "test": "controller_pcm_queue_survives_classic_reset_without_a_source_bank",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "pcm_bank(), self.cycles, -> pcm_bank(), 0,",
+    "test": "i2s_pin_source_checks_all_wires_and_survives_reboot",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/adc.rs",
+    "mutation": "self.analog.convert(pins[channel], self.now_cycles, -> self.analog.convert(pins[channel], 0,",
+    "test": "classic_raw_stream_uses_shared_clock_and_survives_reset",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp-periph/src/gdma/receive.rs",
+    "mutation": "if bus.write32_unpriced(self.desc, v).is_err() { return false; } -> let _ = bus.write32_unpriced(self.desc, v);",
+    "test": "i2s_rejects_unowned_empty_and_unwritable_descriptors",
+    "crate": "esp32",
+    "killed": true,
+    "target": "host_devices"
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "read(0x24).checked_mul(4) -> read(0x24).checked_mul(1)",
+    "test": "i2s_eof_words_span_descriptors_and_reject_unrepresentable_counts",
+    "crate": "esp32",
+    "target": "host_devices",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "ram.write(0x24, 64) -> ram.write(0x24, 0)",
+    "test": "i2s_eof_words_span_descriptors_and_reject_unrepresentable_counts",
+    "crate": "esp32",
+    "target": "host_devices",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/i2s.rs",
+    "mutation": "self.periph.i2s[port].ram.read(0x24).checked_mul(4) -> Some(self.periph.i2s[port].ram.read(0x24).wrapping_mul(4))",
+    "test": "i2s_eof_words_span_descriptors_and_reject_unrepresentable_counts",
+    "crate": "esp32",
+    "target": "host_devices",
+    "killed": true
+  }
+]

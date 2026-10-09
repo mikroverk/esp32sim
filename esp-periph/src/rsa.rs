@@ -43,7 +43,7 @@ impl Rsa {
         }
     }
     /// Publish a result in the Z block, zero-padded to `words`, and raise the completion flag.
-    fn finish(&mut self, z: Vec<u32>, words: usize) {
+    pub fn finish(&mut self, z: Vec<u32>, words: usize) {
         if self.dbg {
             eprintln!("[rsa] op #{} len={} -> {} words, z[0]={:08x} int_ena={}", self.ops, self.length, words, z.first().copied().unwrap_or(0), self.int_ena);
         }
