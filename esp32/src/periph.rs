@@ -378,7 +378,9 @@ impl Device for ClassicRtc {
         if off == 0x48 {
             self.0.ram.write(0x44, self.0.ram.read(0x44) & !v);
         } else {
-            self.0.write(Self::off(off), v);
+            // The mask states the 4 KiB block range S3/C3/C6 callers already prove, so the shared
+            // RtcCntl::write keeps main's code (no extra index masking).
+            self.0.write(Self::off(off) & 0xfff, v);
         }
         WriteEffect::NONE
     }

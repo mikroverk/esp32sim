@@ -1,6 +1,6 @@
 # EX223: classic ESP32 core
 
-Base: upstream `954f2a68`. The classic chip uses the shared hooks merged in
+Base: upstream `2f9443a9`. The classic chip uses the shared hooks merged in
 #183, including the LX6-only UR 234-236 gate. No shared CPU or bus trait changes. Timer stepping and
 alarm-gap logic are shared through `#[inline(always)]` `Timer` helpers; S3/C3/C6 keep 54-bit
 masks and main's unsaturated deadline product, classic uses 64-bit masks and a saturating
@@ -48,8 +48,8 @@ remain unchanged. JIT implementation files are unchanged.
 ## Results
 
 Rust 1.99.0: native and WASM Clippy pass with warnings denied. Empty-HOME
-CI-mode workspace: 663 passed, zero failed. Plain workspace with no firmware
-variables: 641 passed, 36 ignored, zero failed. All eight production WASM
+CI-mode workspace: 707 passed, zero failed. Plain workspace with no firmware
+variables: 685 passed, 36 ignored, zero failed. All eight production WASM
 scenarios pass. Evidence privacy check passes. Existing goldens are unchanged.
 The fixture reports silicon revision v2.0 despite using the ECO3 ROM; the
 model does not supply the additional revision-3 date bit. Its boot output
@@ -81,17 +81,18 @@ on hardware. This fixture does not establish an IDF 4.4 firmware contract.
 
 PENDING
 
-Static check (no timing): release `esp32sim` and `esp32sim-c6` binaries from
-main `954f2a68` and this branch were disassembled with `llvm-objdump -d` and
-compared function by function after normalising addresses, alignment `nop`s
+Static check (no timing): release `esp32sim` binaries from main `2f9443a9`
+and this branch were disassembled with `llvm-objdump -d` and compared function
+by function after normalising addresses, alignment `nop`s, adrp page offsets
 and linker-chosen symbol aliases. The S3/C3/C6 execution path is
 instruction-identical to main, including `Machine::run`, `step_core`, each
-`SocBus` `tick` and `next_deadline`, `TimerGroup::tick` and the UART, TIMG and
-SHA register paths. Shared `Gpio::write` and `RtcCntl::write`, which classic
-adapters also call, use `ubfx` instead of `lsr` for one register index each,
-with the same instruction count. Other differences are in CLI setup and
-reporting, `Cpu::dump`, a coverage report and the opt-in register-trace
-observer.
+`SocBus` `tick` and `next_deadline`, `TimerGroup::tick` and the UART, TIMG,
+RTC_CNTL and SHA register paths. The classic RTC adapter masks its translated
+offset to the 4 KiB block so the shared `RtcCntl::write` keeps main's code.
+Shared `Gpio::write`, which the classic GPIO adapter also calls, uses `ubfx`
+instead of `lsr` for one register index, with the same instruction count.
+Other differences are in CLI setup and reporting, `Cpu::dump`, a coverage
+report and the opt-in register-trace observer.
 
 ## Privacy
 
