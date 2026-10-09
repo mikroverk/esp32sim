@@ -19,6 +19,8 @@ pub const PERIPH_END: u32 = 0x6010_0000;
 /// enum omits the NMI entries, so its indices are shifted and every source lands on the wrong
 /// line. Only the sources we can assert are listed.
 pub mod src {
+    // ESP-IDF v5.5.5 components/soc/esp32c3/include/soc/interrupts.h:38 (zero-based 20).
+    pub const I2S: usize = 20;
     pub const APB_CTRL: usize = 14; pub const GPIO: usize = 16; pub const SPI2: usize = 19;
     pub const UART0: usize = 21; pub const UART1: usize = 22; pub const LEDC: usize = 23;
     pub const EFUSE: usize = 24; pub const USB_SERIAL_JTAG: usize = 26; pub const RTC_CORE: usize = 27;
@@ -171,6 +173,10 @@ pub struct Peripherals {
     pub fe_iq: crate::wifi::FeIq,
     pub i2c_mst: crate::wifi::I2cMst,
     pub ledc: Ledc,
+    /// Boxed: the controller is cold unless firmware uses I2S.
+    pub i2s0: Box<esp_periph::I2s>,
+    /// I2S0 RX running, cached from RX_CONF writes for the per-write work refresh.
+    pub i2s_rx: bool,
 }
 
 // Every peripheral, where it sits, and its interrupt source numbers (`src`).
@@ -206,6 +212,7 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x3c "RSA" (rsa) => [src::RSA];
     // three channels; out and in interrupts of a channel share one source
     0x3f "GDMA" (gdma) => [src::DMA_CH0, src::DMA_CH1, src::DMA_CH2, NO_SOURCE, NO_SOURCE, src::DMA_CH0, src::DMA_CH1, src::DMA_CH2, NO_SOURCE, NO_SOURCE];
+    0x2d "I2S" optional (i2s0) => [src::I2S];
     0x43 "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0xc0 "SYSTEM" (system) => [src::FROM_CPU0, src::FROM_CPU0 + 1, src::FROM_CPU0 + 2, src::FROM_CPU0 + 3];
     0xc2 "INTERRUPT" (intc) => [];
@@ -270,6 +277,7 @@ impl Peripherals {
                 m.generic.entry(0x26).or_default().write(0x14, 0xfffc_e030);
                 m
             }, spi_exec: false, work_pending: false, wifi_irq: false, clock: Self::new_clock(),
+            i2s0: Box::new(esp_periph::I2s::new(CPU_HZ)), i2s_rx: false,
             last_status: [0; 4], pin_irqs_enabled: false,
         }
     }
@@ -315,7 +323,12 @@ impl Peripherals {
             let pins = self.i2c_pin(54).zip(self.i2c_pin(53));
             self.i2c.set_pins(pins);
         }
-        if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
+        let fx = mmio::write32(self, addr, v);
+        // One test covers both effects, as the SPI test alone did before RX existed.
+        if fx.contains(WriteEffect::SPI_EXEC | WriteEffect::RX_CONF) {
+            self.spi_exec |= fx.contains(WriteEffect::SPI_EXEC);
+            if fx.contains(WriteEffect::RX_CONF) { self.i2s_rx = self.i2s0.rx_running(); }
+        }
         if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
             self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
         }
@@ -336,7 +349,7 @@ impl Peripherals {
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
         self.wifi_irq = self.wifi.irq();
-        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some();
+        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some() || self.i2s_rx;
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz

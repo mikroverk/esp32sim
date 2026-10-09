@@ -171,6 +171,8 @@ pub trait SocBus: Bus {
     fn take_gpio_events(&mut self) -> Vec<(u64, u8, bool)>;
     fn board(&mut self) -> &mut dyn BoardModel;
     fn board_ref(&self) -> &dyn BoardModel;
+    /// Host PCM source for an I2S controller, or None when the controller is absent.
+    fn i2s_input(&mut self, _port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { None }
     /// Captured audio so far (left channel) and its sample rate.
     fn audio(&self) -> (&[i16], u32);
     fn camera_frames(&self) -> u64 { 0 }
