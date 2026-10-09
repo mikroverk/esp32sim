@@ -1,0 +1,11 @@
+{
+  "idf": "v5.5.4",
+  "platform": "pioarduino 55.03.38-1",
+  "compiler": "xtensa-esp-elf GCC 14.2.0_20260121",
+  "two_clean_builds_identical": true,
+  "sha256": {
+    "web/wasm/fw/public/classic-hello-bootloader.bin": "faa4ac0961a9ec6c02d865c874c82bfe0a01225491b89d54fe4b7393f712be2a",
+    "web/wasm/fw/public/classic-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/classic-hello_world.bin": "fa4307fe9545e6599155ac38ad61205946b3f56e92890ad10a69c1592e120cdd"
+  }
+}

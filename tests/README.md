@@ -50,6 +50,7 @@ output is left next to the golden as `*.actual` for diffing.
 | `atech-script1.*` | Pocket Synth: buttons, encoder, serial command, ST7735 over bit-banged SPI, WS2812 via RMT, SID voice on I2S/GDMA; re-run with `--no-jit` (the JIT's oracle) |
 | `atech-sid.*` | the cRSID C64 jukebox: a 6502 + SID inside the emulated S3 |
 | `panel-sid.*` | Touch-LCD-4B energy panel: PSRAM, LCD_CAM RGB frames, GT911 touch and TCA9554 over I2C, ES8311 on I2S, a demo partition via `--flash-at` |
+| `hello-classic.*` | classic ECO3 ROM → bootloader → app; console and interrupt totals/per-source counts, reproducible IDF 5.5.4 fixture |
 | `hello-s3.*` | stock ESP-IDF hello_world on UART0, ROM → bootloader → app_main |
 | `hello-c3.*` | the same on the ESP32-C3 (RISC-V), with the MAC/reset cause/straps of the real module in `hw/c3-hello-world-real.txt`, through `esp32sim-c3` and `esp32sim --chip c3` |
 | `hello-c6.*` | the same on the ESP32-C6 (RISC-V, RV32IMAC), with the identity of the Waveshare ESP32-C6-LCD-1.47 in `hw/c6-hello-world-real.txt`; the reboot variant also pins the ROM's `Saved PC` |
