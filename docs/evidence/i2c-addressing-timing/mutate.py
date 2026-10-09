@@ -5,6 +5,9 @@ import pathlib
 import subprocess
 
 I2C = "esp-periph/src/i2c.rs"
+I2C_ADDRESS = ["-p", "esp32sim", "--test", "i2c_address"]
+DEVICES = ["-p", "esp-periph", "--test", "devices"]
+C3_LIB = ["-p", "esp32c3", "--lib"]
 cases = [
     ("idle deadline gate", I2C, "fn has_deadline(&self) -> bool { self.active }", "fn has_deadline(&self) -> bool { true }", "controller_leaves"),
     ("active deadline gate", I2C, "fn has_deadline(&self) -> bool { self.active }", "fn has_deadline(&self) -> bool { false }", "controller_leaves"),
@@ -45,23 +48,28 @@ cases = [
     ("C3 board time", "esp32c3/src/bus.rs", "if advance_board { self.board.advance_to(self.cycles); }", "", "timed_callbacks"),
     # Board order: restore main's advance-after-tick (one deliver_board_inputs call after the peripheral tick).
     ("S3 board order", "esp32s3/src/bus.rs", "if self.board_edges { self.board.advance_to(self.cycles); }\n", "", "timed_callbacks",
-     ("gpio::drain_board_inputs", "gpio::deliver_board_inputs")),
+     I2C_ADDRESS, ("gpio::drain_board_inputs", "gpio::deliver_board_inputs")),
     ("C6 board order", "esp32c6/src/bus.rs", "if self.board_edges { self.board.advance_to(self.cycles); }\n", "", "timed_callbacks",
-     ("gpio::drain_board_inputs", "gpio::deliver_board_inputs")),
+     I2C_ADDRESS, ("gpio::drain_board_inputs", "gpio::deliver_board_inputs")),
+    ("active-list deadlines", "esp-periph/src/mmio.rs", "if !$crate::DeviceSet::misc(self).active_optional.is_empty() { best = self.optional_deadline(); }", "", "optional_devices", DEVICES),
+    ("no idle optional deadline poll", "esp-periph/src/mmio.rs", '"alias" | "optional"))?) && $crate::Device::has_deadline', '"alias"))?) && $crate::Device::has_deadline', "optional_devices", DEVICES),
+    ("C3 single pin IRQ owner", "esp32c3/src/periph.rs", '"I2C0" optional (i2c) => [];', '"I2C0" optional (i2c) => [src::I2C_EXT0];', "wifi_and_pin_sources", C3_LIB),
+    ("C3 I2C pin activity", "esp32c3/src/bus.rs", " || self.periph.i2c.is_active()", "", "pin_clock_participation_tracks_i2c", C3_LIB),
+    ("C3 write classification", "esp32c3/src/bus.rs", "if self.periph.write32(a, v) {", "if { self.periph.write32(a, v); false } {", "pin_clock_participation_tracks_i2c", C3_LIB),
 ]
 results = []
 for label, name, old, new, test, *extra in cases:
     path = pathlib.Path(name)
     source = path.read_text()
+    edits = [(old, new), *extra[1:]]
+    target = extra[0] if extra else I2C_ADDRESS
     mutated = source
-    for before, after in [(old, new), *extra]:
+    for before, after in edits:
         assert mutated.count(before) == 1, (label, before, mutated.count(before))
         mutated = mutated.replace(before, after)
-    target = "i2c_address"
     try:
         path.write_text(mutated)
-        run = subprocess.run(["cargo", "+1.99.0", "test", "-p", "esp32sim",
-                              "--test", target, test, "--", "--nocapture"],
+        run = subprocess.run(["cargo", "+1.99.0", "test", *target, test, "--", "--nocapture"],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         killed = run.returncode != 0 and "test result: FAILED" in run.stdout
         tests = [line.split()[1] for line in run.stdout.splitlines()

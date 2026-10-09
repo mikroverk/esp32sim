@@ -316,6 +316,8 @@ impl Device for OptionalProbe {
         if self.active { Some(ClockDomain::Apb) } else { None }
     }
     fn irq_sources(&self) -> u64 { self.polls.set(self.polls.get() + 1); self.irq }
+    fn has_deadline(&self) -> bool { self.polls.set(self.polls.get() + 1); self.active }
+    fn next_deadline(&self) -> Option<u64> { self.polls.set(self.polls.get() + 1); self.active.then_some(7) }
     fn tick(&mut self, ticks: u64) { self.ticks += ticks; self.irq = 1; if self.stop { self.active = false; } }
 }
 struct OptionalChip { pwm: OptionalProbe, other: Probe, misc: Misc, clock: ClockTree<1> }
@@ -346,6 +348,7 @@ fn optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs() {
     assert_eq!(c.pwm.ticks, 0);
     mmio::write32(&mut c, BASE + 0x1000, 1);
     assert_eq!(c.misc.active_optional, [1]);
+    assert_eq!(c.cycles_until_deadline(), 18, "active optional deadline uses the APB divider");
     c.other.domain = Some(ClockDomain::Apb);
     assert!(Dispatch::tick(&mut c, 15));
     assert_eq!((c.pwm.ticks, c.other.ticks), (5, 5), "both devices receive the same clock delta");
@@ -356,6 +359,7 @@ fn optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs() {
     assert!(Dispatch::tick(&mut c, 15));
     assert!(c.misc.active_optional.is_empty(), "one-shot stopped");
     let polls = c.pwm.polls.get();
+    assert_eq!(c.cycles_until_deadline(), u32::MAX, "stopped optional device has no deadline");
     assert!(!Dispatch::tick(&mut c, 15));
     assert_eq!(c.source_status(), [0, 1 << 8, 0, 0], "stopping preserves an asserted interrupt");
     assert_eq!(c.pwm.polls.get(), polls, "stopped device is not polled");

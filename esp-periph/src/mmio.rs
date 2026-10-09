@@ -111,7 +111,8 @@ pub fn write32<P: DeviceSet + Dispatch>(p: &mut P, addr: u32, v: u32) -> WriteEf
 /// Entries are tried in order, so a range-limited entry goes before the full-block one behind it.
 /// An `alias` entry only dispatches: its device already ticks and reports sources once.
 /// Optional `inline always;` keeps clock/source operations inline when optional service paths add callers.
-/// An `optional` entry joins tick delivery only while configured. Its interrupt bits are
+/// An `optional` entry joins tick delivery and the deadline scan only while configured, so its
+/// `clock()` must be `Some` whenever it has a deadline. Its interrupt bits are
 /// cached on writes and ticks; unused devices are absent from the per-round source scan.
 #[macro_export]
 macro_rules! device_set {
@@ -120,6 +121,25 @@ macro_rules! device_set {
         impl $P {
             pub const CLOCKS: $crate::__Dividers<{ $crate::__count!($($dom)*) }> = [$(($dom, $div)),*];
             pub const fn new_clock() -> $crate::__ClockTree<{ $crate::__count!($($dom)*) }> { $crate::__ClockTree::new($cpu_hz) }
+
+            #[inline(never)]
+            fn optional_deadline(&self) -> u64 {
+                let mut best = u64::MAX;
+                for &block in &$crate::DeviceSet::misc(self).active_optional {
+                    match block {
+                        $( $block if $crate::__optional!($($alias)?) => {
+                            if $crate::Device::has_deadline(&self.$($f)+) {
+                                if let Some(t) = $crate::Device::next_deadline(&self.$($f)+) {
+                                    let div = $crate::__divider(&Self::CLOCKS, match $crate::Device::clock(&self.$($f)+) { Some(c) => c, None => $crate::__ClockDomain::Cpu });
+                                    best = best.min(t.saturating_sub(1) * div);
+                                }
+                            }
+                        }, )*
+                        _ => unreachable!(),
+                    }
+                }
+                best
+            }
         }
         impl $crate::mmio::Dispatch for $P {
             #[inline]
@@ -224,7 +244,8 @@ macro_rules! device_set {
             #[inline$(($hint))?]
             fn cycles_until_deadline(&self) -> u32 {
                 let mut best = u64::MAX;
-                $( if !(false $(|| stringify!($alias) == "alias")?) && $crate::Device::has_deadline(&self.$($f)+) {
+                if !$crate::DeviceSet::misc(self).active_optional.is_empty() { best = self.optional_deadline(); }
+                $( if !(false $(|| matches!(stringify!($alias), "alias" | "optional"))?) && $crate::Device::has_deadline(&self.$($f)+) {
                     if let Some(t) = $crate::Device::next_deadline(&self.$($f)+) {
                         let div = $crate::__divider(&Self::CLOCKS, match $crate::Device::clock(&self.$($f)+) { Some(c) => c, None => $crate::__ClockDomain::Cpu });
                         best = best.min(t.saturating_sub(1) * div);

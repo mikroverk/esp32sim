@@ -190,7 +190,8 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x04 "GPIO" (gpio) => [src::GPIO];
     0x09 "IO_MUX" (io_mux) => [];
     // Pin clocks and sources participate only when active.
-    0x13 "I2C0" optional (i2c) => [src::I2C_EXT0];
+    // I2C interrupts already participate in the gated pin-source scan.
+    0x13 "I2C0" optional (i2c) => [];
     0x16 "RMT" alias (rmt) => [src::RMT];
     0x24 "SPI2" alias (spi2) => [src::SPI2];
     0x19 "LEDC" optional (ledc) => [src::LEDC];
@@ -306,7 +307,8 @@ impl Peripherals {
         mmio::read32(self, addr)
     }
 
-    pub fn write32(&mut self, addr: u32, v: u32) {
+    /// Returns true for pin-service blocks (I2C, RMT, SPI2), whose writes can change pin activity.
+    pub fn write32(&mut self, addr: u32, v: u32) -> bool {
         // IDF v5.5.4 components/soc/esp32c3/register/soc/io_mux_reg.h:42-50 (FUN_PD/PU).
         if (0x60009004..=0x60009058).contains(&addr) {
             self.gpio.set_pad(((addr - 0x60009004) / 4) as u8, v);
@@ -316,7 +318,8 @@ impl Peripherals {
             self.i2c.set_pins(pins);
         }
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
-        if matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000) {
+        let pin_block = matches!(addr & !0xfff, 0x6001_3000 | 0x6001_6000 | 0x6002_4000);
+        if pin_block {
             self.pin_irqs_enabled = self.i2c.int_ena | self.spi2.int_ena | self.rmt.rmt.int_ena != 0;
         }
         if addr == PERIPH_BASE + 0xc0018 && v & (1 << 11) != 0 { self.ledc = Ledc::new(LedcLayout::C3); }
@@ -331,6 +334,7 @@ impl Peripherals {
             self.refresh_optional(0x31);
         }
         self.refresh_work();
+        pin_block
     }
 
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
@@ -402,6 +406,7 @@ mod tests {
             p.write32(addr, bit);
         }
         let pins = (1 << src::I2C_EXT0) | (1 << src::SPI2) | (1 << src::RMT);
+        assert_eq!(p.misc.optional_sources[0] & pins, 0, "pin IRQs have one owner");
         assert_eq!(p.source_status()[0], pins | 1);
         assert!(p.refresh_lines());
         assert_eq!(p.last_status[0], pins | 1);

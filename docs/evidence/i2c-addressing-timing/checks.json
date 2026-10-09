@@ -1,5 +1,5 @@
 {
-  "base": "017af5241f48855c412d912ff91f0a801dd3c1bd",
+  "base": "2f9443a90a8cfbd81764af7fdabcbd8d33eaf283",
   "environment": {
     "os": "Darwin",
     "os_version": "27.0.1",
@@ -40,14 +40,14 @@
         "ESP32SIM_ROM_DIR": "web/wasm/fw"
       },
       "exit": 0,
-      "passed": 657,
+      "passed": 703,
       "ignored": 0
     },
     {
       "check": "plain",
       "command": "cargo +1.99.0 test --release --workspace",
       "exit": 0,
-      "passed": 636,
+      "passed": 682,
       "ignored": 35
     },
     {
@@ -59,7 +59,7 @@
         "build_environment": "PATH, RUSTUP_HOME, CARGO_HOME, TMPDIR only"
       },
       "exit": 0,
-      "passed": 657,
+      "passed": 703,
       "ignored": 0
     },
     {
@@ -71,7 +71,7 @@
         "build_environment": "PATH, RUSTUP_HOME, CARGO_HOME, TMPDIR only"
       },
       "exit": 0,
-      "passed": 636,
+      "passed": 682,
       "ignored": 35
     },
     {
@@ -81,7 +81,7 @@
         "ESP32SIM_VQ_NATIVE": "1"
       },
       "exit": 0,
-      "passed": 39,
+      "passed": 41,
       "ignored": 0
     },
     {
@@ -167,20 +167,20 @@
       "check": "evidence-privacy",
       "command": "node tools/check-evidence-privacy.mjs",
       "exit": 0,
-      "tracked_files_checked": 1672,
+      "tracked_files_checked": 1690,
       "gzip_files_checked": 20,
       "manual_review": "Changed source, tests, JSON and script reviewed; no personal or private source material retained."
     }
   ],
   "mutations": {
     "command": "python3 docs/evidence/i2c-addressing-timing/mutate.py",
-    "killed": 39,
-    "total": 39,
+    "killed": 44,
+    "total": 44,
     "profile": "test (debug)"
   },
   "cpu_comparison": "PENDING",
   "jit_differential": "Not required: no JIT code changed",
-  "production_wasm_sha256": "d3bc12e63411835405e6aa42fccc046dfb6616160b2e291571ed766601c412fe",
+  "production_wasm_sha256": "4a0e6e8a2d014f8a1a33e1c14422515929a8043dce6df1d656332bcaf4fed1ed",
   "pocket_tank_correctness": {
     "receipt": "pocket-tank.md",
     "results": "pocket-tank.json",

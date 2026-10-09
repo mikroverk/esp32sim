@@ -114,8 +114,8 @@ impl SocBus {
             _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
         };
         let drive = (self.periph.gpio.enable, self.periph.gpio.out);
-        self.periph.write32(a, v);
-        if matches!(a & !0xfff, 0x6001_3000 | 0x6001_6000) { self.pins_active = self.pins_active(); }
+        // Reuse the peripheral's pin-block classification; only those blocks start or stop I2C/RMT.
+        if self.periph.write32(a, v) { self.pins_active = self.pins_active(); }
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
@@ -449,5 +449,18 @@ mod tests {
         assert!(!bus.pins_active);
         assert!(bus.periph.rmt.rmt.done.is_empty());
         assert_eq!(bus.tick(64), 1);
+    }
+
+    #[test]
+    fn pin_clock_participation_tracks_i2c_transfers() {
+        let mut bus = SocBus::new(4 << 20, [0; 6]);
+        bus.write32(0x6001_3058, 2 << 11).unwrap();
+        assert!(!bus.pins_active, "an idle controller stays off the pin path");
+        bus.write32(0x6001_3004, 1 << 5).unwrap();
+        assert!(bus.pins_active, "TRANS_START enters pin service");
+        assert_eq!(esp_soc::SocBus::next_deadline(&bus), Some(6), "STOP deadline in CPU cycles");
+        assert_eq!(bus.tick(64), 1);
+        assert!(!bus.periph.i2c.is_active());
+        assert!(!bus.pins_active, "completion leaves pin service");
     }
 }

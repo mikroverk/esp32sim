@@ -1,6 +1,6 @@
 # EX216: I2C addressing and transfer time
 
-Base: upstream main `017af5241f48855c412d912ff91f0a801dd3c1bd`.
+Base: upstream main `2f9443a90a8cfbd81764af7fdabcbd8d33eaf283`.
 S3, C3 and C6 share one controller. Device callbacks can change the primary
 address, match aliases and accept write-only general calls. A single `start_address(configured, address, read)` callback matches and accepts
 the address after physical pin filtering. Every matching device receives the
@@ -10,9 +10,12 @@ removal update it.
 
 Transfers advance at byte/ACK deadlines derived from the programmed bus clock.
 Board time advances before peripheral callbacks. The existing optional dispatch
-owns activation, deadlines and interrupt sources. Inactive controllers return
+owns activation, ticks and deadlines; S3/C6 interrupt sources also use it, while
+C3 I2C interrupts keep main's pin-source scan. Inactive controllers return
 no clock and leave the active list. C3 uses its existing active pin-service path;
-S3/C6 reorder existing board callbacks. No CPU-loop fields were added; C3 pin activation uses one inlined predicate.
+S3/C6 advance the board before the peripheral tick and deliver its inputs after it,
+under main's existing `board_edges` gate (`drain_board_inputs` is main's
+`deliver_board_inputs` without the advance). No CPU-loop fields were added; C3 pin activation uses one inlined predicate.
 
 Related experiments: EX201 and EX206 established physical pin matching and
 timestamped board callbacks but left I2C instantaneous; EX209 added removal.
@@ -78,8 +81,8 @@ node tools/check-evidence-privacy.mjs
 python3 docs/evidence/i2c-addressing-timing/mutate.py
 ```
 
-Release workspace: **657 passed**, zero ignored under CI policy; plain tests:
-**636 passed, 35 ignored**. Both results repeat with an empty HOME, with only
+Release workspace: **703 passed**, zero ignored under CI policy; plain tests:
+**682 passed, 35 ignored**. Both results repeat with an empty HOME, with only
 the ROM input for CI policy and no firmware-related variables for plain tests. Build-tool locations are
 supplied separately so changing HOME does not hide the Rust installation.
 Temporary test output stays inside the worktree. Reproduce the clean environment
@@ -99,16 +102,20 @@ env -i PATH="$PATH" RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo" \
 The mutation script restores each edited source in a `finally` block and
 requires a failing test result, not a compiler error. Run it without concurrent
 source edits or Rust builds. `mutations.json` is the mutation-to-killing-test
-table, **39/39 killed**. Sixteen register-driven tests cover current-address replacement/removal, alias enable/disable,
+table, **44/44 killed**. Sixteen register-driven tests cover current-address replacement/removal, alias enable/disable,
 general-call filtering, ACK aggregation, read collision, byte deadlines,
 fractional clocks, reset, repeated starts, command exhaustion, optional dispatch
-and board callback order on all three chips.
+and board callback order on all three chips. The S3/C6 board-order mutations
+restore main's advance-after-tick delivery. The last five mutations run the
+`esp-periph` `devices` and `esp32c3` library tests listed under Idle path.
 
 ## Intentional golden changes
 
 Only `panel-sid.console.txt`, `panel-sid.insns` and `panel-sid.wav.sha256`
 change. I2C expander initialization now consumes bus time. Panel main startup
-moves from 725 to 1147 ms; instructions from 396469561 to 398637173.
+moves from 725 to 1147 ms; instructions from 396469561 to 398637113.
+The count includes a final scheduling round cut short at the seven-second
+cycle ceiling (#197); console, report and WAV do not depend on that cut.
 The fixed seven-second audio window changes accordingly. Console content other
 than timestamps is identical. `panel-sid.report.txt` additionally pins stop
 interrupt totals and per-source counts. Other existing goldens remain exact.
@@ -126,26 +133,41 @@ workload. No new NACK or transfer failure; restoring synchronous completion
 reproduces main's console and instruction/interrupt totals exactly. The
 AMOLED board transfers are pinned by a firmware-independent register test.
 
-## Idle deadline dispatch
+## Idle path
 
-`I2c::has_deadline()` returns `self.active`, matching `next_deadline()`.
-The shared `device_set!` implementation in `esp-periph/src/mmio.rs` checks
-this gate before requesting a deadline. S3, C3 and C6 all use that dispatch
-through `cycles_until_timer()`; S3 has two I2C controllers. The gate is read
-dynamically, so starting a transfer makes its deadline visible immediately.
-No deadline calculation runs for an idle controller.
+While no transfer is active, I2C does no per-tick or per-deadline-query work
+on any chip. Changes reachable on that path, relative to main:
 
-`controller_leaves_optional_dispatch_after_completion_and_reset` checks both
-deadline methods before any transfer, during a transfer, after completion and
-after reset. Forcing the gate always true or always false fails this test.
-The Pocket Tank seed-change receipt and intentional panel goldens are retained.
-CPU impact of this gate requires the central comparison; no speed claim here.
+| Path | Change | Idle cost |
+| --- | --- | --- |
+| Tick delivery (`device_set!` `tick`) | I2C is an `optional` entry | None: existing empty-list branch; optional devices tick only from `active_optional`. |
+| Deadline query (`device_set!` `cycles_until_deadline`) | Optional entries leave the static scan; one empty-list branch calls a non-inlined scan over `active_optional` | I2C is not polled. On C3 the static scan no longer reads `BLE_LC` state, replaced by the list-length load; S3/C6 add that load and branch. |
+| C3 interrupt sources | I2C's optional entry lists no source | `OPTIONAL_SOURCES` and generated `source_status()` equal main; `pin_irqs_enabled`/`refresh_pin_lines()` still own `I2C_EXT0`. |
+| C3 tick (`SocBus::tick`) | `pins_active()` includes `i2c.is_active()` | None while `pins_active` is false: `tick_with_pins()` is skipped as on main. |
+| S3/C6 tick (`tick_impl`/`devices`) | The board advance moves ahead of `periph.tick` under the same `board_edges` test; edges and releases drain after it | Same calls as main: one `advance_to` and one edge/release drain per tick, only when `board_edges`; one extra test of the cached flag. |
+| C3 MMIO write (`periph_write`) | `Peripherals::write32` returns its existing I2C/RMT/SPI2 block test; the bus refreshes `pins_active` on it | No new address test; SPI2 writes also refresh `pins_active` (idempotent). |
+
+Deadline equivalence: an optional device is listed whenever `clock()` is
+`Some`; `refresh_optional` runs after its writes and ticks. I2C `has_deadline()`,
+`next_deadline()` and `clock()` all follow `active`. C3 `BLE_LC` is enabled
+iff `clock()` is `Some`; `enable_ble_full` refreshes it and nothing disables
+it. LEDC and MCPWM implement no deadline. Deadline values, divider and
+rounding are unchanged.
+
+Tests: `optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs`
+counts `has_deadline()`/`next_deadline()` calls before configuration and after
+stop, and checks an active APB deadline (7 ticks, divider 3: 18 CPU cycles).
+`pin_clock_participation_tracks_i2c_transfers` checks that TRANS_START enters
+and completion leaves C3 pin service, with a 6-cycle STOP deadline.
+`wifi_and_pin_sources_survive_interrupt_refresh` rejects C3 pin-source bits in
+the optional cache. `controller_leaves_optional_dispatch_after_completion_and_reset`
+checks I2C deadline methods before, during and after a transfer and after reset.
 
 ## CPU comparison
 
 PENDING
 
-No CPU benchmarks were run. Central comparison remains required before merge.
+No CPU benchmarks were run for this revision. Central comparison remains required before merge.
 
 ## Evidence scope
 

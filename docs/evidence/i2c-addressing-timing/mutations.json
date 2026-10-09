@@ -271,5 +271,40 @@
     "tests": [
       "timed_callbacks_and_interrupt_status_on_every_chip"
     ]
+  },
+  {
+    "mutation": "active-list deadlines",
+    "killed": true,
+    "tests": [
+      "optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs"
+    ]
+  },
+  {
+    "mutation": "no idle optional deadline poll",
+    "killed": true,
+    "tests": [
+      "optional_devices_are_not_polled_until_configured_and_keep_stopped_irqs"
+    ]
+  },
+  {
+    "mutation": "C3 single pin IRQ owner",
+    "killed": true,
+    "tests": [
+      "periph::tests::wifi_and_pin_sources_survive_interrupt_refresh"
+    ]
+  },
+  {
+    "mutation": "C3 I2C pin activity",
+    "killed": true,
+    "tests": [
+      "bus::tests::pin_clock_participation_tracks_i2c_transfers"
+    ]
+  },
+  {
+    "mutation": "C3 write classification",
+    "killed": true,
+    "tests": [
+      "bus::tests::pin_clock_participation_tracks_i2c_transfers"
+    ]
   }
 ]
