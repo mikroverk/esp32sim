@@ -122,11 +122,13 @@ impl esp_soc::SocBus for SocBus {
         p.gpio.restore_external(&old.gpio);
         p.gpio.strap = old.gpio.strap;      // strapping pins are board wiring, not chip state
         // The access point and the network behind it are the world outside the chip.
-        p.wifi_mac.link = old.wifi_mac.link.surviving_reboot(); p.wifi_mac.log = old.wifi_mac.log;
+        p.wifi_mac.link = old.wifi_mac.link.surviving_reboot();
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;
         self.attach_board_devices();
+        for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
+        self.periph.misc.log_all = self.debug.has("mmio");
         cause
     }
     fn sw_reset(&self) -> bool { self.periph.lpsys.sw_reset }
