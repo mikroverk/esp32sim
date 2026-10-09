@@ -101,4 +101,79 @@ reuse one signal constant instead of repeated routing literals.
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 2f9443a9 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
+
+Measured on `bcd4df7e` against main `2f9443a9`; the branch was since rebased onto `fe3a9c08` (docs and web only) and its prerequisite branches gained docs-only receipt commits. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C6 hello | 3.2784 (3.0442–3.3351) | 3.2612 (3.0412–3.3331) | -0.52% | 2/7 | 4800000000 | 5.27 |
+| Pocket Tank | 35.2968 (34.6376–38.3461) | 35.0204 (34.7165–38.7101) | -0.78% | 3/7 | 10073833665 | 4.26 |
+| S3 hello | 24.6510 (23.7365–32.0593) | 24.3939 (23.8923–27.6721) | -1.04% | 4/7 | 1789819657 | 4.96 |
+| C3 hello | 2.3837 (2.3635–2.5350) | 2.4178 (2.3742–2.5332) | +1.43% | 5/7 | 4800000000 | 3.53 |
+
+### C6 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 3.311011 | 3.280495 | 4.96/4.96/4.96 | 4.78/4.96/4.96 | accepted |
+| 1 | 2 | M→B | 3.335100 | 3.309226 | 4.96/4.80/4.96 | 4.80/4.89/4.89 | accepted |
+| 2 | 3 | B→M | 3.326745 | 3.261224 | 4.89/5.06/5.06 | 4.89/4.89/4.89 | accepted |
+| 3 | 4 | M→B | 3.278430 | 3.333128 | 4.73/4.51/4.73 | 4.51/4.51/4.51 | accepted |
+| 4 | 5 | B→M | 3.300833 | 3.297490 | 5.27/5.01/5.27 | 4.51/5.27/5.27 | accepted |
+| 5 | 6 | M→B | 3.243410 | 3.127133 | 4.40/4.40/4.40 | 4.40/4.45/4.45 | accepted |
+| 6 | 7 | B→M | 3.044205 | 3.072730 | 4.41/4.41/4.41 | 4.45/4.41/4.45 | accepted |
+| 7 | 8 | M→B | 3.064612 | 3.041217 | 4.41/4.54/4.54 | 4.54/4.26/4.54 | accepted |
+
+### Pocket Tank
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 34.873879 | 35.176084 | 3.07/2.66/3.07 | 4.26/3.07/4.26 | accepted |
+| 1 | 2 | M→B | 35.670774 | 34.777742 | 2.66/3.12/3.24 | 3.12/3.13/3.57 | accepted |
+| 2 | 3 | B→M | 34.967871 | 34.716506 | 2.39/2.89/2.89 | 3.13/2.39/3.13 | accepted |
+| 3 | 4 | M→B | 34.960377 | 34.809702 | 2.89/3.09/3.19 | 3.09/3.12/3.22 | accepted |
+| 4 | 5 | B→M | 34.637622 | 35.020398 | 3.22/3.12/3.22 | 3.12/3.22/3.32 | accepted |
+| 5 | 6 | M→B | 35.296837 | 38.710090 | 3.12/3.14/3.17 | 3.14/3.14/3.35 | accepted |
+| 6 | 7 | B→M | 35.409490 | 38.432319 | 3.33/3.56/3.56 | 3.14/3.33/3.53 | accepted |
+| 7 | 8 | M→B | 38.346102 | 35.122780 | 3.56/3.14/3.63 | 3.14/2.68/3.14 | accepted |
+
+### S3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 24.392411 | 23.938263 | 2.33/2.64/2.64 | 2.68/2.33/2.68 | accepted |
+| 1 | 2 | M→B | 24.650971 | 27.672066 | 2.64/2.75/2.84 | 2.75/3.50/3.58 | accepted |
+| 2 | 3 | B→M | 23.921096 | 24.166101 | 3.45/3.25/3.69 | 3.50/3.45/3.50 | accepted |
+| 3 | 4 | M→B | 27.041111 | 25.220509 | 3.25/3.38/3.38 | 3.38/3.19/3.38 | accepted |
+| 4 | 5 | B→M | 32.059315 | 24.092009 | 2.65/3.59/3.73 | 3.19/2.65/3.19 | accepted |
+| 5 | 6 | M→B | 28.264140 | 24.393876 | 3.59/3.63/4.50 | 3.63/3.61/3.82 | accepted |
+| 6 | 7 | B→M | 32.061965 | 54.232288 | 24.96/16.14/24.96 | 3.61/24.96/25.74 | discarded: load >7 |
+| 6 | 8 | B→M | 23.736473 | 23.892318 | 4.21/3.30/4.21 | 4.96/4.21/4.96 | accepted |
+| 7 | 9 | M→B | 23.980689 | 25.012749 | 3.30/2.95/3.30 | 2.95/2.93/2.95 | accepted |
+
+### C3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 2.499618 | 2.457794 | 2.93/2.93/2.93 | 2.93/2.93/2.93 | accepted |
+| 1 | 2 | M→B | 2.376265 | 2.533197 | 2.93/2.94/2.94 | 2.94/2.94/2.94 | accepted |
+| 2 | 3 | B→M | 2.383738 | 2.391059 | 2.78/2.78/2.78 | 2.94/2.78/2.94 | accepted |
+| 3 | 4 | M→B | 2.388470 | 2.374218 | 2.78/2.88/2.88 | 2.88/2.88/2.88 | accepted |
+| 4 | 5 | B→M | 2.363515 | 2.404074 | 2.89/2.89/2.89 | 2.88/2.89/2.89 | accepted |
+| 5 | 6 | M→B | 2.535040 | 2.508027 | 2.89/3.14/3.14 | 3.14/3.14/3.14 | accepted |
+| 6 | 7 | B→M | 2.412236 | 2.417849 | 3.53/3.53/3.53 | 3.14/3.53/3.53 | accepted |
+| 7 | 8 | M→B | 2.369542 | 2.431076 | 3.53/3.40/3.53 | 3.40/3.40/3.40 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
+
+
+
