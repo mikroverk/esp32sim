@@ -173,6 +173,10 @@ pub trait SocBus: Bus {
     fn take_gpio_events(&mut self) -> Vec<(u64, u8, bool)>;
     fn board(&mut self) -> &mut dyn BoardModel;
     fn board_ref(&self) -> &dyn BoardModel;
+    /// Host PCM source for an I2S controller, or None when the controller is absent.
+    fn i2s_input(&mut self, _port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { None }
+    /// Pin-wired, independently clocked host PCM source slots, when supported.
+    fn pcm_sources(&mut self) -> Option<&mut esp_periph::i2s::PcmSources> { None }
     /// Captured audio so far (left channel) and its sample rate.
     fn audio(&self) -> (&[i16], u32);
     fn camera_frames(&self) -> u64 { 0 }
@@ -190,4 +194,11 @@ pub trait SocBus: Bus {
     fn set_reset_cause(&mut self, cause: u32);
     /// Chip-specific end-of-run statistics (audio, WiFi, crypto, DMA engines).
     fn report(&self) -> String { String::new() }
+}
+
+/// Synchronize the shared host source bank without adding device-tick work.
+pub fn pcm_sources(bank: &mut Option<Box<esp_periph::i2s::PcmSources>>, cycles: u64, cpu_hz: u64) -> &mut esp_periph::i2s::PcmSources {
+    let sources = bank.get_or_insert_with(Default::default);
+    sources.advance_to(cycles, cpu_hz);
+    sources
 }

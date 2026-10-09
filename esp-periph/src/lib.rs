@@ -67,3 +67,4 @@ pub mod dma;
 
 pub mod regi2c;
 pub use regi2c::Regi2c;
+mod clocked_queue;

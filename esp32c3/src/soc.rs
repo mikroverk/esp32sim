@@ -64,8 +64,10 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi.link.report()
     }
     fn next_deadline(&self) -> Option<u64> {
-        if self.pins_active { return self.pin_deadline(); }
-        match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }
+        let timer = if self.pins_active { self.pin_deadline() } else {
+            match self.periph.cycles_until_timer() { u32::MAX => None, cycles => Some(cycles.max(1) as u64) }
+        };
+        if self.periph.i2s_rx { Some(timer.unwrap_or(u64::MAX).min(256)) } else { timer }
     }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
     fn refresh_irq(&mut self) -> bool { self.periph.refresh_lines(); true }
@@ -126,7 +128,9 @@ impl esp_soc::SocBus for SocBus {
         }
         p.refresh_work();
         p.efuse = old.efuse;
+        p.i2s0.keep_rx_input(&mut old.i2s0);
         p.adc.analog = old.adc.analog;
+        p.adc.analog.set_stream_clock_offset(self.cycles); // the new peripheral clock starts at zero
         p.misc.log_unknown = old.misc.log_unknown;
         p.usb.connected = old.usb.connected;
         p.rtc.reset_cause = cause;
@@ -160,7 +164,11 @@ impl esp_soc::SocBus for SocBus {
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
-    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.adc.analog.set(pin, src); }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) {
+        let offset = self.peripheral_clock_offset();
+        self.periph.adc.analog.set(pin, src);
+        self.periph.adc.analog.set_stream_clock_offset(offset);
+    }
     fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { pin <= 5 && self.periph.adc.analog.set_raw(pin, raw) }
     fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
         (pin <= 5).then(|| self.periph.adc.analog.observation(pin))
@@ -201,6 +209,11 @@ impl esp_soc::SocBus for SocBus {
 
     fn board(&mut self) -> &mut dyn BoardModel { &mut *self.board }
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
+    fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { if port == 0 { Some(self.periph.i2s0.rx_input()) } else { None } }
+    fn pcm_sources(&mut self) -> Option<&mut esp_periph::i2s::PcmSources> {
+        self.flush_ticks();
+        Some(esp_soc::soc::pcm_sources(self.periph.i2s0.pcm_bank(), self.cycles, periph::CPU_HZ))
+    }
     fn audio(&self) -> (&[i16], u32) { (&[], 44100) }
     fn irq_sources_of(&self, _core: usize, line: u32) -> Vec<usize> { (0..src::COUNT).filter(|&s| self.periph.intc.map[s] == line).collect() }
 }

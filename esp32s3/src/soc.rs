@@ -142,14 +142,16 @@ impl esp_soc::SocBus for SocBus {
         self.flush_ticks();
         self.cancel_spi2_timing();
         let cause = self.periph.rtc.reset_cause;
-        let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
+        let mut old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
         // The host AP and network survive a guest reboot; only the MAC and relay queues reset.
         p.wifi.link = old.wifi.link.surviving_reboot();
         // Host camera cadence and logging survive; guest capture state resets.
         p.lcd_cam.frame_cycles = old.lcd_cam.frame_cycles;
         p.efuse = old.efuse;
+        p.i2s0.keep_rx_input(&mut old.i2s0); p.i2s1.keep_rx_input(&mut old.i2s1);
         p.rtc.analog = old.rtc.analog;
+        p.rtc.analog.set_stream_clock_offset(self.cycles); // ticks flushed; the new peripheral clock starts at zero
         p.gpio.restore_external(&old.gpio);
         p.gpio.strap = old.gpio.strap;
         p.misc.log_unknown = old.misc.log_unknown;
@@ -186,7 +188,11 @@ impl esp_soc::SocBus for SocBus {
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
-    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.rtc.analog.set(pin, src); }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) {
+        let offset = self.peripheral_clock_offset();
+        self.periph.rtc.analog.set(pin, src);
+        self.periph.rtc.analog.set_stream_clock_offset(offset);
+    }
     fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { (1..=20).contains(&pin) && self.periph.rtc.analog.set_raw(pin, raw) }
     fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
         ((1..=20).contains(&pin)).then(|| self.periph.rtc.analog.observation(pin))
@@ -244,6 +250,11 @@ impl esp_soc::SocBus for SocBus {
 
     fn board(&mut self) -> &mut dyn BoardModel { &mut *self.board }
     fn board_ref(&self) -> &dyn BoardModel { &*self.board }
+    fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { match port { 0 => Some(self.periph.i2s0.rx_input()), 1 => Some(self.periph.i2s1.rx_input()), _ => None } }
+    fn pcm_sources(&mut self) -> Option<&mut esp_periph::i2s::PcmSources> {
+        self.flush_ticks();
+        Some(esp_soc::soc::pcm_sources(self.periph.i2s0.pcm_bank(), self.cycles, periph::CPU_HZ))
+    }
     fn audio(&self) -> (&[i16], u32) { let a = self.periph.audio(); (&a.pcm, a.sample_rate) }
     fn camera_frames(&self) -> u64 { self.periph.lcd_cam.frames }
     fn irq_sources_of(&self, core: usize, line: u32) -> Vec<usize> { (0..NUM_SOURCES).filter(|&s| self.periph.intmatrix.map[core][s] == line).collect() }

@@ -319,14 +319,42 @@ impl SocBus {
         Ok(())
     }
 
+    /// Bus cycles at which the current peripheral clock started.
+    pub(crate) fn peripheral_clock_offset(&self) -> u64 { self.cycles - self.periph.clock_cycles() }
+
+    // ESP-IDF v5.5.5 components/soc/esp32c3/include/soc/gdma_channel.h:13, I2S0 trigger 3.
+    fn i2s_rx_step(&mut self, cycles: u64) {
+        let Some(ch) = self.periph.gdma.state.in_channel_for(3) else { return };
+        let bytes = self.i2s_receive(cycles);
+        let eof = self.periph.i2s0.read(0x64);
+        let mut channel = self.periph.gdma.state.inp[ch];
+        let mut irq_changed = false;
+        let _ = channel.receive(self, &bytes, Some(eof), false, Self::is_periph, &mut irq_changed);
+        self.periph.i2s0.recycle_rx_buffer(bytes);
+        self.irq_dirty |= irq_changed;
+        self.periph.gdma.state.inp[ch] = channel;
+    }
+
+    /// PCM for one RX interval: pin-routed sources when a bank is attached, else controller input.
+    /// Kept out of line so the RX DMA pump keeps the EX214 call shape.
+    #[inline(never)]
+    fn i2s_receive(&mut self, cycles: u64) -> Vec<u8> {
+        let signals = esp_periph::i2s::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff };
+        let mut bank = self.periph.i2s0.take_pcm_bank();
+        let bytes = self.periph.i2s0.receive(cycles, self.cycles, false, &self.periph.gpio, signals, bank.as_deref_mut());
+        self.periph.i2s0.restore_pcm_bank(bank);
+        bytes
+    }
+
     #[inline(always)]
     fn devices(&mut self, cycles: u32) {
-        if self.periph.work_pending { self.pending_work(); }
+        if self.periph.work_pending { self.pending_work(cycles); }
         self.periph.tick(cycles as u64);
     }
 
     #[inline(never)]
-    fn pending_work(&mut self) {
+    fn pending_work(&mut self, cycles: u32) {
+        if self.periph.i2s_rx { self.i2s_rx_step(u64::from(cycles)); }
         if self.periph.ble_lc.enabled() {
             self.periph.ble_lc.service(&mut self.sram);
             esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x31);

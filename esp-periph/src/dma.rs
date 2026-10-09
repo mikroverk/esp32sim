@@ -19,31 +19,49 @@ pub enum DmaDescriptorFault {
     PayloadTooShort { expected: usize, actual: usize },
 }
 
-/// Defines `DescriptorWalk` and `try_dma_desc` on one chip bus, which reads descriptor words with
-/// `$read(&mut self, addr) -> Result<u32, Fault>`. Engines that forbid MMIO return a fault there.
-/// A macro so each bus gets its own monomorphic reader, the code S3's DMA engines always ran.
+/// Defines `DescriptorWalk` and `try_dma_desc` for DMA engines, reading descriptor words with
+/// `$read(addr) -> Result<u32, Fault>`. Engines that forbid MMIO return a fault there.
+/// `dma_descriptor_reader!(SocBus, read)` adds `try_dma_desc` to one chip bus: a macro so each bus
+/// gets its own monomorphic reader, the code S3's DMA engines always ran.
+/// `dma_descriptor_reader!(impl Bus, read)` defines a public walk and a free `try_dma_desc` for
+/// engines generic over the bus: the shared GDMA receive path and S3's GDMA engines.
 #[macro_export]
 macro_rules! dma_descriptor_reader {
-    ($bus:ty, $read:ident) => {
+    (@walk $vis:vis, $arg:ty, |$bus:ident, $addr:ident| $read_desc:expr) => {
         /// Bound work even when guest descriptors make no progress. Streaming rings are valid: the
         /// bound applies to one pump call, not the lifetime of an I2S or LCD channel.
-        struct DescriptorWalk { remaining: usize, budget: usize }
+        $vis struct DescriptorWalk { $vis remaining: usize, budget: usize }
         impl DescriptorWalk {
-            fn new(budget: usize) -> Self { Self { remaining: budget, budget } }
-            fn read(&mut self, bus: &mut $bus, addr: u32) -> Result<(u32, $crate::DmaDesc), $crate::dma::DmaDescriptorFault> {
+            $vis fn new(budget: usize) -> Self { Self { remaining: budget, budget } }
+            $vis fn read(&mut self, $bus: $arg, $addr: u32) -> Result<(u32, $crate::DmaDesc), $crate::dma::DmaDescriptorFault> {
                 if self.remaining == 0 { return Err($crate::dma::DmaDescriptorFault::StepBudgetExceeded { budget: self.budget }); }
                 self.remaining -= 1;
-                bus.try_dma_desc(addr)
+                $read_desc
             }
         }
+    };
+    (@decode $word:ident, $addr:ident) => {{
+        let dw0 = $word(0, $crate::dma::DmaDescriptorWord::Control)?;
+        let (buf, next) = ($word(4, $crate::dma::DmaDescriptorWord::Buffer)?, $word(8, $crate::dma::DmaDescriptorWord::Next)?);
+        Ok((dw0, $crate::DmaDesc { addr: $addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf, next }))
+    }};
+    (impl $trait:path, $read:ident) => {
+        $crate::dma_descriptor_reader!(@walk pub, &mut impl $trait, |bus, addr| try_dma_desc(bus, addr));
+        /// One DMA descriptor as the engines see it, with its first word, or the fault reading it.
+        fn try_dma_desc(bus: &mut impl $trait, addr: u32) -> Result<(u32, $crate::DmaDesc), $crate::dma::DmaDescriptorFault> {
+            let mut word = |offset, word| bus.$read(addr.wrapping_add(offset))
+                .map_err(|fault| $crate::dma::DmaDescriptorFault::Read { descriptor: addr, word, fault });
+            $crate::dma_descriptor_reader!(@decode word, addr)
+        }
+    };
+    ($bus:ty, $read:ident) => {
+        $crate::dma_descriptor_reader!(@walk , &mut $bus, |bus, addr| bus.try_dma_desc(addr));
         impl $bus {
             /// One DMA descriptor as the engines see it, with its first word, or the fault reading it.
             fn try_dma_desc(&mut self, addr: u32) -> Result<(u32, $crate::DmaDesc), $crate::dma::DmaDescriptorFault> {
                 let mut word = |offset, word| self.$read(addr.wrapping_add(offset))
                     .map_err(|fault| $crate::dma::DmaDescriptorFault::Read { descriptor: addr, word, fault });
-                let dw0 = word(0, $crate::dma::DmaDescriptorWord::Control)?;
-                let (buf, next) = (word(4, $crate::dma::DmaDescriptorWord::Buffer)?, word(8, $crate::dma::DmaDescriptorWord::Next)?);
-                Ok((dw0, $crate::DmaDesc { addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf, next }))
+                $crate::dma_descriptor_reader!(@decode word, addr)
             }
         }
     };
