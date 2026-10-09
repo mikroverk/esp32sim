@@ -179,7 +179,68 @@ These tolerances and completion rules are not silicon timing claims.
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 2f9443a9 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
+
+Measured on `46b0d94c` against main `2f9443a9`; the branch was since rebased onto `fe3a9c08` (docs and web only) with no change to its own diff. An earlier run of the same head had run-to-run drift of up to 37% between pairs on Pocket Tank and was repeated; it is kept with the bench evidence. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Pocket Tank | 36.0615 (34.7514–39.3186) | 35.1536 (34.6300–38.5041) | -2.52% | 3/7 | 10073833665 | 4.30 |
+| C6 hello | 3.1824 (3.0831–3.5194) | 3.1577 (3.0538–3.4191) | -0.77% | 3/7 | 4800000000 | 3.85 |
+| S3 hello | 25.0508 (24.1710–29.4907) | 24.7047 (24.1888–29.0515) | -1.38% | 4/7 | 1789819657 | 6.38 |
+
+### Pocket Tank
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 34.346091 | 34.444260 | 3.53/2.67/3.53 | 4.30/3.53/4.30 | accepted |
+| 1 | 2 | M→B | 34.754824 | 35.084599 | 2.67/1.93/2.67 | 1.93/2.07/2.10 | accepted |
+| 2 | 3 | B→M | 35.937203 | 34.629986 | 1.95/2.16/2.19 | 2.07/1.95/2.21 | accepted |
+| 3 | 4 | M→B | 34.751428 | 35.067585 | 2.16/1.97/2.16 | 1.97/2.22/2.22 | accepted |
+| 4 | 5 | B→M | 39.318593 | 35.454750 | 2.27/3.67/3.88 | 2.22/2.27/2.27 | accepted |
+| 5 | 6 | M→B | 36.297424 | 35.153575 | 3.67/3.75/4.17 | 3.75/3.54/3.92 | accepted |
+| 6 | 7 | B→M | 36.061525 | 35.233183 | 3.35/2.91/3.35 | 3.54/3.35/3.68 | accepted |
+| 7 | 8 | M→B | 36.490135 | 38.504077 | 2.91/2.98/3.00 | 2.98/3.15/3.28 | accepted |
+
+### C6 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 3.113898 | 3.111458 | 3.15/3.05/3.15 | 3.15/3.15/3.15 | accepted |
+| 1 | 2 | M→B | 3.083412 | 3.133376 | 3.05/2.97/3.05 | 2.97/2.97/2.97 | accepted |
+| 2 | 3 | B→M | 3.199634 | 3.418288 | 3.29/3.11/3.29 | 2.97/3.29/3.29 | accepted |
+| 3 | 4 | M→B | 3.182382 | 3.278481 | 3.11/3.11/3.11 | 3.11/3.66/3.66 | accepted |
+| 4 | 5 | B→M | 3.519430 | 3.419116 | 3.85/3.85/3.85 | 3.66/3.85/3.85 | accepted |
+| 5 | 6 | M→B | 3.305069 | 3.157726 | 3.85/3.78/3.85 | 3.78/3.64/3.78 | accepted |
+| 6 | 7 | B→M | 3.087312 | 3.076582 | 3.64/3.51/3.64 | 3.64/3.64/3.64 | accepted |
+| 7 | 8 | M→B | 3.083069 | 3.053815 | 3.51/3.46/3.51 | 3.46/3.46/3.46 | accepted |
+
+### S3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 24.542803 | 24.370655 | 3.76/3.64/3.76 | 3.46/3.76/3.90 | accepted |
+| 1 | 2 | M→B | 25.599767 | 26.881910 | 3.64/3.63/3.75 | 3.63/3.89/4.15 | accepted |
+| 2 | 3 | B→M | 25.050774 | 24.704659 | 3.79/3.85/4.01 | 3.89/3.79/3.89 | accepted |
+| 3 | 4 | M→B | 25.417101 | 29.051514 | 3.85/4.53/5.08 | 4.53/6.38/6.38 | accepted |
+| 4 | 5 | B→M | 29.490685 | 26.877363 | 4.09/5.35/5.56 | 4.91/4.09/4.91 | accepted |
+| 5 | 6 | M→B | 33.510618 | 42.946415 | 4.34/6.27/6.68 | 6.27/13.35/13.35 | discarded: load >7 |
+| 5 | 7 | M→B | 34.516602 | 50.924342 | 4.77/5.57/5.57 | 5.57/11.45/11.89 | discarded: load >7 |
+| 5 | 8 | M→B | 26.107778 | 25.741450 | 4.34/7.55/7.55 | 7.55/5.65/7.55 | discarded: load >7 |
+| 5 | 9 | M→B | 24.726422 | 29.589800 | 4.62/5.57/6.21 | 5.57/6.86/7.19 | discarded: load >7 |
+| 5 | 10 | M→B | 24.747253 | 24.349590 | 4.66/4.97/4.97 | 4.97/3.62/4.97 | accepted |
+| 6 | 11 | B→M | 24.170993 | 24.188773 | 2.72/2.37/2.72 | 3.62/2.72/3.62 | accepted |
+| 7 | 12 | M→B | 24.312944 | 24.684476 | 2.37/3.46/3.46 | 3.46/3.07/3.46 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
+
+
 
 ## Evidence privacy
 
