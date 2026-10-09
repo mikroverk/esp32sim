@@ -44,7 +44,14 @@ All eight WASM scenarios and evidence privacy pass. Goldens unchanged.
 
 ## CPU comparison
 
-PENDING
+Not measured separately. The stack tip, PR #212 (`bcd4df7e`, which contains this change), was measured against main `2f9443a9` with the method in the classic-host receipt (user CPU, one warmup and seven alternating load-gated pairs, identical instruction counts and console hashes):
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C6 hello | 3.2784 (3.0442–3.3351) | 3.2612 (3.0412–3.3331) | -0.52% | 2/7 | 4800000000 | 5.27 |
+| Pocket Tank | 35.2968 (34.6376–38.3461) | 35.0204 (34.7165–38.7101) | -0.78% | 3/7 | 10073833665 | 4.26 |
+| S3 hello | 24.6510 (23.7365–32.0593) | 24.3939 (23.8923–27.6721) | -1.04% | 4/7 | 1789819657 | 4.96 |
+| C3 hello | 2.3837 (2.3635–2.5350) | 2.4178 (2.3742–2.5332) | +1.43% | 5/7 | 4800000000 | 3.53 |
 
 Static check (no timing): release `esp32sim` binaries from main `2f9443a9` and
 this branch were disassembled with `llvm-objdump -d` and compared function by
