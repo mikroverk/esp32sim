@@ -58,6 +58,11 @@ CASES.extend([
     ('C3 cached RX flag', 'esp32c3/src/periph.rs', 'self.i2s_rx = self.i2s0.rx_running();', '', BUS, 'pcm_to_guest_dma_on_all_chips'),
     ('C6 RX work term', 'esp32c6/src/periph.rs', 'self.work_pending = self.spi_exec || self.i2s0.rx_running();', 'self.work_pending = self.spi_exec;', BUS, 'pcm_to_guest_dma_on_all_chips'),
 ])
+# Controller input shares PcmSource storage in EX215; the EX214 contracts are unchanged.
+CASES = [(name, 'esp-periph/src/i2s/sources.rs' if name in {'input bound', 'tone clear', 'tone replaces queue', 'push replaces tone'} else file,
+          old.replace('self.frames', 'self.queue.frames') if name in {'input bound', 'tone replaces queue'} else old,
+          new.replace('self.frames', 'self.queue.frames') if name in {'input bound', 'tone replaces queue'} else new, command, test)
+         for name, file, old, new, command, test in CASES]
 
 def run():
     results = []

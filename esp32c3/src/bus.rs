@@ -114,6 +114,7 @@ impl SocBus {
             _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
         };
         let drive = (self.periph.gpio.enable, self.periph.gpio.out);
+        if a >> 12 == 0x60040 { self.periph.adc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         if a & !0xfff == 0x6001_6000 { self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running(); }
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
@@ -322,7 +323,10 @@ impl SocBus {
     // ESP-IDF v5.5.5 components/soc/esp32c3/include/soc/gdma_channel.h:13, I2S0 trigger 3.
     fn i2s_rx_step(&mut self, cycles: u64) {
         let Some(ch) = self.periph.gdma.state.in_channel_for(3) else { return };
-        let bytes = self.periph.i2s0.rx_data(cycles, false);
+        let signals = esp_periph::i2s::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff };
+        let mut bank = self.periph.i2s0.take_pcm_bank();
+        let bytes = self.periph.i2s0.receive(cycles, self.cycles, false, &self.periph.gpio, signals, bank.as_deref_mut());
+        self.periph.i2s0.restore_pcm_bank(bank);
         let eof = self.periph.i2s0.read(0x64);
         let mut channel = self.periph.gdma.state.inp[ch];
         let mut irq_changed = false;

@@ -5,6 +5,8 @@
 //! `rtc_cntl.rs`). Raw inputs bypass the voltage transfer curve; observations track completed samples.
 use std::collections::HashMap;
 use std::sync::Arc;
+mod stream;
+pub use stream::AnalogStream;
 
 #[derive(Clone)]
 pub enum AnalogSource {
@@ -12,12 +14,17 @@ pub enum AnalogSource {
     /// `samples` volts at `rate_hz`, starting at `start_cycles`; before the start it reads the first
     /// sample, after the end it holds the last one.
     Wave { samples: Arc<Vec<f32>>, rate_hz: f64, start_cycles: u64 },
+    /// Host voltage samples played on its own clock. Clones share the bounded queue.
+    Stream(AnalogStream),
+    RawStream(AnalogStream<u16>),
 }
 impl std::fmt::Debug for AnalogSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AnalogSource::Const(v) => write!(f, "Const({v} V)"),
             AnalogSource::Wave { samples, rate_hz, .. } => write!(f, "Wave({} samples @ {rate_hz} Hz)", samples.len()),
+            AnalogSource::RawStream(_) => write!(f, "Stream(raw counts)"),
+            AnalogSource::Stream(_) => write!(f, "Stream(volts)"),
         }
     }
 }
@@ -39,16 +46,23 @@ impl AnalogInputs {
     pub fn observation(&self, pin: u8) -> AdcObservation { self.observed.get(&pin).copied().unwrap_or_default() }
     /// Complete one sample. Reading or replacing a source never advances its generation.
     pub(crate) fn convert(&mut self, pin: u8, now: u64, code: impl FnOnce(f32) -> u32) -> u32 {
-        let raw = self.raw.get(&pin).copied().unwrap_or_else(|| code(self.volts(pin, now)) as u16);
+        let raw = self.raw.get(&pin).copied().unwrap_or_else(|| match self.pins.get(&pin) {
+            Some(AnalogSource::RawStream(stream)) => stream.sample(now, self.cpu_hz),
+            source => code(self.source_volts(source, now)) as u16,
+        });
         let sample = self.observed.entry(pin).or_default();
         sample.generation = sample.generation.wrapping_add(1); sample.raw = raw;
         u32::from(raw)
     }
-    /// Volts on `pin` at `now_cycles` (0 V for a pin nobody drives).
+    /// Volts on `pin` at `now_cycles` (0 V for undriven pads or raw-count sources).
     pub fn volts(&self, pin: u8, now_cycles: u64) -> f32 {
-        match self.pins.get(&pin) {
-            None => 0.0,
+        self.source_volts(self.pins.get(&pin), now_cycles)
+    }
+    fn source_volts(&self, source: Option<&AnalogSource>, now_cycles: u64) -> f32 {
+        match source {
+            None | Some(AnalogSource::RawStream(_)) => 0.0,
             Some(AnalogSource::Const(v)) => *v,
+            Some(AnalogSource::Stream(stream)) => stream.sample(now_cycles, self.cpu_hz),
             Some(AnalogSource::Wave { samples, rate_hz, start_cycles }) => {
                 if samples.is_empty() { return 0.0; }
                 let dt = now_cycles.saturating_sub(*start_cycles) as f64 / self.cpu_hz.max(1) as f64;

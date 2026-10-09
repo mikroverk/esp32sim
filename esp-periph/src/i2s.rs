@@ -2,7 +2,9 @@
 use crate::device::{Device, WriteEffect};
 use crate::regram::RegRam;
 mod rx;
-pub use rx::PcmInput;
+mod sources;
+pub use sources::{PcmPins, PcmSource, PcmSources, RxSignals};
+pub type PcmInput = PcmSource;
 
 
 pub struct I2s {

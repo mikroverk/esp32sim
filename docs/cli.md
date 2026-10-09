@@ -250,3 +250,26 @@ wiring, serial bit timing, or PDM filter response. Raw PDM, external slave clock
 more than two slots, companding, and reversed bit/byte order are unsupported.
 C3/C6 and S3 controller 1 have no hardware PDM-to-PCM converter, so their raw PDM
 mode does not consume this PCM source. Existing I2S TX capture is unchanged.
+
+### Independent source clocks
+
+Rust hosts can append `PcmSource` values to the slot vector at
+`SocBus::pcm_sources().unwrap().inputs`. Each source names `PcmPins::I2s`
+with BCLK/WS/data pins, or `PcmPins::Pdm` with clock/data pins, and a rate from
+8 to 96 kHz. Pushes retain the newest two seconds. Obtain the bank through
+`pcm_sources()` before each push or inspection to synchronize its clock.
+Queues advance during RX/DMA stalls and survive resets. Matrix routes select
+the lowest matching slot; underrun and unmatched wiring produce silence.
+Accessing the bank selects routed input; an empty bank produces silence.
+Hosts that never attach a bank use the per-controller input API. This models matrix
+selection and PCM samples, not IO_MUX, pad enable, serial edges or PDM filtering.
+
+For ADC audio, attach `AnalogSource::Stream(stream.clone())` through `analog_set`.
+Create `AnalogStream::new(rate, bias_volts, cycles)` and push finite `f32` volts
+with `push(samples, cycles, CPU_HZ)`. For exact 12-bit counts, create
+`AnalogStream::new_raw(rate, bias_count, cycles)`, attach it as
+`AnalogSource::RawStream`, and call `push_raw(samples, cycles, CPU_HZ)`.
+Invalid samples leave queue and time intact. Push between emulator runs at the
+bus's current cycle count. Conversion uses `AnalogInputs.cpu_hz`. Buffers retain
+two seconds, drop oldest samples on overflow, and hold the last value on
+underrun. Both forms preserve main's completed-conversion observation counters.

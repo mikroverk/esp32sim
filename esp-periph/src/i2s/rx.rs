@@ -4,61 +4,16 @@
 // C6 keeps these fields (esp32c6 i2s_reg.h:149-290, 424-478, 930-945), but uses
 // components/soc/esp32c6/register/soc/pcr_reg.h:719-784 for RX clocks.
 // PCM packing/filter behavior is a model contract, not a hardware measurement.
-use super::I2s;
-use std::collections::VecDeque;
-
-/// Host stereo PCM16 frames, consumed at the receiver's programmed sample rate.
-/// Duplicate a mono sample into both lanes. Empty input produces silence.
-/// The source survives chip resets; queued frames pause while RX/DMA is stopped.
-#[derive(Default)]
-pub struct PcmInput {
-    frames: VecDeque<[i16; 2]>,
-    tone: Option<(f64, f64, f64)>,
-}
-impl PcmInput {
-    /// Append up to 65536 queued frames. Returns the number accepted; retry the rest later.
-    /// Disables the tone generator without discarding queued frames.
-    pub fn push(&mut self, frames: &[[i16; 2]]) -> usize {
-        self.tone = None;
-        let n = frames.len().min(65536 - self.frames.len());
-        self.frames.extend(&frames[..n]);
-        n
-    }
-    /// Replace queued audio with a continuous sine, amplitude in 0..=1 of full scale.
-    /// Zero frequency or amplitude produces silence. Frequencies above Nyquist alias.
-    pub fn tone(&mut self, hz: f64, amplitude: f64) -> Result<(), &'static str> {
-        if !hz.is_finite()
-            || !(0.0..=192000.0).contains(&hz)
-            || !amplitude.is_finite()
-            || !(0.0..=1.0).contains(&amplitude)
-        {
-            return Err("I2S tone needs frequency 0..192000 Hz and amplitude 0..1");
-        }
-        self.frames.clear();
-        self.tone = Some((hz, amplitude, 0.0));
-        Ok(())
-    }
-    pub fn clear(&mut self) {
-        self.frames.clear();
-        self.tone = None;
-    }
-    fn next(&mut self, rate: u32) -> [i16; 2] {
-        if let Some((hz, amplitude, phase)) = &mut self.tone {
-            let sample = (phase.sin() * *amplitude * 32767.0).round() as i16;
-            *phase = (*phase + std::f64::consts::TAU * *hz / rate as f64) % std::f64::consts::TAU;
-            [sample; 2]
-        } else {
-            self.frames.pop_front().unwrap_or([0; 2])
-        }
-    }
-}
+use super::{I2s, PcmInput, PcmSources};
 
 /// Cold receiver state behind one pointer, so an idle controller embeds no queue.
+/// Controller 0 also holds the chip's pin-routed source bank, shared by every receiver.
 #[derive(Default)]
 pub(super) struct RxState {
     input: PcmInput,
     acc: u64,
     buffer: Vec<u8>,
+    sources: Option<Box<PcmSources>>,
 }
 
 impl I2s {
@@ -70,7 +25,20 @@ impl I2s {
     pub fn rx_input(&mut self) -> &mut PcmInput {
         &mut self.rx.get_or_insert_with(Box::default).input
     }
-    /// Carry host input across a chip reset; the rebuilt receiver restarts its frame phase.
+    /// The chip's pin-routed source bank slot (kept on controller 0), allocating receiver state.
+    pub fn pcm_bank(&mut self) -> &mut Option<Box<PcmSources>> {
+        &mut self.rx.get_or_insert_with(Box::default).sources
+    }
+    /// Lend the source bank to a receive interval; return it with `restore_pcm_bank`.
+    pub fn take_pcm_bank(&mut self) -> Option<Box<PcmSources>> {
+        self.rx.as_mut().and_then(|rx| rx.sources.take())
+    }
+    pub fn restore_pcm_bank(&mut self, bank: Option<Box<PcmSources>>) {
+        if let Some(rx) = &mut self.rx {
+            rx.sources = bank;
+        }
+    }
+    /// Carry host input and sources across a chip reset; the rebuilt receiver restarts its frame phase.
     pub fn keep_rx_input(&mut self, old: &mut I2s) {
         self.rx = old.rx.take().map(|mut rx| {
             rx.acc = 0;
@@ -113,7 +81,25 @@ impl I2s {
     /// PCM at the DMA boundary, not a pin-level serializer or a PDM filter simulation.
     /// Supports standard 16/24/32-bit mono/stereo and S3 I2S0 converted PDM16.
     /// Raw PDM, TDM >2 slots, slave clocks, endian/bit-order/companding modes do not advance.
-    pub fn rx_data(&mut self, cycles: u64, pdm2pcm: bool) -> Vec<u8> {
+    pub fn receive(&mut self, cycles: u64, now: u64, pdm2pcm: bool,
+        gpio: &crate::Gpio, signals: super::RxSignals, sources: Option<&mut super::PcmSources>) -> Vec<u8> {
+        let cpu_hz = self.cpu_hz;
+        if let Some(sources) = sources {
+            sources.advance_to(now.saturating_sub(cycles), cpu_hz);
+            let selected = if sources.active() { sources.select(gpio, signals, self.rx_conf & (1 << 20) != 0) } else { None };
+            self.rx_data(cycles, pdm2pcm, |offset| selected.map_or([0; 2], |id| sources.sample(id, offset, cpu_hz)))
+        } else {
+            let mut input = self.rx.as_mut().map(|rx| std::mem::take(&mut rx.input)).unwrap_or_default();
+            let rate = self.rx_rate().unwrap_or(1);
+            let bytes = self.rx_data(cycles, pdm2pcm, |_| input.next(rate));
+            if let Some(rx) = &mut self.rx {
+                rx.input = input;
+            }
+            bytes
+        }
+    }
+
+    pub fn rx_data(&mut self, cycles: u64, pdm2pcm: bool, mut next_frame: impl FnMut(u64) -> [i16; 2]) -> Vec<u8> {
         let bits = ((self.ram.read(0x28) >> 13) & 31) + 1;
         let tdm = self.ram.read(0x50);
         let mask = tdm & 0xffff;
@@ -132,15 +118,17 @@ impl I2s {
             self.reset_rx_phase();
             return Vec::new();
         };
-        let (cpu_hz, mono) = (self.cpu_hz, self.rx_conf & (1 << 5) != 0);
+        let cpu_hz = self.cpu_hz;
         let rx = self.rx.get_or_insert_with(Box::default);
+        let previous = rx.acc;
         rx.acc += cycles * u64::from(rate);
         let frames = rx.acc / cpu_hz;
         rx.acc %= cpu_hz;
         let mut bytes = std::mem::take(&mut rx.buffer);
         bytes.clear();
-        for _ in 0..frames {
-            let frame = rx.input.next(rate);
+        for n in 1..=frames {
+            let offset = (n * cpu_hz - previous).div_ceil(u64::from(rate));
+            let frame = next_frame(offset);
             for (lane, sample) in frame.into_iter().enumerate() {
                 if mask & (1 << lane) == 0 {
                     continue;
@@ -150,7 +138,7 @@ impl I2s {
                 } else {
                     bytes.extend_from_slice(&(i32::from(sample) << 16).to_le_bytes());
                 }
-                if mono {
+                if self.rx_conf & (1 << 5) != 0 {
                     break;
                 }
             }
@@ -162,6 +150,7 @@ impl I2s {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i2s::PcmInput;
     fn receiver() -> I2s {
         let mut i = I2s::new(160_000_000);
         i.write(0x30, (1 << 26) | (2 << 27) | 25);
@@ -175,28 +164,28 @@ mod tests {
         let mut i = receiver();
         assert_eq!(i.rx_rate(), Some(8000));
         assert_eq!(i.rx_input().push(&[[1234, -2345], [111, 222]]), 2);
-        assert!(i.rx_data(19999, true).is_empty());
-        assert_eq!(i.rx_data(1, true), [0xd2, 4, 0xd7, 0xf6]);
+        assert!(i.receive(19999, 19999, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+        assert_eq!(i.receive(1, 1, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [0xd2, 4, 0xd7, 0xf6]);
         i.write(0x20, 1); // peripheral reset keeps host input
-        assert!(i.rx_data(20000, true).is_empty());
+        assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
         i.write(0x20, 4 | (1 << 5));
         i.write(0x50, (1 << 16) | 2);
-        assert_eq!(i.rx_data(20000, true), 222i16.to_le_bytes());
-        assert_eq!(i.rx_data(20000, true), [0; 2]);
+        assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), 222i16.to_le_bytes());
+        assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [0; 2]);
         for bits in [24, 32] {
             i.write(
                 0x28,
                 (24 << 7) | ((bits - 1) << 13) | (15 << 18) | (31 << 24),
             );
             i.rx_input().push(&[[123, -123]]);
-            assert_eq!(i.rx_data(20000, true), (-123i32 << 16).to_le_bytes());
+            assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), (-123i32 << 16).to_le_bytes());
         }
         i.write(0x20, 4 | (1 << 20) | (1 << 21));
         i.write(0x28, (24 << 7) | (15 << 13));
         assert_eq!(i.rx_rate(), Some(4000));
-        assert!(i.rx_data(40000, false).is_empty());
+        assert!(i.receive(40000, 40000, false, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
         i.rx_input().push(&[[1, 2]]);
-        assert_eq!(i.rx_data(40000, true), [2, 0]);
+        assert_eq!(i.receive(40000, 40000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [2, 0]);
     }
     #[test]
     fn unsupported_modes_preserve_queued_input() {
@@ -204,14 +193,14 @@ mod tests {
             let mut i = receiver();
             i.rx_input().push(&[[17, -19]]);
             i.write(0x20, 4 | flag);
-            assert!(i.rx_data(40000, true).is_empty(), "flag {flag}");
+            assert!(i.receive(40000, 40000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty(), "flag {flag}");
             i.write(0x20, 4);
-            assert_eq!(i.rx_data(20000, true), [17, 0, 237, 255]);
+            assert_eq!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [17, 0, 237, 255]);
         }
         for (off, value) in [(0x28, (24 << 7) | (7 << 13) | (15 << 18)), (0x50, 0x10000), (0x50, 0x10004), (0x50, 0x20003), (0x30, 0)] {
             let mut i = receiver();
             i.write(off, value);
-            assert!(i.rx_data(20000, true).is_empty());
+            assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
         }
     }
 
@@ -219,11 +208,11 @@ mod tests {
     fn reset_discards_fractional_receiver_time() {
         let mut i = receiver();
         i.rx_input().push(&[[1, 2]]);
-        assert!(i.rx_data(19999, true).is_empty());
+        assert!(i.receive(19999, 19999, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
         i.write(0x20, 1);
         i.write(0x20, 4);
-        assert!(i.rx_data(1, true).is_empty());
-        assert_eq!(i.rx_data(19999, true), [1, 0, 2, 0]);
+        assert!(i.receive(1, 1, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
+        assert_eq!(i.receive(19999, 19999, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [1, 0, 2, 0]);
     }
 
     #[test]
@@ -231,13 +220,13 @@ mod tests {
         let mut i = I2s::new(160_000_000);
         i.write(0x24, 4);
         i.write(0x20, 4 | (1 << 3));
-        assert!(i.rx_data(20000, true).is_empty());
+        assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None).is_empty());
         i.write(0x20, 1);
         i.recycle_rx_buffer(Vec::with_capacity(8));
         assert!(i.rx.is_none());
         let mut r = receiver();
         assert!(r.rx.is_none());
-        assert_eq!(r.rx_data(20000, true), [0; 4]);
+        assert_eq!(r.receive(20000, 20000, true, &crate::Gpio::new(), super::super::RxSignals { data: 15, input_select_bit: 6, output_mask: 0x1ff }, None), [0; 4]);
         assert!(r.rx.is_some());
     }
 

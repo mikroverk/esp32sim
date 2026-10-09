@@ -1,0 +1,172 @@
+[
+  {
+    "mutation": "PCM rate validation",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "PCM pin validation",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "PCM capacity",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "PCM oldest discard",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "PCM current sample",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "PCM phase retention",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "PCM lazy time",
+    "test": "absolute_time_is_lazy_monotonic_and_handles_long_stalls",
+    "killed": true
+  },
+  {
+    "mutation": "PCM monotonic time",
+    "test": "absolute_time_is_lazy_monotonic_and_handles_long_stalls",
+    "killed": true
+  },
+  {
+    "mutation": "PCM long clock",
+    "test": "absolute_time_is_lazy_monotonic_and_handles_long_stalls",
+    "killed": true
+  },
+  {
+    "mutation": "PCM source priority",
+    "test": "lowest_matching_source_wins_and_empty_bank_is_silent",
+    "killed": true
+  },
+  {
+    "mutation": "PCM BCLK route",
+    "test": "routing_checks_every_wire_and_inversion",
+    "killed": true
+  },
+  {
+    "mutation": "PCM WS route",
+    "test": "routing_checks_every_wire_and_inversion",
+    "killed": true
+  },
+  {
+    "mutation": "PCM resample offset",
+    "test": "resampling_is_tick_independent_and_shared_by_receivers",
+    "killed": true
+  },
+  {
+    "mutation": "PCM empty bank silence",
+    "test": "lowest_matching_source_wins_and_empty_bank_is_silent",
+    "killed": true
+  },
+  {
+    "mutation": "ADC rate validation",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC clock validation",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC finite bias",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC finite voltage samples",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC raw bias validation",
+    "test": "raw_stream_counts_and_validation",
+    "killed": true
+  },
+  {
+    "mutation": "ADC raw sample validation",
+    "test": "raw_stream_counts_and_validation",
+    "killed": true
+  },
+  {
+    "mutation": "ADC raw clock validation",
+    "test": "raw_stream_counts_and_validation",
+    "killed": true
+  },
+  {
+    "mutation": "ADC raw calibration bypass",
+    "test": "raw_stream_counts_and_validation",
+    "killed": true
+  },
+  {
+    "mutation": "ADC capacity",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC oldest discard",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC current sample",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "ADC fractional phase",
+    "test": "stream_fractional_clock_is_read_independent",
+    "killed": true
+  },
+  {
+    "mutation": "ADC monotonic time",
+    "test": "old_timestamps_do_not_replay_and_sources_replace_each_other",
+    "killed": true
+  },
+  {
+    "mutation": "ADC hold last sample",
+    "test": "stream_clock_bound_hold_and_shared_handle",
+    "killed": true
+  },
+  {
+    "mutation": "PCM silence on underrun",
+    "test": "source_clock_bound_and_underrun",
+    "killed": true
+  },
+  {
+    "mutation": "s3 conversion timestamp",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c3 conversion timestamp",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "c6 conversion timestamp",
+    "test": "stream_conversions_follow_time_across_reset",
+    "killed": true
+  },
+  {
+    "mutation": "bank returned after RX interval",
+    "test": "routing_timing_dma_stall_and_reset_on_all_chips",
+    "killed": true
+  },
+  {
+    "mutation": "shared lazy host synchronization",
+    "test": "routing_timing_dma_stall_and_reset_on_all_chips",
+    "killed": true
+  }
+]

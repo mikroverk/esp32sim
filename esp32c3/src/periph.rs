@@ -235,7 +235,6 @@ impl DeviceSet for Peripherals {
                 && self.rtc.ram.read(0x88) & (1 << 11) == 0
                 && self.rtc.ram.read(0x8c) & (1 << 22) == 0;
         }
-        if block == 0x40 { self.adc.now_cycles = self.clock.cycles(); }
         if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
         if block == 0x06 { self.fe_iq.now_cycles = self.clock.cycles(); }
         if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }

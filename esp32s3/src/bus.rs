@@ -497,6 +497,7 @@ impl SocBus {
         if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 && !self.periph.spi2.has_pending_transfer() {
             self.spi2_pins = self.board.uses_spi_pins().then(|| self.periph.spi2_pins());
         }
+        if a >> 12 == 0x60008 { self.periph.rtc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         if old_gpio_out != self.periph.gpio.out || old_gpio_enable != self.periph.gpio.enable {
             let changes = &self.periph.gpio.changes;
