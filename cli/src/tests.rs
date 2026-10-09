@@ -139,3 +139,40 @@ fn pwm_pins_are_observation_options() {
     let o = parse(&["esp32sim".into(), "--pwm".into(), "4".into(), "--pwm".into(), "21".into()], "s3");
     assert_eq!(o.pwm_pins, [4, 21]);
 }
+
+#[test]
+fn analog_scripts_validate_inputs_and_keep_panel_touch_separate() {
+    use esp_soc::ScriptAction;
+    let mut m = esp32::machine([0; 6], 4 << 20);
+    m.load_script("0.30 adc 34 1.650 # volts\n0 touchpad 4 0\n0.20 touchpad 4 1 # touched\n0.40 touch 450 30 1").unwrap();
+    assert!(matches!(m.script.events[0], (0, ScriptAction::TouchPad(4, false))));
+    assert!(matches!(m.script.events[1], (48_000_000, ScriptAction::TouchPad(4, true))));
+    assert!(matches!(m.script.events[2], (72_000_000, ScriptAction::Analog(34, esp_periph::AnalogSource::Const(1.650)))));
+    assert!(matches!(m.script.events[3], (96_000_000, ScriptAction::Touch(450, 30, true))));
+    for command in ["adc 34", "adc 34 nope", "adc 256 1", "adc -1 1", "touchpad 4", "touchpad 4 2", "touchpad 4 1 extra", "touchpad 64 0"] {
+        assert!(m.load_script(&format!("0 {command}")).is_err(), "accepted {command}");
+    }
+    m.load_script("0 adc 34 0\n0 adc 35 3.3\n0 adc 36 1.6504").unwrap();
+    assert!(matches!(m.script.events[0].1, ScriptAction::Analog(34, esp_periph::AnalogSource::Const(0.0))));
+    assert!(matches!(m.script.events[1].1, ScriptAction::Analog(35, esp_periph::AnalogSource::Const(3.3))));
+    assert!(matches!(m.script.events[2].1, ScriptAction::Analog(36, esp_periph::AnalogSource::Const(1.6504))));
+}
+
+#[test]
+fn analog_scripts_reach_classic_adc_and_touch_registers() {
+    let mut m = esp32::machine([0; 6], 4 << 20);
+    m.bus.write32(0x3ff4_8800, 1 << 28).unwrap(); // ADC1 data inversion
+    m.bus.write32(0x3ff4_8834, 3 << 12).unwrap(); // channel 6, 11 dB
+    m.bus.write32(0x3ff4_8494, 4 << 23).unwrap(); // T0 slope, GPIO mux as configured by IDF 5.5
+    m.bus.write32(0x3ff4_888c, 1).unwrap();
+    m.bus.write32(0x3ff4_8018, 1 << 23).unwrap(); // touch timer
+    for (volts, touched, adc, touch) in [("1.650", 1, 1872, 300), ("0.800", 0, 817, 1000)] {
+        m.load_script(&format!("0 adc 34 {volts}\n0 touchpad 4 {touched}\n0 stop")).unwrap();
+        assert!(matches!(m.run(1), Stop::Halted));
+        let start = (1 << 31) | (1 << 18) | (1 << 25);
+        m.bus.write32(0x3ff4_8854, start).unwrap();
+        m.bus.write32(0x3ff4_8854, start | (1 << 17)).unwrap();
+        assert_eq!(m.bus.read32(0x3ff4_8854).unwrap() & 0xffff, adc);
+        assert_eq!(m.bus.read32(0x3ff4_8870).unwrap() >> 16, touch);
+    }
+}

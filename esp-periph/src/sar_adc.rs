@@ -1,6 +1,21 @@
 //! S3/C3/C6 default-eFuse voltage transfer curves and C3/C6 APB SAR one-shot controller.
 use crate::{AnalogInputs, Device, RegRam, WriteEffect};
 
+/// SENS START rising edge and hardware-owned DONE/DATA. The caller supplies the
+/// DATA value retained while START is low and the complete conversion result
+/// (DONE and DATA, within bits 16:0).
+#[inline(always)]
+pub fn sens_oneshot(prev: u32, value: u32, convert: impl FnOnce() -> u32) -> u32 {
+    let mut out = value & !0x1_ffff;                                // DATA and DONE are hardware-written
+    if value & (1 << 17) == 0 { return out | (value & 0xffff); }    // START low: DONE drops
+    if prev & (1 << 17) == 0 {                                      // START rising: convert now
+        out |= convert();
+    } else {
+        out |= prev & 0x1_ffff;                                     // START held high: keep the last result
+    }
+    out
+}
+
 #[derive(Clone, Copy)]
 pub enum Calibration {
     S3Adc1,
@@ -123,6 +138,16 @@ impl Device for SarAdc {
 #[cfg(test)]
 mod calibration_tests {
     use super::*;
+    #[test]
+    fn sens_edges_preserve_only_the_selected_hardware_result() {
+        let start = 1 << 17;
+        let done = 1 << 16;
+        assert_eq!(sens_oneshot(start | done | 42, 7, || panic!("low START")), 7);
+        assert_eq!(sens_oneshot(start | done | 42, 0, || panic!("S3 low START")), 0);
+        assert_eq!(sens_oneshot(42, start | 9, || done | 123), start | done | 123);
+        assert_eq!(sens_oneshot(start | done | 42, start | 9, || panic!("held START")), start | done | 42);
+    }
+
     #[test]
     fn idf44_forward_matches_hand_computed_points() {
         // atten3, digi 900: coeff_a = 944444; raw 1000 → v = 944 mV, error = -0 - 60 + 115 - 59 + 10 = 6 → 938

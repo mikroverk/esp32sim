@@ -1,0 +1,184 @@
+[
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "self.events &= !v -> self.events &= v",
+    "test": "registers_and_tsf_match_classic_hal",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "self.txq_complete &= !v -> self.txq_complete &= v",
+    "test": "registers_and_tsf_match_classic_hal",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "set.wrapping_sub(now) -> set.wrapping_add(now)",
+    "test": "registers_and_tsf_match_classic_hal",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "self.read_reg(0xc40) -> u32::MAX",
+    "test": "registers_and_tsf_match_classic_hal",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "0xcc) & 0x406 != 0x406 -> 0xcc) & 0x406 == 0x406",
+    "test": "dport_gates_transmit_routes_interrupt_and_resets_mac",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "!d.owner_dma || d.length > d.size -> d.length > d.size",
+    "test": "invalid_tx_descriptors_never_publish_completion",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "!d.owner_dma || d.length > d.size -> !d.owner_dma",
+    "test": "invalid_tx_descriptors_never_publish_completion",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "if !d.owner_dma || d.eof || -> if !d.owner_dma ||",
+    "test": "receive_dma_uses_classic_header_and_rejects_invalid_buffers",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "56 | (1 << 28) -> 55 | (1 << 28)",
+    "test": "receive_dma_uses_classic_header_and_rejects_invalid_buffers",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "dma_range(d.buf, total) -> dma_range(d.buf, 0)",
+    "test": "receive_dma_uses_classic_header_and_rejects_invalid_buffers",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "self.periph.wifi.link.next_rx(now_us, busy) -> self.periph.wifi.link.next_rx(now_us, false)",
+    "test": "shared_station_paces_beacons_and_preserves_relay_selection_on_reboot",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/soc.rs",
+    "mutation": "old.wifi.link.surviving_reboot() -> Default::default()",
+    "test": "shared_station_paces_beacons_and_preserves_relay_selection_on_reboot",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/periph.rs",
+    "mutation": "(crc as u32) << 16 -> 0u32 << 16",
+    "test": "classic_factory_mac_includes_rom_crc8",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/regi2c.rs",
+    "mutation": "let key = (host << 16) | (control & 0xffff); -> let key = control & 0xffff;",
+    "test": "analog_hosts_and_calibration_handshakes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "result | (1 << 23) -> result | (1 << 22)",
+    "test": "analog_hosts_and_calibration_handshakes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "value & !(7 << 24) -> value",
+    "test": "analog_hosts_and_calibration_handshakes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "value | (1 << 31) -> value",
+    "test": "analog_hosts_and_calibration_handshakes",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "addr - 0x6000_0000 + 0x3ff4_0000 -> addr - 0x6000_0000 + 0x3ff5_0000",
+    "test": "analog_config_register_is_read_write",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/wifi.rs",
+    "mutation": "((total as u32) << 12) | (3 << 30) -> ((total as u32) << 12) | (1 << 31)",
+    "test": "receive_dma_uses_classic_header_and_rejects_invalid_buffers",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "        self.wifi_step(); ->         // removed Wi-Fi service",
+    "test": "shared_station_paces_beacons_and_preserves_relay_selection_on_reboot",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "self.flush_gpio();\n        self.irq_dirty = true; -> self.flush_gpio();\n        self.irq_dirty = false;",
+    "test": "i2c_ahb_alias_and_board_devices_reach_both_controllers",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp32/src/bus.rs",
+    "mutation": "WDEV_RND: u32 = 0x3ff7_5144 -> WDEV_RND: u32 = 0x6003_5144",
+    "test": "rng_ahb_and_apb_aliases_share_one_generator",
+    "crate": "esp32",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/regi2c.rs",
+    "mutation": "unwrap_or(default(key)) -> unwrap_or(&0)",
+    "test": "controls_preserve_hosts_defaults_and_read_write_direction",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/regi2c.rs",
+    "mutation": "if control & (1 << 24) != 0 { return control & !(1 << 25); } -> if false { return control & !(1 << 25); }",
+    "test": "controls_preserve_hosts_defaults_and_read_write_direction",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/regi2c.rs",
+    "mutation": "if control & (1 << 24) != 0 {\n            self.0.insert -> if true {\n            self.0.insert",
+    "test": "controls_preserve_hosts_defaults_and_read_write_direction",
+    "crate": "esp-periph",
+    "killed": true
+  },
+  {
+    "file": "esp-periph/src/regi2c.rs",
+    "mutation": "(control >> 16) as u8 -> (control >> 8) as u8",
+    "test": "controls_preserve_hosts_defaults_and_read_write_direction",
+    "crate": "esp-periph",
+    "killed": true
+  }
+]

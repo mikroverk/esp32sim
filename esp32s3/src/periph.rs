@@ -329,17 +329,14 @@ impl Wdev {
 }
 
 // ------------------------------------------------------------------ I2C_MST: analog "regi2c" master (PLL / SAR ADC trim registers)
-pub struct I2cMst { pub ram: RegRam, pub ana: std::collections::HashMap<u32, u8> }
+pub struct I2cMst { pub ram: RegRam, pub ana: esp_periph::Regi2c }
 impl Default for I2cMst { fn default() -> Self { Self::new() } }
 
 impl I2cMst {
     pub fn new() -> Self { I2cMst { ram: RegRam::new(), ana: Default::default() } }
     pub fn read(&mut self, off: u32) -> u32 {
         match off {
-            0x0 => {   // I2C0_CTRL: [7:0] slave, [15:8] reg, [23:16] data, [24] write, [25] busy
-                let c = self.ram.read(0);
-                if c & (1 << 24) == 0 { let key = c & 0xffff; let d = *self.ana.get(&key).unwrap_or(&0) as u32; (c & !(0xff << 16) & !(1 << 25)) | (d << 16) } else { c & !(1 << 25) }
-            }
+            0x0 => self.ana.read(0, self.ram.read(off), |_| &0),
             // analog-block handshakes (BBPLL cal, pkdet, txdc/rxdc comparators...): the blob writes a start bit and
             // polls a done bit in 26:24; comparator sign bits 31:30 read as 0 — enough for its search loops to run
             0x40..=0x5c => (self.ram.read(off) & 0x3fff_ffff) | (7 << 24),
@@ -347,7 +344,7 @@ impl I2cMst {
         }
     }
     pub fn write(&mut self, off: u32, v: u32) {
-        if off == 0 && v & (1 << 24) != 0 { self.ana.insert(v & 0xffff, (v >> 16) as u8); }
+        if off == 0 { self.ana.write(0, v); }
         self.ram.write(off, v);
     }
 }
