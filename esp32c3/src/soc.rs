@@ -119,7 +119,7 @@ impl esp_soc::SocBus for SocBus {
         let cause = self.periph.rtc.reset_cause;
         let mut old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
-        p.wifi.link = old.wifi.link.surviving_reboot(); p.wifi.log = old.wifi.log;
+        p.wifi.link = old.wifi.link.surviving_reboot();
         if old.ble_lc.enabled() {
             p.enable_ble_full(old.ble_lc.observing());
             p.ble_lc.keep_observations(&mut old.ble_lc);
@@ -142,6 +142,8 @@ impl esp_soc::SocBus for SocBus {
         p.rtc.ram.write(0x38, cause | (cause << 6));
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
         self.attach_board_devices();
+        for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
+        self.periph.misc.log_all = self.debug.has("mmio");
         cause
     }
     fn sw_reset(&self) -> bool { self.periph.rtc.sw_reset }
