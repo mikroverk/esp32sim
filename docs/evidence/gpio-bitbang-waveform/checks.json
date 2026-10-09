@@ -1,0 +1,65 @@
+[
+  {
+    "check": "clippy",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit": 0
+  },
+  {
+    "check": "workspace",
+    "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+    "HOME": "empty",
+    "emulator_environment": [
+      "ESP32SIM_ROM_DIR=web/wasm/fw"
+    ],
+    "exit": 0,
+    "passed": 648,
+    "failed": 0,
+    "ignored": 0
+  },
+  {
+    "check": "plain",
+    "command": "cargo +1.99.0 test --release --workspace",
+    "HOME": "empty",
+    "emulator_environment": [],
+    "exit": 0,
+    "passed": 627,
+    "failed": 0,
+    "ignored": 35
+  },
+  {
+    "check": "wasm",
+    "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit": 0
+  },
+  {
+    "check": "jit",
+    "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-jit-test.sh",
+    "exit": 0,
+    "cases": 111149,
+    "compiled_modules_released": 100415,
+    "node": "v22.23.1",
+    "heap": "default",
+    "suites": [
+      {
+        "name": "differential",
+        "cases": 111125,
+        "compiled_modules_released": 99677
+      },
+      {
+        "name": "gpio-waveform",
+        "cases": 24,
+        "compiled_modules_released": 738
+      }
+    ]
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit": 0
+  }
+]
