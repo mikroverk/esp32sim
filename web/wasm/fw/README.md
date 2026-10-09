@@ -23,3 +23,8 @@ is 50 Hz with quiet-pixel deferral, including pocket-tank's full-frame rescans.
 This option changes host snapshots, not guest display timing. Unsupported boards
 or older WASM modules reject the opt-in before boot. The publication evidence is
 recorded in [EX117](../../../docs/experiments.md#ex117).
+
+The public `c3-crypto-tls*` and `c6-crypto-tls*` images exercise unstubbed Wi-Fi
+startup and hardware-assisted TLS. [Source and reproducible build recipe](../../../examples/crypto-tls/README.md),
+[linked licences](public/crypto-tls-NOTICE.txt), and [runtime licence texts](public/crypto-tls-runtime-licenses.txt)
+accompany them. They are native CI fixtures; no new browser manifest is required.

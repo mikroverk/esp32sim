@@ -165,3 +165,29 @@ fn aes_runs_through_gdma() {
     assert_eq!((dw0 >> 12 & 0xfff, dw0 >> 30), (16, 1), "16 bytes, SUC_EOF, owner back with the CPU");
     assert!(!m.bus.periph.gdma.gdma.inp[0].running && !m.bus.periph.gdma.gdma.out[0].running);
 }
+
+#[test]
+fn txdc_and_calibration_status_follow_start_without_a_clock() {
+    let mut bb = ModemBb::new();
+    assert_eq!(bb.clock(), None);
+    for (start, status, done) in [(0x418, 0x418, 1 << 22), (0x810, 0x814, 7 << 14)] {
+        for _ in 0..2 {
+            bb.write(start, 0);
+            assert_eq!(bb.read(status) & done, 0);
+            bb.write(status, done);
+            assert_eq!(bb.read(status) & done, 0, "software cannot set DONE");
+            bb.write(start, 1);
+            assert_eq!(bb.read(status) & done, done);
+            if status != start { assert_eq!(bb.read(status) & !done, 0, "ideal zero comparator output"); }
+        }
+    }
+}
+
+#[test]
+fn txdc_comparator_outputs_ignore_software_writes() {
+    let mut bb = ModemBb::new();
+    bb.write(0x418, u32::MAX);
+    assert_eq!(bb.read(0x418), 0x007f_ffff);
+    bb.write(0x814, u32::MAX);
+    assert_eq!(bb.read(0x814), 0);
+}

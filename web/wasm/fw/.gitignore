@@ -1,3 +1,4 @@
+# C3/C6 crypto-tls fixtures and their NOTICE/runtime licence texts are public (examples/crypto-tls).
 # Firmware for local wasm demos is not committed — except the public demos below, whose code is
 # ours (hello_world from ESP-IDF for the S3, C3 and C6, the Touch-LCD-4B panel built with
 # placeholder secrets, and the Atech Pocket Synth) and the manifests that describe them; public/ also

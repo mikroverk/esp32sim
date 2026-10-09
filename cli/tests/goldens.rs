@@ -280,3 +280,26 @@ fn ble_advertiser_c3() {
     expect_text("ble-advertiser-c3.observer.txt", &(packets.join("\n") + "\n"));
     expect_u64("ble-advertiser-c3.insns", r.insns);
 }
+
+
+fn crypto_tls(chip: &str, bin: &str, rom_name: &str) {
+    let rom = rom(rom_name);
+    let r = run(bin, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--no-dump",
+        "--bootloader", &format!("{FW}/{chip}-crypto-tls-bootloader.bin"),
+        "--ptable", &format!("{FW}/{chip}-crypto-tls-ptable.bin"), "--app", &format!("{FW}/{chip}-crypto-tls.bin"),
+        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "10"]);
+    assert!(r.stdout.contains("TLS GOT_IP 10.0.2.15"), "{}", r.stdout);
+    assert!(r.stdout.contains("TLS PASS TLSv1.2 TLS-ECDHE-PSK-WITH-AES-128-CBC-SHA256 bidirectional=256"), "{}", r.stdout);
+    assert!(!r.stdout.contains("FAIL") && !r.stdout.contains("assert") && r.stderr.contains("0 exceptions"), "{}\n{}", r.stdout, r.stderr);
+    expect_text(&format!("crypto-tls-{chip}.console.txt"), &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("  core") || l.starts_with("[emu] wifi:") || l.starts_with("[emu] net:")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text(&format!("crypto-tls-{chip}.report.txt"), &report);
+}
+
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF fetched by CI"]
+fn crypto_tls_c3() { crypto_tls("c3", BIN_C3, "esp32c3_rev3"); }
+
+#[test] #[ignore = "needs the ESP32-C6 mask ROM ELF fetched by CI"]
+fn crypto_tls_c6() { crypto_tls("c6", BIN_C6, "esp32c6_rev0"); }

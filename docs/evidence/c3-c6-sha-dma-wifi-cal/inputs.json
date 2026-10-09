@@ -1,0 +1,187 @@
+{
+  "base": "017af5241f48855c412d912ff91f0a801dd3c1bd",
+  "firmware": {
+    "c3": {
+      "images": {
+        "web/wasm/fw/public/c3-crypto-tls.bin": {
+          "sha256": "1ee66e403f2cc1b91d0c55e102e4543f8364f9166b8a05c553b9f6ff6dcfdf6e",
+          "bytes": 985728,
+          "second_build_identical": true
+        },
+        "web/wasm/fw/public/c3-crypto-tls-bootloader.bin": {
+          "sha256": "d4a87d86e17457c5d9e6d9b6c83f1af5ab0122a58545aaab392af1135a01f00a",
+          "bytes": 19536,
+          "second_build_identical": true
+        },
+        "web/wasm/fw/public/c3-crypto-tls-ptable.bin": {
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+          "bytes": 3072,
+          "second_build_identical": true
+        }
+      },
+      "linked_archives": [
+        "core.a",
+        "libapp_update.a",
+        "libbootloader_support.a",
+        "libbt.a",
+        "libc.a",
+        "libcoexist.a",
+        "libcore.a",
+        "libcxx.a",
+        "libefuse.a",
+        "libesp_app_format.a",
+        "libesp_coex.a",
+        "libesp_common.a",
+        "libesp_driver_gpio.a",
+        "libesp_driver_uart.a",
+        "libesp_driver_usb_serial_jtag.a",
+        "libesp_event.a",
+        "libesp_hw_support.a",
+        "libesp_mm.a",
+        "libesp_netif.a",
+        "libesp_partition.a",
+        "libesp_phy.a",
+        "libesp_ringbuf.a",
+        "libesp_security.a",
+        "libesp_system.a",
+        "libesp_timer.a",
+        "libesp_vfs_console.a",
+        "libesp_wifi.a",
+        "libespcoredump.a",
+        "libespnow.a",
+        "libespressif__esp_diagnostics.a",
+        "libespressif__network_provisioning.a",
+        "libfreertos.a",
+        "libgcc.a",
+        "libhal.a",
+        "libheap.a",
+        "libjson.a",
+        "liblog.a",
+        "liblwip.a",
+        "libmbedcrypto.a",
+        "libmbedtls_2.a",
+        "libmbedx509.a",
+        "libmesh.a",
+        "libnet80211.a",
+        "libnewlib.a",
+        "libnvs_flash.a",
+        "libnvs_sec_provider.a",
+        "libphy.a",
+        "libpp.a",
+        "libprotocomm.a",
+        "libpthread.a",
+        "libriscv.a",
+        "libsmartconfig.a",
+        "libsoc.a",
+        "libspi_flash.a",
+        "libstdc++.a",
+        "libvfs.a",
+        "libwpa_supplicant.a"
+      ],
+      "sdk_archives": {
+        "libmbedcrypto.a": "b13e70d78cfd5b2eca018add5f82b6b558f844eb18cb75bc10b08e0cf6bd51eb",
+        "libmbedtls_2.a": "2596a94492d2c6cf0e64ec15c2152cc35b15ecce14f76d3f177b2261a109260e",
+        "libphy.a": "65d3591af8d982c6497a6b083dafce8a10f7c7beb86dde9735cece4d0a69202f"
+      }
+    },
+    "c6": {
+      "images": {
+        "web/wasm/fw/public/c6-crypto-tls.bin": {
+          "sha256": "4de547121c72dfc15a3bf3b013299ff71cb57fe1860f88a5b4167887d6391506",
+          "bytes": 1008640,
+          "second_build_identical": true
+        },
+        "web/wasm/fw/public/c6-crypto-tls-bootloader.bin": {
+          "sha256": "02f53243e1ded001d79f109e938846d72bd85a91bee7a3513e4094d7c090975c",
+          "bytes": 20720,
+          "second_build_identical": true
+        },
+        "web/wasm/fw/public/c6-crypto-tls-ptable.bin": {
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+          "bytes": 3072,
+          "second_build_identical": true
+        }
+      },
+      "linked_archives": [
+        "core.a",
+        "libapp_update.a",
+        "libbootloader_support.a",
+        "libbt.a",
+        "libc.a",
+        "libcoexist.a",
+        "libcore.a",
+        "libcxx.a",
+        "libefuse.a",
+        "libesp_app_format.a",
+        "libesp_coex.a",
+        "libesp_common.a",
+        "libesp_driver_gpio.a",
+        "libesp_driver_uart.a",
+        "libesp_driver_usb_serial_jtag.a",
+        "libesp_event.a",
+        "libesp_hw_support.a",
+        "libesp_mm.a",
+        "libesp_netif.a",
+        "libesp_partition.a",
+        "libesp_phy.a",
+        "libesp_ringbuf.a",
+        "libesp_rom.a",
+        "libesp_security.a",
+        "libesp_system.a",
+        "libesp_timer.a",
+        "libesp_vfs_console.a",
+        "libesp_wifi.a",
+        "libespcoredump.a",
+        "libespnow.a",
+        "libespressif__esp_diagnostics.a",
+        "libespressif__network_provisioning.a",
+        "libfreertos.a",
+        "libgcc.a",
+        "libhal.a",
+        "libheap.a",
+        "libjson.a",
+        "liblog.a",
+        "liblwip.a",
+        "libm.a",
+        "libmbedcrypto.a",
+        "libmbedtls_2.a",
+        "libmbedx509.a",
+        "libmesh.a",
+        "libnet80211.a",
+        "libnewlib.a",
+        "libnvs_flash.a",
+        "libnvs_sec_provider.a",
+        "libphy.a",
+        "libpp.a",
+        "libprotocomm.a",
+        "libpthread.a",
+        "libriscv.a",
+        "libsmartconfig.a",
+        "libsoc.a",
+        "libspi_flash.a",
+        "libstdc++.a",
+        "libvfs.a",
+        "libwpa_supplicant.a"
+      ],
+      "sdk_archives": {
+        "libmbedcrypto.a": "6c4b278f74e532f0248daf24b3c7d2f5ea0ef125647c215291ad2bd237d9aff3",
+        "libmbedtls_2.a": "5b357c59d646e0eda32cff9b9e91add860f4bfed180e4ec9d006ebc214b42385",
+        "libphy.a": "fdba95c59c03560620c399f43a72a16230a8ab6fced172f3103ac6a29c36f43a"
+      }
+    }
+  },
+  "build": {
+    "arduino_cli": "1.5.1",
+    "arduino_esp32": "3.3.11",
+    "esp_idf": "5.5.5",
+    "gcc": "esp-rv32/2601 GCC 14.2.0",
+    "esptool": "5.3.1",
+    "source_date_epoch": 0,
+    "independent_source_and_build_directories": 2
+  },
+  "sources": {
+    "examples/crypto-tls/Probe/Probe.ino": "880239486745441cd5b92d33c11117ea33360240115fa536206b69c6b1a6ef72",
+    "examples/crypto-tls/build.sh": "3d81b65e2670b6aa3e57ff31f24994dc370af410739bd66505283122b805ad6a"
+  },
+  "implementation": "3df32945e91e61c574ed64de84bbfb541c225681"
+}

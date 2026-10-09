@@ -42,6 +42,9 @@ const IQ_EST_DONE: u32 = 1 << 16;
 impl Device for ModemBb {
     fn read(&mut self, off: u32) -> u32 {
         match off {
+            // Inferred from libphy txdc_cal_new: ideal zero DC imbalance, synchronous completion.
+            0x418 => self.ram.read(off) & 0x003f_ffff | (u32::from(self.ram.read(off) & 1 != 0) << 22),
+            0x814 => if self.ram.read(0x810) & 1 != 0 { 7 << 14 } else { 0 },
             FREQ_STATUS => self.ram.read(off) & !FREQ_STATUS_DONE | if self.chan_done { FREQ_STATUS_DONE } else { 0 },
             IQ_EST_STATUS => self.ram.read(off) & !IQ_EST_DONE | if self.ram.read(IQ_EST) & IQ_EST_START != 0 { IQ_EST_DONE } else { 0 },
             _ => self.ram.read(off),

@@ -1,0 +1,16 @@
+{
+  "openssl": "OpenSSL 3.6.4 25 Aug 2026 (Library: OpenSSL 3.6.4 25 Aug 2026)",
+  "vectors": [
+    {
+      "curve": "P-256",
+      "scalar": "0x2",
+      "xy": "7cf27b188d034f7e8a52380304b51ac3c08969e277f21b35a60b48fc4766997807775510db8ed040293d9ac69f7430dbba7dade63ce982299e04b79d227873d1"
+    },
+    {
+      "curve": "P-256",
+      "scalar": "0x123456789abcdef",
+      "xy": "3988322ab9f52c7f11d5d1aa92a2ac0b00275bcad8e934682257323fda672482855b7389f116c19c0014311c3d57dc02001e3a0ec8bd90c797732034aacd9918"
+    }
+  ],
+  "result": "PASS"
+}

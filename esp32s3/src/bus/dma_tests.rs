@@ -587,3 +587,18 @@ fn camera_large_frame_slow_clock_progress_does_not_overflow() {
     assert_eq!(bus.read32(M2M_DST).unwrap(), 0x5a5a5a5a);
     assert_eq!(bus.periph.gdma.inp[0].int_raw, 0x13);
 }
+
+#[test]
+fn crypto_descriptor_writeback_preserves_mmio_side_effects() {
+    let mut bus = bus_with_out(7, 64, 0);
+    let channel = &mut bus.periph.gdma.out[0];
+    // Existing S3 DMA accesses use the bus even for register-backed descriptors.
+    // Returning ownership to OUT_CONF0 must retain its OUT_RST side effect.
+    channel.desc = 0x6003_f060;
+    channel.conf0 = (3 << 30) | (64 << 12) | 1;
+    channel.conf1 = INPUT;
+    bus.periph.sha.block_num = 1;
+    bus.sha_dma_step();
+    assert!(!bus.periph.gdma.out[0].running);
+    assert_eq!(bus.periph.gdma.out[0].desc, 0);
+}
