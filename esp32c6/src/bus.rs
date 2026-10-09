@@ -423,9 +423,11 @@ impl SocBus {
     /// the devices produced to the board.
     fn devices(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
+        // Board time advances before peripheral callbacks; inputs are delivered after them.
+        if self.board_edges { self.board.advance_to(self.cycles); }
         self.periph.tick(cycles as u64);
         self.periph.gpio.input_changes.clear();
-        if self.board_edges { self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
+        if self.board_edges { self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
         if self.uart_pins {
             for input in self.board.uart_rx(self.cycles) {
                 self.periph.uart_pin_input(&input);

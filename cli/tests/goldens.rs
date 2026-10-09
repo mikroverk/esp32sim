@@ -66,6 +66,10 @@ fn panel_sid() {
         "--flash-at", &format!("0x610000={FW}/energydata.json"),
         "--script", &format!("{FW}/panel-sid.txt"), "--wav", wav.to_str().unwrap(), "--max-seconds", "7"]);
     expect_text("panel-sid.console.txt", &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("  core")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text("panel-sid.report.txt", &report);
     expect_sha("panel-sid.wav.sha256", &std::fs::read(&wav).unwrap());
     expect_u64("panel-sid.insns", r.insns);
 }

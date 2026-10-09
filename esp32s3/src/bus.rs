@@ -815,6 +815,8 @@ impl SocBus {
     }
 
     fn tick_impl(&mut self, cycles: u32) -> u32 {
+        // Board time advances before peripheral callbacks; inputs are delivered after them.
+        if self.board_edges { self.board.advance_to(self.cycles); }
         // Reads may flush before the periodic backstop. Refresh for either edge
         // of a clocked source, without breaking every block that polls MMIO.
         self.irq_dirty |= self.periph.tick(cycles as u64);
@@ -824,7 +826,7 @@ impl SocBus {
                 self.irq_dirty = true;
             }
         }
-        if self.board_edges { self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
+        if self.board_edges { self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
         self.dma_i2s_step(cycles as u64);

@@ -114,8 +114,8 @@ impl SocBus {
             _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
         };
         let drive = (self.periph.gpio.enable, self.periph.gpio.out);
-        self.periph.write32(a, v);
-        if a & !0xfff == 0x6001_6000 { self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running(); }
+        // Reuse the peripheral's pin-block classification; only those blocks start or stop I2C/RMT.
+        if self.periph.write32(a, v) { self.pins_active = self.pins_active(); }
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
@@ -132,11 +132,16 @@ impl SocBus {
         self.irq_dirty = true;
     }
 
+    #[inline(always)]
+    fn pins_active(&self) -> bool {
+        self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running() || self.periph.i2c.is_active()
+    }
+
     /// Attach controller 0 devices and reconnect board inputs after a reset.
     pub fn attach_board_devices(&mut self) {
         self.uart_pins = self.board.uses_uart_pins();
         self.board_edges = self.board.uses_gpio_edges();
-        self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
+        self.pins_active = self.pins_active();
         for (bus, address, device) in self.board.i2c_devices() {
             if bus == 0 { self.periph.i2c.attach(address, device); }
         }
@@ -340,6 +345,9 @@ impl SocBus {
 
     #[inline(never)]
     fn tick_with_pins(&mut self, cycles: u32) -> u32 {
+        let advance_board = self.periph.i2c.is_active()
+            || (self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles));
+        if advance_board { self.board.advance_to(self.cycles); }
         self.devices(cycles);
         if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
         for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
@@ -347,9 +355,9 @@ impl SocBus {
             self.board.rmt_frame(pin, &bits);
             self.irq_dirty = true;
         }
-        self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
-        if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
-            self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles);
+        self.pins_active = self.pins_active();
+        if self.board_edges && advance_board {
+            self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles);
         }
         self.periph.gpio.input_changes.clear();
         if self.uart_pins { self.receive_uart_input(); }
@@ -441,5 +449,18 @@ mod tests {
         assert!(!bus.pins_active);
         assert!(bus.periph.rmt.rmt.done.is_empty());
         assert_eq!(bus.tick(64), 1);
+    }
+
+    #[test]
+    fn pin_clock_participation_tracks_i2c_transfers() {
+        let mut bus = SocBus::new(4 << 20, [0; 6]);
+        bus.write32(0x6001_3058, 2 << 11).unwrap();
+        assert!(!bus.pins_active, "an idle controller stays off the pin path");
+        bus.write32(0x6001_3004, 1 << 5).unwrap();
+        assert!(bus.pins_active, "TRANS_START enters pin service");
+        assert_eq!(esp_soc::SocBus::next_deadline(&bus), Some(6), "STOP deadline in CPU cycles");
+        assert_eq!(bus.tick(64), 1);
+        assert!(!bus.periph.i2c.is_active());
+        assert!(!bus.pins_active, "completion leaves pin service");
     }
 }

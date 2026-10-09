@@ -14,6 +14,12 @@ pub fn release_and_report(gpio: &mut Gpio, events: &mut Option<Vec<(u64, u8, boo
 #[inline(always)]
 pub fn deliver_board_inputs(board: &mut dyn BoardModel, gpio: &mut Gpio, events: &mut Option<Vec<(u64, u8, bool)>>, cycle: u64) -> bool {
     board.advance_to(cycle);
+    drain_board_inputs(board, gpio, events, cycle)
+}
+
+/// Deliver the edges and releases of a board already advanced to `cycle`.
+#[inline(always)]
+pub fn drain_board_inputs(board: &mut dyn BoardModel, gpio: &mut Gpio, events: &mut Option<Vec<(u64, u8, bool)>>, cycle: u64) -> bool {
     let mut changed = false;
     for edge in board.take_edges() {
         changed |= gpio.set_input(edge.pin, edge.level);

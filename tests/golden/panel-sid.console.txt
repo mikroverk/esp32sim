@@ -79,19 +79,19 @@ I (177) main_task: Started on CPU0
 I (178) esp_psram: Reserving pool of 64K of internal memory for DMA/internal allocations
 I (178) main_task: Calling app_main()
 I (179) board: ST7701S init over TCA9554...
-W (568) lcd_panel.rgb: GPIO 8 is not usable, maybe is reserved by others
-I (568) GT911: I2C address initialization procedure skipped - using default GT9xx setup
-I (568) GT911: TouchPad_ID:0x39,0x31,0x31
-I (568) GT911: TouchPad_Config_Version:65
-I (568) LVGL: Starting LVGL task
-I (584) ES8311: Work in Slave mode
-I (585) I2S_IF: No paired data, current mode: playback
-I (585) I2S_IF: STD: TX, data_bit: 16, slot_bit: 16, ws_width: 16, slot_mode: STEREO, slot_mask: 0x3
-I (585) I2S_IF: STD: TX, sample_rate_hz: 22050, mclk_multiple: 256, clk_src: 6
-I (586) Adev_Codec: Open codec device OK
-I (587) sidplay: ready, 8 tunes embedded
-I (636) ui: UI built
-I (725) demo: demo mode: 2026-08-28, prices 96+96 slots, 24 energy hours; network off
-I (725) main: up
-I (725) main_task: Returned from app_main()
-I (5789) sidplay: playing "Commando" by Rob Hubbard (subtune 1/19)
+W (990) lcd_panel.rgb: GPIO 8 is not usable, maybe is reserved by others
+I (990) GT911: I2C address initialization procedure skipped - using default GT9xx setup
+I (990) GT911: TouchPad_ID:0x39,0x31,0x31
+I (990) GT911: TouchPad_Config_Version:65
+I (990) LVGL: Starting LVGL task
+I (998) ES8311: Work in Slave mode
+I (1000) I2S_IF: No paired data, current mode: playback
+I (1000) I2S_IF: STD: TX, data_bit: 16, slot_bit: 16, ws_width: 16, slot_mode: STEREO, slot_mask: 0x3
+I (1000) I2S_IF: STD: TX, sample_rate_hz: 22050, mclk_multiple: 256, clk_src: 6
+I (1015) Adev_Codec: Open codec device OK
+I (1016) sidplay: ready, 8 tunes embedded
+I (1065) ui: UI built
+I (1147) demo: demo mode: 2026-08-28, prices 96+96 slots, 24 energy hours; network off
+I (1147) main: up
+I (1147) main_task: Returned from app_main()
+I (5778) sidplay: playing "Commando" by Rob Hubbard (subtune 1/19)
