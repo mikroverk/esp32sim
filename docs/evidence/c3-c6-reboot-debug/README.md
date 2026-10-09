@@ -46,10 +46,49 @@ and restored before the next run. Both restored tests pass.
 
 ## CPU comparison
 
-PENDING
+Rust 1.99.0; cargo +1.99.0 build --release --bins; separate target directories. Main 954f2a68 built once; each candidate fetched from origin immediately before its build. Sequential child user CPU via getrusage, including startup. One warmup B→M, then seven measured pairs M→B, B→M alternating. Before every attempt wait for 1-minute load <5 (15-second polling); monitor every second and discard/retry the entire pair if peak >7. Exact total/per-core instructions and console SHA-256 across all attempts. S3 hello: 3000 emulated seconds, board none; C3/C6: 30 seconds, board none; Pocket Tank: 30 seconds, waveshare-amoled18-v2. Ranges are min–max; change is ratio of medians. Flags: slower ≥6/7 or non-overlapping ranges. No per-second load series retained.
 
-No CPU benchmark was run. The change executes only when rebuilding peripherals
-on reboot; idle execution is structurally unchanged. No performance or hardware
+Measured on `eb1f2bfcf1c9325512751446d0d1b1f89e826b8a` against main `954f2a68`; the branch was later rebased onto `2f9443a9` with no change to its own diff. User CPU seconds.
+
+| Workload | Main median (range) | PR median (range) | Change | PR slower in N/7 | Instructions | max load |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C3 hello | 2.5581 (2.5188–2.6286) | 2.5323 (2.5135–2.6085) | -1.01% | 2/7 | 4800000000 | 3.62 |
+| C6 hello | 3.2995 (3.2788–3.3382) | 3.3333 (3.3078–3.3440) | +1.03% | 6/7 | 4800000000 | 4.46 |
+
+### C3 hello
+
+Status: PASS. Flags: —.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 2.571468 | 2.575992 | 3.60/3.47/3.60 | 3.60/3.60/3.60 | accepted |
+| 1 | 2 | M→B | 2.558150 | 2.527604 | 3.47/3.43/3.47 | 3.43/3.43/3.43 | accepted |
+| 2 | 3 | B→M | 2.554602 | 2.532189 | 3.40/3.40/3.40 | 3.43/3.40/3.43 | accepted |
+| 3 | 4 | M→B | 2.518787 | 2.592218 | 3.40/3.45/3.45 | 3.45/3.45/3.45 | accepted |
+| 4 | 5 | B→M | 2.564130 | 2.550232 | 3.41/3.41/3.41 | 3.45/3.41/3.45 | accepted |
+| 5 | 6 | M→B | 2.628572 | 2.513475 | 3.41/3.62/3.62 | 3.62/3.62/3.62 | accepted |
+| 6 | 7 | B→M | 2.564391 | 2.608539 | 3.57/3.57/3.57 | 3.62/3.57/3.62 | accepted |
+| 7 | 8 | M→B | 2.541359 | 2.532267 | 3.57/3.60/3.60 | 3.60/3.60/3.60 | accepted |
+
+### C6 hello
+
+Status: PASS. Flags: slower ≥6/7.
+
+| Pair | Attempt | Order | Main s | PR s | Main load before/after/peak | PR load before/after/peak | Result |
+| --- | ---: | --- | ---: | ---: | --- | --- | --- |
+| warmup | 1 | B→M | 3.345667 | 3.383490 | 3.55/3.51/3.55 | 3.60/3.55/3.60 | accepted |
+| 1 | 2 | M→B | 3.297015 | 3.341907 | 3.51/3.51/3.51 | 3.51/3.55/3.55 | accepted |
+| 2 | 3 | B→M | 3.318104 | 3.339821 | 3.74/3.74/3.74 | 3.55/3.74/3.74 | accepted |
+| 3 | 4 | M→B | 3.338156 | 3.327408 | 3.74/3.76/3.76 | 3.76/4.02/4.02 | accepted |
+| 4 | 5 | B→M | 3.278846 | 3.318484 | 4.02/4.34/4.34 | 4.02/4.02/4.02 | accepted |
+| 5 | 6 | M→B | 3.322660 | 3.333324 | 4.34/4.15/4.34 | 4.15/4.15/4.15 | accepted |
+| 6 | 7 | B→M | 3.299489 | 3.307779 | 4.06/3.98/4.06 | 4.15/4.06/4.15 | accepted |
+| 7 | 8 | M→B | 3.293798 | 3.343998 | 3.98/3.98/3.98 | 3.98/4.46/4.46 | accepted |
+
+Max load in summary includes accepted warmup and measured pairs; discarded attempts appear above. Raw output files are preserved.
+
+ The change executes only when rebuilding peripherals
+on reboot; idle execution is structurally unchanged. No hardware
 measurement claim. No private captures or machine identifiers are retained.
 
 Static code comparison: `cargo +1.99.0 build --release -p esp32sim --bin esp32sim`
@@ -62,4 +101,6 @@ The other four (C3 `Machine::peek` and `Bus::fetch`, one C6 `RawVec::grow_one`
 instance and one S3 `Debug` impl) differ only in trailing alignment `nop`s. C6 `Machine::run`,
 `step_core`, `Bus::tick`, `periph_write`, `refresh_irq` and
 every other C6 function outside reboot and `set_debug` are instruction-identical.
-Struct layouts are unchanged; only function addresses move.
+Struct layouts are unchanged; only function addresses move. The measured C6 hello
+difference above therefore comes from code placement, not added work.
+
