@@ -10,23 +10,7 @@ const GDMA_DESCRIPTOR_STEP_BUDGET: usize = 4096;
 /// Which end of a memory-to-memory copy faulted.
 pub(super) enum M2mFault { Source, Destination }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DmaDescriptorWord {
-    Control,
-    Buffer,
-    Next,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DmaDescriptorFault {
-    Read { descriptor: u32, word: DmaDescriptorWord, fault: Fault },
-    BufferRead { descriptor: u32, address: u32, fault: Fault },
-    Writeback { descriptor: u32, fault: Fault },
-    NotOwned { descriptor: u32 },
-    Cycle { descriptor: u32 },
-    StepBudgetExceeded { budget: usize },
-    PayloadTooShort { expected: usize, actual: usize },
-}
+pub use esp_periph::dma::{DmaDescriptorFault, DmaDescriptorWord};
 
 pub(super) struct Spi2DmaCompletion {
     pub(super) channel: usize,
@@ -40,17 +24,8 @@ pub(super) struct Spi2DmaCompletion {
 }
 
 
-/// Bound work even when guest descriptors make no progress. Streaming rings are valid: the
-/// bound applies to one pump call, not the lifetime of an I2S or LCD channel.
-struct DescriptorWalk { remaining: usize, budget: usize }
-impl DescriptorWalk {
-    fn new(budget: usize) -> Self { Self { remaining: budget, budget } }
-    fn read(&mut self, bus: &mut SocBus, addr: u32) -> Result<(u32, crate::periph::DmaDesc), DmaDescriptorFault> {
-        if self.remaining == 0 { return Err(DmaDescriptorFault::StepBudgetExceeded { budget: self.budget }); }
-        self.remaining -= 1;
-        bus.try_dma_desc(addr)
-    }
-}
+// DMA engines read descriptors through the unpriced bus path.
+esp_periph::dma_descriptor_reader!(SocBus, read32_unpriced);
 
 impl SocBus {
     pub(super) fn complete_spi2_dma(&mut self) {
@@ -306,15 +281,6 @@ impl SocBus {
             need -= take;
         }
         if !samples.is_empty() { let i2s = if which == 0 { &mut self.periph.i2s0 } else { &mut self.periph.i2s1 }; i2s.frames_out += samples.len() as u64; i2s.pcm.extend_from_slice(&samples); }
-    }
-
-    /// One DMA descriptor as the engines see it, with its first word, or the fault reading it.
-    fn try_dma_desc(&mut self, addr: u32) -> Result<(u32, crate::periph::DmaDesc), DmaDescriptorFault> {
-        let mut word = |offset, word| self.read32_unpriced(addr.wrapping_add(offset))
-            .map_err(|fault| DmaDescriptorFault::Read { descriptor: addr, word, fault });
-        let dw0 = word(0, DmaDescriptorWord::Control)?;
-        let (buf, next) = (word(4, DmaDescriptorWord::Buffer)?, word(8, DmaDescriptorWord::Next)?);
-        Ok((dw0, crate::periph::DmaDesc { addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf, next }))
     }
 
     fn fail_dma_out(&mut self, ch: usize) {

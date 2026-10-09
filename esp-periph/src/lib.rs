@@ -62,3 +62,5 @@ pub const XTAL_HZ: u64 = 40_000_000;
 pub const SYSTIMER_HZ: u64 = 16_000_000;
 pub const RTC_SLOW_HZ: u64 = 150_000;
 #[doc(hidden)] pub use mmio::{__divider, __ClockDomain, __ClockTree, __Dividers};
+
+pub mod dma;

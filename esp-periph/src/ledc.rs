@@ -1,5 +1,5 @@
-//! Low-speed LEDC channels shared by S3, C3 and C6. Register layout follows the
-//! ESP-IDF 5.5 `soc/ledc_reg.h` and `hal/ledc_ll.h` for each target.
+//! Low-speed LEDC channels shared by S3, C3 and C6, and the classic ESP32's two speed groups.
+//! Register layout follows the ESP-IDF 5.5 `soc/ledc_reg.h` and `hal/ledc_ll.h` for each target.
 //! Static duty updates are modeled; hardware fade sequences are not yet modeled.
 use crate::{Device, Gpio, RegRam, WriteEffect, APB_HZ};
 use emu_core::ClockDomain;
@@ -7,7 +7,9 @@ use emu_core::ClockDomain;
 #[derive(Clone, Copy)]
 pub enum LedcLayout { S3, C3, C6 }
 
-pub struct Ledc {
+/// `CLASSIC` marks a classic ESP32 speed group: S3's eight channels, C6-width timer fields and a
+/// configuration write that drops a pending duty update. S3/C3/C6 use the default.
+pub struct Ledc<const CLASSIC: bool = false> {
     layout: LedcLayout,
     regs: RegRam,
     duty: [u32; 8],
@@ -25,12 +27,62 @@ pub struct Ledc {
 }
 
 impl Ledc {
-    pub fn new(layout: LedcLayout) -> Self {
+    pub fn new(layout: LedcLayout) -> Self { Self::with_layout(layout) }
+    /// The physical high-time fraction, including matrix inversion, normalized to 65535.
+    /// No pulse edges are synthesized; callers observe channel configuration separately.
+    pub fn output(&self, gpio: &Gpio, pin: u8) -> Option<(f64, u32)> {
+        let matrix = *gpio.func_out_sel.get(pin as usize)?;
+        if gpio.enable & (1u64 << pin) == 0 { return None; }
+        let base = match self.layout { LedcLayout::S3 => 73, LedcLayout::C3 => 45, LedcLayout::C6 => 0 };
+        let bits = if matches!(self.layout, LedcLayout::S3) { 9 } else { 8 };
+        let channel = (matrix & ((1 << bits) - 1)).checked_sub(base)? as usize;
+        let timer = self.channel_timer_settings(channel)?;
+        let hz = self.source_hz();
+        if hz == 0 { return None; }
+        let (hz, mut duty) = self.channel_wave(channel, timer, hz);
+        if matrix & (1 << bits) != 0 { duty = 65535 - duty; }
+        Some((hz, duty))
+    }
+}
+
+/// Classic speed groups: their source clock and matrix signals are chosen by the classic adapter.
+impl Ledc<true> {
+    pub fn new_classic() -> Self { Self::with_layout(LedcLayout::S3) }
+    /// Frequency and normalized duty of one channel clocked at `hz`.
+    pub fn channel_output(&self, channel: usize, hz: u64) -> Option<(f64, u32)> {
+        let timer = self.channel_timer_settings(channel)?;
+        if hz == 0 { return None; }
+        Some(self.channel_wave(channel, timer, hz))
+    }
+    pub fn channel_timer(&self, channel: usize) -> usize { (self.regs.read(channel as u32 * 0x14) & 3) as usize }
+    pub fn timer_conf(&self, timer: usize) -> u32 { self.timer_params[timer] }
+    pub fn signal_level(&self, channel: usize) -> (bool, bool) {
+        let conf = self.regs.read(channel as u32 * 0x14);
+        let enabled = conf & 4 != 0 && !self.unsupported_fade[channel];
+        (if enabled { self.duty[channel] != 0 } else { conf & 8 != 0 }, enabled)
+    }
+    pub fn next_wrap(&self, source: impl Fn(usize, u32) -> u64) -> Option<u64> {
+        (0..4).filter_map(|n| {
+            let pending = (0..self.channels()).any(|ch| self.pending[ch] && self.ena & (1 << (4 + ch)) != 0 && self.regs.read(ch as u32 * 0x14) & 3 == n as u32);
+            if self.ena & (1 << n) == 0 && !pending { return None; }
+            let (period, div) = self.timer(n)?;
+            let hz = source(n, self.timer_params[n]);
+            (hz != 0).then(|| ((APB_HZ / 256 * div * period) - self.phase[n]).div_ceil(hz))
+        }).min()
+    }
+    pub fn any_timer(&self) -> bool { self.active != 0 }
+}
+
+// Each variant gets its own non-generic code, so S3/C3/C6 compile exactly one copy of each
+// method as before; a generic impl would be instantiated per calling crate.
+macro_rules! ledc_impl { ($classic:literal) => {
+impl Ledc<$classic> {
+    fn with_layout(layout: LedcLayout) -> Self {
         Self { layout, regs: RegRam::new(), duty: [0; 8], pending: [false; 8],
             unsupported_fade: [false; 8], phase: [0; 4], active: 0, timer_params: [0; 4], raw: 0, ena: 0, external_clock_hz: 0, clock_enabled: true }
     }
     fn channels(&self) -> usize { if matches!(self.layout, LedcLayout::S3) { 8 } else { 6 } }
-    fn shift(&self) -> u32 { u32::from(matches!(self.layout, LedcLayout::C6)) }
+    fn shift(&self) -> u32 { u32::from($classic || matches!(self.layout, LedcLayout::C6)) }
     fn source_hz(&self) -> u64 {
         if !self.clock_enabled { return 0; }
         if matches!(self.layout, LedcLayout::C6) { return self.external_clock_hz; }
@@ -48,29 +100,54 @@ impl Ledc {
         if self.regs.read(0xa0 + n as u32 * 8) & (3 << (22 + self.shift())) != 0 { return None; }
         self.timer_settings(n)
     }
-    /// The physical high-time fraction, including matrix inversion, normalized to 65535.
-    /// No pulse edges are synthesized; callers observe channel configuration separately.
-    pub fn output(&self, gpio: &Gpio, pin: u8) -> Option<(f64, u32)> {
-        let matrix = *gpio.func_out_sel.get(pin as usize)?;
-        if gpio.enable & (1u64 << pin) == 0 { return None; }
-        let base = match self.layout { LedcLayout::S3 => 73, LedcLayout::C3 => 45, LedcLayout::C6 => 0 };
-        let bits = if matches!(self.layout, LedcLayout::S3) { 9 } else { 8 };
-        let channel = (matrix & ((1 << bits) - 1)).checked_sub(base)? as usize;
+    /// Timer period and divider of an enabled channel with a modelled duty.
+    #[inline(always)]
+    fn channel_timer_settings(&self, channel: usize) -> Option<(u64, u64)> {
         if channel >= self.channels() || self.unsupported_fade[channel] { return None; }
         let conf = self.regs.read(channel as u32 * 0x14);
         if conf & 4 == 0 { return None; }
-        let (period, divider) = self.timer((conf & 3) as usize)?;
-        let hz = self.source_hz();
-        if hz == 0 { return None; }
+        self.timer((conf & 3) as usize)
+    }
+    /// Frequency and duty normalized to 65535 for a channel clocked at `hz`.
+    #[inline(always)]
+    fn channel_wave(&self, channel: usize, (period, divider): (u64, u64), hz: u64) -> (f64, u32) {
         let full = period * 16;
         let high = (self.duty[channel] as u64).min(full);
-        let mut duty = ((high * 65535 + full / 2) / full) as u32;
-        if matrix & (1 << bits) != 0 { duty = 65535 - duty; }
-        Some((hz as f64 * 256.0 / divider as f64 / period as f64, duty))
+        let duty = ((high * 65535 + full / 2) / full) as u32;
+        (hz as f64 * 256.0 / divider as f64 / period as f64, duty)
+    }
+    /// Advance the timers, each clocked at `source(timer, timer_conf)` Hz.
+    #[inline(always)]
+    pub fn tick_with_source(&mut self, ticks: u64, source: impl Fn(usize, u32) -> u64) {
+        for n in 0..4 {
+            let Some((period, divider)) = self.timer(n) else { continue; };
+            let hz = source(n, self.timer_params[n]);
+            let modulus = (APB_HZ / 256) * divider * period;
+            let (phase, wrapped) = match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
+                Some(total) => (if total < modulus { total } else { total % modulus }, total >= modulus),
+                None => {
+                    let total = self.phase[n] as u128 + ticks as u128 * hz as u128;
+                    ((total % modulus as u128) as u64, total >= modulus as u128)
+                }
+            };
+            self.phase[n] = phase;
+            if !wrapped { continue; }
+            self.raw |= 1 << n;
+            for ch in 0..self.channels() {
+                let off = ch as u32 * 0x14;
+                if self.pending[ch] && self.regs.read(off) & 3 == n as u32 {
+                    self.duty[ch] = self.regs.read(off + 8);
+                    self.pending[ch] = false;
+                    let conf = self.regs.read(off + 12);
+                    self.regs.write(off + 12, conf & !(1 << 31));
+                    self.raw |= 1 << (4 + ch);
+                }
+            }
+        }
     }
 }
 
-impl Device for Ledc {
+impl Device for Ledc<$classic> {
     fn read(&mut self, off: u32) -> u32 {
         if off < self.channels() as u32 * 0x14 && off % 0x14 == 0x10 { return self.duty[(off / 0x14) as usize]; }
         if (0xa4..=0xbc).contains(&off) && off % 8 == 4 {
@@ -90,6 +167,7 @@ impl Device for Ledc {
                     0x04 => self.regs.write(off, value & if self.shift() == 1 { 0xfffff } else { 0x3fff }),
                     0x00 => {
                         self.regs.write(off, value & !(1 << 4));
+                        if $classic { self.pending[n] = false; }
                         if value & (1 << 4) != 0 && self.regs.read(off + 12) & (1 << 31) != 0 {
                             let fade = if matches!(self.layout, LedcLayout::C6) {
                                 (self.regs.read(0x100 + n as u32 * 16) >> 11) & 0x3ff
@@ -117,32 +195,12 @@ impl Device for Ledc {
     fn tick(&mut self, ticks: u64) {
         let hz = self.source_hz();
         if hz == 0 { return; }
-        for n in 0..4 {
-            let Some((period, divider)) = self.timer(n) else { continue; };
-            let modulus = (APB_HZ / 256) * divider * period;
-            let (phase, wrapped) = match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
-                Some(total) => (if total < modulus { total } else { total % modulus }, total >= modulus),
-                None => {
-                    let total = self.phase[n] as u128 + ticks as u128 * hz as u128;
-                    ((total % modulus as u128) as u64, total >= modulus as u128)
-                }
-            };
-            self.phase[n] = phase;
-            if !wrapped { continue; }
-            self.raw |= 1 << n;
-            for ch in 0..self.channels() {
-                let off = ch as u32 * 0x14;
-                if self.pending[ch] && self.regs.read(off) & 3 == n as u32 {
-                    self.duty[ch] = self.regs.read(off + 8);
-                    self.pending[ch] = false;
-                    let conf = self.regs.read(off + 12);
-                    self.regs.write(off + 12, conf & !(1 << 31));
-                    self.raw |= 1 << (4 + ch);
-                }
-            }
-        }
+        self.tick_with_source(ticks, |_, _| hz);
     }
 }
+} }
+ledc_impl!(false);
+ledc_impl!(true);
 
 #[cfg(test)]
 mod tests {
