@@ -1,8 +1,9 @@
 # EX219: LED routing and DMA output
 
-Base: upstream main `954f2a68` (includes #198). Related EX205 provides CPU-fed compact RMT and
-board pin transport. This change adds mirrored peripheral routes, S3 TX3 DMA
-symbols, and C6 parallel output. Independent of EX218's opt-in GPIO waveform decoder.
+Base: upstream main `2f9443a9` (includes #197, #200 and #204). Related EX205 provides CPU-fed
+compact RMT and board pin transport. This change adds mirrored peripheral routes, S3 TX3 DMA
+symbols, and C6 parallel output. It reuses the WS2812 timing constants that EX218 (#204) added
+to `esp-soc/src/devices/ws2812.rs`; the GPIO waveform decoder itself is untouched.
 
 ## Behavior
 
@@ -11,8 +12,8 @@ for IO_MUX, chip-specific masks, output inversion and output-enable selection.
 Two enabled pins on the same signal each receive a frame. A disabled
 software-enable route, inverted route, or non-GPIO mux function does not.
 
-S3 stages finite DMA chains when RMT TX3 CONF0 is written, or when a GDMA
-register of a running trigger-9 OUT channel is written. It reuses the existing
+While TX3 DMA_ACCESS_EN is set, S3 stages finite DMA chains when RMT TX3 CONF0
+is written, or when a GDMA register of a running trigger-9 OUT channel is written. It reuses the existing
 `gather_dma_out` Result-based helper and bounded descriptor walker.
 Automatic owner writeback is gated once in this shared helper. Channel 3 consumes
 the staged symbols through the existing timed RMT transmitter. DMA mode bypasses
@@ -28,7 +29,7 @@ A configured start, complete payload and enabled clock produce lane samples and
 TX EOF. Packing widths 1, 2, 4, 8 and 16, both bit orders, mirrored lanes and
 interrupt enable/clear are modeled. A free function next to `Ws2812Chain` converts
 lane samples to the existing board `rmt_frame` API, iterating routes directly.
-It shares named WS2812 timing constants with the independent EX218 implementation.
+It uses the WS2812 timing constants EX218 added.
 Completed PARLIO data stores samples only; width and clock remain on the peripheral.
 
 Both staging paths honor descriptor ownership checks and automatic owner
@@ -39,28 +40,50 @@ plus one end marker; C6 queues at most 65535 bytes. These are emulator limits.
 
 ## Idle path
 
-The S3 TX3 DMA queue is not part of the shared `Rmt`. The C3/C6 `RmtCompact`
-embeds `Rmt` with the same fields as upstream main. S3 uses an `RmtDma` wrapper
-(`repr(C)`: `Rmt` at offset 0, then a nullable boxed queue). The queue is
-allocated when staged symbols are inserted. FIFO reset, DMA disable and a staging
-failure release it. The transmitter receives the queue only as an optional
-borrow, so ticking cannot allocate it. A test pins the wrapper layout and checks
-that a started DMA channel without staged data allocates nothing.
+Checked by disassembly, not timing: release binaries of main `2f9443a9` and this
+branch (`cargo +1.99.0 build --release -p esp32sim --bins`, fat LTO, one codegen
+unit), `objdump -d --demangle`, per-function comparison with instruction and
+branch-target addresses and adrp page offsets normalised. 1856 functions are
+identical; the S3 differences are listed here.
+
+`Rmt` and every structure embedding it keep main's size and field offsets. The
+TX3 queue is a nullable boxed `VecDeque` inside `Rmt`; it takes the 8 bytes of the
+former `i64` CPU/APB ratio, which is now a `u8` in the tail beside `running`
+(`running` stays at the same offset). S3 `Peripherals`, `SocBus`, the CPU run
+loop, JIT helpers and bus read/fetch paths therefore compile to main's
+instructions. The queue is allocated when staged symbols are inserted; FIFO
+reset, DMA disable and a staging failure release it. S3 uses `RmtDma`, a
+`repr(transparent)` wrapper, to select the DMA transmitter variant and to clear
+the queue on CH3 CONF0 writes.
 
 The transmitter loop is one inlined, const-specialized function. Plain
-`Rmt::tick` (C3/C6) instantiates only the non-DMA variant, which contains no DMA
-condition. S3 selects the DMA variant per running channel (TX3 with bit 25 set).
-Both return before the channel loop while no transmitter runs, as on main.
+`Rmt::tick` (C3/C6) instantiates only the non-DMA variant. `RmtDma::tick` is out
+of line like main's `Rmt::tick`; its idle path (prologue, `running` load, branch)
+is instruction-identical, and `tick_impl` calls it where main calls `Rmt::tick`.
+The only other `tick_impl` change on the idle path is the completed-frame test:
+the route fanout is a cold out-of-line function, so the test branches over a call
+instead of over main's inlined loop.
 
-MMIO staging is filtered by the written block. On S3, only a write to RMT TX3
-CONF0, or a GDMA write to a channel that is running with trigger 9, calls
-`stage_rmt_dma`. Writes to other GDMA channels (SPI2, LCD, I2S, camera, crypto)
-do not. On C6, PARLIO and PCR PARLIO-clock writes stage; a GDMA write stages only
-when the written channel, mapped through the existing `GdmaC6::map`, is running
-with trigger 9. Tests write an unrelated GDMA channel and require no staging,
-then write the selected channel and require staging. No DMA pump or staging call
-runs from a device tick. Each MMIO write still performs the block classification;
-C6 `Peripherals::write32` keeps one address comparison for the PARLIO PCR clock.
+`periph_write_inner` is identical to main except the RMT dispatch target
+(`RmtDma`'s write). Staging sits in the `periph_write` wrapper behind one bit
+test of CH3 CONF0 DMA_ACCESS_EN: three instructions (offset, byte load, branch)
+per peripheral write while RMT DMA is off. With the bit set, a cold function
+checks the address: CH3 CONF0, or a GDMA write to a running trigger-9 channel.
+Writes to other GDMA channels (SPI2, LCD, I2S, camera, crypto) do not stage.
+No DMA pump or staging call runs from a device tick.
+
+Remaining S3 differences: `gather_dma_out` carries the descriptor alignment,
+length and trigger-9 checks plus the writeback gate (AES, SHA and RMT
+transactions only; SPI2, LCD, I2S and camera use other walkers); `Rmt::tick`
+widens the `u8` ratio on running channels; construction and drop code.
+C3's `tick_with_pins` tests the completed-frame queue before calling a cold
+fanout function.
+
+C6 adds a pointer-sized PARLIO handle to `Peripherals`, which shifts later fields
+by 8 bytes; the C6 bus and run-loop functions differ by those offsets. The PARLIO
+device adds read/write dispatch arms. The C6 write path classifies PARLIO, GDMA
+and the PCR PARLIO clock address inline and stages in a cold function; C6
+`Peripherals::write32` keeps one address comparison for the PARLIO PCR clock.
 
 PARLIO keeps a nullable boxed TX state at the end of `Peripherals`. Before its
 first MMIO access or selected DMA transfer, no TX state or register RAM is
@@ -131,12 +154,13 @@ payloads, AES-128 zero-key/zero-input ciphertext, owner handback and completion
 interrupt state with automatic writeback enabled and disabled. These are register-level workloads, not
 a claim of running a particular FastLED or NeoPixel firmware release.
 
-`mutations.json` records 34 exact mutations and the tests that kill them, including
-the MMIO staging hooks and channel gates, multi-route fanout, DMA mode, reset,
-ownership, lengths, writeback selection, EOF interrupts, queue bounds and PARLIO
-packing/clock/IRQ. Storage/idle mutations force eager PARLIO and RMT DMA
-allocation, retained RMT queue storage after disable, inline PARLIO TX storage
-and an active PARLIO clock.
+`mutations.json` records 38 exact mutations and the tests that kill them, including
+the MMIO staging hooks and channel gates, the S3 DMA_ACCESS_EN write gate and CH3
+CONF0 address gate, multi-route fanout, DMA mode, reset, ownership, lengths, the
+trigger-9 alignment rule, writeback selection, EOF interrupts, queue bounds, the
+RMT clock ratio and PARLIO packing/clock/IRQ. Storage/idle mutations force eager
+PARLIO and RMT DMA allocation, retained RMT queue storage after disable, inline
+PARLIO TX storage and an active PARLIO clock.
 Each changed source is restored before the next mutation. Every mutation fails
 an assertion in a previously passing focused test.
 

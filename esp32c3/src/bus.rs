@@ -338,14 +338,21 @@ impl SocBus {
         self.periph.refresh_work();
     }
 
+    /// Every routed pin of a completed transmitter receives its frame (mirrored strips).
+    #[cold]
     #[inline(never)]
-    fn tick_with_pins(&mut self, cycles: u32) -> u32 {
-        self.devices(cycles);
-        if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
+    fn deliver_rmt_frames(&mut self) {
         for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
             for pin in esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(51 + ch as u32) { self.board.rmt_frame(pin, &bits); }
             self.irq_dirty = true;
         }
+    }
+
+    #[inline(never)]
+    fn tick_with_pins(&mut self, cycles: u32) -> u32 {
+        self.devices(cycles);
+        if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
+        if !self.periph.rmt.rmt.done.is_empty() { self.deliver_rmt_frames(); }
         self.pins_active = self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running();
         if self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles) {
             self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles);

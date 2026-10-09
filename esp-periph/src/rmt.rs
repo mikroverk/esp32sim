@@ -24,11 +24,15 @@ pub struct Rmt {
     /// completed transmissions: (channel, bits)
     pub done: Vec<(usize, Vec<bool>)>,
     pub tx_count: u64,
-    cpu_per_apb: i64,
+    /// S3 TX3 DMA symbols staged at MMIO boundaries; allocated on first use. It takes the
+    /// slot of the former `i64` clock ratio (now a `u8` after `running`), so `Rmt` keeps its layout.
+    #[allow(clippy::box_collection, reason = "the unused queue handle stays pointer-sized")]
+    dma_fifo: Option<Box<VecDeque<u32>>>,
     running: u8,
+    cpu_per_apb: u8,
 }
 impl Rmt {
-    pub fn new(cpu_hz: u64) -> Self { Rmt { running: 0, cpu_per_apb: (cpu_hz / crate::APB_HZ) as i64, ch: Default::default(), mem: [0; RMT_MEM_WORDS * 8], int_raw: 0, int_ena: 0, sys_conf: 0, ram: RegRam::new(), done: Vec::new(), tx_count: 0 } }
+    pub fn new(cpu_hz: u64) -> Self { Rmt { running: 0, dma_fifo: None, cpu_per_apb: u8::try_from(cpu_hz / crate::APB_HZ).expect("CPU clock ratio fits u8"), ch: Default::default(), mem: [0; RMT_MEM_WORDS * 8], int_raw: 0, int_ena: 0, sys_conf: 0, ram: RegRam::new(), done: Vec::new(), tx_count: 0 } }
     pub fn is_running(&self) -> bool { self.running != 0 }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
@@ -67,26 +71,26 @@ impl Rmt {
     }
     /// Advance transmitters by CPU cycles; symbols are consumed at their programmed duration.
     pub fn tick(&mut self, cycles: u64) {
-        self.tick_tx::<false>(cycles, &mut None);
+        self.tick_tx::<false>(cycles);
     }
     #[inline(always)]
-    fn tick_tx<const DMA: bool>(&mut self, cycles: u64, fifo: &mut Option<&mut VecDeque<u32>>) {
+    fn tick_tx<const DMA: bool>(&mut self, cycles: u64) {
         if !self.is_running() { return; }
         for n in 0..4 {
             if !self.ch[n].running { continue; }
             if DMA && n == 3 && self.ch[n].conf0 & (1 << 25) != 0 {
-                self.tick_channel::<true>(n, cycles, fifo);
+                self.tick_channel::<true>(n, cycles);
             } else {
-                self.tick_channel::<false>(n, cycles, fifo);
+                self.tick_channel::<false>(n, cycles);
             }
         }
     }
     #[inline(always)]
-    fn tick_channel<const DMA: bool>(&mut self, n: usize, cycles: u64, fifo: &mut Option<&mut VecDeque<u32>>) {
+    fn tick_channel<const DMA: bool>(&mut self, n: usize, cycles: u64) {
         let c = &mut self.ch[n];
         c.acc_cycles += cycles as i64;
         let div = ((c.conf0 >> 8) & 0xff).max(1) as i64;
-        let cycles_per_tick = self.cpu_per_apb * div;   // RMT clock = APB 80 MHz / div
+        let cycles_per_tick = i64::from(self.cpu_per_apb) * div;   // RMT clock = APB 80 MHz / div
         let mem_words = (((c.conf0 >> 16) & 0xf).max(1) as usize) * RMT_MEM_WORDS;
         let base = n * RMT_MEM_WORDS;
         let mut guard = 0;
@@ -128,7 +132,7 @@ impl Rmt {
             }
             if !DMA && c.rd != 0 && c.rd.is_multiple_of(mem_words) && c.conf0 & (1 << 3) != 0 { c.bits.clear(); }
             let sym = if DMA {
-                let Some(symbol) = fifo.as_deref_mut().and_then(VecDeque::pop_front) else { c.acc_cycles = 0; break; };
+                let Some(symbol) = self.dma_fifo.as_deref_mut().and_then(VecDeque::pop_front) else { c.acc_cycles = 0; break; };
                 symbol
             } else { self.mem[base + (c.rd % mem_words)] };
             let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
@@ -150,43 +154,41 @@ impl Rmt {
     }
 }
 
-/// S3 TX3 DMA storage; compact C3/C6 transmitters retain the plain RMT layout.
+/// S3 TX3 DMA view of the shared transmitter; compact C3/C6 transmitters never select DMA.
 /// IDF v5.5.4 components/soc/esp32s3/register/soc/rmt_struct.h:117-120 puts
 /// DMA_ACCESS_EN at bit 25 (v4.4.8 calls bits 25..31 reserved).
 /// The queue is allocated only when staged symbols are inserted.
-#[repr(C)]
-pub struct RmtDma {
-    rmt: Rmt,
-    #[allow(clippy::box_collection, reason = "the unused queue handle stays pointer-sized")]
-    dma_fifo: Option<Box<VecDeque<u32>>>,
-}
+#[repr(transparent)]
+pub struct RmtDma(Rmt);
 impl std::ops::Deref for RmtDma {
     type Target = Rmt;
-    fn deref(&self) -> &Rmt { &self.rmt }
+    fn deref(&self) -> &Rmt { &self.0 }
 }
 impl std::ops::DerefMut for RmtDma {
-    fn deref_mut(&mut self) -> &mut Rmt { &mut self.rmt }
+    fn deref_mut(&mut self) -> &mut Rmt { &mut self.0 }
 }
 impl RmtDma {
-    pub fn new(cpu_hz: u64) -> Self { Self { rmt: Rmt::new(cpu_hz), dma_fifo: None } }
-    pub fn dma_fifo(&mut self) -> &mut VecDeque<u32> { self.dma_fifo.get_or_insert_with(Default::default) }
-    pub fn dma_fifo_len(&self) -> usize { self.dma_fifo.as_ref().map_or(0, |fifo| fifo.len()) }
-    pub fn clear_dma_fifo(&mut self) { self.dma_fifo = None; }
+    pub fn new(cpu_hz: u64) -> Self { Self(Rmt::new(cpu_hz)) }
+    pub fn dma_fifo(&mut self) -> &mut VecDeque<u32> { self.0.dma_fifo.get_or_insert_with(Default::default) }
+    pub fn dma_fifo_len(&self) -> usize { self.0.dma_fifo.as_ref().map_or(0, |fifo| fifo.len()) }
+    #[cold]
+    #[inline(never)]
+    pub fn clear_dma_fifo(&mut self) { self.0.dma_fifo = None; }
     pub fn write(&mut self, off: u32, v: u32) {
-        self.rmt.write(off, v);
+        self.0.write(off, v);
         // IDF v5.5.4 components/hal/esp32s3/include/hal/rmt_ll.h:237-240: DMA is TX3 only.
         // components/soc/esp32s3/register/soc/rmt_reg.h:575-581: AFIFO_RST bit 23.
         if off == 0x2c && (v & (1 << 23) != 0 || v & (1 << 25) == 0) { self.clear_dma_fifo(); }
     }
-    #[inline]
-    pub fn tick(&mut self, cycles: u64) { self.rmt.tick_tx::<true>(cycles, &mut self.dma_fifo.as_deref_mut()); }
+    /// Out of line like `Rmt::tick`, so the SoC tick loop keeps one call per round.
+    #[inline(never)]
+    pub fn tick(&mut self, cycles: u64) { self.0.tick_tx::<true>(cycles); }
 }
 impl Device for RmtDma {
-    fn read(&mut self, off: u32) -> u32 { self.rmt.read(off) }
+    fn read(&mut self, off: u32) -> u32 { self.0.read(off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { RmtDma::write(self, off, v); WriteEffect::NONE }
-    fn irq_sources(&self) -> u64 { self.rmt.irq() as u64 }
+    fn irq_sources(&self) -> u64 { self.0.irq() as u64 }
     fn clock(&self) -> Option<ClockDomain> { Some(ClockDomain::Cpu) }
-    #[inline]
     fn tick(&mut self, cycles: u64) { RmtDma::tick(self, cycles) }
 }
 
@@ -234,9 +236,7 @@ mod dma_tests {
     use super::*;
     #[test]
     fn dma_reset_disable_starvation_and_threshold_suppression() {
-        assert_eq!(std::mem::offset_of!(RmtDma, rmt), 0);
-        assert_eq!(std::mem::offset_of!(RmtDma, dma_fifo), size_of::<Rmt>());
-        assert!(size_of::<RmtDma>() <= size_of::<Rmt>() + 8);
+        assert_eq!(size_of::<RmtDma>(), size_of::<Rmt>());
         let mut r = RmtDma::new(240_000_000);
         assert!(r.dma_fifo.is_none());
         r.write(0x2c, (1 << 25) | 1);
@@ -253,6 +253,8 @@ mod dma_tests {
         r.write(0x2c, (1 << 25) | (1 << 23));
         assert_eq!(r.dma_fifo_len(), 0);
         r.dma_fifo().push_back(456);
+        r.write(0x28, 0);
+        assert_eq!(r.dma_fifo_len(), 1, "only CH3 CONF0 clears the queue");
         r.write(0x2c, 0);
         assert_eq!(r.dma_fifo_len(), 0);
         assert!(r.dma_fifo.is_none());

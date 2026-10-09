@@ -61,8 +61,22 @@ impl SocBus {
     /// Descriptor fields: components/hal/include/hal/dma_types.h:23-32.
     /// Stage a finite RMT DMA transaction on register writes. No idle tick pump.
     /// Descriptor reads reuse the existing bounded walker and unpriced bus access.
-    pub(super) fn stage_rmt_dma(&mut self) {
-        if self.periph.rmt.ch[3].conf0 & (1 << 25) == 0 { return; }
+    /// With CH3 DMA_ACCESS_EN set, CH3 CONF0 and writes to a running trigger-9 GDMA OUT
+    /// channel stage the transaction.
+    #[cold]
+    #[inline(never)]
+    pub(super) fn rmt_dma_write(&mut self, a: u32) {
+        let stage = match a >> 12 {
+            0x60016 => a & 0xfff == 0x2c,
+            0x6003f => {
+                let channel = ((a & 0xfff) / crate::periph::GDMA_CH_STRIDE) as usize;
+                self.periph.gdma.out.get(channel).is_some_and(|c| c.running && c.peri_sel == 9)
+            }
+            _ => false,
+        };
+        if stage { self.stage_rmt_dma(); }
+    }
+    fn stage_rmt_dma(&mut self) {
         let Some(ch) = self.periph.gdma.out_channel_for(9) else { return; };
         let limit = RMT_DMA_SYMBOL_LIMIT.saturating_sub(self.periph.rmt.dma_fifo_len()) * 4;
         match self.gather_dma_out(ch, limit + 1) {

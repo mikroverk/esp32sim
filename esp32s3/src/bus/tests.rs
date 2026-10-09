@@ -1411,10 +1411,13 @@ fn unrelated_gdma_channel_does_not_stage_rmt() {
     bus.write32(FIRST_DESC + 4, FIRST_DESC + 64).unwrap();
     bus.write32(FIRST_DESC + 8, 0).unwrap();
     bus.write32(FIRST_DESC + 64, 0).unwrap();
+    bus.write32(PERIPH_BASE + 0x3f074, u32::MAX).unwrap();
+    assert!(bus.periph.gdma.out[0].running, "DMA_ACCESS_EN clear: GDMA writes do not stage");
     bus.periph.rmt.write(0x2c, 1 << 25);
     bus.write32(PERIPH_BASE + 0x3f000 + crate::periph::GDMA_CH_STRIDE + 0x74, u32::MAX).unwrap();
+    bus.write32(0x6001_6028, 0).unwrap();
     assert_eq!(bus.periph.rmt.dma_fifo_len(), 0);
-    assert!(bus.periph.gdma.out[0].running);
+    assert!(bus.periph.gdma.out[0].running, "only CH3 CONF0 and the selected channel stage");
     bus.write32(PERIPH_BASE + 0x3f074, u32::MAX).unwrap();
     assert_eq!(bus.periph.rmt.dma_fifo_len(), 1);
     assert!(!bus.periph.gdma.out[0].running);

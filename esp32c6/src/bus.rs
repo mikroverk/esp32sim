@@ -145,19 +145,7 @@ impl SocBus {
         let v = if size == 4 { v } else { merge(self.periph.read32(a)) };
         let old_drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
-        match a >> 12 {
-            0x60015 => self.stage_parlio_dma(),
-            0x60096 if a & 0xfff == 0xac => self.stage_parlio_dma(),
-            0x60080 => {
-                if let Some(off) = crate::periph::GdmaC6::map(a & 0xfff) {
-                    let channel = (off / esp_periph::GDMA_CH_STRIDE) as usize;
-                    if self.periph.gdma.gdma.out.get(channel).is_some_and(|c| c.running && c.peri_sel == 9) {
-                        self.stage_parlio_dma();
-                    }
-                }
-            }
-            _ => {}
-        }
+        if matches!(a >> 12, 0x60015 | 0x60080) || a == PERIPH_BASE + 0x960ac { self.parlio_dma_write(a); }
         if old_drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
@@ -402,7 +390,17 @@ impl SocBus {
             };
             self.periph.spi2.finish_transfer(transfer, &rx);
         }
-        if !self.periph.rmt.rmt.done.is_empty() { for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) { for pin in esp_soc::pins::ChipPins::C6.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(RMT_SIG_OUT0 + ch as u32) { self.board.rmt_frame(pin, &bits); } } self.irq_dirty = true; }
+        if !self.periph.rmt.rmt.done.is_empty() { self.deliver_rmt_frames(); }
+    }
+
+    /// Every routed pin of a completed transmitter receives its frame (mirrored strips).
+    #[cold]
+    #[inline(never)]
+    fn deliver_rmt_frames(&mut self) {
+        for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
+            for pin in esp_soc::pins::ChipPins::C6.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(RMT_SIG_OUT0 + ch as u32) { self.board.rmt_frame(pin, &bits); }
+        }
+        self.irq_dirty = true;
     }
 
     /// Execute a pending SPI1 command against the flash image.
@@ -442,6 +440,19 @@ impl SocBus {
     /// IDF v5.5.4 components/soc/esp32c6/include/soc/gdma_channel.h:17: trigger 9.
     /// GDMA controls: register/soc/gdma_reg.h:1665-1716; interrupts:699-732.
     /// Descriptor fields: components/hal/include/hal/dma_types.h:23-32.
+    /// PARLIO, PCR PARL_CLK_TX_CONF and writes to a running trigger-9 GDMA OUT channel
+    /// stage the transaction; everything else stays off the write path.
+    #[cold]
+    #[inline(never)]
+    fn parlio_dma_write(&mut self, a: u32) {
+        if a >> 12 == 0x60080 {
+            let Some(off) = crate::periph::GdmaC6::map(a & 0xfff) else { return };
+            let channel = (off / esp_periph::GDMA_CH_STRIDE) as usize;
+            if !self.periph.gdma.gdma.out.get(channel).is_some_and(|c| c.running && c.peri_sel == 9) { return; }
+        }
+        self.stage_parlio_dma();
+    }
+
     /// Stage finite PARLIO DMA transfers at MMIO boundaries, including clock-off prefill.
     fn stage_parlio_dma(&mut self) {
         if let Some(ch) = self.periph.gdma.gdma.out_channel_for(9) {
