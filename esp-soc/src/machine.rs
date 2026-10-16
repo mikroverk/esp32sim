@@ -367,6 +367,7 @@ impl<S: Soc> Machine<S> {
         if !*self.bus.irq_dirty() { return; }
         *self.bus.irq_dirty() = false;
         if self.bus.refresh_irq() { self.present_irqs(); }
+        S::peripheral_event(&self.bus, &mut self.cores);
     }
     fn present_irqs(&mut self) {
         let mut irqs = [<S::Core as Core>::Irq::default(); 4];
@@ -986,6 +987,7 @@ impl<S: Soc> Machine<S> {
         if *self.bus.irq_dirty() || ticked {
             *self.bus.irq_dirty() = false;
             if self.bus.refresh_irq() { self.present_irqs(); }
+            S::peripheral_event(&self.bus, &mut self.cores);
         }
         let script_stopped = self.after_round_rest();
         self.observe_round();

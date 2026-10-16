@@ -1,0 +1,233 @@
+{
+  "toolchain": "1.99.0",
+  "environment": "Own CARGO_TARGET_DIR, CARGO_BUILD_JOBS=2; all commands niced. Test policies use an empty HOME with explicit Cargo/rustup homes; CI sets ESP32SIM_ROM_DIR to worktree web/wasm/fw; plain unsets it. WASM build sets RUSTUP_TOOLCHAIN=1.99.0.",
+  "checks": [
+    {
+      "check": "build",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "build",
+        "--release",
+        "--bin",
+        "esp32sim"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "clippy-native",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "clippy-wasm",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "clippy",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "esp32sim-wasm",
+        "--features",
+        "jit-tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "test-ci",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "test",
+        "--release",
+        "--workspace",
+        "--",
+        "--include-ignored",
+        "--skip",
+        "external_"
+      ],
+      "exit_code": 0,
+      "passed": 1003,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "test-plain",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "test",
+        "--release",
+        "--workspace"
+      ],
+      "exit_code": 0,
+      "passed": 975,
+      "failed": 0,
+      "ignored": 50
+    },
+    {
+      "check": "wasm-build",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "tools/wasm-build.sh"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-test",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "node",
+        "tools/wasm-test.mjs",
+        "hello",
+        "c3-hello",
+        "c6-hello",
+        "c6-energy-scan",
+        "c6-contiki",
+        "c6-contiki-net",
+        "c6-rpl-net",
+        "panel"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "fmt-workspace",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 1
+    },
+    {
+      "check": "fmt-new",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "rustfmt",
+        "+1.99.0",
+        "--edition",
+        "2021",
+        "--check",
+        "esp32/src/sleep.rs",
+        "esp32/tests/deep_sleep.rs"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "privacy",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "node",
+        "tools/check-evidence-privacy.mjs"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "codegen",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "python3",
+        "docs/evidence/classic-deep-sleep-ext0/codegen.py",
+        "BASE_BINARY",
+        "FIX_BINARY",
+        "OUTPUT_DIR/codegen"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "controls",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "python3",
+        "docs/evidence/classic-deep-sleep-ext0/controls.py",
+        "BASE_BINARY",
+        "FIX_BINARY",
+        "OUTPUT_DIR/controls"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "repro",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "python3",
+        "docs/evidence/classic-deep-sleep-ext0/repro.py",
+        "BASE_BINARY",
+        "FIX_BINARY",
+        "ROM_ELF",
+        "FIXTURE_DIR",
+        "BUTTON_SCRIPT",
+        "OUTPUT_DIR/reproduction"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "mutations": {
+    "compiled": 32,
+    "killed": 32,
+    "late_irq_reversion_failures": 8
+  },
+  "reviewer_probe": {
+    "passed": 1,
+    "before_instructions": 0,
+    "after_instructions": 0,
+    "interrupts": 0,
+    "pc": "0x40080000"
+  },
+  "formatting": {
+    "base_hunks": 4176,
+    "candidate_hunks": 4178,
+    "new_files": "PASS"
+  },
+  "privacy": "Pattern check PASS; manual review of changed source, text and structured evidence PASS. No production exports or raw private captures committed.",
+  "cpu_table": "PENDING; no benchmark run"
+}

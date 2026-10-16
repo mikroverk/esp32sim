@@ -581,8 +581,8 @@ impl Device for ClassicRtc {
         if off == 0x48 {
             self.0.ram.write(0x44, self.0.ram.read(0x44) & !v);
         } else if off == 0x38 {
-            // WAKEUP_CAUSE[10:0] is read-only; wake events are not modeled here.
-            self.0.ram.write(0x34, v & (0xfff << 11));
+            // WAKEUP_CAUSE[10:0] is read-only; EXT0 wake sets it in the bus.
+            self.0.ram.write(0x34, (v & (0xfff << 11)) | (self.0.ram.read(0x34) & 0x7ff));
         } else if off == 0x100 {
             // IDF v5.5.4 register/soc/rtc_cntl_reg.h:2017-2039: START bit 8,
             // FINISH bit 31, result +0x104. Completion is produced by the bus on START;

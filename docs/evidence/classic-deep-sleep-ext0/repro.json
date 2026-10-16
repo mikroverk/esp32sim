@@ -1,0 +1,172 @@
+{
+  "inputs": {
+    "esp32_rev300_rom.elf": {
+      "sha256": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31",
+      "bytes": 857500
+    },
+    "button-power.txt": {
+      "sha256": "5e2652d714334f9f9f168d6c1aa91dca02bf475513e156becb21764057f03302",
+      "bytes": 28
+    },
+    "firmware.bin": {
+      "sha256": "a9517b9068446721928bd8807995692789b2c1c7b49b5f231713b4116b4ac360",
+      "bytes": 372464
+    },
+    "firmware.elf": {
+      "sha256": "1adfbf4d062a7a45767e9f10f0e0e2de046e87c4bd53afcddef7af3bc7d1a64d",
+      "bytes": 9542844
+    },
+    "bootloader.bin": {
+      "sha256": "a227e3ab93f15f1155efb3144810cc06ff7a259e9bc9b4542417afcc6c238214",
+      "bytes": 23552
+    },
+    "partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    }
+  },
+  "results": [
+    {
+      "name": "base-2",
+      "cores": [
+        {
+          "core": 0,
+          "pc": "40084790",
+          "instructions": 39374924
+        },
+        {
+          "core": 1,
+          "pc": "40086b97",
+          "instructions": 125911570
+        }
+      ],
+      "registers": {
+        "3ff48018": "80000000",
+        "3ff48034": "00000041",
+        "3ff48038": "00000800"
+      },
+      "setup_entries": [
+        "[fn] i=704325 t=0.0621s c1 _Z5setupv(a2=0x1 a3=0x3 a4=0x1) ret=0x400da1b4"
+      ],
+      "resets": [
+        "rst:0x1 (POWERON_RESET)"
+      ],
+      "console_sha256": "3ada3fc5169125b19af8b487ebc34b639a3d3ae67933a5b63d1a5f0a51b9f0c6",
+      "binary_sha256": "9420dbed621a03db4167fa346be8319ea97f3b170914b56036045f1c7343afd2"
+    },
+    {
+      "name": "base-5",
+      "cores": [
+        {
+          "core": 0,
+          "pc": "40084790",
+          "instructions": 159374924
+        },
+        {
+          "core": 1,
+          "pc": "40086b97",
+          "instructions": 245911570
+        }
+      ],
+      "registers": {
+        "3ff48018": "80000000",
+        "3ff48034": "00000041",
+        "3ff48038": "00000800"
+      },
+      "setup_entries": [
+        "[fn] i=704325 t=0.0621s c1 _Z5setupv(a2=0x1 a3=0x3 a4=0x1) ret=0x400da1b4"
+      ],
+      "resets": [
+        "rst:0x1 (POWERON_RESET)"
+      ],
+      "console_sha256": "3ada3fc5169125b19af8b487ebc34b639a3d3ae67933a5b63d1a5f0a51b9f0c6",
+      "binary_sha256": "9420dbed621a03db4167fa346be8319ea97f3b170914b56036045f1c7343afd2"
+    },
+    {
+      "name": "fix-2",
+      "cores": [
+        {
+          "core": 0,
+          "pc": "40084795",
+          "instructions": 6972154
+        },
+        {
+          "core": 1,
+          "pc": "40086b91",
+          "instructions": 93508796
+        }
+      ],
+      "registers": {
+        "3ff48018": "80000000",
+        "3ff48034": "00000041",
+        "3ff48038": "00000800"
+      },
+      "setup_entries": [
+        "[fn] i=704325 t=0.0621s c1 _Z5setupv(a2=0x1 a3=0x3 a4=0x1) ret=0x400da1b4"
+      ],
+      "resets": [
+        "rst:0x1 (POWERON_RESET)"
+      ],
+      "console_sha256": "3ada3fc5169125b19af8b487ebc34b639a3d3ae67933a5b63d1a5f0a51b9f0c6",
+      "binary_sha256": "64dc2fb33483a1c264509028f5149f665d0096e39a9ebd137cd107fcb8f9a9f0"
+    },
+    {
+      "name": "fix-2.5",
+      "cores": [
+        {
+          "core": 0,
+          "pc": "40084795",
+          "instructions": 6972154
+        },
+        {
+          "core": 1,
+          "pc": "40086b91",
+          "instructions": 93508796
+        }
+      ],
+      "registers": {
+        "3ff48018": "80000000",
+        "3ff48034": "00000041",
+        "3ff48038": "00000800"
+      },
+      "setup_entries": [
+        "[fn] i=704325 t=0.0621s c1 _Z5setupv(a2=0x1 a3=0x3 a4=0x1) ret=0x400da1b4"
+      ],
+      "resets": [
+        "rst:0x1 (POWERON_RESET)"
+      ],
+      "console_sha256": "3ada3fc5169125b19af8b487ebc34b639a3d3ae67933a5b63d1a5f0a51b9f0c6",
+      "binary_sha256": "64dc2fb33483a1c264509028f5149f665d0096e39a9ebd137cd107fcb8f9a9f0"
+    },
+    {
+      "name": "fix-5",
+      "cores": [
+        {
+          "core": 0,
+          "pc": "40086036",
+          "instructions": 11241009
+        },
+        {
+          "core": 1,
+          "pc": "4000d01b",
+          "instructions": 430409204
+        }
+      ],
+      "registers": {
+        "3ff48018": "00000000",
+        "3ff48034": "00000145",
+        "3ff48038": "00000801"
+      },
+      "setup_entries": [
+        "[fn] i=704325 t=0.0621s c1 _Z5setupv(a2=0x1 a3=0x3 a4=0x1) ret=0x400da1b4",
+        "[fn] i=94213759 t=3.0123s c1 _Z5setupv(a2=0x1 a3=0x3 a4=0x1) ret=0x400da1b4"
+      ],
+      "resets": [
+        "rst:0x1 (POWERON_RESET)",
+        "rst:0x5 (DEEPSLEEP_RESET)"
+      ],
+      "console_sha256": "c60fe635358c7efc534b7af5b604ad5bd0bebf4341cfc736f46076a03c5f9cc9",
+      "binary_sha256": "64dc2fb33483a1c264509028f5149f665d0096e39a9ebd137cd107fcb8f9a9f0"
+    }
+  ]
+}
