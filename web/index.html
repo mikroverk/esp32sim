@@ -72,7 +72,7 @@
   nav { display: flex; align-items: center; gap: 22px; min-height: 64px; }
   .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; font-size: 19px; color: var(--ink); text-decoration: none; }
   .brand img { width: 34px; height: 34px; }
-  .links { display: flex; gap: 20px; margin-left: auto; font-size: 15px; }
+  .links { display: flex; align-items: center; gap: 20px; margin-left: auto; font-size: 15px; }
   .links a { color: var(--dim); text-decoration: none; }
   .links a:hover { color: var(--ink); }
   .links .gh { color: var(--ink); border: 1px solid var(--line-2); border-radius: 100px; padding: 6px 13px; }
@@ -89,12 +89,12 @@
   .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 26px; color: var(--dim); font: 13px/1.5 var(--mono); }
   .facts span::before { content: "◆"; color: var(--gold); margin-right: 7px; font-size: 10px; vertical-align: 1px; }
-  .stage { position: relative; display: grid; place-items: center; padding: 34px; border-radius: 26px; background: radial-gradient(circle at 50% 30%, #2b2f3a, var(--stage) 70%); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -30px rgba(23,26,36,.55); }
-  .device { display: block; width: min(400px, 100%); border-radius: 22px; border: 14px solid #262a33; box-shadow: 0 25px 50px rgba(0,0,0,.5), inset 0 0 0 1px #000; background: #000; }
+  .stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px 16px; padding: 34px; border-radius: 26px; background: radial-gradient(circle at 50% 30%, #2b2f3a, var(--stage) 70%); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -30px rgba(23,26,36,.55); }
+  .device { grid-column: 1 / -1; justify-self: center; display: block; width: min(400px, 100%); border-radius: 22px; border: 14px solid #262a33; box-shadow: 0 25px 50px rgba(0,0,0,.5), inset 0 0 0 1px #000; background: #000; }
   .device img { display: block; width: 100%; height: auto; border-radius: 9px; }
-  .stage .run { position: absolute; right: 22px; bottom: 22px; background: var(--gold); color: var(--ink); min-height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .stage .run { grid-column: 2; background: var(--gold); color: var(--ink); min-height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
   .stage .run:hover { background: #ffc43d; }
-  .stage figcaption { position: absolute; left: 22px; right: 140px; bottom: 22px; color: #aeb3c2; font: 12px/1.4 var(--mono); }
+  .stage figcaption { color: #aeb3c2; font: 12px/1.4 var(--mono); }
 
   /* ----- sections ----- */
   section { padding: 56px 0; }
@@ -106,11 +106,9 @@
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
   .card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; transition: transform .12s ease, box-shadow .12s ease; }
   .card:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -18px rgba(23,26,36,.4); }
-  .shot { display: grid; place-items: center; aspect-ratio: 4 / 3; background: radial-gradient(circle at 50% 40%, #2a2e39, var(--stage) 75%); padding: 18px; text-decoration: none; overflow: hidden; }
-  .shot img { max-width: 100%; max-height: 100%; border-radius: 8px; border: 6px solid #262a33; box-shadow: 0 14px 30px rgba(0,0,0,.45); background: #000; }
-  .shot img.wide { width: 100%; }
-  .shot img.tall { height: 100%; width: auto; }
-  .shot pre { margin: 0; width: 100%; height: 100%; overflow: hidden; color: #d5d9e3; background: var(--term); border-radius: 8px; border: 1px solid #2a2e39; padding: 12px 14px; font-size: 11.5px; line-height: 1.5; }
+  .shot { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; aspect-ratio: 4 / 3; background: radial-gradient(circle at 50% 40%, #2a2e39, var(--stage) 75%); padding: 18px; text-decoration: none; overflow: hidden; }
+  .shot img { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; border-radius: 8px; border: 6px solid #262a33; box-shadow: 0 14px 30px rgba(0,0,0,.45); background: #000; }
+    .shot pre { margin: 0; width: 100%; height: 100%; overflow: hidden; color: #d5d9e3; background: var(--term); border-radius: 8px; border: 1px solid #2a2e39; padding: 12px 14px; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   .shot pre b { color: #7ee2b8; font-weight: 600; }
   .shot pre i { color: #f2b21b; font-style: normal; }
   .shot .net { display: flex; align-items: center; gap: 12px; width: 100%; }
@@ -123,8 +121,8 @@
   .body p { color: var(--text-2); font-size: 14.5px; }
   .body .go { margin-top: auto; display: flex; flex-wrap: wrap; gap: 8px 16px; padding-top: 8px; font-size: 14px; }
   .body .go a:first-child { font-weight: 700; text-decoration: none; }
-  .body .go .src { color: var(--dim); }
-  .all { margin-top: 30px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .body .go .src { flex-basis: 100%; color: var(--dim); }
+  .all { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
   .all h3 { font-size: 13px; color: var(--dim); font-family: var(--mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
   .all ul { list-style: none; margin: 0; padding: 0; }
   .all li { padding: 7px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
@@ -406,10 +404,10 @@ function toggleTheme() {
 }
 // The complete demo list, from the same catalogue the emulator page uses, grouped by chip.
 fetch('wasm/fw/demos.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(demos => {
-  const groups = { s3: ['ESP32-S3', []], c3: ['ESP32-C3', []], c6: ['ESP32-C6', []] };
+  const groups = { esp32: ['ESP32', []], s3: ['ESP32-S3', []], c3: ['ESP32-C3', []], c6: ['ESP32-C6', []] };
   let parent = null;
   for (const d of demos) {
-    const chip = /^c3-/.test(d.fw) ? 'c3' : /^c6-/.test(d.fw) ? 'c6' : 's3';
+    const chip = /^c3-/.test(d.fw) ? 'c3' : /^c6-/.test(d.fw) ? 'c6' : /^(tdisplay|classic)-/.test(d.fw) ? 'esp32' : 's3';
     const cont = d.title.startsWith('…');
     const li = document.createElement('li');
     const a = document.createElement('a'); a.href = 'run.html?wasm&fw=' + encodeURIComponent(d.fw); a.title = d.note || '';
