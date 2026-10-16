@@ -1,0 +1,72 @@
+{
+  "inputs": {
+    "esp32_rev300_rom.elf": {
+      "sha256": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31",
+      "bytes": 857500
+    },
+    "button-power.txt": {
+      "sha256": "5e2652d714334f9f9f168d6c1aa91dca02bf475513e156becb21764057f03302",
+      "bytes": 28
+    },
+    "firmware.bin": {
+      "sha256": "a9517b9068446721928bd8807995692789b2c1c7b49b5f231713b4116b4ac360",
+      "bytes": 372464
+    },
+    "firmware.elf": {
+      "sha256": "1adfbf4d062a7a45767e9f10f0e0e2de046e87c4bd53afcddef7af3bc7d1a64d",
+      "bytes": 9542844
+    },
+    "bootloader.bin": {
+      "sha256": "a227e3ab93f15f1155efb3144810cc06ff7a259e9bc9b4542417afcc6c238214",
+      "bytes": 23552
+    },
+    "partitions.bin": {
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "bytes": 3072
+    }
+  },
+  "results": [
+    {
+      "name": "main-5s",
+      "registers": {
+        "3ff48100": "7ff00100",
+        "3ff48104": "00000000",
+        "3ff48018": "00000000",
+        "3ff48040": "00000000"
+      },
+      "pcs": [
+        "core0: pc=40084790 esp_ipc_isr_waiting_for_finish_cmd  ps=00000025 wb=3 ws=800a sar=25 lcount=0 exccause=4 excvaddr=00000000 epc1=400f9d24 intenable=8400006e interrupt=00000040 ccount=433139569 insns=159374924",
+        "core1: pc=400081ac cacl_rtc_memory_crc$constprop$0+0x3c  ps=00060d23 wb=3 ws=a80a sar=15 lcount=0 exccause=4 excvaddr=00000000 epc1=400e19d3 intenable=84000042 interrupt=00000040 ccount=423908203 insns=245911570"
+      ],
+      "binary_sha256": "48105b1549d985ad93621d206bcf0ae95bd691a21e289343caf5284b89283c8b"
+    },
+    {
+      "name": "fix-2s",
+      "registers": {
+        "3ff48100": "7ff00000",
+        "3ff48104": "064fb977",
+        "3ff48018": "80000000",
+        "3ff48040": "00000000"
+      },
+      "pcs": [
+        "core0: pc=40084790 esp_ipc_isr_waiting_for_finish_cmd  ps=00000025 wb=3 ws=800a sar=25 lcount=0 exccause=4 excvaddr=00000000 epc1=400f9d24 intenable=8400006e interrupt=00000040 ccount=313139569 insns=39374924",
+        "core1: pc=40086b97 rtc_sleep_start+0x83  ps=00060d23 wb=3 ws=a80a sar=15 lcount=0 exccause=4 excvaddr=00000000 epc1=400e19d3 intenable=84000042 interrupt=00000040 ccount=303908203 insns=125911570"
+      ],
+      "binary_sha256": "5370eaac76bf4462fa6ca19894a804e1b314735d694eee280a9ae42e18c048ae"
+    },
+    {
+      "name": "fix-5s",
+      "registers": {
+        "3ff48100": "7ff00000",
+        "3ff48104": "064fb977",
+        "3ff48018": "80000000",
+        "3ff48040": "00000000"
+      },
+      "pcs": [
+        "core0: pc=40084790 esp_ipc_isr_waiting_for_finish_cmd  ps=00000025 wb=3 ws=800a sar=25 lcount=0 exccause=4 excvaddr=00000000 epc1=400f9d24 intenable=8400006e interrupt=00000040 ccount=433139569 insns=159374924",
+        "core1: pc=40086b97 rtc_sleep_start+0x83  ps=00060d23 wb=3 ws=a80a sar=15 lcount=0 exccause=4 excvaddr=00000000 epc1=400e19d3 intenable=84000042 interrupt=00000040 ccount=423908203 insns=245911570"
+      ],
+      "binary_sha256": "5370eaac76bf4462fa6ca19894a804e1b314735d694eee280a9ae42e18c048ae"
+    }
+  ]
+}
