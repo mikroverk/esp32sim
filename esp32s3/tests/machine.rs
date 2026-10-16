@@ -378,6 +378,45 @@ fn reboot_keeps_what_silicon_keeps() {
     assert!(!m.dump_regs().contains("core1:"), "core 1 is back in reset");
 }
 
+/// The PSRAM array size sets MR2's density (ESP-IDF sizes the octal PSRAM from
+/// it alone), in the bus constructor and in `set_psram_size`; 2 MB (quad PSRAM) has no octal code
+/// and keeps the reset value.
+#[test]
+fn psram_size_sets_the_mr2_density() {
+    let mut m = machine();
+    assert_eq!(m.bus.periph.spi1.psram_mr[2], 0x8b, "the default 2 MB array: MR2 unchanged");
+    esp_soc::SocBus::set_psram_size(&mut m.bus, 16 << 20).unwrap();
+    assert_eq!((m.bus.psram.len(), m.bus.periph.spi0.psram_mr[2], m.bus.periph.spi1.psram_mr[2]), (16 << 20, 0x8d, 0x8d));
+    esp_soc::SocBus::set_psram_size(&mut m.bus, 8 << 20).unwrap();
+    assert_eq!(m.bus.periph.spi1.psram_mr[2], 0x8b, "64 Mbit again");
+    let bus = esp32s3::bus::SocBus::new(8 << 20, 32 << 20, [0; 6]);
+    assert_eq!(bus.periph.spi1.psram_mr[2], 0x8f, "the constructor's size: 256 Mbit");
+}
+
+/// An octal flash module. The JEDEC ID is Macronix octal with the capacity
+/// plus 0x20 (also when the size changes afterwards), efuse FLASH_TYPE says octal, and a chip reset
+/// keeps the flash's protocol (the ROM resets it) and the PSRAM's MR2 (read-only).
+#[test]
+fn octal_flash_module_survives_a_reboot() {
+    let mut m = machine();
+    m.bus.set_flash_octal(true);
+    esp_soc::SocBus::set_flash_size(&mut m.bus, 32 << 20);
+    esp_soc::SocBus::set_psram_size(&mut m.bus, 16 << 20).unwrap();
+    assert_eq!((m.bus.periph.spi0.jedec, m.bus.periph.spi1.jedec), ([0xc2, 0x80, 0x39], [0xc2, 0x80, 0x39]));
+    assert_eq!(m.bus.periph.efuse.ram.read(0x3c) & (1 << 9), 1 << 9, "EFUSE_FLASH_TYPE: octal");
+    m.bus.periph.spi1.flash_cr2 = 2;
+    m.bus.periph.rtc.reset_cause = esp_periph::RST_SW_CPU;
+    m.reboot();
+    let p = &m.bus.periph;
+    assert!(p.spi0.octal_flash && p.spi1.octal_flash);
+    assert_eq!(p.spi1.flash_cr2, 2, "still in DTR OPI: the flash is not reset with the chip");
+    assert_eq!(p.spi1.jedec, [0xc2, 0x80, 0x39]);
+    assert_eq!((p.spi0.psram_mr[2], p.spi1.psram_mr[2]), (0x8d, 0x8d), "the PSRAM keeps its density, or ESP-IDF maps half of it after a restart");
+    assert_eq!(p.efuse.ram.read(0x3c) & (1 << 9), 1 << 9);
+    m.bus.set_flash_octal(false);
+    assert_eq!((m.bus.periph.spi1.jedec, m.bus.periph.efuse.ram.read(0x3c) & (1 << 9)), ([0x20, 0x40, 0x19], 0), "back to quad");
+}
+
 /// Host touch keeps its intended board-edge timestamp and is applied at the fast scheduler's next
 /// existing bus tick, which is bounded by one instruction quantum.
 #[test]

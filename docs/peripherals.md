@@ -11,8 +11,8 @@ ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte 
 | Interrupt matrix (per core) | 0x600C2000 | full | source→line mapping for both cores, level lookup |
 | System / sensitive / APB_CTRL | 0x600C0000… | partial | core-1 release/reset, cache enables, clock regs as stubs |
 | Cache MMU | 0x600C5000 | full | 512 entries, flash and PSRAM pages, invalid entries fault |
-| SPI0/SPI1 (flash controller) | 0x60002000/3000 | full | user commands, JEDEC (size follows `--flash-mb`), read/program/erase, status/QE |
-| Octal PSRAM (on SPI1 CS1) | — | full | mode registers MR0–MR8, sync read/write, `--psram-mb` |
+| SPI0/SPI1 (flash controller) | 0x60002000/3000 | full | user commands, JEDEC (size follows `--flash-mb`), read/program/erase, status/QE; `--flash-octal`: a Macronix octal flash, SPI / STR OPI / DTR OPI by its CR2, 16-bit commands |
+| Octal PSRAM (on SPI1 CS1) | — | full | mode registers MR0–MR8 (MR2 density from `--psram-mb`), sync read/write, `--psram-mb` |
 | efuse | 0x60007000 | partial | MAC, chip revision, defaults; `--efuse-regs` loads a dump |
 | RTC_CNTL | 0x60008000 | partial | reset cause, slow-clock time, SW resets, RTC watchdog reset stages, feed and write protection; watchdog interrupt raw status is set but not routed to the CPU ([model](../esp-periph/src/rtc_cntl.rs)) |
 | systimer | 0x60023000 | full | 2 units, 3 targets, one-shot/periodic |

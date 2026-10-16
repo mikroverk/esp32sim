@@ -164,6 +164,10 @@ impl esp_soc::SocBus for SocBus {
         p.gpio.strap = old.gpio.strap;
         p.misc.log_unknown = old.misc.log_unknown;
         p.spi0.jedec = old.spi0.jedec; p.spi1.jedec = old.spi1.jedec;   // the flash chip is not reset: its ID keeps the --flash-mb capacity
+        // Nor is the octal flash (it stays in its OPI mode until the ROM
+        // resets it) or the PSRAM (MR2 is read-only and keeps its density).
+        p.spi0.octal_flash = old.spi0.octal_flash; p.spi1.octal_flash = old.spi1.octal_flash; p.spi1.flash_cr2 = old.spi1.flash_cr2;
+        p.spi0.psram_mr[2] = old.spi0.psram_mr[2]; p.spi1.psram_mr[2] = old.spi1.psram_mr[2];
         p.rtc.ram = old.rtc.ram; p.rtc.slow_ticks = old.rtc.slow_ticks;
         p.rtc.ram.write(0x38, cause | (cause << 6));
         p.rtc.ram.write(0x98, 0);                       // watchdog disarmed by the reset; the ROM re-arms it
@@ -218,10 +222,17 @@ impl esp_soc::SocBus for SocBus {
     }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
-        let cap = bytes.trailing_zeros() as u8; self.periph.spi1.jedec[2] = cap; self.periph.spi0.jedec[2] = cap;
+        let cap = esp_periph::flash_jedec(self.periph.spi1.octal_flash, bytes)[2]; self.periph.spi1.jedec[2] = cap; self.periph.spi0.jedec[2] = cap;   // octal capacity codes
         self.rebuild_page_table();
     }
-    fn set_psram_size(&mut self, bytes: usize) -> Result<(), String> { self.psram = vec![0; bytes]; self.rebuild_page_table(); Ok(()) }
+    /// The array, and the octal PSRAM's MR2 density with it (ESP-IDF sizes the
+    /// PSRAM from MR2 alone).
+    fn set_psram_size(&mut self, bytes: usize) -> Result<(), String> {
+        self.psram = vec![0; bytes];
+        self.periph.spi0.set_psram_size(bytes); self.periph.spi1.set_psram_size(bytes);
+        self.rebuild_page_table();
+        Ok(())
+    }
     fn set_strap(&mut self, v: u32) { self.periph.gpio.strap = v; }
     fn set_reset_cause(&mut self, c: u32) { self.periph.rtc.ram.write(0x38, c | (c << 6)); }
     fn report(&self) -> String {

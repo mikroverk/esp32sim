@@ -46,7 +46,7 @@ pub use mcpwm::Mcpwm;
 pub use rtc_cntl::{reset_cause_name, RtcCntl, RST_POWERON, RST_RTCWDT_CPU, RST_RTCWDT_RTC, RST_RTCWDT_SYS, RST_SW_CPU, RST_SW_SYS};
 pub use efuse::Efuse;
 pub use system::SystemRegs;
-pub use spi_mem::{DirtyMem, SpiMem};
+pub use spi_mem::{flash_jedec, opi_psram_density, DirtyMem, SpiMem};
 pub use sha::Sha;
 pub use aes::Aes;
 pub use rsa::Rsa;

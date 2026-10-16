@@ -1,0 +1,29 @@
+{
+  "base": "upstream main f5a038bf917ccb9787714dc1d20c7ae33482337c",
+  "toolchain": "Rust 1.99.0 (b940084d7 2026-09-28), cargo +1.99.0 build --release; Windows 11 (10.0.26200), x86_64",
+  "mask_roms": {
+    "source": "tools/fetch-rom-elfs.sh roms (espressif/esp-rom-elfs, pinned by SHA-256 in the script)",
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+  },
+  "firmware": {
+    "sketch": "octal-probe.ino (this directory)",
+    "build": "arduino-cli 1.5.1, Arduino-ESP32 core 3.3.12 (its arduino-lib-builder 6671d0b on ESP-IDF v5.5.5, from the image's esp_app_desc_t)",
+    "fqbn": "esp32:esp32:esp32s3:FlashMode=opi,PSRAM=opi,FlashSize=16M and FlashSize=32M",
+    "images": {
+      "octal16.bin": { "bytes": 280784, "sha256": "e8201d210af5a4f1c5778333538cc5119ed93ada7d8db416703df5ff7959312b" },
+      "octal16.bootloader.bin": { "bytes": 18720, "sha256": "982f09dc79ba24a24f44cd509a1aedc990d97d41e4450f94b9ef0f4520ad0d8a" },
+      "octal16.partitions.bin": { "bytes": 3072, "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1" },
+      "octal32.bin": { "bytes": 280784, "sha256": "58d0ffc90be88910e2aee49d73c1818dc0105851d998ab515645b332ad6e526b" },
+      "octal32.bootloader.bin": { "bytes": 18720, "sha256": "a4d9370d28df2075f650a027faa122eb0ea8e141a95710756c85ae577c769324" },
+      "octal32.partitions.bin": { "bytes": 3072, "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1" }
+    },
+    "not_committed": "The images are plain Arduino builds of the sketch with the options above; they are not added to the repository."
+  },
+  "runs": {
+    "octal16": "esp32sim --rom roms/esp32s3_rev0_rom.elf --boot rom --board none --flash-mb 16 --psram-mb 8 --flash-octal --bootloader octal16.bootloader.bin --ptable octal16.partitions.bin --app octal16.bin --console uart0 --max-seconds 40 --no-dump",
+    "octal32": "esp32sim --rom roms/esp32s3_rev0_rom.elf --boot rom --board none --flash-mb 32 --psram-mb 16 --flash-octal --bootloader octal32.bootloader.bin --ptable octal32.partitions.bin --app octal32.bin --console uart0 --max-seconds 40 --no-dump",
+    "control": "the octal16 image on the quad flash model (the same command without --flash-octal)"
+  }
+}
