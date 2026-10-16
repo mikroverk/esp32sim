@@ -107,7 +107,7 @@
   .card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; transition: transform .12s ease, box-shadow .12s ease; }
   .card:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -18px rgba(23,26,36,.4); }
   .shot { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; aspect-ratio: 4 / 3; background: radial-gradient(circle at 50% 40%, #2a2e39, var(--stage) 75%); padding: 18px; text-decoration: none; overflow: hidden; }
-  .shot img { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; border-radius: 8px; border: 6px solid #262a33; box-shadow: 0 14px 30px rgba(0,0,0,.45); background: #000; }
+  .shot img { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; border: 6px solid #262a33; box-shadow: 0 14px 30px rgba(0,0,0,.45); background: #000; }
     .shot pre { margin: 0; width: 100%; height: 100%; overflow: hidden; color: #d5d9e3; background: var(--term); border-radius: 8px; border: 1px solid #2a2e39; padding: 12px 14px; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   .shot pre b { color: #7ee2b8; font-weight: 600; }
   .shot pre i { color: #f2b21b; font-style: normal; }
