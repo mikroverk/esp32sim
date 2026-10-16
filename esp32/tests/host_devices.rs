@@ -239,6 +239,7 @@ fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
         b.attach_pcm_sources().unwrap().inputs.push(Some(second));
         b.i2s_input(port).unwrap().push(&[[33, 44]]);
         b.reboot([0; 6]);
+        assert_eq!(b.periph.i2s[port].inner.rx_source(), None);
         assert_eq!(b.pcm_sources().unwrap().inputs[0].as_ref().unwrap().queued_frames(), 16);
         tick_reference(&mut b, 30_000);
         // The read-only view does not advance source time; attaching synchronizes it.
@@ -252,6 +253,7 @@ fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
         receiver(&mut b, port, 4, 0x3ffb_0200);
         tick_reference(&mut b, 30_000);
         assert_eq!(b.read32(0x3ffb_0200), Ok(11 | 22 << 16));
+        assert_eq!(b.periph.i2s[port].inner.rx_source(), Some(0));
         // A route that matches no slot reads the per-controller queue (#202's fallback): its
         // one queued frame, then silence once drained.
         for (address, value, expected) in [
@@ -264,6 +266,7 @@ fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
             receiver(&mut b, port, 4, 0x3ffb_0200);
             tick_reference(&mut b, 30_000);
             assert_eq!(b.read32(0x3ffb_0200), Ok(expected), "signal register {address:#x}");
+            assert_eq!(b.periph.i2s[port].inner.rx_source(), None);
             b.write32(address, old).unwrap();
         }
         // Matched wiring again: the second slot is selected once the first is emptied.
@@ -271,6 +274,9 @@ fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
         receiver(&mut b, port, 4, 0x3ffb_0200);
         tick_reference(&mut b, 30_000);
         assert_eq!(b.read32(0x3ffb_0200), Ok(55 | 66 << 16));
+        assert_eq!(b.periph.i2s[port].inner.rx_source(), Some(1));
+        b.reboot([0; 6]);
+        assert_eq!(b.periph.i2s[port].inner.rx_source(), None);
     }
 }
 

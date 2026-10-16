@@ -19,9 +19,20 @@ pub(super) struct RxState {
     acc: u64,
     buffer: Vec<u8>,
     sources: Option<Box<PcmSources>>,
+    // Slot + 1, zero for controller input. A plain integer adds no validity niche
+    // that could change the layout of the hot I2s receiver pointer.
+    selected_source: usize,
 }
 
 impl I2s {
+    /// Routed source slot chosen by the last receive interval, while RX is enabled.
+    /// None before reception, after reset, or for per-controller input. This does not
+    /// imply DMA progress or queued audio: a selected source may underrun. Inspection
+    /// never allocates, advances source time, or re-evaluates GPIO routes; route/source
+    /// changes become visible at the next receive interval.
+    pub fn rx_source(&self) -> Option<usize> {
+        self.rx.as_ref().and_then(|rx| rx.selected_source.checked_sub(1)).filter(|_| self.rx_running())
+    }
     #[inline(always)]
     pub fn rx_running(&self) -> bool {
         self.rx_conf & 4 != 0
@@ -51,6 +62,7 @@ impl I2s {
     pub fn keep_rx_input(&mut self, old: &mut I2s) {
         self.rx = old.rx.take().map(|mut rx| {
             rx.acc = 0;
+            rx.selected_source = 0;
             rx
         });
     }
@@ -63,6 +75,7 @@ impl I2s {
     pub(super) fn reset_rx_phase(&mut self) {
         if let Some(rx) = &mut self.rx {
             rx.acc = 0;
+            rx.selected_source = 0;
         }
     }
     /// Standard I2S frame rate, or S3 PDM-to-PCM output rate. No external slave clock.
@@ -92,12 +105,15 @@ impl I2s {
     /// Raw PDM, TDM >2 slots, slave clocks, endian/bit-order/companding modes do not advance.
     pub fn receive(&mut self, cycles: u64, now: u64, pdm2pcm: bool,
         gpio: &crate::Gpio, signals: super::RxSignals, sources: Option<&mut super::PcmSources>) -> Vec<u8> {
+        if let Some(rx) = &mut self.rx { rx.selected_source = 0; }
         let cpu_hz = self.cpu_hz;
         if let Some(sources) = sources {
             sources.advance_to(now.saturating_sub(cycles), cpu_hz);
             let selected = if sources.active() { sources.select(gpio, signals, self.rx_conf & (1 << 20) != 0) } else { None };
             if let Some(id) = selected {
-                return self.rx_data(cycles, pdm2pcm, |offset| sources.sample(id, offset, cpu_hz));
+                let bytes = self.rx_data(cycles, pdm2pcm, |offset| sources.sample(id, offset, cpu_hz));
+                if let Some(rx) = &mut self.rx { rx.selected_source = id + 1; }
+                return bytes;
             }
         }
         // No bank, or no slot wired to this controller: per-controller input (`--i2s-tone`, pushes).
@@ -253,11 +269,13 @@ mod tests {
     fn idle_and_unsupported_receivers_allocate_nothing() {
         let mut i = I2s::new(160_000_000);
         i.write(0x24, 4);
+        assert_eq!(i.rx_source(), None);
         i.write(0x20, 4 | (1 << 3));
         assert!(i.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None).is_empty());
         i.write(0x20, 1);
         i.recycle_rx_buffer(Vec::with_capacity(8));
         assert!(i.rx.is_none());
+        assert_eq!(i.rx_source(), None);
         let mut r = receiver();
         assert!(r.rx.is_none());
         assert_eq!(r.receive(20000, 20000, true, &crate::Gpio::new(), SIG, None), [0; 4]);

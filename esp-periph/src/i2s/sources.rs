@@ -177,13 +177,118 @@ mod tests {
         rx.rx_input().push(&[[12, 34]]);
         // A matched source that underruns is silent; the controller input stays queued.
         assert_eq!(rx.receive(20000, 20000, false, &gpio, signals, Some(&mut sources)), [0; 4]);
+        assert_eq!(rx.rx_source(), Some(15));
         sources.inputs[15] = None;
         assert_eq!(rx.receive(20000, 40000, false, &gpio, signals, Some(&mut sources)), [12, 0, 34, 0]);
+        assert_eq!(rx.rx_source(), None);
         rx.rx_input().tone(1000.0, 1.0).unwrap();
         sources.inputs[3] = Some(PcmSource::new(8000, PcmPins::I2s { bclk: 7, ws: 8, data: 9 }).unwrap());
         let tone: Vec<_> = (0..3).flat_map(|n| rx.receive(20000, 60000 + 20000 * n, false, &gpio, signals, Some(&mut sources))).collect();
         assert_eq!(tone, [0, 0, 0, 0, 0x82, 0x5a, 0x82, 0x5a, 0xff, 0x7f, 0xff, 0x7f]);
 
+    }
+
+    #[test]
+    fn selected_source_query_tracks_ports_routes_stop_reset_and_legacy() {
+        use crate::i2s::I2s;
+        let sig = [
+            RxSignals { data: 25, clock: [26, 27], input_select_bit: 7, output_mask: 0x3ff },
+            RxSignals { data: 30, clock: [31, 32], input_select_bit: 7, output_mask: 0x3ff },
+        ];
+        let mut bank = PcmSources::default();
+        bank.inputs.resize_with(16, || None);
+        for (id, bclk, ws, data, sample) in [(15, 4, 5, 6, 123i16), (2, 7, 8, 9, -321)] {
+            let mut source = PcmSource::new(8000, PcmPins::I2s { bclk, ws, data }).unwrap();
+            source.push(&[[sample; 2]; 4]);
+            bank.inputs[id] = Some(source);
+        }
+        let mut gpio = Gpio::new();
+        gpio.func_in_sel[25] = 6 | (1 << 7);
+        gpio.func_out_sel[4] = 26;
+        gpio.func_out_sel[5] = 27;
+        gpio.func_in_sel[30] = 9 | (1 << 7);
+        gpio.func_out_sel[7] = 31;
+        gpio.func_out_sel[8] = 32;
+        let mut ports = [I2s::new(160_000_000), I2s::new(160_000_000)];
+        for (port, signals) in ports.iter_mut().zip(sig) {
+            assert_eq!(port.rx_source(), None);
+            port.write(0x30, (1 << 26) | (2 << 27) | 25);
+            port.write(0x28, (24 << 7) | (15 << 13) | (15 << 18));
+            port.write(0x50, (1 << 16) | 3);
+            port.write(0x20, 4);
+            let sample: i16 = if signals.data == 25 { 123 } else { -321 };
+            let expected: Vec<_> = [sample; 2].into_iter().flat_map(i16::to_le_bytes).collect();
+            assert_eq!(port.rx_rate(), Some(8000));
+            assert_eq!(port.receive(20000, 20000, false, &gpio, signals, Some(&mut bank)), expected);
+        }
+        assert_eq!([ports[0].rx_source(), ports[1].rx_source()], [Some(15), Some(2)]);
+        let before = (bank.now, bank.inputs[15].as_ref().unwrap().queued_frames());
+        for _ in 0..3 { assert_eq!(ports[0].rx_source(), Some(15)); }
+        assert_eq!((bank.now, bank.inputs[15].as_ref().unwrap().queued_frames()), before);
+        // Inspection is last-interval attribution, not a new route poll.
+        gpio.func_in_sel[25] = 9 | (1 << 7);
+        gpio.func_out_sel[7] = 26;
+        gpio.func_out_sel[8] = 27;
+        assert_eq!(ports[0].rx_source(), Some(15));
+        ports[0].receive(0, 20000, false, &gpio, sig[0], Some(&mut bank));
+        assert_eq!(ports[0].rx_source(), Some(2));
+        ports[1].receive(0, 20000, false, &gpio, sig[1], Some(&mut bank));
+        assert_eq!(ports[1].rx_source(), None); // clocks moved to port 0
+        gpio.func_out_sel[8] ^= 1 << 9; // inversion is part of routing
+        ports[0].receive(0, 20000, false, &gpio, sig[0], Some(&mut bank));
+        assert_eq!(ports[0].rx_source(), None);
+        gpio.func_out_sel[8] ^= 1 << 9;
+        ports[0].receive(0, 20000, false, &gpio, sig[0], Some(&mut bank));
+        assert_eq!(ports[0].rx_source(), Some(2));
+        ports[0].write(0x20, 0);
+        assert_eq!(ports[0].rx_source(), None);
+        ports[0].write(0x20, 1);
+        ports[0].write(0x20, 4);
+        assert_eq!(ports[0].rx_source(), None);
+        ports[0].receive(0, 20000, false, &gpio, sig[0], Some(&mut bank));
+        let mut rebuilt = I2s::new(160_000_000);
+        rebuilt.keep_rx_input(&mut ports[0]);
+        rebuilt.write(0x20, 4);
+        assert_eq!(rebuilt.rx_source(), None);
+        assert_eq!(ports[0].rx_source(), None);
+        ports[1].receive(0, 20000, false, &gpio, sig[0], Some(&mut bank));
+        assert_eq!(ports[1].rx_source(), Some(2));
+        ports[1].receive(0, 20000, false, &gpio, sig[0], None);
+        assert_eq!(ports[1].rx_source(), None);
+        bank.inputs[2] = None;
+        ports[1].receive(0, 20000, false, &gpio, sig[0], Some(&mut bank));
+        assert_eq!(ports[1].rx_source(), None);
+    }
+
+    #[test]
+    fn selected_pdm_source_uses_ws_clock_and_query_does_not_attach_state() {
+        use crate::i2s::I2s;
+        let signals = RxSignals { data: 15, clock: [16, 17], input_select_bit: 6, output_mask: 0x1ff };
+        let mut bank = PcmSources::default();
+        bank.inputs.resize_with(16, || None);
+        let mut source = PcmSource::new(8000, PcmPins::Pdm { clk: 4, data: 6 }).unwrap();
+        source.push(&[[11, 22]]);
+        bank.inputs[15] = Some(source);
+        let mut gpio = Gpio::new();
+        gpio.func_in_sel[15] = 6 | (1 << 6);
+        gpio.func_out_sel[4] = 17;
+        let mut rx = I2s::new(160_000_000);
+        assert_eq!(rx.rx_source(), None);
+        assert!(rx.pcm_bank_ref().is_none());
+        // A routed but disabled receiver must not allocate or attribute a source.
+        assert!(rx.receive(0, 0, true, &gpio, signals, Some(&mut bank)).is_empty());
+        assert_eq!(rx.rx_source(), None);
+        assert!(rx.rx.is_none());
+        rx.write(0x30, (1 << 26) | (2 << 27) | 25);
+        rx.write(0x28, (24 << 7) | (15 << 13));
+        rx.write(0x50, 3);
+        rx.write(0x20, 4 | (1 << 20) | (1 << 21));
+        assert_eq!(rx.rx_rate(), Some(4000));
+        assert_eq!(rx.receive(40000, 40000, true, &gpio, signals, Some(&mut bank)), [0; 4]);
+        assert_eq!(rx.rx_source(), Some(15));
+        gpio.func_out_sel[4] = 16; // TX-like BCLK instead of RX WS/PDM clock
+        rx.receive(0, 40000, true, &gpio, signals, Some(&mut bank));
+        assert_eq!(rx.rx_source(), None);
     }
 
     #[test]

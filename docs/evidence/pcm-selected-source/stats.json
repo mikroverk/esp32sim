@@ -1,0 +1,203 @@
+{
+  "base": "0730659d2e082949c1761c28ef59b0e1ea6268ad",
+  "source_sha256": {
+    "esp-periph/src/i2s/rx.rs": "d016bf7574f35730dc42bd83584b9f89f21b6594e2d0d510c61d3c17744fa26c",
+    "esp-periph/src/i2s/sources.rs": "95e6d14a673583a74fc4cf3e708653806791967cb5af25e57afe2c2b87391f3d",
+    "cli/tests/pcm_sources.rs": "2bf3cf67c89a7405f0fe013291dd99f0252a4386b4da6a1e2d514d8cd11ffe00",
+    "esp32/tests/host_devices.rs": "7050cbe3d50b4a53d8be4a748f69c54bfa97c6e51189cb60b4a501a3313e24b4"
+  },
+  "test_counts": {
+    "ci-tests": {
+      "passed": 976,
+      "failed": 0,
+      "ignored": 0,
+      "result_rows": 97
+    },
+    "plain-tests": {
+      "passed": 948,
+      "failed": 0,
+      "ignored": 47,
+      "result_rows": 97
+    }
+  },
+  "mutations": [
+    {
+      "mutation": "omit-selected-slot",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "stale-legacy-or-unmatched",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "ignore-stopped-rx",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "retain-peripheral-reset-slot",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "retain-chip-reset-slot",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "wrong-selected-id",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "prefer-last-source",
+      "test": "lowest_matching_source_wins_and_unmatched_receivers_keep_controller_input",
+      "exit_code": 101,
+      "killed": true
+    },
+    {
+      "mutation": "ignore-clock-inversion",
+      "test": "selected_source_query_tracks_ports_routes_stop_reset_and_legacy",
+      "exit_code": 101,
+      "killed": true
+    }
+  ],
+  "disassembly": [
+    {
+      "binary": "esp32sim",
+      "summary": "identical=2206 different=8 only_main=0 only_branch=0",
+      "differences": [
+        "DIFF    172    173  <esp32::i2s::ClassicI2s as esp_periph::device::Device>::write",
+        "DIFF    221    218  <esp_periph::i2s::I2s as esp_periph::device::Device>::write",
+        "DIFF     53     54  <esp_periph::i2s::I2s>::keep_rx_input",
+        "DIFF   1050   1059  <esp_periph::i2s::I2s>::receive",
+        "DIFF   7207   7207  esp32sim::prepare::<esp32::soc::Esp32>",
+        "DIFF   7391   7391  esp32sim::prepare::<esp32c3::soc::C3>",
+        "DIFF   8144   8144  esp32sim::prepare::<esp32c6::soc::C6>",
+        "DIFF   7194   7194  esp32sim::prepare::<esp32s3::soc::S3>"
+      ]
+    },
+    {
+      "binary": "esp32sim-c3",
+      "summary": "identical=2206 different=8 only_main=0 only_branch=0",
+      "differences": [
+        "DIFF    172    173  <esp32::i2s::ClassicI2s as esp_periph::device::Device>::write",
+        "DIFF    221    218  <esp_periph::i2s::I2s as esp_periph::device::Device>::write",
+        "DIFF     53     54  <esp_periph::i2s::I2s>::keep_rx_input",
+        "DIFF   1050   1059  <esp_periph::i2s::I2s>::receive",
+        "DIFF   7207   7207  esp32sim::prepare::<esp32::soc::Esp32>",
+        "DIFF   7391   7391  esp32sim::prepare::<esp32c3::soc::C3>",
+        "DIFF   8144   8144  esp32sim::prepare::<esp32c6::soc::C6>",
+        "DIFF   7194   7194  esp32sim::prepare::<esp32s3::soc::S3>"
+      ]
+    },
+    {
+      "binary": "esp32sim-c6",
+      "summary": "identical=2206 different=8 only_main=0 only_branch=0",
+      "differences": [
+        "DIFF    172    173  <esp32::i2s::ClassicI2s as esp_periph::device::Device>::write",
+        "DIFF    221    218  <esp_periph::i2s::I2s as esp_periph::device::Device>::write",
+        "DIFF     53     54  <esp_periph::i2s::I2s>::keep_rx_input",
+        "DIFF   1050   1059  <esp_periph::i2s::I2s>::receive",
+        "DIFF   7207   7207  esp32sim::prepare::<esp32::soc::Esp32>",
+        "DIFF   7391   7391  esp32sim::prepare::<esp32c3::soc::C3>",
+        "DIFF   8144   8144  esp32sim::prepare::<esp32c6::soc::C6>",
+        "DIFF   7194   7194  esp32sim::prepare::<esp32s3::soc::S3>"
+      ]
+    }
+  ],
+  "artifact_sha256": {
+    "target/esp32sim": "a4c833820d439e369169d950d4df1d4401610b9ad57036aebb56408b1277e7dc",
+    "target/esp32sim-c3": "f7d78df471ad28b73e8cb2699998227c13bb15365d7c64fa4bd5cfc0ff3934d5",
+    "target/esp32sim-c6": "04ad53d3f416e4ab9179d6d29006be50088d36d18201f9db97a91f6a33dee50e",
+    "base-target/esp32sim": "3165b5ca5d2e890a5e364932a3f64fcb9af51aa6282c8d9d590d43c390e85f56",
+    "base-target/esp32sim-c3": "3d16f5a324cbd3ebe912d8b80d927519dd414cee7e92831d4cee0193caaa1374",
+    "base-target/esp32sim-c6": "46114aba779bb16db18ff0c0098badd633aa38d6ce47a9a2909f16539c1547bb",
+    "esp32sim.wasm": "87b4901ef94109ed061993ce07bc41bcbf69b9653365c5f10bf7900e2be6d7f5"
+  },
+  "inputs_sha256": {
+    "web/wasm/fw/ESP32_GENERIC-20260824-v1.29.0.bin": "e67ad6015a0a504c1fec9aa9bbf589d0432ed28e62546f4f8dd8a147f8bd95f6",
+    "web/wasm/fw/atech-sid.json": "468f1853ece2c48312d6d19d6b488a0f68325c6958120270bf588c7b43091f1a",
+    "web/wasm/fw/atech.json": "5ec0ac31b26997a2bdbc58b9221cbe4b459cc67f90fb3dace0eac24787f85a11",
+    "web/wasm/fw/c3-hello.json": "87dfa2297c18be37992657f35e0c62e1d0314fe3827cc8b30ca640965d93cb22",
+    "web/wasm/fw/c6-contiki-net.json": "d0f6b719a1c9bdda04eb5087d6303463be178959541079f1394a376c9bb7f447",
+    "web/wasm/fw/c6-contiki.json": "fe6fd4c7fa5f5ad1a413018db57b765d9ddaa9eeb68466c5f6e64c0564b04f96",
+    "web/wasm/fw/c6-energy-scan.json": "a5ba91a9e8eb4a9a2a92b4e72895116df436ec4a6d8aa65a83aefd0a6a1e7411",
+    "web/wasm/fw/c6-hello.json": "e27476ddb020e09a57d02b05f274b1aa7f02e9e5c5b9f21aa38688da6c5f27e8",
+    "web/wasm/fw/c6-rpl-net.json": "4fb0bd0ee84c151ab84400c3e89e1b23ac4df63d201bca05a0b75547586edf82",
+    "web/wasm/fw/demos.json": "3b37019a330dd3009f3754981edb7dba853b1f14c6e4dba317a60c9a1ee79178",
+    "web/wasm/fw/esp32_rev300_rom.elf": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31",
+    "web/wasm/fw/esp32c3_rev3_rom.elf": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+    "web/wasm/fw/esp32c6_rev0_rom.elf": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "web/wasm/fw/esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "web/wasm/fw/hello.json": "effb7f5d7fb33dcbabbe8ef8310c2b32ae875594553c056cde09c3fa762e5412",
+    "web/wasm/fw/linux-login.json": "17625eab54a9d59275f5e4ce552ca2b863563994404c3a5447677a3eebc606fa",
+    "web/wasm/fw/linux-term.json": "ed15938359634a033e0e996e9782f7b184fe47c523d18fa46711bc15905419dd",
+    "web/wasm/fw/linux.json": "ffefd037b4269aef6708803fce8471d99f461f01178353b19d04c2c14b16a11f",
+    "web/wasm/fw/panel-sid.json": "68cfb78127a1cda1bf197e45dd96a1724b4719a02ad7abbf1ed3a31e8fae6275",
+    "web/wasm/fw/panel.json": "cfc51b851a7a666f66860e5ba6e35ea6abc01c1160eca75b6b90a19f8dd0fb75",
+    "web/wasm/fw/pocket-tank.json": "af3a571b4cba0e65a1259171bc8e7906f1e421f0ea7f2f4832056e926ef1e101",
+    "web/wasm/fw/public/atech-bootloader.bin": "876f58f4c5e2b2a3eae9e025b29096f034af99f6617edae3676817306d306dcf",
+    "web/wasm/fw/public/atech-firmware.bin": "8f6561133b844bc918da71b43875c6b4ed421c96e9bbd7e0622f7dbde3148e6f",
+    "web/wasm/fw/public/atech-ptable.bin": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+    "web/wasm/fw/public/c3-ble-advertiser.bin": "7d130e7f2f356111884d545c5c9c4eae496ac13d2e85d1cc262c400feb6cd9bd",
+    "web/wasm/fw/public/c3-ble-bootloader.bin": "6a2ec68d72c552e9399da762f8789a305e982fd9208b7414e66fe17c990e2296",
+    "web/wasm/fw/public/c3-ble-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c3-ble-server.bin": "2f3b4d834392518c9a93e1ace389774dcd795280d7773ea7a17a9f1bc279b64c",
+    "web/wasm/fw/public/c3-crypto-tls-bootloader.bin": "d4a87d86e17457c5d9e6d9b6c83f1af5ab0122a58545aaab392af1135a01f00a",
+    "web/wasm/fw/public/c3-crypto-tls-ptable.bin": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "web/wasm/fw/public/c3-crypto-tls.bin": "1ee66e403f2cc1b91d0c55e102e4543f8364f9166b8a05c553b9f6ff6dcfdf6e",
+    "web/wasm/fw/public/c3-hello-bootloader.bin": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+    "web/wasm/fw/public/c3-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c3-hello_world.bin": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be",
+    "web/wasm/fw/public/c3-wifi-bootloader.bin": "38f8adbf585b815dc67667fc8911ba2572570934c43d5ffc630ea13eaf7d76c9",
+    "web/wasm/fw/public/c3-wifi-ptable.bin": "5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a",
+    "web/wasm/fw/public/c3-wifi_station.bin": "3e336a2c48c29807b6c0794a564df67b0a5ab51017063219a863f47a558b17c4",
+    "web/wasm/fw/public/c6-contiki-bootloader.bin": "e0a1599ef9d5f4c8447868c813154af6c2ec4a77c9c28792bdd0c2c555a26da8",
+    "web/wasm/fw/public/c6-contiki-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c6-contiki.bin": "d3057dfa272d74c0b61638b892e2ef89f5f86049615d5a14e6be209881cbe47b",
+    "web/wasm/fw/public/c6-crypto-tls-bootloader.bin": "02f53243e1ded001d79f109e938846d72bd85a91bee7a3513e4094d7c090975c",
+    "web/wasm/fw/public/c6-crypto-tls-ptable.bin": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "web/wasm/fw/public/c6-crypto-tls.bin": "4de547121c72dfc15a3bf3b013299ff71cb57fe1860f88a5b4167887d6391506",
+    "web/wasm/fw/public/c6-energy-bootloader.bin": "8388ab65141d7a2abb818a114fab747902a8bf6b9f049654e5e4add7d82b4979",
+    "web/wasm/fw/public/c6-energy-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c6-energy_scan.bin": "a1f68b7cc05363d7f9b5408b655647b2886aaa40ee719d212ef321ff938055dd",
+    "web/wasm/fw/public/c6-hello-bootloader.bin": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+    "web/wasm/fw/public/c6-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c6-hello_world.bin": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131",
+    "web/wasm/fw/public/c6-rpl-bootloader.bin": "54d0b4969f68b0dbdb55195c5fb082b3c5b0f02578a428be9e2960b6a8deee8b",
+    "web/wasm/fw/public/c6-rpl-client.bin": "0bdf8c0fcff25b6dc58c10ba8effabf71228b399a91bca660d74605068db89d6",
+    "web/wasm/fw/public/c6-rpl-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/c6-rpl-server.bin": "f6cccd2db59bfd559ff26acf2d8692074f1f277892af622602e3999a7c1613b8",
+    "web/wasm/fw/public/c6-wifi-bootloader.bin": "b91489116632110eba96470ce38034fb4c0b49264be4ecbc2e1efe9efe820ddf",
+    "web/wasm/fw/public/c6-wifi-ptable.bin": "5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a",
+    "web/wasm/fw/public/c6-wifi_station.bin": "a7286982027e21e6a310dee6f473fd6c1990480556d062f56b95eede491188fc",
+    "web/wasm/fw/public/classic-hello-bootloader.bin": "faa4ac0961a9ec6c02d865c874c82bfe0a01225491b89d54fe4b7393f712be2a",
+    "web/wasm/fw/public/classic-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/classic-hello_world.bin": "fa4307fe9545e6599155ac38ad61205946b3f56e92890ad10a69c1592e120cdd",
+    "web/wasm/fw/public/energydata.json": "aa8d5326406a83aa254d953d16f18f644c0112d523ef2e2e66b3ab1add4ff0cb",
+    "web/wasm/fw/public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+    "web/wasm/fw/public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "web/wasm/fw/public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+    "web/wasm/fw/public/panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+    "web/wasm/fw/public/panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+    "web/wasm/fw/public/panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066",
+    "web/wasm/fw/public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "web/wasm/fw/public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "web/wasm/fw/public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "web/wasm/fw/public/s3-wifi-bootloader.bin": "0c09693237647d665ee018508b300cb28903a693abef060ec36294bfcab3457d",
+    "web/wasm/fw/public/s3-wifi-ptable.bin": "5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a",
+    "web/wasm/fw/public/s3-wifi_station.bin": "f721ed2261bc40203dc84eb09c02ee21eb33377d5517c2c259ec0ef2529909fc",
+    "web/wasm/fw/public/tdisplay-vfs.bin": "d31b091077b6ce8082a401da6d14e3ea0f70ad735e4d359773959ecdd7d22278",
+    "web/wasm/fw/tdisplay-prices.json": "bae70e378eef9f1ac74fd6defd3309d703269f13efa9a0d715a078eabd288497"
+  },
+  "cpu": "PENDING"
+}

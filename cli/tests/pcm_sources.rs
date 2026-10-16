@@ -156,6 +156,44 @@ fn check(bus: &mut impl SocBus, chip: Chip) {
 }
 
 #[test]
+fn selected_source_query_follows_guest_dma_routes_on_modern_chips() {
+    macro_rules! check_query {
+        ($bus:expr, $chip:expr, $rx:ident) => {{
+            let mut bus = $bus;
+            let chip = $chip;
+            assert_eq!($rx(&bus).rx_source(), None);
+            let mut source = PcmSource::new(8000, PcmPins::I2s { bclk: 4, ws: 5, data: 6 }).unwrap();
+            source.push(&[[123; 2]; 4]);
+            let bank = bus.attach_pcm_sources().unwrap();
+            bank.inputs.resize_with(16, || None);
+            bank.inputs[15] = Some(source);
+            route(&mut bus, chip, [4, 5, 6]);
+            receiver(&mut bus, chip, false, 1);
+            bus.tick(chip.hz / 8000);
+            bus.flush_ticks();
+            assert_eq!(bus.read32(chip.ram + 64).unwrap(), 123 | (123 << 16));
+            assert_eq!($rx(&bus).rx_source(), Some(15));
+            assert_eq!($rx(&bus).rx_rate(), Some(8000));
+            bus.write32(chip.i2s + 0x20, 0).unwrap();
+            assert_eq!($rx(&bus).rx_source(), None);
+            bus.reboot([0; 6]);
+            assert_eq!($rx(&bus).rx_source(), None);
+            route(&mut bus, chip, [4, 5, 9]);
+            receiver(&mut bus, chip, false, 1);
+            bus.tick(chip.hz / 8000);
+            bus.flush_ticks();
+            assert_eq!($rx(&bus).rx_source(), None);
+        }};
+    }
+    fn s3(bus: &esp32s3::bus::SocBus) -> &esp_periph::i2s::I2s { &bus.periph.i2s0 }
+    fn c3(bus: &esp32c3::bus::SocBus) -> &esp_periph::i2s::I2s { &bus.periph.i2s0 }
+    fn c6(bus: &esp32c6::bus::SocBus) -> &esp_periph::i2s::I2s { &bus.periph.optional.i2s0 }
+    check_query!(esp32s3::machine([0; 6]).bus, S3, s3);
+    check_query!(esp32c3::machine([0; 6], 4 << 20).bus, C3, c3);
+    check_query!(esp32c6::machine([0; 6], 4 << 20).bus, C6, c6);
+}
+
+#[test]
 fn routing_timing_dma_stall_and_reset_on_all_chips() {
     check(&mut esp32s3::machine([0; 6]).bus, S3);
     check(&mut esp32c3::machine([0; 6], 4 << 20).bus, C3);
