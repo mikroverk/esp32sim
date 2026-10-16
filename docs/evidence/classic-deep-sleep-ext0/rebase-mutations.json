@@ -1,0 +1,309 @@
+[
+  {
+    "mutation": "late-irq-parking",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "late_maskable_app_modeled",
+      "late_nmi_pro_modeled",
+      "late_maskable_pro_unmodeled",
+      "late_nmi_app_modeled",
+      "late_maskable_app_unmodeled",
+      "late_nmi_app_unmodeled",
+      "late_maskable_pro_modeled",
+      "late_nmi_pro_unmodeled"
+    ]
+  },
+  {
+    "mutation": "slow-force-pd",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "fast-force-pd",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "board-event",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "board_input_edge_wakes_without_guest_polling"
+    ]
+  },
+  {
+    "mutation": "release-event",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "ext0_input_release_is_a_wake_event"
+    ]
+  },
+  {
+    "mutation": "rtc-selector",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory",
+      "board_input_edge_wakes_without_guest_polling",
+      "ext0_input_release_is_a_wake_event",
+      "rtc_memory_power_down_and_force_power_up",
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "nmi-mask",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "late_maskable_app_unmodeled",
+      "late_nmi_pro_unmodeled",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory",
+      "late_nmi_app_unmodeled",
+      "late_maskable_app_modeled",
+      "late_maskable_pro_unmodeled",
+      "late_maskable_pro_modeled",
+      "late_nmi_pro_modeled",
+      "late_nmi_app_modeled"
+    ]
+  },
+  {
+    "mutation": "entry",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "board_input_edge_wakes_without_guest_polling",
+      "ext0_input_release_is_a_wake_event",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory",
+      "secondary_release_cannot_escape_power_down",
+      "late_maskable_pro_modeled",
+      "late_maskable_app_modeled",
+      "rtc_memory_power_down_and_force_power_up",
+      "late_maskable_app_unmodeled",
+      "late_nmi_pro_modeled",
+      "late_nmi_app_unmodeled",
+      "late_nmi_app_modeled",
+      "late_nmi_pro_unmodeled",
+      "late_maskable_pro_unmodeled",
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "digital-power-config",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "light_sleep_does_not_enter_deep_sleep"
+    ]
+  },
+  {
+    "mutation": "timer-powerdown",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep::tests::digital_engines_stop_on_power_down"
+    ]
+  },
+  {
+    "mutation": "radio-powerdown",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep::tests::digital_engines_stop_on_power_down"
+    ]
+  },
+  {
+    "mutation": "pwm-powerdown",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep::tests::digital_engines_stop_on_power_down"
+    ]
+  },
+  {
+    "mutation": "rmt-powerdown",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep::tests::digital_engines_stop_on_power_down"
+    ]
+  },
+  {
+    "mutation": "i2s-powerdown",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep::tests::digital_engines_stop_on_power_down"
+    ]
+  },
+  {
+    "mutation": "slow-code-version",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "fast-code-version",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "slow-force-pu",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "fast-force-pu",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "slow-retention",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "fast-retention",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up"
+    ]
+  },
+  {
+    "mutation": "wake-enable",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "rtc-domain",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "level",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "ext0_input_release_is_a_wake_event",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory",
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "reset-reason",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "ext0_input_release_is_a_wake_event",
+      "rtc_memory_power_down_and_force_power_up",
+      "board_input_edge_wakes_without_guest_polling",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory"
+    ]
+  },
+  {
+    "mutation": "wake-cause",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory"
+    ]
+  },
+  {
+    "mutation": "reset-request",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "board_input_edge_wakes_without_guest_polling",
+      "ext0_input_release_is_a_wake_event",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory",
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "input-event",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "rtc_memory_power_down_and_force_power_up",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory"
+    ]
+  },
+  {
+    "mutation": "cpu-parking",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "secondary_release_cannot_escape_power_down",
+      "late_maskable_app_unmodeled",
+      "late_maskable_app_modeled",
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory",
+      "late_nmi_pro_modeled",
+      "late_maskable_pro_modeled",
+      "late_maskable_pro_unmodeled",
+      "board_input_edge_wakes_without_guest_polling",
+      "late_nmi_app_modeled",
+      "late_nmi_app_unmodeled",
+      "late_nmi_pro_unmodeled"
+    ]
+  },
+  {
+    "mutation": "digital-irq-mask",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory"
+    ]
+  },
+  {
+    "mutation": "release-parking",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "secondary_release_cannot_escape_power_down"
+    ]
+  },
+  {
+    "mutation": "rtc-mux",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "ext0_enable_mux_polarity_and_already_active_level"
+    ]
+  },
+  {
+    "mutation": "readonly-cause",
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "sleep_halts_both_cores_and_ext0_resets_with_retained_memory"
+    ]
+  }
+]

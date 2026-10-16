@@ -1,0 +1,178 @@
+{
+  "base": "77e43c20a70054ac84d1724d757fa9ce12668151",
+  "original_reviewed_head": "91b204cf",
+  "toolchain": "1.99.0",
+  "build_policy": "nice -n 10, CARGO_BUILD_JOBS=2, owned target; no active timing sampler detected before build phases",
+  "hermetic_tests": "Empty HOME; explicit CARGO_HOME and RUSTUP_HOME retained; plain suite ROM override unset",
+  "checks": [
+    {
+      "check": "build",
+      "command": "cargo +1.99.0 build --release --workspace -j2",
+      "exit_code": 0
+    },
+    {
+      "check": "clippy-native",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -j2 -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "check": "clippy-wasm",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -j2 -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "check": "test-ci",
+      "command": "cargo +1.99.0 test --release --workspace -j2 -- --include-ignored --skip external_",
+      "exit_code": 0
+    },
+    {
+      "check": "test-plain",
+      "command": "cargo +1.99.0 test --release --workspace -j2",
+      "exit_code": 0
+    },
+    {
+      "check": "vq",
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -j2 -p esp32s3 --test machine --test virtual_stops",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-build",
+      "command": "tools/wasm-build.sh",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-sections",
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-demos",
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel tdisplay-prices",
+      "exit_code": 0
+    },
+    {
+      "check": "wasm-abi",
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm && node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf && node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf",
+      "exit_code": 0
+    },
+    {
+      "check": "worker",
+      "command": "node tools/worker-pacing-test.mjs && node tools/worker-channel-test.mjs && node --test tools/touch-input-test.mjs",
+      "exit_code": 0
+    },
+    {
+      "check": "browser-contracts",
+      "command": "node --test tools/wasm-build-policy.test.mjs && node --test tools/browser-benchmark/*.test.mjs && python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+      "exit_code": 0
+    },
+    {
+      "check": "retained-receipts",
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs && node docs/evidence/perf-x5-2026-09-22/verify-results.mjs && node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs && node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs && node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs && node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "exit_code": 0
+    },
+    {
+      "check": "jit",
+      "command": "tools/wasm-jit-test.sh",
+      "exit_code": 0
+    },
+    {
+      "check": "profiling-build",
+      "command": ". ./tools/wasm-rustflags.sh; cargo +1.99.0 build --release -j2 --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+      "exit_code": 0
+    },
+    {
+      "check": "aarch64",
+      "command": "cargo +1.99.0 test --release -j2 -p xtensa-lx7",
+      "exit_code": 0
+    },
+    {
+      "check": "mutations",
+      "command": "python3 docs/evidence/classic-deep-sleep-ext0/mutate.py OUTPUT_DIR",
+      "exit_code": 0
+    },
+    {
+      "check": "restored",
+      "command": "cargo +1.99.0 test --release -j2 -p esp32 --lib --test deep_sleep",
+      "exit_code": 0
+    },
+    {
+      "check": "privacy",
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0
+    }
+  ],
+  "workspace_tests": {
+    "test-ci": {
+      "passed": 1026,
+      "failed": 0,
+      "ignored": 0
+    },
+    "test-plain": {
+      "passed": 998,
+      "failed": 0,
+      "ignored": 50
+    },
+    "restored": {
+      "passed": 137,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "wasm": {
+    "demos": 9,
+    "differential_cases": 111126,
+    "waveform_cases": 24
+  },
+  "mutations": {
+    "total": 32,
+    "compiled": 32,
+    "killed": 32,
+    "details": "rebase-mutations.json"
+  },
+  "hairclip": {
+    "inputs_equal": true,
+    "fields": [
+      "cores",
+      "registers",
+      "setup_entries",
+      "resets",
+      "console_sha256"
+    ],
+    "comparisons": [
+      {
+        "name": "base-2",
+        "equal": true
+      },
+      {
+        "name": "base-5",
+        "equal": true
+      },
+      {
+        "name": "fix-2",
+        "equal": true
+      },
+      {
+        "name": "fix-2.5",
+        "equal": true
+      },
+      {
+        "name": "fix-5",
+        "equal": true
+      }
+    ]
+  },
+  "hello_controls": {
+    "chips": 4,
+    "comparison": "retained original reviewed binary vs rebased native binary",
+    "instructions_console_and_irq_equal": true
+  },
+  "native_binary_sha256": "0a5e9f9158e6fcf0c95c9a4db2b53bd8a61a9c8eb840567d74758262929d1477",
+  "goldens_changed": false,
+  "cpu_timing_run": false,
+  "limitations": [
+    "Upstream CPU table measures original reviewed head, not rebased binary.",
+    "Historical codegen and original checks remain labeled separately; no new disassembly parity claim.",
+    "AArch64 native CI core tests run on local macOS arm64, not Ubuntu arm64.",
+    "Privacy patterns supplemented with manual review of new receipt and catalog text."
+  ]
+}

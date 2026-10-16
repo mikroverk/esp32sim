@@ -69,6 +69,7 @@ pub struct SocBus {
     pub(crate) clock_half: u64,
     pub(crate) pins_active: bool,
     pub ble: esp_soc::ble::vhci::Ble,
+    pub(crate) deep_sleep: bool,
 }
 
 impl SocBus {
@@ -95,6 +96,7 @@ impl SocBus {
             clock_half: 0,
             pins_active: false,
             ble: Default::default(),
+            deep_sleep: false,
         }
     }
     fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
@@ -131,7 +133,7 @@ impl SocBus {
             _ => 0x10020,
         }
     }
-    fn written(&mut self, addr: u32, len: usize) {
+    pub(crate) fn written(&mut self, addr: u32, len: usize) {
         if len == 0 { return; }
         let first = Self::version_page(addr);
         let last = Self::version_page(addr + len as u32 - 1);
@@ -252,6 +254,11 @@ impl SocBus {
         if a == 0x3ff4_8100 && v & (1 << 8) != 0 {
             self.periph.rtc.memory_crc(&self.rtc_fast);
         }
+        // IDF v5.5.4 rtc_cntl_reg.h:247-252,1281-1287: SLEEP_EN and
+        // DIG_PWC.DG_WRAP_PD_EN distinguish deep sleep from light sleep.
+        if a == 0x3ff4_8018 && v & (1 << 31) != 0 {
+            self.enter_deep_sleep();
+        }
         if self.pins_active {
             if let Some(port) = [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) {
                 self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8);
@@ -284,6 +291,7 @@ impl SocBus {
         self.board.advance_to(self.cycles);
         for edge in self.board.take_edges() {
             self.periph.gpio.set_input(edge.pin, edge.level);
+            self.ext0_wake();
             self.irq_dirty = true;
             if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
         }
