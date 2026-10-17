@@ -95,6 +95,11 @@ impl SpiMem {
         self.classic_quad = Some(ClassicQuad::default());
     }
 
+    /// Classic mapped-cache qualification uses the same device mode as commands.
+    pub fn classic_qpi_enabled(&self) -> bool {
+        self.classic_quad.as_ref().is_some_and(|state| state.qpi)
+    }
+
     // IDF v4.4.7 spiram_psram.c and v5.1.4 esp_psram_impl_quad.c:403-503:
     // exit uses MOSI-only f5, ID uses command 9f + 24-bit address + 64 MISO
     // bits, entry uses an 8-bit address-only 35. spi_reg.h in both SDKs:

@@ -1,6 +1,9 @@
 use super::*;
 use xtensa_lx7::bus::Bus;
 use esp_soc::SocBus as _;
+#[path = "psram_cache_tests.rs"]
+mod cache_tests;
+use cache_tests::enable_cache;
 
 // Literal addresses/stride intentionally independent of translator constants.
 fn map(b: &mut SocBus, slot: u32, page: u32) {
@@ -14,6 +17,7 @@ fn configured() -> SocBus {
     b.set_psram_size(4 << 20).unwrap();
     b.write32(0x3ff00030, 1).unwrap();
     b.write32(0x3ff0002c, 0).unwrap();
+    enable_cache(&mut b);
     b
 }
 #[test]
@@ -78,6 +82,7 @@ fn sram_remap_absent_invalid_bounds_and_both_banks() {
     assert_eq!(b.write8(LOW, 1), Err(Fault::Unmapped));
     b.set_psram_size(4 << 20).unwrap();
     assert_eq!(b.read8(LOW), Err(Fault::Unmapped), "configuration invalidates tables");
+    enable_cache(&mut b);
     map(&mut b, 0, 0);
     b.write8(LOW, 42).unwrap();
     b.write32(0x3ff00030, 1).unwrap();
@@ -106,6 +111,7 @@ fn sram_remap_absent_invalid_bounds_and_both_banks() {
 fn sram_pro_only_startup_then_live_app_requires_match() {
     let mut b = SocBus::new(0, [0; 6]);
     b.set_psram_size(4 << 20).unwrap();
+    enable_cache(&mut b);
     b.write32(0x3ff11200, 0).unwrap();
     b.write8(LOW, 77).unwrap();
     assert_eq!(b.read8(LOW), Ok(77), "PRO-only before APP release");

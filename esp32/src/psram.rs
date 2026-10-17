@@ -1,4 +1,4 @@
-//! Classic external data RAM translation. Cache/device gates are integrated separately.
+//! Classic external data RAM translation and synchronous write-through cache contract.
 //! ESP-IDF v4.4.7 and v5.1.4 components/esp_hw_support/port/esp32/cache_sram_mmu.c:
 //! PID 0/1 use table index 1152, 32 KiB pages (shift 15), at 0x3f800000.
 //! Matched live PRO/APP tables are an emulator qualification restriction, not silicon behavior.
@@ -27,9 +27,28 @@ impl SocBus {
         }
         Ok(out)
     }
+    fn psram_cache_gate(&self, write: bool) -> Result<(), Fault> {
+        // IDF v5.1.4 soc/esp32/include/soc/dport_reg.h:178-314,418-542:
+        // enable bit 3; DRAM1/OPSDRAM masks 3/5; SRAM page mode 6..8.
+        // Only normal addressing/32 KiB pages are qualified; reject HL/split.
+        let (clock, reset, stall) = self.periph.dport.core1_control();
+        let cores = if clock && !reset && !stall { 2 } else { 1 };
+        for core in 0..cores {
+            let ctrl = self.periph.dport.ram.read(if core == 0 { 0x40 } else { 0x58 });
+            let ctrl1 = self.periph.dport.ram.read(if core == 0 { 0x44 } else { 0x5c });
+            let modes = (1 << 11) | (1 << if core == 0 { 16 } else { 14 });
+            if ctrl & 8 == 0 || ctrl & modes != 0 || ctrl1 & ((7 << 6) | 0x28) != 0 {
+                return Err(Fault::Prohibited);
+            }
+        }
+        if !self.periph.spi1.0.classic_qpi_enabled() || !self.periph.spi0.sram_cache_ready(write) {
+            return Err(Fault::Prohibited);
+        }
+        Ok(())
+    }
     #[cold]
     pub(crate) fn psram_load<const N: usize>(&mut self, addr: u32) -> Result<[u8; N], Fault> {
-        match self.psram_offsets::<N>(addr) {
+        match self.psram_offsets::<N>(addr).and_then(|o| self.psram_cache_gate(false).map(|()| o)) {
             Ok(offsets) => Ok(offsets.map(|o| self.psram[o])),
             Err(f) => { self.last_fault = Some((addr, false)); Err(f) }
         }
@@ -44,7 +63,7 @@ impl SocBus {
         }
     }
     fn psram_store_width<const N: usize>(&mut self, addr: u32, bytes: &[u8; N]) -> Result<(), Fault> {
-        match self.psram_offsets::<N>(addr) {
+        match self.psram_offsets::<N>(addr).and_then(|o| self.psram_cache_gate(true).map(|()| o)) {
             Ok(offsets) => {
                 for (off, byte) in offsets.into_iter().zip(bytes) { self.psram[off] = *byte; }
                 Ok(())
