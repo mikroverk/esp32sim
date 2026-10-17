@@ -4,6 +4,8 @@ use esp_soc::SocBus as _;
 #[path = "psram_cache_tests.rs"]
 mod cache_tests;
 use cache_tests::enable_cache;
+#[path = "psram_lowhigh_tests.rs"]
+mod lowhigh_tests;
 
 // Literal addresses/stride intentionally independent of translator constants.
 fn map(b: &mut SocBus, slot: u32, page: u32) {

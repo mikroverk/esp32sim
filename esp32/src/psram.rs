@@ -1,7 +1,9 @@
 //! Classic external data RAM translation and synchronous write-through cache contract.
 //! ESP-IDF v4.4.7 and v5.1.4 components/esp_hw_support/port/esp32/cache_sram_mmu.c:
 //! PID 0/1 use table index 1152, 32 KiB pages (shift 15), at 0x3f800000.
-//! Matched live PRO/APP tables are an emulator qualification restriction, not silicon behavior.
+//! Matched live PRO/APP tables in normal mode are an emulator qualification
+//! restriction, not silicon behavior. Low/high mode shares PRO-low/APP-high
+//! mappings between CPUs (ESP32 TRM v5.8 §4.3.2.2, tables 4.3-16/18).
 use crate::bus::SocBus;
 use xtensa_lx7::bus::Fault;
 
@@ -18,29 +20,50 @@ impl SocBus {
         for (i, off) in out.iter_mut().enumerate() {
             let a = addr.checked_add(i as u32).filter(|a| (LOW..HIGH).contains(a)).ok_or(Fault::Unmapped)?;
             let slot = SRAM_SLOT + ((a - LOW) >> SRAM_SHIFT) as usize;
-            let entry = self.mmu[0][slot];
+            let lowhigh = self.psram_lowhigh()?;
+            // ESP32 TRM v5.8 §4.3.2.2, tables 4.3-16/18: both CPUs use
+            // PRO slots 0..63 below 2 MiB and APP slots 64..127 above it.
+            // The unused entries need not match in low/high mode.
+            let core = usize::from(lowhigh && a >= LOW + (2 << 20));
+            let entry = self.mmu[core][slot];
             let (clock, reset, stall) = self.periph.dport.core1_control();
             let app_live = clock && !reset && !stall;
-            if entry & 0x100 != 0 || (app_live && entry != self.mmu[1][slot]) { return Err(Fault::Unmapped); }
+            if entry & 0x100 != 0 || (!lowhigh && app_live && entry != self.mmu[1][slot]) { return Err(Fault::Unmapped); }
+            if lowhigh { self.psram_half_gate(core)?; }
             *off = (entry as usize & 255) * SRAM_PAGE + (a as usize & (SRAM_PAGE - 1));
             if *off >= self.psram.len() { return Err(Fault::Unmapped); }
         }
         Ok(out)
     }
-    fn psram_cache_gate(&self, write: bool) -> Result<(), Fault> {
-        // IDF v5.1.4 soc/esp32/include/soc/dport_reg.h:178-314,418-542:
-        // enable bit 3; DRAM1/OPSDRAM masks 3/5; SRAM page mode 6..8.
-        // Only normal addressing/32 KiB pages are qualified; reject HL/split.
+    fn psram_lowhigh(&self) -> Result<bool, Fault> {
+        let pro = self.periph.dport.ram.read(0x40);
+        let app = self.periph.dport.ram.read(0x58);
+        let lowhigh = pro & (1 << 16) != 0;
         let (clock, reset, stall) = self.periph.dport.core1_control();
-        let cores = if clock && !reset && !stall { 2 } else { 1 };
-        for core in 0..cores {
-            let ctrl = self.periph.dport.ram.read(if core == 0 { 0x40 } else { 0x58 });
-            let ctrl1 = self.periph.dport.ram.read(if core == 0 { 0x44 } else { 0x5c });
-            let modes = (1 << 11) | (1 << if core == 0 { 16 } else { 14 });
-            if ctrl & 8 == 0 || ctrl & modes != 0 || ctrl1 & ((7 << 6) | 0x28) != 0 {
-                return Err(Fault::Prohibited);
-            }
+        // IDF v4.4.7 spiram_psram.c:1090-1105 programs both modes together.
+        // Mixed modes are not qualified; SPLIT (even/odd) remains unsupported.
+        if pro & (1 << 11) != 0 || ((lowhigh || (clock && !reset && !stall))
+            && (app & (1 << 11) != 0 || lowhigh != (app & (1 << 14) != 0))) {
+            return Err(Fault::Prohibited);
         }
+        Ok(lowhigh)
+    }
+    fn psram_half_gate(&self, core: usize) -> Result<(), Fault> {
+        // TRM v5.8 §4.3.2.2: disabling APP cache removes only the upper
+        // half in HL mode, for either CPU. IDF v4.4.7 dport_reg.h and
+        // spiram_psram.c:1100-1105: enable=3, DRAM1/OPSDRAM masks=3/5,
+        // 32 KiB page mode=0. Requiring BOTH masks clear on the selected
+        // cache is a conservative qualification restriction (no mask routing claim).
+        let ctrl = self.periph.dport.ram.read(if core == 0 { 0x40 } else { 0x58 });
+        let ctrl1 = self.periph.dport.ram.read(if core == 0 { 0x44 } else { 0x5c });
+        if ctrl & 8 == 0 || ctrl1 & ((7 << 6) | 0x28) != 0 { return Err(Fault::Prohibited); }
+        Ok(())
+    }
+    fn psram_cache_gate(&self, write: bool) -> Result<(), Fault> {
+        // Normal mode keeps the P4 matched-live-cache qualification unchanged.
+        let (clock, reset, stall) = self.periph.dport.core1_control();
+        let cores = if self.psram_lowhigh()? { 0 } else if clock && !reset && !stall { 2 } else { 1 };
+        for core in 0..cores { self.psram_half_gate(core)?; }
         if !self.periph.spi1.0.classic_qpi_enabled() || !self.periph.spi0.sram_cache_ready(write) {
             return Err(Fault::Prohibited);
         }
