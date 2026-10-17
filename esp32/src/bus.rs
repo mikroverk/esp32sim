@@ -110,7 +110,7 @@ impl SocBus {
             _ => { self.last_fault = Some((a, false)); Err(Fault::Unmapped) }
         }
     }
-    fn store<const N: usize>(&mut self, a: u32, bytes: &[u8; N]) -> Result<(), Fault> {
+    fn store(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
         if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_store(a, bytes); }
         if Self::is_periph(a) {
             let mut value = [0; 4];

@@ -35,7 +35,15 @@ impl SocBus {
         }
     }
     #[cold]
-    pub(crate) fn psram_store<const N: usize>(&mut self, addr: u32, bytes: &[u8; N]) -> Result<(), Fault> {
+    pub(crate) fn psram_store(&mut self, addr: u32, bytes: &[u8]) -> Result<(), Fault> {
+        match bytes.len() {
+            1 => self.psram_store_width::<1>(addr, bytes.try_into().unwrap()),
+            2 => self.psram_store_width::<2>(addr, bytes.try_into().unwrap()),
+            4 => self.psram_store_width::<4>(addr, bytes.try_into().unwrap()),
+            _ => unreachable!("bus store width"),
+        }
+    }
+    fn psram_store_width<const N: usize>(&mut self, addr: u32, bytes: &[u8; N]) -> Result<(), Fault> {
         match self.psram_offsets::<N>(addr) {
             Ok(offsets) => {
                 for (off, byte) in offsets.into_iter().zip(bytes) { self.psram[off] = *byte; }
