@@ -57,6 +57,13 @@ and heap accounting, two volatile 1 MiB write/read/hash passes with free recover
 repeat boot and the identical firmware with no device. No firmware binary is
 committed for this external test; its receipt explains the SDK size accounting.
 
+The same P6 external assertions also qualify stock Arduino-ESP32 3.1.1 on classic
+ESP32-CAM. Build `docs/fixtures/classic-psram-arduino311/recipe.sh OUTPUT`, then set
+`ARDUINO3_FIRMWARE_DIR=OUTPUT/fw-p6` and `ESP32SIM_ROM_DIR` and run
+`cargo test --release -p esp32sim --test classic_psram_arduino3 -- --ignored`.
+This is a separate 5.3-family binary SDK profile, not all Arduino 3.x or vanilla
+IDF v5.3.2 equivalence; no new CI golden or firmware binary is added.
+
 `tools/psram-wasm-test.mjs` compares the retained P5/P6 public Arduino fixtures
 through the native C ABI and real WASM, with JIT off/on, same-machine reboot and
 successive emulator creation. It requires both Arduino firmware directories, ROMs,

@@ -1,0 +1,25 @@
+P6 idf=v5.3.2-282-gcfea4f7c98-dirty found=0 size=0 heap=0 free=0
+P6 boot-init=0 duplicate-arduino=0
+P6 failed-add=0
+P6 absent-allocation=unavailable
+P6 result=no-psram
+P6 host present=false stop=MaxInsns milestones=0 insns=5192199 exceptions=3137 interrupts=109 irq=[[0, 0, 0, 3, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 100, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]]
+P6 guest calls=[2, 1, 0, 2, 0]
+P6 idf=v5.3.2-282-gcfea4f7c98-dirty found=1 size=4194304 heap=4194304 free=4192124
+P6 boot-init=0 duplicate-arduino=1
+P6 duplicate-sdk=259 expected=259
+P6 pass=1 allocation=1048576 address=3f800884 errors=0 fnv1a=20c19dc5
+P6 pass=2 allocation=1048576 address=3f800884 errors=0 fnv1a=9dce9dc5
+P6 free-before=4192124 after-first=4192124 after-second=4192124
+P6 result=pass
+P6 host present=true stop=MaxInsns milestones=3 insns=66690486 exceptions=4095 interrupts=583 irq=[[0, 0, 0, 3, 0, 0, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 100, 0, 0, 0, 0, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]]
+P6 guest calls=[2, 2, 1, 1, 1]
+P6 idf=v5.3.2-282-gcfea4f7c98-dirty found=1 size=4194304 heap=4194304 free=4192124
+P6 boot-init=0 duplicate-arduino=1
+P6 duplicate-sdk=259 expected=259
+P6 pass=1 allocation=1048576 address=3f800884 errors=0 fnv1a=20c19dc5
+P6 pass=2 allocation=1048576 address=3f800884 errors=0 fnv1a=9dce9dc5
+P6 free-before=4192124 after-first=4192124 after-second=4192124
+P6 result=pass
+P6 host present=true stop=MaxInsns milestones=3 insns=66690486 exceptions=4095 interrupts=583 irq=[[0, 0, 0, 3, 0, 0, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 100, 0, 0, 0, 0, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]]
+P6 guest calls=[2, 2, 1, 1, 1]
