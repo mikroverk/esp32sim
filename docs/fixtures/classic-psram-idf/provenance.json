@@ -3,6 +3,12 @@
   "image_index": "sha256:52bc81e7f212b6cc63b31ea57b8270badb3236e44df8567a57e2d1a6c74c5000",
   "compiler": "xtensa-esp32-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
   "sdkconfig_sha256": "969f594ac0df531138fc70804d915b22f2d089290c6024a6449b99936f9f39f4",
+  "source_sha256": {
+    "CMakeLists.txt": "aaf26a7dd8fba17984a7f38fb4f725fd83405c170d32832c1774efef051557e4",
+    "sdkconfig.defaults": "2eebde2cd74a0f5bf49f5242484b536e0e11d2c407dbce94017b1a022cd9c9da",
+    "main/CMakeLists.txt": "b4a327ea58686c86faae1c3fd02fc715a9be560380c78da7f1de38c8e3a813f7",
+    "main/main.c": "d8f214f15969c28b9a0b82bb76842a11f1632abc7bb80b53a54b0ec245d68d82"
+  },
   "firmware": {
     "psram.bin": "bf9a9400110f515d560393d24a2328943814910271ac0ecf3e93b6b0af8ca364",
     "bootloader/bootloader.bin": "3b2c9a769751690a86d408a1c6b0514a9fb3e1e90a92f2810990e812d82fadf6",

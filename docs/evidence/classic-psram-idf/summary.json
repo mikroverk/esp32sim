@@ -1,0 +1,9 @@
+{
+  "base": "5585ea5edc8fc9f1fdda29bff9fa2584ab20700d",
+  "implementation": "fbf59b0c6250f716a080ad8db312488d4b1d0880",
+  "existing_golden_blobs_unchanged": 55,
+  "fixture_mutants_assertion_killed": 5,
+  "fixture_mutants_total": 7,
+  "p2_mutants_killed": 11,
+  "reproducible_firmware": true
+}

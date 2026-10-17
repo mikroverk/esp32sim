@@ -17,6 +17,8 @@ result = {
     'image_index': 'sha256:52bc81e7f212b6cc63b31ea57b8270badb3236e44df8567a57e2d1a6c74c5000',
     'compiler': subprocess.check_output(['xtensa-esp32-elf-gcc', '--version'], text=True).splitlines()[0],
     'sdkconfig_sha256': sha(config),
+    'source_sha256': {name: sha(config.parent / name) for name in [
+        'CMakeLists.txt', 'sdkconfig.defaults', 'main/CMakeLists.txt', 'main/main.c']},
     'firmware': {name: sha(build / name) for name in ['psram.bin', 'bootloader/bootloader.bin', 'partition_table/partition-table.bin']},
     'elf_sha256': sha(build / 'psram.elf'),
     'linked_archives': {},

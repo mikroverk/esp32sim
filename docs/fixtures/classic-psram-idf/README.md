@@ -80,6 +80,10 @@ The host budget is 300 million scheduling units in 100000-unit chunks, stopping
 on the guest result or reboot request. This is a bounded correctness test, not
 a performance measurement. No idle/tick path or existing golden is changed.
 
+[Full checks, semantic mutations and limits](../../evidence/classic-psram-idf/README.md).
+Run `python3 docs/fixtures/classic-psram-idf/validate.py` to verify the committed
+recipe source, effective SDK configuration and firmware input hashes.
+
 ## CPU comparison
 
 PENDING. No timing performed. This commit adds only tests and fixture inputs.
