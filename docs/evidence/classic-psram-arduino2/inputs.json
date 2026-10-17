@@ -1,0 +1,25 @@
+{
+  "p0_probe.ino.partitions.bin": {
+    "bytes": 3072,
+    "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd"
+  },
+  "p0_probe.ino.bin": {
+    "bytes": 280992,
+    "sha256": "a1e48c65f4ffaa2f403ea95caec3157850a2a28c6cc68358ec020244f5b56dff"
+  },
+  "p0_probe.ino.bootloader.bin": {
+    "bytes": 18992,
+    "sha256": "3d97b71a61331ebaddef2a74e090c35299650f395f1387f85130010e84e46563"
+  },
+  "p0_probe.ino.elf": {
+    "bytes": 6291216,
+    "sha256": "794fdb44b8463ee268268511dd74f565ce384765adb109f3892b9ca8281070d6"
+  },
+  "p0_probe.ino.map": {
+    "bytes": 12228221,
+    "sha256": "c54e55e55be51167bf76a167b56f9a0ed54ff9f02c1025fef106943682518e0d"
+  },
+  "esp32_rev300_rom.elf": {
+    "sha256": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31"
+  }
+}
