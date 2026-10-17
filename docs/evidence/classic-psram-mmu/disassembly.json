@@ -1,0 +1,62 @@
+[
+  {
+    "function": "tick",
+    "base_instructions": 1312,
+    "head_instructions": 1312,
+    "identical_opcodes": false
+  },
+  {
+    "function": "fetch",
+    "base_instructions": 125,
+    "head_instructions": 136,
+    "identical_opcodes": false
+  },
+  {
+    "function": "read8",
+    "base_instructions": 106,
+    "head_instructions": 113,
+    "identical_opcodes": false
+  },
+  {
+    "function": "read16",
+    "base_instructions": 137,
+    "head_instructions": 135,
+    "identical_opcodes": false
+  },
+  {
+    "function": "read32",
+    "base_instructions": 173,
+    "head_instructions": 190,
+    "identical_opcodes": false
+  },
+  {
+    "function": "write8",
+    "base_instructions": 10,
+    "head_instructions": 10,
+    "identical_opcodes": true
+  },
+  {
+    "function": "write16",
+    "base_instructions": 10,
+    "head_instructions": 10,
+    "identical_opcodes": true
+  },
+  {
+    "function": "write32",
+    "base_instructions": 15,
+    "head_instructions": 14,
+    "identical_opcodes": false
+  },
+  {
+    "function": "code_page",
+    "base_instructions": 20,
+    "head_instructions": 20,
+    "identical_opcodes": true
+  },
+  {
+    "function": "store",
+    "base_instructions": 1781,
+    "head_instructions": 1794,
+    "identical_opcodes": false
+  }
+]

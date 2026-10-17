@@ -1,0 +1,71 @@
+{
+  "code_sha": "f5def98ce4b519ca6ad339c96bbafd29f7f5560e",
+  "checks": [
+    {
+      "label": "fetch",
+      "command": "tools/fetch-demo-assets.sh --no-linux",
+      "exit_code": 0
+    },
+    {
+      "label": "clippy-native",
+      "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "label": "clippy-wasm",
+      "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "label": "rom-tests",
+      "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit_code": 0
+    },
+    {
+      "label": "plain-tests",
+      "command": "cargo +1.99.0 test --release --workspace",
+      "exit_code": 0
+    },
+    {
+      "label": "wasm-build",
+      "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh",
+      "exit_code": 0
+    },
+    {
+      "label": "wasm-demos",
+      "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit_code": 0
+    },
+    {
+      "label": "privacy",
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit_code": 0
+    }
+  ],
+  "test_environment": "empty HOME; explicit RUSTUP_HOME/CARGO_HOME; no ESP32SIM_* except ESP32SIM_ROM_DIR for ROM-enabled run",
+  "native": {
+    "rom-tests": {
+      "passed": 990,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plain-tests": {
+      "passed": 962,
+      "failed": 0,
+      "ignored": 50
+    }
+  },
+  "wasm": [
+    "ok   wasm JIT handoff",
+    "ok   hello",
+    "ok   c3-hello",
+    "ok   c6-hello",
+    "ok   c6-energy-scan",
+    "ok   c6-contiki",
+    "ok   c6-contiki-net",
+    "ok   c6-rpl-net",
+    "ok   panel"
+  ],
+  "unchanged_golden_blobs": 56,
+  "linked_binary_reverified": true
+}

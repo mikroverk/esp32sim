@@ -1,0 +1,44 @@
+{
+  "binary_sha256": {
+    "base": "f50600b652620b9f8f94ebfb123f2ea5aaef3ec4ad787c8e16e12ac372f4df2e",
+    "head": "97b512c442d1e026b456b847cfd6cc3dd76aa87217b89abc45507078fa7a21e8"
+  },
+  "functions": [
+    {
+      "function": "tick",
+      "base_instructions": 2207,
+      "head_instructions": 2207,
+      "same_mnemonic_sequence": true
+    },
+    {
+      "function": "fetch",
+      "base_instructions": 122,
+      "head_instructions": 133,
+      "same_mnemonic_sequence": false
+    },
+    {
+      "function": "read8",
+      "base_instructions": 106,
+      "head_instructions": 114,
+      "same_mnemonic_sequence": false
+    },
+    {
+      "function": "read16",
+      "base_instructions": 125,
+      "head_instructions": 133,
+      "same_mnemonic_sequence": false
+    },
+    {
+      "function": "read32",
+      "base_instructions": 171,
+      "head_instructions": 188,
+      "same_mnemonic_sequence": false
+    },
+    {
+      "function": "store",
+      "base_instructions": 2736,
+      "head_instructions": 2750,
+      "same_mnemonic_sequence": false
+    }
+  ]
+}

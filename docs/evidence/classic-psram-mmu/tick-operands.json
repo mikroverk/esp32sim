@@ -1,0 +1,190 @@
+[
+  {
+    "base": "add\tx9, x9, #0x6cc",
+    "head": "add\tx9, x9, #0x41c"
+  },
+  {
+    "base": "mov\tw9, #0x6a98",
+    "head": "mov\tw9, #0x6ab0"
+  },
+  {
+    "base": "ldr\tx10, [x19, #0x6a90]",
+    "head": "ldr\tx10, [x19, #0x6aa8]"
+  },
+  {
+    "base": "str\tx9, [x19, #0x6a90]",
+    "head": "str\tx9, [x19, #0x6aa8]"
+  },
+  {
+    "base": "ldr\tx8, [x19, #0x6a70]",
+    "head": "ldr\tx8, [x19, #0x6a88]"
+  },
+  {
+    "base": "str\tx8, [x19, #0x6a70]",
+    "head": "str\tx8, [x19, #0x6a88]"
+  },
+  {
+    "base": "ldr\tx0, [x19, #0x2a58]",
+    "head": "ldr\tx0, [x19, #0x2a70]"
+  },
+  {
+    "base": "ldr\tx8, [x19, #0x2a60]",
+    "head": "ldr\tx8, [x19, #0x2a78]"
+  },
+  {
+    "base": "ldr\tx1, [x19, #0x6a70]",
+    "head": "ldr\tx1, [x19, #0x6a88]"
+  },
+  {
+    "base": "add\tx1, x1, #0xd78",
+    "head": "add\tx1, x1, #0xdc0"
+  },
+  {
+    "base": "add\tx1, x1, #0xd78",
+    "head": "add\tx1, x1, #0xdc0"
+  },
+  {
+    "base": "add\tx1, x1, #0xd78",
+    "head": "add\tx1, x1, #0xdc0"
+  },
+  {
+    "base": "ldr\tq0, [x11, #0x850]",
+    "head": "ldr\tq0, [x11, #0x550]"
+  },
+  {
+    "base": "ldr\tq0, [x11, #0x860]",
+    "head": "ldr\tq0, [x11, #0x560]"
+  },
+  {
+    "base": "ldr\tq0, [x11, #0x870]",
+    "head": "ldr\tq0, [x11, #0x570]"
+  },
+  {
+    "base": "add\tx11, x11, #0x478",
+    "head": "add\tx11, x11, #0x4c0"
+  },
+  {
+    "base": "add\tx11, x11, #0xca0",
+    "head": "add\tx11, x11, #0xce8"
+  },
+  {
+    "base": "ldr\tx3, [x19, #0x6a70]",
+    "head": "ldr\tx3, [x19, #0x6a88]"
+  },
+  {
+    "base": "ldr\tx8, [x19, #0x6a70]",
+    "head": "ldr\tx8, [x19, #0x6a88]"
+  },
+  {
+    "base": "ldr\tx0, [x19, #0x6a78]",
+    "head": "ldr\tx0, [x19, #0x6a90]"
+  },
+  {
+    "base": "ldr\tx1, [x19, #0x6a80]",
+    "head": "ldr\tx1, [x19, #0x6a98]"
+  },
+  {
+    "base": "add\tx2, x2, #0x748",
+    "head": "add\tx2, x2, #0x498"
+  },
+  {
+    "base": "add\tx8, x8, #0x478",
+    "head": "add\tx8, x8, #0x4c0"
+  },
+  {
+    "base": "add\tx8, x8, #0x2ec",
+    "head": "add\tx8, x8, #0x5ac"
+  },
+  {
+    "base": "add\tx0, x0, #0x9e1",
+    "head": "add\tx0, x0, #0x731"
+  },
+  {
+    "base": "add\tx3, x3, #0xc88",
+    "head": "add\tx3, x3, #0xcd0"
+  },
+  {
+    "base": "add\tx9, x9, #0x3f0",
+    "head": "add\tx9, x9, #0x140"
+  },
+  {
+    "base": "add\tx3, x3, #0xb98",
+    "head": "add\tx3, x3, #0xc28"
+  },
+  {
+    "base": "add\tx3, x3, #0xb98",
+    "head": "add\tx3, x3, #0xc28"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx8, x8, #0x2ec",
+    "head": "add\tx8, x8, #0x5ac"
+  },
+  {
+    "base": "add\tx0, x0, #0xdd0",
+    "head": "add\tx0, x0, #0xb24"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx3, x3, #0xc70",
+    "head": "add\tx3, x3, #0xcb8"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx8, x8, #0xed8",
+    "head": "add\tx8, x8, #0xf20"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx8, x8, #0xc70",
+    "head": "add\tx8, x8, #0xcb8"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx2, x2, #0x478",
+    "head": "add\tx2, x2, #0x4c0"
+  },
+  {
+    "base": "add\tx0, x0, #0xc28",
+    "head": "add\tx0, x0, #0xc70"
+  },
+  {
+    "base": "add\tx3, x3, #0xc58",
+    "head": "add\tx3, x3, #0xca0"
+  },
+  {
+    "base": "add\tx2, x2, #0xc40",
+    "head": "add\tx2, x2, #0xc88"
+  },
+  {
+    "base": "add\tx8, x8, #0xbb0",
+    "head": "add\tx8, x8, #0xc40"
+  },
+  {
+    "base": "add\tx8, x8, #0xed8",
+    "head": "add\tx8, x8, #0xf20"
+  }
+]
