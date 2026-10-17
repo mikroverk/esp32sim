@@ -69,6 +69,8 @@ pub struct SocBus {
     pub(crate) clock_half: u64,
     pub(crate) pins_active: bool,
     pub ble: esp_soc::ble::vhci::Ble,
+    // One allocation shared by CPU translation and the command adapter (no flat CPU window).
+    pub(crate) psram: Vec<u8>,
 }
 
 impl SocBus {
@@ -95,9 +97,11 @@ impl SocBus {
             clock_half: 0,
             pins_active: false,
             ble: Default::default(),
+            psram: Vec::new(),
         }
     }
     fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_load(a); }
         if Self::is_periph(a) {
             return Ok(self.periph_read(a, N as u32).to_le_bytes()[..N].try_into().unwrap());
         }
@@ -106,7 +110,8 @@ impl SocBus {
             _ => { self.last_fault = Some((a, false)); Err(Fault::Unmapped) }
         }
     }
-    fn store(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
+    fn store<const N: usize>(&mut self, a: u32, bytes: &[u8; N]) -> Result<(), Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_store(a, bytes); }
         if Self::is_periph(a) {
             let mut value = [0; 4];
             value[..bytes.len()].copy_from_slice(bytes);
@@ -469,6 +474,10 @@ impl SocBus {
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {
         for (i, &v) in data.iter().enumerate() {
             let a = addr.wrapping_add(i as u32);
+            if (crate::psram::LOW..crate::psram::HIGH).contains(&a) {
+                self.psram_store(a, &[v]).map_err(|f| format!("load: address {a:#010x}: {f:?}"))?;
+                continue;
+            }
             match self.memory(a) {
                 Some((b, o, _)) if o < b.len() => b[o] = v,
                 _ => return Err(format!("load: address {a:#010x} not mapped")),
@@ -488,6 +497,10 @@ impl Bus for SocBus {
     fn write16(&mut self, a: u32, v: u16) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
     fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&pc) {
+            self.last_fault = Some((pc, false));
+            return Err(Fault::Prohibited);
+        }
         match self.memory(pc) {
             Some((b, o, _)) if o < b.len() => {
                 let mut out = [0; 4];
