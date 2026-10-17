@@ -4,6 +4,24 @@ use emu_core::Bus;
 use esp_soc::SocBus;
 use std::{env, fs, path::PathBuf};
 
+// Passive entry counts distinguish cached failure from a second physical probe.
+struct Calls { pcs: [u32; 5], last: [u32; 2], hits: std::rc::Rc<std::cell::Cell<[u32; 5]>> }
+impl<S: esp_soc::Soc> esp_soc::observe::Observer<S> for Calls {
+    fn name(&self) -> &'static str { "psram-call-counts" }
+    fn wants(&self) -> esp_soc::observe::Wants { esp_soc::observe::Wants::INSN }
+    fn on_insn(&mut self, _: &esp_soc::observe::Ctx, core: usize, _: &S::Core, _: &mut S::Bus, pc: u32) -> Option<esp_soc::Stop> {
+        self.last[core] = pc;
+        None
+    }
+    fn after_insn(&mut self, _: &esp_soc::observe::Ctx, core: usize, _: &S::Core, _: &mut S::Bus) -> Option<esp_soc::Stop> {
+        // A breakpoint sees an entry before execution; count only retired entries.
+        let mut hits = self.hits.get();
+        for (i, addr) in self.pcs.iter().enumerate() { if self.last[core] == *addr { hits[i] += 1; } }
+        self.hits.set(hits);
+        None
+    }
+}
+
 fn boot(present: bool) -> String {
     let firmware = PathBuf::from(env::var_os("ARDUINO3_FIRMWARE_DIR")
         .expect("set ARDUINO3_FIRMWARE_DIR to the public P6 fw-p6 build"));
@@ -17,6 +35,9 @@ fn boot(present: bool) -> String {
     for (offset, suffix) in [(0x1000, ".bootloader.bin"), (0x8000, ".partitions.bin"), (0x10000, ".bin")] {
         m.write_flash(offset, &fs::read(firmware.join(format!("p6_probe.ino{suffix}"))).unwrap()).unwrap();
     }
+    let hits = std::rc::Rc::new(std::cell::Cell::new([0; 5]));
+    let pcs = ["psramInit", "esp_psram_init", "esp_psram_extram_test", "psramAddToHeap", "esp_psram_extram_add_to_heap_allocator"].map(|name| m.sym_addr(name).expect(name));
+    m.add_observer(Box::new(Calls { pcs, last: [0; 2], hits: hits.clone() }));
     let mut milestones = 0;
     if present {
         let pc = m.sym_addr("esp_psram_extram_test").expect("real SDK memory test symbol");
@@ -27,7 +48,7 @@ fn boot(present: bool) -> String {
     for _ in 0..5000 {
         stop = m.run(100_000);
         if matches!(stop, esp_soc::Stop::Breakpoint(_)) {
-            m.observers.clear();
+            m.observers.pop(); // Preserve the passive call counter.
             if milestones == 0 {
                 // IDF 5.1.4 dport_reg.h: PRO/APP low/high controls and SRAM MMU.
                 assert_eq!(m.bus.read32(0x3ff00040).unwrap() & (1 << 16), 1 << 16, "PRO low/high mode");
@@ -63,6 +84,8 @@ fn boot(present: bool) -> String {
     assert_eq!(m.stub_hits, 0, "no intercepted guest calls");
     assert_eq!(m.reboots, 0, "do not mask startup failure with reboot");
     if present { assert_eq!(milestones, 3, "real SDK init/test/heap-add path must execute"); }
+    println!("P6 guest calls={:?}", hits.get());
+    assert_eq!(hits.get(), if present { [2, 2, 1, 1, 1] } else { [2, 1, 0, 2, 0] }, "real split startup, cached Arduino retry and SDK duplicate entry counts");
     serial
 }
 
