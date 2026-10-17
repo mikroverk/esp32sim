@@ -168,5 +168,45 @@ MMIO writes pay the additional address check even when CRC is unused.
 
 ## CPU comparison
 
-PENDING. No CPU timing table was measured in this change. A quiet-machine,
-1 warmup + 7 alternating-pair run against main is separate work.
+Measured October 17, 2026: candidate
+`837ec1ce300ec5cc5f3a7bb5427698ab7a64cd91` against upstream main
+`142805d5399e0c3cf25995fe21ba524e75a2b3cb`, using retained native release
+binaries without a rebuild. User CPU seconds (`wait4` user resource usage),
+not wall time: one warmup pair plus seven measured alternating pairs per workload,
+with `nice -n 10`. Odd measured pairs run candidate/base; even pairs run
+base/candidate.
+
+| Workload | Main median user s | Candidate median user s | Change (ratio of medians) | Candidate slower | Flag |
+| --- | ---: | ---: | ---: | ---: | --- |
+| s3-hello | 0.045710 | 0.046420 | +1.553% | 6/7 | FLAG |
+| pocket-tank-startup | 1.007277 | 1.011237 | +0.393% | 3/7 | no |
+| c3-hello | 0.243293 | 0.244233 | +0.386% | 5/7 | no |
+| c6-hello | 0.316529 | 0.313605 | -0.924% | 2/7 | no |
+| s3-hello-3000s | 23.939510 | 23.976319 | +0.154% | 5/7 | no |
+| pocket-tank-30s | 11.990708 | 11.523365 | -3.898% | 2/7 | no |
+| tdisplay-button-5s | 1.798490 | 1.641044 | -8.754% | 0/7 | no |
+
+All 49 measured pairs have equal instruction vectors and console SHA-256s;
+warmup pairs also match (112 executions total). This does not prove equivalent
+behaviour in the T-Display button row: main polls RTC CRC while the candidate
+reaches a separate sleep wait. Neither implements actual deep sleep/wake, so
+that row is not a behaviour-preserving idle-cost comparison. C3/C6 CLI counts
+are cycle-derived and are not proof of equal actual retirement.
+
+The run window was 04:56:04–05:08:57 UTC+02:00 on October 17, 2026.
+Initial 1-minute load was 1.448, final load 2.151, sampled maximum 5.523.
+One-second monitoring detected no cargo/rustc build; no pair was repeated or
+invalidated. All runs were inside the 01:00–07:00 local window.
+
+S3 hello +1.55%, slower 6/7; hot-path disassembly identical after page-offset normalization, 147/147; differences are constant addresses only; cause not established; the change touches classic code only.
+The 147-function comparison covers selected S3/shared paths in the retained
+binaries, not the changed classic MMIO routines above or the entire call graph.
+Before page-offset normalization, 145/147 match; the two raw differences are
+SHA constant-pool addresses with identical 64-byte payloads. Normalization
+preserves opcodes, registers, stack offsets and field offsets. This bounded
+static finding does not establish why the measured CPU time differs.
+
+The short S3 flag remains open: slower in at least 6/7 pairs is the flag rule,
+not a statistical significance test or CPU clearance. The 3000-second S3 row
+(+0.154%, slower 5/7) does not waive it. No browser, hardware or production-speed
+claim follows from this native table.
