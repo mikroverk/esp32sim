@@ -1,0 +1,272 @@
+[
+  {
+    "name": "command-backing",
+    "file": "esp32/src/bus.rs",
+    "old": "execute(&mut self.flash, &mut self.psram)",
+    "new": "execute(&mut self.flash, &mut [])",
+    "test": "cache_command_cpu_coherence_remap_and_flash_dirty_isolation",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "cpu-store",
+    "file": "esp32/src/psram.rs",
+    "old": "self.psram[off] = *byte;",
+    "new": "self.psram[off] = byte.wrapping_add(1);",
+    "test": "cache_command_cpu_coherence_remap_and_flash_dirty_isolation",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "cpu-load",
+    "file": "esp32/src/psram.rs",
+    "old": "offsets.map(|o| self.psram[o])",
+    "new": "offsets.map(|o| self.psram[o].wrapping_add(1))",
+    "test": "cache_command_cpu_coherence_remap_and_flash_dirty_isolation",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "dirty-memory",
+    "file": "esp32/src/bus.rs",
+    "old": "if memory == esp_periph::DirtyMem::Flash",
+    "new": "if memory == esp_periph::DirtyMem::Psram",
+    "test": "cache_command_cpu_coherence_remap_and_flash_dirty_isolation",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "cache-enable",
+    "file": "esp32/src/psram.rs",
+    "old": "ctrl & 8 == 0 || ",
+    "new": "false || ",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "cache-masks",
+    "file": "esp32/src/psram.rs",
+    "old": "ctrl1 & ((7 << 6) | 0x28) != 0",
+    "new": "ctrl1 & (7 << 6) != 0",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "page-mode",
+    "file": "esp32/src/psram.rs",
+    "old": "ctrl1 & ((7 << 6) | 0x28) != 0",
+    "new": "ctrl1 & 0x28 != 0",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "address-mode",
+    "file": "esp32/src/psram.rs",
+    "old": "lowhigh != (app & (1 << 14) != 0)",
+    "new": "false",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "app-cache",
+    "file": "esp32/src/psram.rs",
+    "old": "for core in 0..cores {",
+    "new": "for core in 0..cores.min(1) {",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "device-qpi",
+    "file": "esp32/src/psram.rs",
+    "old": "!self.periph.spi1.0.classic_qpi_enabled() || ",
+    "new": "false || ",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "spi0-cs1",
+    "file": "esp32/src/periph.rs",
+    "old": "self.0.regs.read(0x34) & 2 == 0",
+    "new": "true",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "sctrl-qio",
+    "file": "esp32/src/periph.rs",
+    "old": "let required = (1 << 2) | (1 << 4) |",
+    "new": "let required = (1 << 4) |",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "sctrl-dio",
+    "file": "esp32/src/periph.rs",
+    "old": "s & (1 << 1) == 0",
+    "new": "true",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "sctrl-dummy",
+    "file": "esp32/src/periph.rs",
+    "old": "let required = (1 << 2) | (1 << 4) |",
+    "new": "let required = (1 << 2) |",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "sctrl-address",
+    "file": "esp32/src/periph.rs",
+    "old": "(s >> 22) & 63 == 23",
+    "new": "true",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "command-length",
+    "file": "esp32/src/periph.rs",
+    "old": "command >> 28 == 7",
+    "new": "true",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "read-enable",
+    "file": "esp32/src/periph.rs",
+    "old": "(1 << if write { 28 } else { 5 })",
+    "new": "(if write { 1 << 28 } else { 0 })",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "write-enable",
+    "file": "esp32/src/periph.rs",
+    "old": "(1 << if write { 28 } else { 5 })",
+    "new": "(if write { 0 } else { 1 << 5 })",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "command-value-gate",
+    "file": "esp32/src/periph.rs",
+    "old": "command & 0xffff == if write { 0x38 } else { 0xeb }",
+    "new": "true",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "read-opcode",
+    "file": "esp32/src/periph.rs",
+    "old": "if write { 0x38 } else { 0xeb }",
+    "new": "if write { 0x38 } else { 0x03 }",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "write-opcode",
+    "file": "esp32/src/periph.rs",
+    "old": "if write { 0x38 } else { 0xeb }",
+    "new": "if write { 0x02 } else { 0xeb }",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "read-gate",
+    "file": "esp32/src/psram.rs",
+    "old": "self.psram_cache_gate(false).map(|()| o)",
+    "new": "Ok::<_, Fault>(o)",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "write-gate",
+    "file": "esp32/src/psram.rs",
+    "old": "self.psram_cache_gate(true).map(|()| o)",
+    "new": "Ok::<_, Fault>(o)",
+    "test": "cache_gates_fault_and_restore_without_losing_bytes",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "register-read",
+    "file": "esp32/src/periph.rs",
+    "old": "if (0x54..=0x7c).contains(&off) { return self.0.regs.read(off); }",
+    "new": "if false { return self.0.regs.read(off); }",
+    "test": "cache_trace_registers_never_alias_fifo_or_other_controller",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "register-write",
+    "file": "esp32/src/periph.rs",
+    "old": "if (0x54..=0x7c).contains(&off) {\n            self.0.regs.write(off, v);",
+    "new": "if false {\n            self.0.regs.write(off, v);",
+    "test": "cache_trace_registers_never_alias_fifo_or_other_controller",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "reboot-bytes",
+    "file": "esp32/src/psram.rs",
+    "old": "self.psram.fill(0);",
+    "new": "// retain bytes",
+    "test": "cache_reboot_resets_controls_device_mappings_and_bytes_in_place",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "reboot-mmu",
+    "file": "esp32/src/psram.rs",
+    "old": "table[SRAM_SLOT..SRAM_SLOT + 128].fill(0x100);",
+    "new": "let _ = table;",
+    "test": "cache_reboot_resets_controls_device_mappings_and_bytes_in_place",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "reboot-spi0",
+    "file": "esp32/src/soc.rs",
+    "old": "self.periph.spi0.0.jedec = old.spi0.0.jedec;",
+    "new": "self.periph.spi0 = old.spi0;",
+    "test": "cache_reboot_resets_controls_device_mappings_and_bytes_in_place",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "reboot-device",
+    "file": "esp32/src/soc.rs",
+    "old": "self.periph.spi1.0.jedec = old.spi1.0.jedec;",
+    "new": "self.periph.spi1 = old.spi1;",
+    "test": "cache_reboot_resets_controls_device_mappings_and_bytes_in_place",
+    "exit_code": 101,
+    "killed": true
+  },
+  {
+    "name": "reboot-dport",
+    "file": "esp32/src/soc.rs",
+    "old": "self.periph.efuse = old.efuse;",
+    "new": "self.periph.dport = old.dport;\n        self.periph.efuse = old.efuse;",
+    "test": "cache_reboot_resets_controls_device_mappings_and_bytes_in_place",
+    "exit_code": 101,
+    "killed": true
+  }
+]

@@ -48,6 +48,15 @@ UPDATE_GOLDENS=1 cargo test --release --workspace -- --include-ignored --skip ex
 tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel   # the wasm module, as the page runs it
 ```
 
+Classic PSRAM stock Arduino-ESP32 2.0.17 qualification is a developer-input test,
+not a CI golden. Build `docs/fixtures/classic-psram-arduino2/recipe.sh OUTPUT`, then
+set `ARDUINO2_FIRMWARE_DIR=OUTPUT/fw-A2` and `ESP32SIM_ROM_DIR` and run
+`cargo test --release -p esp32sim --test classic_psram_arduino2 -- --ignored`.
+It checks genuine dual-core low/high startup/test/heap-add, exact Arduino getter
+and heap accounting, two volatile 1 MiB write/read/hash passes with free recovery,
+repeat boot and the identical firmware with no device. No firmware binary is
+committed for this external test; its receipt explains the SDK size accounting.
+
 Tests named `external_*` need inputs only a developer machine has (full objdump listings via
 `XTENSA_DIS_FILES`/`RISCV_DIS_FILES`, Apple's clang for the encoder fixture) and fail loudly
 without them; run them by name. Their hermetic counterparts (`decoder_matches_corpus`,

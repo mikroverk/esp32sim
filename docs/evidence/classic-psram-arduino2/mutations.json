@@ -1,0 +1,65 @@
+[
+  {
+    "mutation": "deny-lowhigh",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "assertion `left == right` failed: real SDK init/test/heap-add path must execute"
+  },
+  {
+    "mutation": "byte-store-corruption",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "volatile bytewise readback and independent hash"
+  },
+  {
+    "mutation": "byte-load-corruption",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "volatile bytewise readback and independent hash"
+  },
+  {
+    "mutation": "half-device-backing",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "assertion `left == right` failed: guest PRO map"
+  },
+  {
+    "mutation": "physical-page-alias",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "assertion `left == right` failed: real SDK init/test/heap-add path must execute"
+  },
+  {
+    "mutation": "reject-live-qpi",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "assertion `left == right` failed: real SDK init/test/heap-add path must execute"
+  },
+  {
+    "mutation": "sram-slot-offset",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 0,
+    "assertion_killed": false,
+    "assertion": "survived"
+  },
+  {
+    "mutation": "sram-page-shift",
+    "test": "external_arduino2_psram_startup_and_readback",
+    "exit": 0,
+    "assertion_killed": false,
+    "assertion": "survived"
+  },
+  {
+    "mutation": "absent-id-zero",
+    "test": "external_arduino2_no_device_is_rejected",
+    "exit": 101,
+    "assertion_killed": true,
+    "assertion": "absent device command response"
+  }
+]

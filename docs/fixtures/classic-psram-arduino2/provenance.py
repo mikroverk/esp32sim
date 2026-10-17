@@ -26,7 +26,8 @@ archive_hashes = {name.replace(str(root), '$INPUTS'): sha(Path(name))
 assert archive_hashes
 cfg = (sdk / 'sdkconfig').read_text()
 for text in ('# CONFIG_FREERTOS_UNICORE is not set', '# CONFIG_SPIRAM_BOOT_INIT is not set',
-             'CONFIG_SPIRAM_SPEED_80M=y', 'CONFIG_ESPTOOLPY_FLASHFREQ_80M=y'):
+             'CONFIG_SPIRAM_SPEED_80M=y', 'CONFIG_ESPTOOLPY_FLASHFREQ_80M=y',
+             'CONFIG_HEAP_POISONING_LIGHT=y'):
     assert text in cfg, text
 nm = compiler.with_name('xtensa-esp32-elf-nm')
 symbols = subprocess.check_output([str(nm), '-n', str(fw / 'p5_probe.ino.elf')], text=True)
@@ -41,7 +42,7 @@ result = {
  'compiler': subprocess.check_output([str(compiler), '--version'], text=True).splitlines()[0],
  'firmware': {path.name: sha(path) for path in sorted(fw.iterdir()) if path.is_file()},
  'sdkconfig_sha256': sha(sdk / 'sdkconfig'),
- 'sdkconfig_psram': [line for line in cfg.splitlines() if any(key in line for key in ('SPIRAM', 'UNICORE', 'FLASHFREQ'))],
+ 'sdkconfig_psram': [line for line in cfg.splitlines() if any(key in line for key in ('SPIRAM', 'UNICORE', 'FLASHFREQ', 'HEAP_POISONING'))],
  'source_hashes': {str(path.relative_to(platform)): sha(path) for path in
                    (getters, platform/'cores/esp32/esp32-hal-psram.c', platform/'boards.txt', platform/'platform.txt')},
  'linked_archives': archive_hashes,
