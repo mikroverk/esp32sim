@@ -247,6 +247,11 @@ impl SocBus {
         let old_enable = self.periph.gpio.gpio.enable;
         if (0x3ff4_8800..=0x3ff4_88ff).contains(&a) { self.periph.adc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
+        // IDF v5.5.4 esp32/rtc_cntl_reg.h:2017-2039. Only a CRC START write
+        // touches RTC memory; no new state or work in reads, ticks or instruction execution.
+        if a == 0x3ff4_8100 && v & (1 << 8) != 0 {
+            self.periph.rtc.memory_crc(&self.rtc_fast);
+        }
         if self.pins_active {
             if let Some(port) = [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) {
                 self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8);

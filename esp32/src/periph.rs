@@ -540,6 +540,26 @@ impl ClassicRtc {
         rtc.ram.write(0x34, 12 << 11);
         Self(rtc)
     }
+    /// Synchronous RTC FAST CRC. IDF v5.5.4 esp_rom/esp32/include/esp32/rom/rtc.h:172-181
+    /// defines word address and LEN+1 words. The hardware CRC parameters are undocumented:
+    /// use CRC-32/ISO-HDLC as a deterministic approximation, not a silicon-verified result.
+    #[inline(never)] // Keep the CRC loop out of the bus store/MMIO dispatcher.
+    pub(crate) fn memory_crc(&mut self, memory: &[u8]) {
+        let conf = self.0.ram.read(0x100);
+        let start = ((conf >> 9) & 0x7ff) as usize * 4;
+        let len = (((conf >> 20) & 0x7ff) as usize + 1) * 4;
+        let crc = if start + len <= memory.len() {
+            esp_soc::wifi::fcs(&memory[start..start + len])
+        } else {
+            // Wrap the 11-bit word address; overflow behavior is an unverified model choice.
+            let data: Vec<u8> = (0..len)
+                .map(|offset| memory[(start + offset) & 0x1fff])
+                .collect();
+            esp_soc::wifi::fcs(&data)
+        };
+        self.0.ram.write(0x104, crc);
+        self.0.ram.write(0x100, conf | (1 << 31));
+    }
     fn off(off: u32) -> u32 {
         match off {
             0x34 => 0x38,
@@ -563,6 +583,13 @@ impl Device for ClassicRtc {
         } else if off == 0x38 {
             // WAKEUP_CAUSE[10:0] is read-only; wake events are not modeled here.
             self.0.ram.write(0x34, v & (0xfff << 11));
+        } else if off == 0x100 {
+            // IDF v5.5.4 register/soc/rtc_cntl_reg.h:2017-2039: START bit 8,
+            // FINISH bit 31, result +0x104. Completion is produced by the bus on START;
+            // clearing START clears FINISH. Guest writes cannot forge completion/results.
+            self.0.ram.write(off, v & !(1 << 31));
+        } else if off == 0x104 {
+            // CRC result is read-only.
         } else {
             // The mask states the 4 KiB block range S3/C3/C6 callers already prove, so the shared
             // RtcCntl::write keeps main's code (no extra index masking).
