@@ -10,6 +10,8 @@ use esp_soc::web::{json_escape, WebServer};
 use esp_soc::{Machine, Soc, SocBus};
 
 mod machine;
+#[cfg(any(test, feature = "jit-tests"))]
+pub mod psram_tests;
 mod network;
 mod ethernet;
 mod ble;
@@ -128,6 +130,10 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
         m.bus.board = b;
         m.bus.attach_board_devices();
         m.bus.set_flash_size(flash_bytes);
+        if let Err(reason) = m.bus.set_psram_size(psram_bytes) {
+            log(&format!("[emu] {}", reason));
+            return std::ptr::null_mut();
+        }
         m.console.mask = 2;
         prepare(&mut m);
         MachineKind::Esp32(Box::new(m))
