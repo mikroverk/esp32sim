@@ -11,6 +11,8 @@ pub(super) static LEAF_RETURNS: std::sync::atomic::AtomicU32 = std::sync::atomic
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static STORE_RUN_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static STORE_RUN_DONE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+#[path = "wasm_tests/reboot.rs"]
+mod reboot;
 #[path = "wasm_tests/pie_accx.rs"]
 mod pie_accx;
 const BASE: u32 = 0x4037_0000;
@@ -422,6 +424,7 @@ pub fn run_tests() -> u32 {
     scheduler::ps_terminal_chain();
     scheduler::event_writers();
     tests += 5;
+    tests += reboot::esp32sim_test_region_ownership();
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests() + pie_accx::held_and_coalesced();
     tests += memory::code_page_flag();
     scheduler::retention();

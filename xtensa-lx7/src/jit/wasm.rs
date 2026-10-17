@@ -316,6 +316,9 @@ impl CodeCache {
         let mut covered = self.covered.borrow_mut();
         covered.clear();
         for (id, b) in self.blocks.iter().enumerate() {
+            // Compaction changed block indices; a surviving hint can name a different
+            // overlapping owner and still pass the live-chunk check. Refill from the map.
+            b.covered_by.set((NONE, 0));
             self.by_pc
                 .insert((b.pc, b.instructions.len(), b.fast), id as u32);
             if let Some(r) = b.region.borrow().as_ref() {
@@ -775,10 +778,14 @@ unsafe fn run_inner<B: Bus>(
             let stable = bus.stable_pages();
             #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
             if hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2 {
+                // The slow lookup keeps a live hint even if the coverage map now
+                // prefers another overlapping owner. Validate the selected region.
                 let (owner, k) = if cc.blocks[code as usize].region.borrow().is_some() { (code, 0) }
-                    else { *cc.covered.borrow().get(&rec.pc).expect("live hot owner") };
+                    else { cc.blocks[code as usize].covered_by.get() };
                 let region = cc.blocks[owner as usize].region.borrow();
-                hot.assert_matches(region.as_ref().expect("live hot region"), k, stable);
+                let r = region.as_ref().expect("live hot region");
+                assert_eq!(r.chunks[k as usize].pc, rec.pc);
+                hot.assert_matches(r, k, stable);
             }
             let live = hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2;
             // hop-s2: a block no region can run skips the admission facts and the slow lookup.
