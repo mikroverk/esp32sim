@@ -1,0 +1,146 @@
+[
+  {
+    "mutation": "adapter-opt-in",
+    "test": "psram_spi_pinned_probe_eight_bytes_and_absence",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "cs-select",
+    "test": "psram_spi_pinned_probe_eight_bytes_and_absence",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "ignore-cs0",
+    "test": "psram_spi_cs_selection_flash_isolation_and_disabled_cs",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "disabled-cs",
+    "test": "psram_spi_cs_selection_flash_isolation_and_disabled_cs",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "stale-user2",
+    "test": "psram_spi_address_entry_mosi_exit_and_reentry",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "address-opcode",
+    "test": "psram_spi_address_entry_mosi_exit_and_reentry",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "mosi-opcode",
+    "test": "psram_spi_address_entry_mosi_exit_and_reentry",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "command-phase",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "command-length",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "id-address-length",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "entry-state",
+    "test": "psram_spi_address_entry_mosi_exit_and_reentry",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "exit-state",
+    "test": "psram_spi_address_entry_mosi_exit_and_reentry",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "reset-arm",
+    "test": "psram_spi_reset_requires_enable_and_is_consumed",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "reset-unarmed",
+    "test": "psram_spi_reset_requires_enable_and_is_consumed",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "reset-consume",
+    "test": "psram_spi_reset_requires_enable_and_is_consumed",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "absence",
+    "test": "psram_spi_pinned_probe_eight_bytes_and_absence",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "density",
+    "test": "psram_spi_pinned_probe_eight_bytes_and_absence",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "eight-byte-tail",
+    "test": "psram_spi_pinned_probe_eight_bytes_and_absence",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "qpi-write-mode",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "spi-write-mode",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "control-phase",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "entry-length",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "exit-length",
+    "test": "psram_spi_phase_lengths_and_payload_modes",
+    "returncode": 101,
+    "killed": true
+  },
+  {
+    "mutation": "address-alignment",
+    "test": "psram_spi_cs_selection_flash_isolation_and_disabled_cs",
+    "returncode": 101,
+    "killed": true
+  }
+]

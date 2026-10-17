@@ -55,7 +55,9 @@ Qualification restrictions, NOT claims about silicon:
   selected cache. The pinned driver clears both; these sources do not
   establish independent local-vs-remote mask routing for each CPU. No new
   per-requester mask behavior is inferred.
-- SPLIT (EVENODD), HL+SPLIT, and mixed live normal/HL modes fault. When PRO
+- SPLIT (EVENODD) on a participating cache, HL+SPLIT, and mixed live
+  normal/HL modes fault. In PRO-only normal startup, held APP's unused
+  configuration is ignored exactly as in P4. When PRO
   selects HL, require APP HL even if APP_CPU is held; mixed held-HL is not
   qualified either. The stock driver configures both bits together.
 - Normal mode retains P4's matched-table/live-cache restriction unchanged;
@@ -127,10 +129,92 @@ P0 result=no-psram and checks ffffffff ID, found=0 and heap=0.
 
 ## Verification
 
-Final measured checks, mutations and disassembly are recorded in the adjoining
-JSON files. No JIT implementation changes; wasm-jit-test.sh is not applicable.
-No classic CLI flag, public API, camera/I2S files, WASM PSRAM-on claim, or full
-Arduino qualification is included.
+Frozen Rust implementation and tests: 090b2f3754ef3dfe65b07658e2d6525c9a80adb4.
+checks.json records every required gate with exit zero:
+
+- Native workspace/all-targets Clippy and release WASM jit-tests Clippy,
+  warnings denied: PASS.
+- Empty-HOME native ROM-enabled workspace: 1005 passed, zero failed.
+- Empty-HOME plain workspace without ESP32SIM_*: 975 passed, zero failed,
+  54 ignored (including the external A2 replay tests).
+- Production WASM build, eight standard demos and JIT handoff: PASS.
+- Privacy and whitespace: PASS.
+- Stock A2 present/absent native replay: 2 passed, zero stubs, stub hits,
+  or reboots. Present stops at heap-add after 6779926 total instructions,
+  891 exceptions and 50 interrupts, with all 131072 SDK memory-test words
+  verified. The breakpoint PC is 0x400dce40. The unmodified psramInit calls
+  testSPIRAM at 0x400d1f48, rejects zero at 0x400d1f4e, and calls heap-add
+  at 0x400d1f51; testSPIRAM directly returns esp_spiram_test's result.
+
+The adjoining JSON files record mutations, unchanged golden blobs and linked
+disassembly separately. No JIT implementation changes; wasm-jit-test.sh is not
+applicable. No classic CLI flag, public API, camera/I2S files, WASM PSRAM-on
+claim, or full Arduino qualification is included.
+
+## Semantic mutations and restored controls
+
+All six new named tests are killed by at least one semantic runtime assertion
+failure: the four native low/high tests by mutations.json, and both external
+A2 tests by a2-mutations.json. New probes: 19/19 killed (17 native + 2 A2).
+The A2 probes deny HL acceptance and change the absent-device ID fill to zero,
+respectively. Compiler errors never count as kills.
+
+Inherited reruns: P1 24/24, P2 11/11, P3 30/30. inherited.py adapts only P2's
+matched-table expression and P3's replaced mode-guard expression to the new
+helper names; original test assertions are untouched. P2's bounds-removal kill
+is the inherited host bounds panic, not an assertion-quality improvement.
+The unchanged P4 fixture kills 5/7: byte read/write corruption, half-sized
+backing, physical-page aliasing, and denial of live QPI. Its slot-offset and
+page-shift mutations still survive self-consistent guest readback, as disclosed
+in P4; complementary native P2 probes kill both. Total: 89/91 killed, including
+that one inherited P2 bounds panic; two P4 survivors, no new-probe survivors.
+All sources restore cleanly. The restored native PSRAM suite passes 18/18,
+and the restored real P4 fixture passes again.
+
+## No-PSRAM regression controls
+
+All 55 tracked tests/golden blobs are byte-identical to accepted P4; all
+ROM-enabled golden tests pass without regeneration. controls.json retains
+normally linked P4/head no-PSRAM comparisons for classic hello, S3 hello and
+the unmodified stock A2 probe. Each has identical console SHA-256, per-core
+instruction counts, exception/interrupt totals and IRQ-source reports.
+Wall rates and cycle-derived counts are not comparison pins.
+
+| Control | Console SHA-256, identical base/head |
+|---|---|
+| classic hello, 3 seconds | 8d8b7d143063e8d3d97b278cc43b326fc0378bf89d6a6ff7091a1f72b4c4c4ff |
+| S3 hello, 3 seconds | 37bdaab6e21441d8104437c137114cd91d3b1aa3a15b9eaac05dc53fdba09e2a |
+| stock A2 absent, 1 second | 0098898c52268f88a381a071be8e75164a45c2b1388abfafd8d8a72f988cc320 |
+
+The A2 absence control still prints 0xffffffff ID, found=0, heap=0, free=0,
+and result=no-psram. The separate native setter replay checks the same absence
+markers with zero stubs/hits/reboots.
+
+## Normally linked hot-path disassembly versus P4
+
+Both binaries use cargo +1.99.0 build --release -j4 -p esp32sim --bin esp32sim
+in separate source trees/targets, not assembly emitted outside the link.
+linked/ retains binary hashes, raw compressed disassembly and static-address
+contexts. No shared-target cross-worktree executable is used.
+
+| Function | P4 instructions | P4b instructions | Mnemonic sequence |
+|---|---:|---:|---|
+| tick | 2207 | 2207 | identical |
+| fetch | 133 | 133 | identical |
+| read8 | 113 | 113 | identical |
+| read16 | 133 | 133 | identical |
+| read32 | 188 | 188 | identical |
+| shared store | 2752 | 2752 | identical |
+
+Raw bytes are not claimed identical: code/call/import-stub addresses relocate,
+as do ADRP-derived static addresses. All 20 changed ADD/LDR address-low parts
+follow ADRP and resolve to the same objects shifted by 0x480 (including page
+rollovers), not changed bus-field offsets. No new bus fields or tick checks.
+Read/fetch differences are branch/call target addresses only. New mode/table
+and owning-cache logic executes through the existing #[cold] PSRAM entry
+paths; reads still call the out-of-line psram_load instantiations. No cache
+polling, new fast-memory mapping or no-PSRAM access guard is added by P4b.
+Static equality is not a timing or performance claim.
 
 ## CPU comparison
 

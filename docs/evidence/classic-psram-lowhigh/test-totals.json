@@ -1,0 +1,12 @@
+{
+  "test-rom": {
+    "passed": 1005,
+    "failed": 0,
+    "ignored": 0
+  },
+  "test-plain": {
+    "passed": 975,
+    "failed": 0,
+    "ignored": 54
+  }
+}
