@@ -71,6 +71,10 @@ pub trait Soc: 'static {
     fn boot_core(core: &mut Self::Core, entry: u32);
     /// The interrupt input of every core, from the bus's current source state.
     fn irqs(bus: &Self::Bus, out: &mut [<Self::Core as Core>::Irq]);
+    /// Cold peripheral-change boundary, after interrupt presentation. A chip that powers
+    /// its CPUs off can park them here without adding a sleep poll to instruction dispatch.
+    #[inline]
+    fn peripheral_event(_bus: &Self::Bus, _cores: &mut [Self::Core]) {}
     /// Optional function-entry substitutions, resolved from a guest ELF by the chip.
     fn function_hooks(_bus: &Self::Bus) -> &[u32] { &[] }
     fn function_hook(_core: &mut Self::Core, _bus: &mut Self::Bus) -> bool { false }

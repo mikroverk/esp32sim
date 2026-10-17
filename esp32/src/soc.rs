@@ -35,6 +35,11 @@ impl Soc for Esp32 {
     #[inline]
     fn reset_core_with_bus(c: &mut Cpu, bus: &mut SocBus, i: usize) {
         Self::reset_core(c, i);
+        if bus.deep_sleep {
+            c.waiting = true;
+            c.intenable = 0;
+            c.interrupt = 0;
+        }
         // Reset erases external levels and edge history. The release write may have
         // been presented in the previous round, before the scheduler performs reset.
         bus.irq_dirty = true;
@@ -48,6 +53,18 @@ impl Soc for Esp32 {
     }
     fn irqs(bus: &SocBus, out: &mut [u32]) {
         bus.periph.all_cpu_lines(out);
+    }
+    fn peripheral_event(bus: &SocBus, cores: &mut [Cpu]) {
+        if bus.deep_sleep {
+            // The digital domain loses CPU state; park its snapshots using the existing
+            // idle path. Only an RTC wake/system reset may release them, never a digital
+            // interrupt (including an already latched NMI or local CCOMPARE timer).
+            for core in cores {
+                core.waiting = true;
+                core.intenable = 0;
+                core.interrupt = 0;
+            }
+        }
     }
     fn core_state(bus: &SocBus, core: usize) -> CoreState {
         if core == 0 {
@@ -111,6 +128,7 @@ impl esp_soc::SocBus for SocBus {
         Err("boot from ROM on the classic ESP32".into())
     }
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
+        self.deep_sleep = false;
         self.ble.restore_flash(&mut self.flash);
         self.ble.reset();
         let cause = self.periph.rtc.0.reset_cause;
@@ -165,7 +183,7 @@ impl esp_soc::SocBus for SocBus {
             self.irq_dirty = true;
         }
     }
-    fn gpio_release_input(&mut self, pin: u8) { self.periph.gpio.release_input(pin); self.irq_dirty = true; }
+    fn gpio_release_input(&mut self, pin: u8) { self.periph.gpio.release_input(pin); self.ext0_wake(); self.irq_dirty = true; }
     fn gpio_state(&self, pin: u8) -> Option<esp_soc::GpioState> {
         // IDF v5.5.4 soc_caps.h:182 excludes 24 and 28–31. GPIO20 is only
         // bonded on PICO-V3-02, not the D0WD model; GPIO23 (VSPI MOSI) is valid.
@@ -178,6 +196,7 @@ impl esp_soc::SocBus for SocBus {
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         self.periph.gpio.set_input(pin, level);
+        self.ext0_wake();
         self.irq_dirty = true;
         if let Some(ev) = &mut self.gpio_events {
             ev.push((self.cycles, pin, level));

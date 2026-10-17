@@ -1,0 +1,6 @@
+8419e0f852307fec604a5e1e712823e2780a7090cb3fac24fca95672ce395494  src/main.cpp
+a227e3ab93f15f1155efb3144810cc06ff7a259e9bc9b4542417afcc6c238214  ../../web/wasm/fw/public/schematik-tdisplay-bootloader.bin
+148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1  ../../web/wasm/fw/public/schematik-tdisplay-ptable.bin
+c6d79d90b46be2b0516c8bdcd4be298507483b2732cbabda7fd81ca485b23c05  ../../web/wasm/fw/public/schematik-tdisplay-app.bin
+4a7079f7ddc6f7bd1931f3fda7f16b836283840f0045cdc2a6320ccd86461680  ../../web/wasm/fw/public/schematik-tdisplay-sources.tar.gz
+5af79f568fd9389389a698fb97ae2eaa963c48747f87cdd33eedfdad8f8be91b  ../../web/wasm/fw/public/schematik-tdisplay-NOTICE.txt
