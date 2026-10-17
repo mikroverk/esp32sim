@@ -1,0 +1,1146 @@
+{
+  "changed_mnemonics": {
+    "ldr": 145,
+    "b.lo": 23,
+    "b.ne": 18,
+    "adrp": 10,
+    "add": 41,
+    "b": 87,
+    "mov": 17,
+    "str": 19,
+    "tbz": 35,
+    "bl": 81,
+    "cbz": 56,
+    "b.eq": 21,
+    "b.hi": 21,
+    "tbnz": 35,
+    "b.ls": 21,
+    "cbnz": 5,
+    "ldrh": 1,
+    "strh": 1,
+    "b.hs": 20,
+    "b.gt": 1
+  },
+  "non_control_relocation_changes": [
+    {
+      "index": 9,
+      "base": "ldr\tx8, [x0, #0x1b60]",
+      "head": "ldr\tx8, [x0, #0x1b70]"
+    },
+    {
+      "index": 13,
+      "base": "ldr\tx8, [x0, #0x1b58]",
+      "head": "ldr\tx8, [x0, #0x1b68]"
+    },
+    {
+      "index": 26,
+      "base": "add\tx9, x9, #0x6cc",
+      "head": "add\tx9, x9, #0x9b4"
+    },
+    {
+      "index": 30,
+      "base": "mov\tw9, #0x6a98             ; =27288",
+      "head": "mov\tw9, #0x6ac0             ; =27328"
+    },
+    {
+      "index": 33,
+      "base": "ldr\tx10, [x19, #0x6a90]",
+      "head": "ldr\tx10, [x19, #0x6ab8]"
+    },
+    {
+      "index": 36,
+      "base": "str\tx9, [x19, #0x6a90]",
+      "head": "str\tx9, [x19, #0x6ab8]"
+    },
+    {
+      "index": 38,
+      "base": "ldr\tx8, [x19, #0x6a70]",
+      "head": "ldr\tx8, [x19, #0x6a98]"
+    },
+    {
+      "index": 41,
+      "base": "str\tx8, [x19, #0x6a70]",
+      "head": "str\tx8, [x19, #0x6a98]"
+    },
+    {
+      "index": 47,
+      "base": "ldr\tx0, [x19, #0x2a58]",
+      "head": "ldr\tx0, [x19, #0x2a80]"
+    },
+    {
+      "index": 48,
+      "base": "ldr\tx8, [x19, #0x2a60]",
+      "head": "ldr\tx8, [x19, #0x2a88]"
+    },
+    {
+      "index": 49,
+      "base": "ldr\tx1, [x19, #0x6a70]",
+      "head": "ldr\tx1, [x19, #0x6a98]"
+    },
+    {
+      "index": 106,
+      "base": "ldr\tx4, [x19, #0xda0]",
+      "head": "ldr\tx4, [x19, #0xdb0]"
+    },
+    {
+      "index": 107,
+      "base": "ldr\tx5, [x19, #0xda8]",
+      "head": "ldr\tx5, [x19, #0xdb8]"
+    },
+    {
+      "index": 109,
+      "base": "add\tx3, x19, #0x758",
+      "head": "add\tx3, x19, #0x768"
+    },
+    {
+      "index": 111,
+      "base": "add\tx1, x1, #0xd78",
+      "head": "add\tx1, x1, #0xdc0"
+    },
+    {
+      "index": 138,
+      "base": "ldr\tx4, [x19, #0xda0]",
+      "head": "ldr\tx4, [x19, #0xdb0]"
+    },
+    {
+      "index": 139,
+      "base": "ldr\tx5, [x19, #0xda8]",
+      "head": "ldr\tx5, [x19, #0xdb8]"
+    },
+    {
+      "index": 141,
+      "base": "add\tx3, x19, #0x758",
+      "head": "add\tx3, x19, #0x768"
+    },
+    {
+      "index": 143,
+      "base": "add\tx1, x1, #0xd78",
+      "head": "add\tx1, x1, #0xdc0"
+    },
+    {
+      "index": 170,
+      "base": "ldr\tx4, [x19, #0xda0]",
+      "head": "ldr\tx4, [x19, #0xdb0]"
+    },
+    {
+      "index": 171,
+      "base": "ldr\tx5, [x19, #0xda8]",
+      "head": "ldr\tx5, [x19, #0xdb8]"
+    },
+    {
+      "index": 173,
+      "base": "add\tx3, x19, #0x758",
+      "head": "add\tx3, x19, #0x768"
+    },
+    {
+      "index": 175,
+      "base": "add\tx1, x1, #0xd78",
+      "head": "add\tx1, x1, #0xdc0"
+    },
+    {
+      "index": 311,
+      "base": "mov\tw8, #0x107a             ; =4218",
+      "head": "mov\tw8, #0x108a             ; =4234"
+    },
+    {
+      "index": 313,
+      "base": "ldr\tx10, [x19, #0x7b8]",
+      "head": "ldr\tx10, [x19, #0x7c8]"
+    },
+    {
+      "index": 314,
+      "base": "ldr\tx9, [x19, #0xfc8]",
+      "head": "ldr\tx9, [x19, #0xfd8]"
+    },
+    {
+      "index": 316,
+      "base": "ldr\tx9, [x19, #0x2830]",
+      "head": "ldr\tx9, [x19, #0x2840]"
+    },
+    {
+      "index": 319,
+      "base": "str\tx9, [x19, #0x2830]",
+      "head": "str\tx9, [x19, #0x2840]"
+    },
+    {
+      "index": 326,
+      "base": "ldr\tx22, [x19, #0x2838]",
+      "head": "ldr\tx22, [x19, #0x2848]"
+    },
+    {
+      "index": 330,
+      "base": "str\tx21, [x19, #0x2838]",
+      "head": "str\tx21, [x19, #0x2848]"
+    },
+    {
+      "index": 335,
+      "base": "ldr\tx0, [x19, #0x2130]",
+      "head": "ldr\tx0, [x19, #0x2140]"
+    },
+    {
+      "index": 344,
+      "base": "ldr\tx0, [x19, #0x2130]",
+      "head": "ldr\tx0, [x19, #0x2140]"
+    },
+    {
+      "index": 359,
+      "base": "ldr\tx1, [x19, #0x1b60]",
+      "head": "ldr\tx1, [x19, #0x1b70]"
+    },
+    {
+      "index": 362,
+      "base": "ldr\tx8, [x19, #0x1b58]",
+      "head": "ldr\tx8, [x19, #0x1b68]"
+    },
+    {
+      "index": 365,
+      "base": "mov\tw8, #0x1b50             ; =6992",
+      "head": "mov\tw8, #0x1b60             ; =7008"
+    },
+    {
+      "index": 369,
+      "base": "ldr\tx1, [x19, #0x1b60]",
+      "head": "ldr\tx1, [x19, #0x1b70]"
+    },
+    {
+      "index": 373,
+      "base": "ldr\tx8, [x19, #0x1b58]",
+      "head": "ldr\tx8, [x19, #0x1b68]"
+    },
+    {
+      "index": 402,
+      "base": "ldr\tx1, [x19, #0x1140]",
+      "head": "ldr\tx1, [x19, #0x1150]"
+    },
+    {
+      "index": 405,
+      "base": "ldr\tx8, [x19, #0x1138]",
+      "head": "ldr\tx8, [x19, #0x1148]"
+    },
+    {
+      "index": 426,
+      "base": "ldr\tw8, [x19, #0x1b40]",
+      "head": "ldr\tw8, [x19, #0x1b50]"
+    },
+    {
+      "index": 427,
+      "base": "ldr\tw9, [x19, #0x1b44]",
+      "head": "ldr\tw9, [x19, #0x1b54]"
+    },
+    {
+      "index": 430,
+      "base": "mov\tw8, #0x1130             ; =4400",
+      "head": "mov\tw8, #0x1140             ; =4416"
+    },
+    {
+      "index": 434,
+      "base": "ldr\tw8, [x19, #0x1b40]",
+      "head": "ldr\tw8, [x19, #0x1b50]"
+    },
+    {
+      "index": 435,
+      "base": "ldr\tw9, [x19, #0x1b44]",
+      "head": "ldr\tw9, [x19, #0x1b54]"
+    },
+    {
+      "index": 450,
+      "base": "ldr\tw8, [x19, #0x1070]",
+      "head": "ldr\tw8, [x19, #0x1080]"
+    },
+    {
+      "index": 451,
+      "base": "ldr\tw9, [x19, #0x1074]",
+      "head": "ldr\tw9, [x19, #0x1084]"
+    },
+    {
+      "index": 453,
+      "base": "ldr\tw9, [x19, #0x1100]",
+      "head": "ldr\tw9, [x19, #0x1110]"
+    },
+    {
+      "index": 454,
+      "base": "ldr\tw10, [x19, #0x1104]",
+      "head": "ldr\tw10, [x19, #0x1114]"
+    },
+    {
+      "index": 459,
+      "base": "add\tx0, x19, #0xff0",
+      "head": "add\tx0, x19, #0x1, lsl #12  ; =0x1000"
+    },
+    {
+      "index": 462,
+      "base": "ldr\tw8, [x19, #0x1070]",
+      "head": "ldr\tw8, [x19, #0x1080]"
+    },
+    {
+      "index": 463,
+      "base": "ldr\tw9, [x19, #0x1074]",
+      "head": "ldr\tw9, [x19, #0x1084]"
+    },
+    {
+      "index": 465,
+      "base": "ldr\tw9, [x19, #0x1100]",
+      "head": "ldr\tw9, [x19, #0x1110]"
+    },
+    {
+      "index": 466,
+      "base": "ldr\tw10, [x19, #0x1104]",
+      "head": "ldr\tw10, [x19, #0x1114]"
+    },
+    {
+      "index": 474,
+      "base": "ldr\tw8, [x19, #0x2028]",
+      "head": "ldr\tw8, [x19, #0x2038]"
+    },
+    {
+      "index": 475,
+      "base": "ldr\tw9, [x19, #0x202c]",
+      "head": "ldr\tw9, [x19, #0x203c]"
+    },
+    {
+      "index": 481,
+      "base": "ldr\tw9, [x19, #0x1ff0]",
+      "head": "ldr\tw9, [x19, #0x2000]"
+    },
+    {
+      "index": 486,
+      "base": "ldr\tw9, [x19, #0x2020]",
+      "head": "ldr\tw9, [x19, #0x2030]"
+    },
+    {
+      "index": 494,
+      "base": "ldr\tw8, [x19, #0x2058]",
+      "head": "ldr\tw8, [x19, #0x2068]"
+    },
+    {
+      "index": 501,
+      "base": "mov\tw8, #0x1fb0             ; =8112",
+      "head": "mov\tw8, #0x1fc0             ; =8128"
+    },
+    {
+      "index": 505,
+      "base": "ldr\tw8, [x19, #0x2028]",
+      "head": "ldr\tw8, [x19, #0x2038]"
+    },
+    {
+      "index": 506,
+      "base": "ldr\tw9, [x19, #0x202c]",
+      "head": "ldr\tw9, [x19, #0x203c]"
+    },
+    {
+      "index": 512,
+      "base": "ldr\tw9, [x19, #0x1ff0]",
+      "head": "ldr\tw9, [x19, #0x2000]"
+    },
+    {
+      "index": 517,
+      "base": "ldr\tw9, [x19, #0x2020]",
+      "head": "ldr\tw9, [x19, #0x2030]"
+    },
+    {
+      "index": 525,
+      "base": "ldr\tw8, [x19, #0x20e0]",
+      "head": "ldr\tw8, [x19, #0x20f0]"
+    },
+    {
+      "index": 526,
+      "base": "ldr\tw9, [x19, #0x20e4]",
+      "head": "ldr\tw9, [x19, #0x20f4]"
+    },
+    {
+      "index": 532,
+      "base": "ldr\tw8, [x19, #0x2058]",
+      "head": "ldr\tw8, [x19, #0x2068]"
+    },
+    {
+      "index": 539,
+      "base": "ldr\tw8, [x19, #0x20e0]",
+      "head": "ldr\tw8, [x19, #0x20f0]"
+    },
+    {
+      "index": 540,
+      "base": "ldr\tw9, [x19, #0x20e4]",
+      "head": "ldr\tw9, [x19, #0x20f4]"
+    },
+    {
+      "index": 543,
+      "base": "ldr\tw9, [x19, #0x20a8]",
+      "head": "ldr\tw9, [x19, #0x20b8]"
+    },
+    {
+      "index": 548,
+      "base": "ldr\tw9, [x19, #0x20d8]",
+      "head": "ldr\tw9, [x19, #0x20e8]"
+    },
+    {
+      "index": 556,
+      "base": "ldr\tw8, [x19, #0x2110]",
+      "head": "ldr\tw8, [x19, #0x2120]"
+    },
+    {
+      "index": 563,
+      "base": "mov\tw8, #0x2068             ; =8296",
+      "head": "mov\tw8, #0x2078             ; =8312"
+    },
+    {
+      "index": 567,
+      "base": "ldr\tw8, [x19, #0x20e0]",
+      "head": "ldr\tw8, [x19, #0x20f0]"
+    },
+    {
+      "index": 568,
+      "base": "ldr\tw9, [x19, #0x20e4]",
+      "head": "ldr\tw9, [x19, #0x20f4]"
+    },
+    {
+      "index": 574,
+      "base": "ldr\tw10, [x19, #0x20a8]",
+      "head": "ldr\tw10, [x19, #0x20b8]"
+    },
+    {
+      "index": 579,
+      "base": "ldr\tw10, [x19, #0x20d8]",
+      "head": "ldr\tw10, [x19, #0x20e8]"
+    },
+    {
+      "index": 594,
+      "base": "ldr\tw9, [x19, #0x2110]",
+      "head": "ldr\tw9, [x19, #0x2120]"
+    },
+    {
+      "index": 622,
+      "base": "ldr\tx1, [x19, #0x1b60]",
+      "head": "ldr\tx1, [x19, #0x1b70]"
+    },
+    {
+      "index": 625,
+      "base": "ldr\tx8, [x19, #0x1b58]",
+      "head": "ldr\tx8, [x19, #0x1b68]"
+    },
+    {
+      "index": 626,
+      "base": "ldr\tx9, [x19, #0x2840]",
+      "head": "ldr\tx9, [x19, #0x2850]"
+    },
+    {
+      "index": 641,
+      "base": "str\tx8, [x19, #0x2840]",
+      "head": "str\tx8, [x19, #0x2850]"
+    },
+    {
+      "index": 642,
+      "base": "ldr\tw8, [x19, #0x2028]",
+      "head": "ldr\tw8, [x19, #0x2038]"
+    },
+    {
+      "index": 643,
+      "base": "ldr\tw9, [x19, #0x202c]",
+      "head": "ldr\tw9, [x19, #0x203c]"
+    },
+    {
+      "index": 647,
+      "base": "mov\tw9, #0x1fb0             ; =8112",
+      "head": "mov\tw9, #0x1fc0             ; =8128"
+    },
+    {
+      "index": 650,
+      "base": "ldr\tw9, [x19, #0x1ff0]",
+      "head": "ldr\tw9, [x19, #0x2000]"
+    },
+    {
+      "index": 654,
+      "base": "mov\tw9, #0x1fb0             ; =8112",
+      "head": "mov\tw9, #0x1fc0             ; =8128"
+    },
+    {
+      "index": 656,
+      "base": "ldr\tw10, [x19, #0x2020]",
+      "head": "ldr\tw10, [x19, #0x2030]"
+    },
+    {
+      "index": 664,
+      "base": "ldr\tw8, [x19, #0x2058]",
+      "head": "ldr\tw8, [x19, #0x2068]"
+    },
+    {
+      "index": 674,
+      "base": "ldr\tw8, [x19, #0x2028]",
+      "head": "ldr\tw8, [x19, #0x2038]"
+    },
+    {
+      "index": 675,
+      "base": "ldr\tw9, [x19, #0x202c]",
+      "head": "ldr\tw9, [x19, #0x203c]"
+    },
+    {
+      "index": 681,
+      "base": "ldr\tw9, [x19, #0x1ff0]",
+      "head": "ldr\tw9, [x19, #0x2000]"
+    },
+    {
+      "index": 686,
+      "base": "ldr\tw9, [x19, #0x2020]",
+      "head": "ldr\tw9, [x19, #0x2030]"
+    },
+    {
+      "index": 694,
+      "base": "ldr\tw8, [x19, #0x20e0]",
+      "head": "ldr\tw8, [x19, #0x20f0]"
+    },
+    {
+      "index": 695,
+      "base": "ldr\tw9, [x19, #0x20e4]",
+      "head": "ldr\tw9, [x19, #0x20f4]"
+    },
+    {
+      "index": 699,
+      "base": "mov\tw9, #0x2068             ; =8296",
+      "head": "mov\tw9, #0x2078             ; =8312"
+    },
+    {
+      "index": 702,
+      "base": "ldr\tw8, [x19, #0x2058]",
+      "head": "ldr\tw8, [x19, #0x2068]"
+    },
+    {
+      "index": 709,
+      "base": "ldr\tw8, [x19, #0x20e0]",
+      "head": "ldr\tw8, [x19, #0x20f0]"
+    },
+    {
+      "index": 710,
+      "base": "ldr\tw9, [x19, #0x20e4]",
+      "head": "ldr\tw9, [x19, #0x20f4]"
+    },
+    {
+      "index": 713,
+      "base": "ldr\tw9, [x19, #0x20a8]",
+      "head": "ldr\tw9, [x19, #0x20b8]"
+    },
+    {
+      "index": 717,
+      "base": "mov\tw9, #0x2068             ; =8296",
+      "head": "mov\tw9, #0x2078             ; =8312"
+    },
+    {
+      "index": 719,
+      "base": "ldr\tw10, [x19, #0x20d8]",
+      "head": "ldr\tw10, [x19, #0x20e8]"
+    },
+    {
+      "index": 727,
+      "base": "ldr\tw8, [x19, #0x2110]",
+      "head": "ldr\tw8, [x19, #0x2120]"
+    },
+    {
+      "index": 737,
+      "base": "ldr\tw8, [x19, #0x20e0]",
+      "head": "ldr\tw8, [x19, #0x20f0]"
+    },
+    {
+      "index": 738,
+      "base": "ldr\tw9, [x19, #0x20e4]",
+      "head": "ldr\tw9, [x19, #0x20f4]"
+    },
+    {
+      "index": 744,
+      "base": "ldr\tw9, [x19, #0x20a8]",
+      "head": "ldr\tw9, [x19, #0x20b8]"
+    },
+    {
+      "index": 749,
+      "base": "ldr\tw9, [x19, #0x20d8]",
+      "head": "ldr\tw9, [x19, #0x20e8]"
+    },
+    {
+      "index": 757,
+      "base": "ldr\tw8, [x19, #0x2110]",
+      "head": "ldr\tw8, [x19, #0x2120]"
+    },
+    {
+      "index": 764,
+      "base": "add\tx26, x19, #0xff0",
+      "head": "add\tx26, x19, #0x1, lsl #12 ; =0x1000"
+    },
+    {
+      "index": 765,
+      "base": "ldr\tw8, [x19, #0x1070]",
+      "head": "ldr\tw8, [x19, #0x1080]"
+    },
+    {
+      "index": 767,
+      "base": "ldr\tw8, [x19, #0x1074]",
+      "head": "ldr\tw8, [x19, #0x1084]"
+    },
+    {
+      "index": 769,
+      "base": "ldr\tw8, [x19, #0x1100]",
+      "head": "ldr\tw8, [x19, #0x1110]"
+    },
+    {
+      "index": 771,
+      "base": "ldr\tw8, [x19, #0x1104]",
+      "head": "ldr\tw8, [x19, #0x1114]"
+    },
+    {
+      "index": 773,
+      "base": "ldr\tw22, [x19, #0x1b40]",
+      "head": "ldr\tw22, [x19, #0x1b50]"
+    },
+    {
+      "index": 774,
+      "base": "ldr\tw8, [x19, #0x1b44]",
+      "head": "ldr\tw8, [x19, #0x1b54]"
+    },
+    {
+      "index": 782,
+      "base": "add\tx0, x19, #0xff0",
+      "head": "add\tx0, x19, #0x1, lsl #12  ; =0x1000"
+    },
+    {
+      "index": 787,
+      "base": "ldr\tx1, [x19, #0x1140]",
+      "head": "ldr\tx1, [x19, #0x1150]"
+    },
+    {
+      "index": 790,
+      "base": "ldr\tx8, [x19, #0x1138]",
+      "head": "ldr\tx8, [x19, #0x1148]"
+    },
+    {
+      "index": 809,
+      "base": "mov\tw8, #0x1130             ; =4400",
+      "head": "mov\tw8, #0x1140             ; =4416"
+    },
+    {
+      "index": 813,
+      "base": "ldr\tw9, [x19, #0x1070]",
+      "head": "ldr\tw9, [x19, #0x1080]"
+    },
+    {
+      "index": 814,
+      "base": "ldr\tw8, [x19, #0x1074]",
+      "head": "ldr\tw8, [x19, #0x1084]"
+    },
+    {
+      "index": 816,
+      "base": "ldr\tw8, [x19, #0x1100]",
+      "head": "ldr\tw8, [x19, #0x1110]"
+    },
+    {
+      "index": 818,
+      "base": "ldr\tw8, [x19, #0x1104]",
+      "head": "ldr\tw8, [x19, #0x1114]"
+    },
+    {
+      "index": 820,
+      "base": "ldr\tw8, [x19, #0x1b40]",
+      "head": "ldr\tw8, [x19, #0x1b50]"
+    },
+    {
+      "index": 822,
+      "base": "ldr\tw8, [x19, #0x1b44]",
+      "head": "ldr\tw8, [x19, #0x1b54]"
+    },
+    {
+      "index": 824,
+      "base": "ldrh\tw21, [x19, #0x1128]",
+      "head": "ldrh\tw21, [x19, #0x1138]"
+    },
+    {
+      "index": 825,
+      "base": "strh\twzr, [x19, #0x1128]",
+      "head": "strh\twzr, [x19, #0x1138]"
+    },
+    {
+      "index": 836,
+      "base": "add\tx0, x19, #0x758",
+      "head": "add\tx0, x19, #0x768"
+    },
+    {
+      "index": 864,
+      "base": "mov\tw8, #0x22ee             ; =8942",
+      "head": "mov\tw8, #0x22fe             ; =8958"
+    },
+    {
+      "index": 870,
+      "base": "ldr\tx21, [x19, #0x1310]",
+      "head": "ldr\tx21, [x19, #0x1320]"
+    },
+    {
+      "index": 871,
+      "base": "ldr\tx20, [x19, #0x1308]",
+      "head": "ldr\tx20, [x19, #0x1318]"
+    },
+    {
+      "index": 872,
+      "base": "ldr\tx8, [x19, #0x1318]",
+      "head": "ldr\tx8, [x19, #0x1328]"
+    },
+    {
+      "index": 873,
+      "base": "str\txzr, [x19, #0x1308]",
+      "head": "str\txzr, [x19, #0x1318]"
+    },
+    {
+      "index": 875,
+      "base": "str\tx9, [x19, #0x1310]",
+      "head": "str\tx9, [x19, #0x1320]"
+    },
+    {
+      "index": 876,
+      "base": "str\txzr, [x19, #0x1318]",
+      "head": "str\txzr, [x19, #0x1328]"
+    },
+    {
+      "index": 884,
+      "base": "add\tx0, x19, #0x758",
+      "head": "add\tx0, x19, #0x768"
+    },
+    {
+      "index": 933,
+      "base": "ldr\tx12, [x19, #0x7b8]",
+      "head": "ldr\tx12, [x19, #0x7c8]"
+    },
+    {
+      "index": 934,
+      "base": "ldr\tx13, [x19, #0xfc8]",
+      "head": "ldr\tx13, [x19, #0xfd8]"
+    },
+    {
+      "index": 945,
+      "base": "mov\tw9, #0x2640             ; =9792",
+      "head": "mov\tw9, #0x2650             ; =9808"
+    },
+    {
+      "index": 951,
+      "base": "ldr\tq0, [x11, #0x850]",
+      "head": "ldr\tq0, [x11, #0xae0]"
+    },
+    {
+      "index": 954,
+      "base": "ldr\tq0, [x11, #0x860]",
+      "head": "ldr\tq0, [x11, #0xaf0]"
+    },
+    {
+      "index": 957,
+      "base": "ldr\tq0, [x11, #0x870]",
+      "head": "ldr\tq0, [x11, #0xb00]"
+    },
+    {
+      "index": 960,
+      "base": "add\tx11, x11, #0x478",
+      "head": "add\tx11, x11, #0x4c0"
+    },
+    {
+      "index": 965,
+      "base": "add\tx11, x11, #0xca0",
+      "head": "add\tx11, x11, #0xce8"
+    },
+    {
+      "index": 988,
+      "base": "ldr\tx8, [x19, #0x2688]",
+      "head": "ldr\tx8, [x19, #0x2698]"
+    },
+    {
+      "index": 995,
+      "base": "ldr\tx3, [x19, #0x6a70]",
+      "head": "ldr\tx3, [x19, #0x6a98]"
+    },
+    {
+      "index": 1007,
+      "base": "add\tx5, x19, #0x758",
+      "head": "add\tx5, x19, #0x768"
+    },
+    {
+      "index": 1014,
+      "base": "ldr\tx0, [x19, #0x2688]",
+      "head": "ldr\tx0, [x19, #0x2698]"
+    },
+    {
+      "index": 1065,
+      "base": "ldr\tx8, [x19, #0x2860]",
+      "head": "ldr\tx8, [x19, #0x2870]"
+    },
+    {
+      "index": 1085,
+      "base": "ldr\tx9, [x19, #0x2858]",
+      "head": "ldr\tx9, [x19, #0x2868]"
+    },
+    {
+      "index": 1152,
+      "base": "ldr\tx12, [x19, #0x2918]",
+      "head": "ldr\tx12, [x19, #0x2928]"
+    },
+    {
+      "index": 1153,
+      "base": "ldr\tx10, [x19, #0x2920]",
+      "head": "ldr\tx10, [x19, #0x2930]"
+    },
+    {
+      "index": 1247,
+      "base": "ldr\tx10, [x19, #0x2860]",
+      "head": "ldr\tx10, [x19, #0x2870]"
+    },
+    {
+      "index": 1248,
+      "base": "ldr\tx11, [x19, #0x2858]",
+      "head": "ldr\tx11, [x19, #0x2868]"
+    },
+    {
+      "index": 1249,
+      "base": "ldr\tx12, [x19, #0x2918]",
+      "head": "ldr\tx12, [x19, #0x2928]"
+    },
+    {
+      "index": 1250,
+      "base": "ldr\tx9, [x19, #0x2920]",
+      "head": "ldr\tx9, [x19, #0x2930]"
+    },
+    {
+      "index": 1540,
+      "base": "ldr\tx8, [x19, #0x6a70]",
+      "head": "ldr\tx8, [x19, #0x6a98]"
+    },
+    {
+      "index": 1541,
+      "base": "str\tx8, [x19, #0x24b0]",
+      "head": "str\tx8, [x19, #0x24c0]"
+    },
+    {
+      "index": 1559,
+      "base": "ldr\tx0, [x19, #0x6a78]",
+      "head": "ldr\tx0, [x19, #0x6aa0]"
+    },
+    {
+      "index": 1560,
+      "base": "ldr\tx1, [x19, #0x6a80]",
+      "head": "ldr\tx1, [x19, #0x6aa8]"
+    },
+    {
+      "index": 1562,
+      "base": "add\tx2, x2, #0x748",
+      "head": "add\tx2, x2, #0xa28"
+    },
+    {
+      "index": 1566,
+      "base": "ldr\tx26, [x19, #0x2278]",
+      "head": "ldr\tx26, [x19, #0x2288]"
+    },
+    {
+      "index": 1567,
+      "base": "ldr\tx21, [x19, #0x2270]",
+      "head": "ldr\tx21, [x19, #0x2280]"
+    },
+    {
+      "index": 1568,
+      "base": "ldr\tx8, [x19, #0x2280]",
+      "head": "ldr\tx8, [x19, #0x2290]"
+    },
+    {
+      "index": 1569,
+      "base": "str\txzr, [x19, #0x2270]",
+      "head": "str\txzr, [x19, #0x2280]"
+    },
+    {
+      "index": 1571,
+      "base": "str\tx9, [x19, #0x2278]",
+      "head": "str\tx9, [x19, #0x2288]"
+    },
+    {
+      "index": 1572,
+      "base": "str\txzr, [x19, #0x2280]",
+      "head": "str\txzr, [x19, #0x2290]"
+    },
+    {
+      "index": 1574,
+      "base": "mov\tw9, #0x2228             ; =8744",
+      "head": "mov\tw9, #0x2238             ; =8760"
+    },
+    {
+      "index": 1579,
+      "base": "add\tx8, x8, #0x478",
+      "head": "add\tx8, x8, #0x4c0"
+    },
+    {
+      "index": 1593,
+      "base": "ldr\tx2, [x19, #0x2860]",
+      "head": "ldr\tx2, [x19, #0x2870]"
+    },
+    {
+      "index": 1609,
+      "base": "ldr\tx27, [x19, #0x2858]",
+      "head": "ldr\tx27, [x19, #0x2868]"
+    },
+    {
+      "index": 1647,
+      "base": "add\tx8, x8, #0x2ec",
+      "head": "add\tx8, x8, #0xa2c"
+    },
+    {
+      "index": 1651,
+      "base": "add\tx0, x0, #0x9e1",
+      "head": "add\tx0, x0, #0xcc1"
+    },
+    {
+      "index": 1661,
+      "base": "ldr\td0, [x19, #0x24e8]",
+      "head": "ldr\td0, [x19, #0x24f8]"
+    },
+    {
+      "index": 1665,
+      "base": "str\td0, [x19, #0x24e8]",
+      "head": "str\td0, [x19, #0x24f8]"
+    },
+    {
+      "index": 1669,
+      "base": "ldr\tx1, [x19, #0x2238]",
+      "head": "ldr\tx1, [x19, #0x2248]"
+    },
+    {
+      "index": 1672,
+      "base": "ldr\tx9, [x19, #0x2230]",
+      "head": "ldr\tx9, [x19, #0x2240]"
+    },
+    {
+      "index": 1694,
+      "base": "mov\tw8, #0x2288             ; =8840",
+      "head": "mov\tw8, #0x2298             ; =8856"
+    },
+    {
+      "index": 1704,
+      "base": "ldr\tx1, [x19, #0x2238]",
+      "head": "ldr\tx1, [x19, #0x2248]"
+    },
+    {
+      "index": 1711,
+      "base": "ldr\tx8, [x19, #0x2230]",
+      "head": "ldr\tx8, [x19, #0x2240]"
+    },
+    {
+      "index": 1714,
+      "base": "ldr\tx8, [x19, #0x2478]",
+      "head": "ldr\tx8, [x19, #0x2488]"
+    },
+    {
+      "index": 1716,
+      "base": "ldr\tx9, [x19, #0x22b8]",
+      "head": "ldr\tx9, [x19, #0x22c8]"
+    },
+    {
+      "index": 1721,
+      "base": "ldr\tx8, [x19, #0x2300]",
+      "head": "ldr\tx8, [x19, #0x2310]"
+    },
+    {
+      "index": 1723,
+      "base": "ldr\tx8, [x19, #0x2368]",
+      "head": "ldr\tx8, [x19, #0x2378]"
+    },
+    {
+      "index": 1726,
+      "base": "ldr\tx8, [x19, #0x22b0]",
+      "head": "ldr\tx8, [x19, #0x22c0]"
+    },
+    {
+      "index": 1728,
+      "base": "mov\tw8, #0x2288             ; =8840",
+      "head": "mov\tw8, #0x2298             ; =8856"
+    },
+    {
+      "index": 1729,
+      "base": "ldr\tw9, [x19, #0x24a8]",
+      "head": "ldr\tw9, [x19, #0x24b8]"
+    },
+    {
+      "index": 1739,
+      "base": "ldr\tx10, [x19, #0x2860]",
+      "head": "ldr\tx10, [x19, #0x2870]"
+    },
+    {
+      "index": 1755,
+      "base": "ldr\tw8, [x19, #0x24f4]",
+      "head": "ldr\tw8, [x19, #0x2504]"
+    },
+    {
+      "index": 1765,
+      "base": "ldr\tx8, [x19, #0x2498]",
+      "head": "ldr\tx8, [x19, #0x24a8]"
+    },
+    {
+      "index": 1767,
+      "base": "str\tx8, [x19, #0x2498]",
+      "head": "str\tx8, [x19, #0x24a8]"
+    },
+    {
+      "index": 1771,
+      "base": "mov\tw8, #0x2288             ; =8840",
+      "head": "mov\tw8, #0x2298             ; =8856"
+    },
+    {
+      "index": 1791,
+      "base": "add\tx3, x3, #0xc88",
+      "head": "add\tx3, x3, #0xcd0"
+    },
+    {
+      "index": 1794,
+      "base": "ldr\tx28, [x19, #0x2860]",
+      "head": "ldr\tx28, [x19, #0x2870]"
+    },
+    {
+      "index": 1809,
+      "base": "ldr\tx24, [x19, #0x2858]",
+      "head": "ldr\tx24, [x19, #0x2868]"
+    },
+    {
+      "index": 1834,
+      "base": "ldr\tx9, [x19, #0x22b8]",
+      "head": "ldr\tx9, [x19, #0x22c8]"
+    },
+    {
+      "index": 1905,
+      "base": "add\tx9, x9, #0x3f0",
+      "head": "add\tx9, x9, #0x6d0"
+    },
+    {
+      "index": 1919,
+      "base": "ldr\tx10, [x19, #0x2858]",
+      "head": "ldr\tx10, [x19, #0x2868]"
+    },
+    {
+      "index": 1926,
+      "base": "add\tx3, x3, #0xb98",
+      "head": "add\tx3, x3, #0xbc8"
+    },
+    {
+      "index": 1930,
+      "base": "add\tx3, x3, #0xb98",
+      "head": "add\tx3, x3, #0xbc8"
+    },
+    {
+      "index": 1933,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 1958,
+      "base": "str\tw22, [x19, #0x24f8]",
+      "head": "str\tw22, [x19, #0x2508]"
+    },
+    {
+      "index": 1960,
+      "base": "str\tw8, [x19, #0x24f4]",
+      "head": "str\tw8, [x19, #0x2504]"
+    },
+    {
+      "index": 1961,
+      "base": "str\tw22, [x19, #0x24a8]",
+      "head": "str\tw22, [x19, #0x24b8]"
+    },
+    {
+      "index": 1962,
+      "base": "ldr\tx8, [x19, #0x2490]",
+      "head": "ldr\tx8, [x19, #0x24a0]"
+    },
+    {
+      "index": 1964,
+      "base": "str\tx8, [x19, #0x2490]",
+      "head": "str\tx8, [x19, #0x24a0]"
+    },
+    {
+      "index": 1965,
+      "base": "ldr\tw8, [x19, #0x24e8]",
+      "head": "ldr\tw8, [x19, #0x24f8]"
+    },
+    {
+      "index": 1967,
+      "base": "str\tw8, [x19, #0x24e8]",
+      "head": "str\tw8, [x19, #0x24f8]"
+    },
+    {
+      "index": 1983,
+      "base": "add\tx8, x8, #0x2ec",
+      "head": "add\tx8, x8, #0xa2c"
+    },
+    {
+      "index": 1986,
+      "base": "add\tx0, x0, #0xdd0",
+      "head": "add\tx0, x0, #0xb4"
+    },
+    {
+      "index": 2002,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2008,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2013,
+      "base": "add\tx3, x3, #0xc70",
+      "head": "add\tx3, x3, #0xcb8"
+    },
+    {
+      "index": 2018,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2024,
+      "base": "add\tx8, x8, #0xed8",
+      "head": "add\tx8, x8, #0xf20"
+    },
+    {
+      "index": 2030,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2035,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2039,
+      "base": "add\tx8, x8, #0xc70",
+      "head": "add\tx8, x8, #0xcb8"
+    },
+    {
+      "index": 2048,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2053,
+      "base": "add\tx2, x2, #0x478",
+      "head": "add\tx2, x2, #0x4c0"
+    },
+    {
+      "index": 2059,
+      "base": "add\tx0, x0, #0xc28",
+      "head": "add\tx0, x0, #0xc70"
+    },
+    {
+      "index": 2121,
+      "base": "add\tx3, x3, #0xc58",
+      "head": "add\tx3, x3, #0xca0"
+    },
+    {
+      "index": 2128,
+      "base": "add\tx2, x2, #0xc40",
+      "head": "add\tx2, x2, #0xc88"
+    },
+    {
+      "index": 2134,
+      "base": "add\tx8, x8, #0xbb0",
+      "head": "add\tx8, x8, #0xbe0"
+    },
+    {
+      "index": 2137,
+      "base": "add\tx8, x8, #0xed8",
+      "head": "add\tx8, x8, #0xf20"
+    }
+  ]
+}

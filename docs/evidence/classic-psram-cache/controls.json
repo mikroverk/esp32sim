@@ -1,0 +1,70 @@
+{
+  "baseline": {
+    "inputs": {
+      "classic-hello-bootloader.bin": "faa4ac0961a9ec6c02d865c874c82bfe0a01225491b89d54fe4b7393f712be2a",
+      "classic-hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "classic-hello_world.bin": "fa4307fe9545e6599155ac38ad61205946b3f56e92890ad10a69c1592e120cdd"
+    },
+    "runs": [
+      {
+        "version": "base",
+        "serial_bytes": 2935,
+        "serial_sha256": "ddb22f96bb04830ff8abaf2305bf193d3b333d1bfa2e383cf0709f05ecbe9c5c",
+        "stop": "[emu] stop: MaxInsns \u2014 core0 4337816 + core1 426561 insns; emulated 0.954s (229059360 cycles); 1458 exceptions, 187 interrupts"
+      },
+      {
+        "version": "candidate",
+        "serial_bytes": 2935,
+        "serial_sha256": "ddb22f96bb04830ff8abaf2305bf193d3b333d1bfa2e383cf0709f05ecbe9c5c",
+        "stop": "[emu] stop: MaxInsns \u2014 core0 4337816 + core1 426561 insns; emulated 0.954s (229059360 cycles); 1458 exceptions, 187 interrupts"
+      }
+    ],
+    "serial_identical": true
+  },
+  "A2": {
+    "inputs": {
+      "p0_probe.ino.bootloader.bin": "3d97b71a61331ebaddef2a74e090c35299650f395f1387f85130010e84e46563",
+      "p0_probe.ino.partitions.bin": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+      "p0_probe.ino.bin": "a1e48c65f4ffaa2f403ea95caec3157850a2a28c6cc68358ec020244f5b56dff"
+    },
+    "runs": [
+      {
+        "version": "base",
+        "serial_bytes": 449,
+        "serial_sha256": "e2e59878af44438a533d95b3d9787dea7224d9e893acb5f52cd960a45ed26b3c",
+        "stop": "[emu] stop: MaxInsns \u2014 core0 5561468 + core1 1538349 insns; emulated 0.659s (158058112 cycles); 8448 exceptions, 1464 interrupts"
+      },
+      {
+        "version": "candidate",
+        "serial_bytes": 449,
+        "serial_sha256": "0098898c52268f88a381a071be8e75164a45c2b1388abfafd8d8a72f988cc320",
+        "stop": "[emu] stop: MaxInsns \u2014 core0 5561296 + core1 1538130 insns; emulated 0.659s (158058112 cycles); 8444 exceptions, 1462 interrupts"
+      }
+    ],
+    "serial_identical": false,
+    "intentional_change": "Inherited P1 absent-device error ID corrected from flash identity to ffffffff; guest still reports no PSRAM."
+  },
+  "A30": {
+    "inputs": {
+      "p0_probe.ino.bootloader.bin": "b22f373e6194a62505034bbcd2828ab5eaa0fba62f3e4198fb7ae677c1d2f6f7",
+      "p0_probe.ino.partitions.bin": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+      "p0_probe.ino.bin": "8ae6488145f64c636e79269a3c1d39fd8b6f44f94df1955e33e103b1f7735c99"
+    },
+    "runs": [
+      {
+        "version": "base",
+        "serial_bytes": 532,
+        "serial_sha256": "5c5c7c85a3a9871ef18f7f16b2dfbbc90310b705cf66261104c72fd452b86571",
+        "stop": "[emu] stop: MaxInsns \u2014 core0 5325125 + core1 1283551 insns; emulated 0.660s (158370816 cycles); 7659 exceptions, 1320 interrupts"
+      },
+      {
+        "version": "candidate",
+        "serial_bytes": 532,
+        "serial_sha256": "e926118bb6f3d770cd8b24e35bef1f96047c8ac42927a8fcec620590b7096507",
+        "stop": "[emu] stop: MaxInsns \u2014 core0 5325316 + core1 1283742 insns; emulated 0.660s (158370944 cycles); 7657 exceptions, 1320 interrupts"
+      }
+    ],
+    "serial_identical": false,
+    "intentional_change": "Inherited P1 absent-device error ID corrected from flash identity to ffffffff; guest still reports no PSRAM."
+  }
+}

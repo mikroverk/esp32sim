@@ -19,6 +19,14 @@ mutants=[
 ('app-cache','esp32/src/psram.rs','for core in 0..cores {','for core in 0..cores.min(1) {',gates),
 ('device-qpi','esp32/src/psram.rs','!self.periph.spi1.0.classic_qpi_enabled() || ','false || ',gates),
 ('spi0-cs1','esp32/src/periph.rs','self.0.regs.read(0x34) & 2 == 0','true',gates),
+('sctrl-qio','esp32/src/periph.rs','let required = (1 << 2) | (1 << 4) |','let required = (1 << 4) |',gates),
+('sctrl-dio','esp32/src/periph.rs','s & (1 << 1) == 0','true',gates),
+('sctrl-dummy','esp32/src/periph.rs','let required = (1 << 2) | (1 << 4) |','let required = (1 << 2) |',gates),
+('sctrl-address','esp32/src/periph.rs','(s >> 22) & 63 == 23','true',gates),
+('command-length','esp32/src/periph.rs','command >> 28 == 7','true',gates),
+('read-enable','esp32/src/periph.rs','(1 << if write { 28 } else { 5 })','(if write { 1 << 28 } else { 0 })',gates),
+('write-enable','esp32/src/periph.rs','(1 << if write { 28 } else { 5 })','(if write { 0 } else { 1 << 5 })',gates),
+('command-value-gate','esp32/src/periph.rs','command & 0xffff == if write { 0x38 } else { 0xeb }','true',gates),
 ('read-opcode','esp32/src/periph.rs','if write { 0x38 } else { 0xeb }','if write { 0x38 } else { 0x03 }',gates),
 ('write-opcode','esp32/src/periph.rs','if write { 0x38 } else { 0xeb }','if write { 0x02 } else { 0xeb }',gates),
 ('read-gate','esp32/src/psram.rs','self.psram_cache_gate(false).map(|()| o)','Ok::<_, Fault>(o)',gates),
@@ -31,6 +39,10 @@ mutants=[
 ('reboot-device','esp32/src/soc.rs','self.periph.spi1.0.jedec = old.spi1.0.jedec;','self.periph.spi1 = old.spi1;',reboot),
 ('reboot-dport','esp32/src/soc.rs','self.periph.efuse = old.efuse;','self.periph.dport = old.dport;\n        self.periph.efuse = old.efuse;',reboot),
 ]
+if len(sys.argv) > 3:
+    names = set(sys.argv[3:])
+    mutants = [m for m in mutants if m[0] in names]
+    assert len(mutants) == len(names), 'unknown mutation name'
 original={f:(root/f).read_text() for _,f,_,_,_ in mutants}
 results=[]
 try:
