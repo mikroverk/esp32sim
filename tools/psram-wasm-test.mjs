@@ -47,6 +47,7 @@ function check(lines, prefix, size) {
 }
 const results = [];
 for (const jit of [0,1]) for (const [prefix,size] of [['p5',4],['p5',0],['p6',4],['p6',0],['p5',4],['p6',4]]) {
+  if (process.env.PSRAM_CASE && process.env.PSRAM_CASE !== `${prefix}:${size}:${jit}`) continue;
   const fw = process.env[prefix === 'p5' ? 'ARDUINO2_FIRMWARE_DIR' : 'ARDUINO3_FIRMWARE_DIR'];
   assert(fw, 'set both Arduino firmware directories to retained stock builds');
   const native = spawnSync('nice', ['-n','10', join(target,'release/examples/psram-qualification'), fw,prefix,String(size),String(jit)], {encoding:'utf8',maxBuffer:16<<20});
@@ -85,11 +86,13 @@ for (const jit of [0,1]) for (const [prefix,size] of [['p5',4],['p5',0],['p6',4]
       const prior=results.find(r=>r.prefix===prefix && r.size===size);
       if(prior) assert.equal(row.serial_sha256,prior.serial_sha256,'reboot/mode/recreated machine serial equality');
       results.push(row);
+      if(process.env.PSRAM_RESULTS) writeFileSync(process.env.PSRAM_RESULTS,JSON.stringify({wasm_sha256:hash(wasm),complete:false,case:process.env.PSRAM_CASE || 'all',comparisons:results.length,results},null,2)+'\n');
       console.log(`PASS ${prefix} size=${size} jit=${jit} boot=${boot} serial=${row.serial_sha256}`);
     }
-  } finally { w.esp32sim_delete(e); }
+  } catch (error) { console.error(logs.slice(-12).join('\n')); throw error; }
+  finally { w.esp32sim_delete(e); }
 }
 assert(!logs.some(l=>l.includes('panic')));
-const receipt={wasm_sha256:hash(wasm),comparisons:results.length,results};
+const receipt={wasm_sha256:hash(wasm),complete:true,case:process.env.PSRAM_CASE || 'all',comparisons:results.length,results};
 if(process.env.PSRAM_RESULTS) writeFileSync(process.env.PSRAM_RESULTS,JSON.stringify(receipt,null,2)+'\n');
 console.log(`PASS ${results.length} native/WASM boot comparisons; ${results.length/2} successive WASM machines in one instance`);
