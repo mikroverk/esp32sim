@@ -92,6 +92,14 @@ impl ClassicAdc {
         true
     }
 
+    pub(crate) fn ext0_pad(&self) -> Option<u8> {
+        // IDF v5.5.4 rtc_io_reg.h:1895-1901; rtc_io_periph.c maps RTC IO
+        // indices (not digital GPIO numbers). Require the selected pad's RTC mux.
+        let index = (self.rtc_io.read(0xbc) >> 27) as usize;
+        let &(pin, off, mux) = PADS.get(index)?;
+        (self.rtc_io.read(off) & (1 << mux) != 0).then_some(pin)
+    }
+
     pub fn rtc_pad_mask(&self) -> u64 {
         PADS.iter().fold(0, |mask, &(pin, off, mux)| {
             mask | if self.rtc_io.read(off) & (1 << mux) != 0 {

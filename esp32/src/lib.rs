@@ -4,6 +4,7 @@ pub mod ble;
 pub mod bus;
 pub mod periph;
 pub mod soc;
+mod sleep;
 pub mod timers;
 pub mod wifi;
 
