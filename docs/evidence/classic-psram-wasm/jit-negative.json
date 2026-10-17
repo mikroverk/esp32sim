@@ -1,5 +1,11 @@
 {
-  "status": "UNRESOLVED",
+  "status": "PRE_FIX_NEGATIVE_RESOLVED",
+  "resolution": {
+    "fix_sha": "291bc1371fffd81a30f7f521a88d47c114487768",
+    "regression_sha": "b252084923f51e53a4e513a5d8ffe86621d3523f",
+    "current_results": "fixed-checks.json",
+    "explanation": "Validate cached Hot facts against selected live region, not preferred coverage owner; separately discard owner-index hints on cold reset. All field checks remain, selected chunk PC is checked. No stale/freed production execution demonstrated."
+  },
   "site": "xtensa-lx7/src/jit/wasm.rs:186 Hot::assert_matches",
   "asserted_wasm_source": "dea5cbc73b9995367b9a5d71f08d1a13b68039be",
   "additional_diagnostic_source": "2e322af2b1d2916746e82edb18197846cef02826",

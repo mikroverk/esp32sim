@@ -62,9 +62,10 @@ through the native C ABI and real WASM, with JIT off/on, same-machine reboot and
 successive emulator creation. It requires both Arduino firmware directories, ROMs,
 and the `psram-qualification` example (`--features psram-tests`). Build the WASM
 module with `psram-tests` for production JIT settings, and separately with
-`jit-tests` for extra internal validation. The latter currently exposes a classic
-reboot hot-region consistency failure; this is not a fully accepted qualification.
-See [the bounded results and negative receipt](../docs/evidence/classic-psram-wasm/README.md).
+`jit-tests` for extra internal validation. Both matrices pass, including classic
+same-machine reboot and repeated construction; the earlier hot-region ownership
+assertion is resolved by the separately retained JIT fix/regression.
+See [the qualification and retained negative receipt](../docs/evidence/classic-psram-wasm/README.md).
 
 Tests named `external_*` need inputs only a developer machine has (full objdump listings via
 `XTENSA_DIS_FILES`/`RISCV_DIS_FILES`, Apple's clang for the encoder fixture) and fail loudly
