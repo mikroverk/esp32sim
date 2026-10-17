@@ -1,0 +1,15 @@
+
+$FIRMWARE:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+4008dd28 <tlsf_size>:
+4008dd28:	004136        	entry	a1, 32
+4008dd2b:	128c      	beqz.n	a2, 4008dd30 <tlsf_size+0x8>
+4008dd2d:	052222        	l32i	a2, a2, 20
+4008dd30:	f01d      	retw.n
+
+Disassembly of section .flash.text:

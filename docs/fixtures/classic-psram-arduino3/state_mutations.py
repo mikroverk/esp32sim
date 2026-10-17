@@ -16,6 +16,7 @@ out.mkdir(parents=True, exist_ok=True)
 source = sdk/'arduino-A30/data/packages/esp32/hardware/esp32/3.0.7/cores/esp32/esp32-hal-psram.c'
 original = source.read_bytes()
 cases = [
+ ('failed-reprobe', b'if (spiramFailed) {', b'if (false && spiramFailed) {', 'external_arduino3_no_device_is_rejected', 'cached Arduino retry and SDK duplicate entry counts'),
  ('detected-duplicate-false', b'if (spiramDetected) {\n    return true;', b'if (spiramDetected) {\n    return false;', 'external_arduino3_psram_startup_and_readback', 'successful Arduino duplicate'),
  ('failed-retry-true', b'if (spiramFailed) {\n    return false;', b'if (spiramFailed) {\n    return true;', 'external_arduino3_no_device_is_rejected', 'preserves failed state on retry'),
  ('failed-add-true', b'log_e("PSRAM not initialized!");\n    return false;', b'log_e("PSRAM not initialized!");\n    return true;', 'external_arduino3_no_device_is_rejected', 'heap-add must reject undetected PSRAM'),

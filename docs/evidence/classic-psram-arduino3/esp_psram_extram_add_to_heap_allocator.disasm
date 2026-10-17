@@ -1,0 +1,47 @@
+
+$FIRMWARE:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+400df4e8 <esp_psram_extram_add_to_heap_allocator>:
+400df4e8:	008136        	entry	a1, 64
+400df4eb:	c69731        	l32r	a3, 400d0f48 <_stext+0xf28> (3f4091b0 <__func__$12+0xdd>)
+400df4ee:	08c1a2        	addi	a10, a1, 8
+400df4f1:	002392        	l32i	a9, a3, 0
+400df4f4:	1388      	l32i.n	a8, a3, 4
+400df4f6:	2338      	l32i.n	a3, a3, 8
+400df4f8:	4139      	s32i.n	a3, a1, 16
+400df4fa:	c68e31        	l32r	a3, 400d0f34 <_stext+0xf14> (3ffc21d0 <s_psram_ctx>)
+400df4fd:	23c8      	l32i.n	a12, a3, 8
+400df4ff:	13b8      	l32i.n	a11, a3, 4
+400df501:	2199      	s32i.n	a9, a1, 8
+400df503:	3189      	s32i.n	a8, a1, 12
+400df505:	fb1725        	call8	400da678 <heap_caps_add_region_with_caps>
+400df508:	caec      	bnez.n	a10, 400df538 <esp_psram_extram_add_to_heap_allocator+0x50>
+400df50a:	6388      	l32i.n	a8, a3, 24
+400df50c:	88ac      	beqz.n	a8, 400df538 <esp_psram_extram_add_to_heap_allocator+0x50>
+400df50e:	43b8      	l32i.n	a11, a3, 16
+400df510:	dbcc      	bnez.n	a11, 400df521 <esp_psram_extram_add_to_heap_allocator+0x39>
+400df512:	43a1b2        	movi	a11, 0x143
+400df515:	c68dd1        	l32r	a13, 400d0f4c <_stext+0xf2c> (3f40916f <__func__$12+0x9c>)
+400df518:	c68ec1        	l32r	a12, 400d0f50 <_stext+0xf30> (3f4091d4 <__func__$0>)
+400df51b:	c689a1        	l32r	a10, 400d0f40 <_stext+0xf20> (3f409163 <__func__$12+0x90>)
+400df51e:	ae99e5        	call8	4008debc <__assert_func>
+400df521:	c68c81        	l32r	a8, 400d0f54 <_stext+0xf34> (3f4091bc <__func__$12+0xe9>)
+400df524:	08a8      	l32i.n	a10, a8, 0
+400df526:	1898      	l32i.n	a9, a8, 4
+400df528:	53c8      	l32i.n	a12, a3, 20
+400df52a:	2888      	l32i.n	a8, a8, 8
+400df52c:	51a9      	s32i.n	a10, a1, 20
+400df52e:	14c1a2        	addi	a10, a1, 20
+400df531:	6199      	s32i.n	a9, a1, 24
+400df533:	7189      	s32i.n	a8, a1, 28
+400df535:	fb1425        	call8	400da678 <heap_caps_add_region_with_caps>
+400df538:	0a2d      	mov.n	a2, a10
+400df53a:	0020c0        	memw
+400df53d:	f01d      	retw.n

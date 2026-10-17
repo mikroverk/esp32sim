@@ -29,6 +29,23 @@ all classic/S3 goldens remain unchanged. See the evidence receipt for exact
 accounting, provenance, commands and mutation results. This does not qualify
 other SDK configurations, BOOT_INIT=y, WASM, camera or physical hardware.
 
+Semantic probes:
+
+    ARDUINO3_FIRMWARE_DIR=ABS_OUTPUT/fw-p6 ESP32SIM_ROM_DIR=ROMS \
+      CARGO_TARGET_DIR=OWNED_TARGET python3 docs/fixtures/classic-psram-arduino3/mutate.py \
+      CLEAN_DISPOSABLE_TREE EVIDENCE
+    ESP32SIM_ROM_DIR=ROMS CARGO_TARGET_DIR=OWNED_TARGET \
+      python3 docs/fixtures/classic-psram-arduino3/state_mutations.py \
+      TREE ABS_OUTPUT EVIDENCE
+
+The first script mutates emulator semantics only in a clean disposable worktree.
+The second deliberately mutates the Arduino retry/error-state rules in the
+caller-owned installation, builds separate negative firmware, then restores the
+original source bytes in a finally block. Never use a shared installation.
+The negative firmware is not an accepted control or a production fix. Compilation
+errors do not count as kills. Recheck provenance and rebuild stock controls after
+running these probes.
+
 Licenses: the new sketch/harness are MIT; Arduino core and bundled libraries keep
 their own upstream licenses. No linked firmware is distributed by this change.
 The provenance archive list is input identification, not a blanket binary NOTICE.

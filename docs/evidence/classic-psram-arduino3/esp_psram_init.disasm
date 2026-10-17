@@ -1,0 +1,114 @@
+
+$FIRMWARE:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+400df3e0 <esp_psram_init>:
+400df3e0:	008136        	entry	a1, 64
+400df3e3:	c6d431        	l32r	a3, 400d0f34 <_stext+0xf14> (3ffc21d0 <s_psram_ctx>)
+400df3e6:	000322        	l8ui	a2, a3, 0
+400df3e9:	0f4256        	bnez	a2, 400df4e1 <esp_psram_init+0x101>
+400df3ec:	01a0a2        	movi	a10, 1
+400df3ef:	a5c565        	call8	40085044 <esp_psram_impl_enable>
+400df3f2:	0a2d      	mov.n	a2, a10
+400df3f4:	0e4a56        	bnez	a10, 400df4dc <esp_psram_init+0xfc>
+400df3f7:	140c      	movi.n	a4, 1
+400df3f9:	0261a2        	s32i	a10, a1, 8
+400df3fc:	a18b      	addi.n	a10, a1, 8
+400df3fe:	004342        	s8i	a4, a3, 0
+400df401:	0020c0        	memw
+400df404:	006265        	call8	400dfa2c <esp_psram_impl_get_physical_size>
+400df407:	da8c      	beqz.n	a10, 400df418 <esp_psram_init+0x38>
+400df409:	89a0b2        	movi	a11, 137
+400df40c:	c6cbd1        	l32r	a13, 400d0f38 <_stext+0xf18> (3f403c9f <__func__$1+0xf5>)
+400df40f:	c6cbc1        	l32r	a12, 400d0f3c <_stext+0xf1c> (3f4091fb <__func__$1>)
+400df412:	c6cba1        	l32r	a10, 400d0f40 <_stext+0xf20> (3f409163 <__func__$12+0x90>)
+400df415:	aeaa65        	call8	4008debc <__assert_func>
+400df418:	0361a2        	s32i	a10, a1, 12
+400df41b:	0cc1a2        	addi	a10, a1, 12
+400df41e:	006565        	call8	400dfa74 <esp_psram_impl_get_available_size>
+400df421:	00ca16        	beqz	a10, 400df431 <esp_psram_init+0x51>
+400df424:	96a0b2        	movi	a11, 150
+400df427:	c6c4d1        	l32r	a13, 400d0f38 <_stext+0xf18> (3f403c9f <__func__$1+0xf5>)
+400df42a:	c6c4c1        	l32r	a12, 400d0f3c <_stext+0xf1c> (3f4091fb <__func__$1>)
+400df42d:	fff846        	j	400df412 <esp_psram_init+0x32>
+400df430:	00          	.byte 00
+400df431:	0461a2        	s32i	a10, a1, 16
+400df434:	10c1c2        	addi	a12, a1, 16
+400df437:	02a0b2        	movi	a11, 2
+400df43a:	1ea0a2        	movi	a10, 30
+400df43d:	02cae5        	call8	400e20ec <esp_mmu_map_get_max_consecutive_free_block_size>
+400df440:	aa8c      	beqz.n	a10, 400df44e <esp_psram_init+0x6e>
+400df442:	c6bdd1        	l32r	a13, 400d0f38 <_stext+0xf18> (3f403c9f <__func__$1+0xf5>)
+400df445:	c8a0b2        	movi	a11, 200
+400df448:	c6bdc1        	l32r	a12, 400d0f3c <_stext+0xf1c> (3f4091fb <__func__$1>)
+400df44b:	fff0c6        	j	400df412 <esp_psram_init+0x32>
+400df44e:	042122        	l32i	a2, a1, 16
+400df451:	14c1d2        	addi	a13, a1, 20
+400df454:	02a0c2        	movi	a12, 2
+400df457:	1ea0b2        	movi	a11, 30
+400df45a:	3148      	l32i.n	a4, a1, 12
+400df45c:	634420        	minu	a4, a4, a2
+400df45f:	51a9      	s32i.n	a10, a1, 20
+400df461:	04ad      	mov.n	a10, a4
+400df463:	02d0e5        	call8	400e2170 <esp_mmu_map_reserve_block_with_caps>
+400df466:	0a2d      	mov.n	a2, a10
+400df468:	ca8c      	beqz.n	a10, 400df478 <esp_psram_init+0x98>
+400df46a:	c6b3d1        	l32r	a13, 400d0f38 <_stext+0xf18> (3f403c9f <__func__$1+0xf5>)
+400df46d:	cda0b2        	movi	a11, 205
+400df470:	c6b3c1        	l32r	a12, 400d0f3c <_stext+0xf1c> (3f4091fb <__func__$1>)
+400df473:	ffe6c6        	j	400df412 <esp_psram_init+0x32>
+400df476:	00          	.byte 00
+400df477:	00          	.byte 00
+400df478:	c40351        	l32r	a5, 400d0484 <_stext+0x464> (7fff <UserFrameTotalSize+0x7eff>)
+400df47b:	0e2c      	movi.n	a14, 32
+400df47d:	545a      	add.n	a5, a4, a5
+400df47f:	b35440        	movgez	a5, a4, a4
+400df482:	215f50        	srai	a5, a5, 15
+400df485:	5168      	l32i.n	a6, a1, 20
+400df487:	05fd      	mov.n	a15, a5
+400df489:	06cd      	mov.n	a12, a6
+400df48b:	0add      	mov.n	a13, a10
+400df48d:	0abd      	mov.n	a11, a10
+400df48f:	a6b0a5        	call8	40085f98 <cache_sram_mmu_set>
+400df492:	c61b71        	l32r	a7, 400d0d00 <_stext+0xce0> (3ff0005c <_ext_ram_bss_end+0x70005c>)
+400df495:	07ad      	mov.n	a10, a7
+400df497:	a440e5        	call8	400838a4 <esp_dport_access_reg_read>
+400df49a:	787c      	movi.n	a8, -9
+400df49c:	10aa80        	and	a10, a10, a8
+400df49f:	05fd      	mov.n	a15, a5
+400df4a1:	06cd      	mov.n	a12, a6
+400df4a3:	0020c0        	memw
+400df4a6:	07a9      	s32i.n	a10, a7, 0
+400df4a8:	0e2c      	movi.n	a14, 32
+400df4aa:	02dd      	mov.n	a13, a2
+400df4ac:	02bd      	mov.n	a11, a2
+400df4ae:	1a0c      	movi.n	a10, 1
+400df4b0:	a6ae65        	call8	40085f98 <cache_sram_mmu_set>
+400df4b3:	5158      	l32i.n	a5, a1, 20
+400df4b5:	654a      	add.n	a6, a5, a4
+400df4b7:	9349      	s32i.n	a4, a3, 36
+400df4b9:	3349      	s32i.n	a4, a3, 12
+400df4bb:	7359      	s32i.n	a5, a3, 28
+400df4bd:	8369      	s32i.n	a6, a3, 32
+400df4bf:	1359      	s32i.n	a5, a3, 4
+400df4c1:	2369      	s32i.n	a6, a3, 8
+400df4c3:	1496a5        	call8	400f3e2c <esp_himem_reserved_area_size>
+400df4c6:	3348      	l32i.n	a4, a3, 12
+400df4c8:	441b      	addi.n	a4, a4, 1
+400df4ca:	c0a4a0        	sub	a10, a4, a10
+400df4cd:	33a9      	s32i.n	a10, a3, 12
+400df4cf:	18c1a2        	addi	a10, a1, 24
+400df4d2:	c69c31        	l32r	a3, 400d0f44 <_stext+0xf24> (40084b50 <esp_psram_extram_writeback_cache>)
+400df4d5:	6129      	s32i.n	a2, a1, 24
+400df4d7:	7139      	s32i.n	a3, a1, 28
+400df4d9:	a8e9e5        	call8	40088378 <cache_register_writeback>
+400df4dc:	0020c0        	memw
+400df4df:	f01d      	retw.n
+400df4e1:	03a122        	movi	a2, 0x103
+400df4e4:	fffd06        	j	400df4dc <esp_psram_init+0xfc>
