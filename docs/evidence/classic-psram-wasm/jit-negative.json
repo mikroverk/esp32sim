@@ -1,0 +1,108 @@
+{
+  "status": "UNRESOLVED",
+  "site": "xtensa-lx7/src/jit/wasm.rs:186 Hot::assert_matches",
+  "asserted_wasm_source": "dea5cbc73b9995367b9a5d71f08d1a13b68039be",
+  "additional_diagnostic_source": "2e322af2b1d2916746e82edb18197846cef02826",
+  "production_setting_matrix_passed": 24,
+  "asserted_full_run_completed": 13,
+  "asserted_full_run_planned": 24,
+  "failures": [
+    {
+      "case": "p5:4:1",
+      "boot": 2,
+      "cached": [
+        1268,
+        3,
+        4,
+        0
+      ],
+      "selected": [
+        1628,
+        1,
+        4,
+        0
+      ]
+    },
+    {
+      "case": "p5:0:1",
+      "boot": 2,
+      "cached": [
+        1617,
+        15,
+        2,
+        0
+      ],
+      "selected": [
+        1614,
+        9,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "p6:0:1",
+      "boot": 2,
+      "cached": [
+        1289,
+        3,
+        2,
+        0
+      ],
+      "selected": [
+        1203,
+        1,
+        2,
+        0
+      ]
+    }
+  ],
+  "isolated_asserted_p6_present_comparisons_passed": 4,
+  "explanation": "Cached hot-region admission descriptor and diagnostic owner lookup disagree. Production effect and root cause are unresolved; no byte-corruption claim.",
+  "artifacts": [
+    {
+      "file": "qualification.wasm",
+      "bytes": 5717603,
+      "sha256": "dea96cdd3cf127ef7763ed4f628d6f1a0c2deddac27f0e0d7681478a06d96d8b"
+    },
+    {
+      "file": "qualification-production.wasm",
+      "bytes": 3411060,
+      "sha256": "988bd4fe3192290e8b3f4be10cd8e4b2aea5503d2f0046bec6e30c55fbf823fb"
+    },
+    {
+      "file": "logs/guests-final-negative.log",
+      "bytes": 3279,
+      "sha256": "7f6bcf88f65522188ed698eb909e5cf84647da4bb1c2ed455f3cfeed0182f835"
+    },
+    {
+      "file": "logs/reboot-negative.log",
+      "bytes": 2079,
+      "sha256": "8165476ad55062dc984a3946e36e3c53843dbfd7f350bd45b4e469fa8307e38b"
+    },
+    {
+      "file": "logs/probe-p5:0:1.log",
+      "bytes": 2080,
+      "sha256": "855ca9f3c6389c45f6247cb5861cc70c1814b510bd84b7542a9d03c879a08717"
+    },
+    {
+      "file": "logs/probe-p6:0:1.log",
+      "bytes": 2079,
+      "sha256": "ba438e104e80841f100266ee84595e7a83228b8b93718e0d3ce624e5ba6f82d9"
+    },
+    {
+      "file": "logs/probe-p6:4:1.log",
+      "bytes": 480,
+      "sha256": "a5df4a1b5d0e0d09b1f496c53f70212b07806907386a728f1755b2d662c13cb0"
+    },
+    {
+      "file": "logs/wasm-jit.log",
+      "bytes": 1837,
+      "sha256": "ccce4bb1f91b63f8359420960dd244893ab6433f454abd2262761842298717d5"
+    },
+    {
+      "file": "logs/wasm-jit-waveform.log",
+      "bytes": 60,
+      "sha256": "8992cc02ec47fbbf1e6d8ba1bd0dd5d4288949df1bf735f0d7f0d8a001a4f382"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "native_clippy": "PASS",
+  "wasm_clippy_with_jit_tests": "PASS",
+  "empty_home_rom": {
+    "passed": 1006,
+    "ignored": 0
+  },
+  "empty_home_plain": {
+    "passed": 976,
+    "ignored": 58
+  },
+  "wasm_build": "PASS",
+  "wasm_manifests_passed": [
+    "hello",
+    "c3-hello",
+    "c6-hello",
+    "c6-energy-scan",
+    "c6-contiki",
+    "c6-contiki-net",
+    "c6-rpl-net",
+    "panel"
+  ],
+  "jit_handoff": "PASS",
+  "full_jit_differential": {
+    "passed": 111125,
+    "released_modules": 99677
+  },
+  "waveform_frozen_module": {
+    "passed": 24,
+    "released_modules": 738
+  },
+  "wrapper_caveat": "Shell wrapper exit 1: subsequent waveform subprocess read target overwritten by concurrent production build. Waveform rerun passes against frozen original module.",
+  "production_jit_settings_guest_comparisons": 24,
+  "extra_jit_validation_guest_matrix": "FAIL on P5 present second boot; 13 comparisons completed of 24 planned",
+  "native_and_wasm_lifecycle": "PASS",
+  "mutations": {
+    "source_sha": "dea5cbc73b9995367b9a5d71f08d1a13b68039be",
+    "native_killed": 11,
+    "wasm_killed": 11,
+    "total_per_target": 11,
+    "build_errors_counted_as_kills": 0,
+    "comparison_note": "All production translator/cache/reset code and lifecycle assertion function unchanged in 2e322af2; only feature selection, diagnostics, and result retention differ."
+  },
+  "goldens_unchanged": 55,
+  "native_goldens_pass": true,
+  "actual_wasm_no_psram_control_snapshots_unchanged": 4,
+  "privacy": "PASS: 2036 tracked evidence files, 88 gzip; manual inspection of new summaries completed",
+  "whitespace": "PASS",
+  "cpu_comparison": "PENDING; not run",
+  "publication": "none"
+}
