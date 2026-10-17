@@ -1,0 +1,125 @@
+[
+  {
+    "name": "clippy-native",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "clippy-wasm",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "clippy",
+      "--release",
+      "--target",
+      "wasm32-unknown-unknown",
+      "-p",
+      "esp32sim-wasm",
+      "--features",
+      "jit-tests",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "test-ci",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "--workspace",
+      "--",
+      "--include-ignored",
+      "--skip",
+      "external_"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "test-plain",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "--workspace"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "wasm-build",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "bash",
+      "tools/wasm-build.sh"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "wasm-tests",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "node",
+      "tools/wasm-test.mjs",
+      "hello",
+      "c3-hello",
+      "c6-hello",
+      "c6-energy-scan",
+      "c6-contiki",
+      "c6-contiki-net",
+      "c6-rpl-net",
+      "panel"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "privacy",
+    "command": [
+      "node",
+      "tools/check-evidence-privacy.mjs"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "build-bins",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "build",
+      "--release",
+      "--bins"
+    ],
+    "exit": 0
+  }
+]

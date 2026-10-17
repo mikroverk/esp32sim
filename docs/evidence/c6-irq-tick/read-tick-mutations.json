@@ -1,0 +1,26 @@
+[
+  {
+    "mutation": "drop-clocked-source-change",
+    "test": "sleeping_core_wakes_when_the_timer_source_changes",
+    "exit": 101,
+    "killed": true
+  },
+  {
+    "mutation": "remove-line-refresh",
+    "test": "sleeping_core_wakes_when_the_timer_source_changes",
+    "exit": 101,
+    "killed": true
+  },
+  {
+    "mutation": "restore-unconditional-refresh",
+    "test": "quiet_tick_does_not_request_an_interrupt_refresh",
+    "exit": 101,
+    "killed": true
+  },
+  {
+    "mutation": "drop-write-invalidation",
+    "test": "timer_tick_requests_refresh_at_assertion_not_on_unchanged_level",
+    "exit": 101,
+    "killed": true
+  }
+]

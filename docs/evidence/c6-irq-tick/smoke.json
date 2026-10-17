@@ -1,0 +1,314 @@
+[
+  {
+    "pair": 0,
+    "case": "hello-delay",
+    "variant": "base",
+    "load": [
+      10.099609375,
+      10.076171875,
+      10.44482421875
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 4.181642292,
+    "user": 4.161511,
+    "system": 0.011910999999999998,
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ],
+    "console_bytes": 9735
+  },
+  {
+    "pair": 0,
+    "case": "hello-delay",
+    "variant": "candidate",
+    "load": [
+      9.61083984375,
+      9.97509765625,
+      10.40673828125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 2.2161465840000005,
+    "user": 2.200285,
+    "system": 0.007556999999999994,
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ],
+    "console_bytes": 9735
+  },
+  {
+    "pair": 0,
+    "case": "public-display-starter",
+    "variant": "base",
+    "load": [
+      9.61083984375,
+      9.97509765625,
+      10.40673828125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 22.878845584,
+    "user": 21.141858,
+    "system": 0.224763,
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "console_bytes": 336
+  },
+  {
+    "pair": 0,
+    "case": "public-display-starter",
+    "variant": "candidate",
+    "load": [
+      8.1455078125,
+      9.60498046875,
+      10.2607421875
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 16.425171916,
+    "user": 16.373444,
+    "system": 0.03303699999999998,
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "console_bytes": 336
+  },
+  {
+    "pair": 1,
+    "case": "hello-delay",
+    "variant": "candidate",
+    "load": [
+      7.546875,
+      9.39599609375,
+      10.173828125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 2.1873907080000023,
+    "user": 2.1756790000000024,
+    "system": 0.007649000000000017,
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ],
+    "console_bytes": 9735
+  },
+  {
+    "pair": 1,
+    "case": "hello-delay",
+    "variant": "base",
+    "load": [
+      7.3427734375,
+      9.32275390625,
+      10.14306640625
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 4.160906125000004,
+    "user": 4.128450999999998,
+    "system": 0.013845999999999914,
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ],
+    "console_bytes": 9735
+  },
+  {
+    "pair": 1,
+    "case": "public-display-starter",
+    "variant": "candidate",
+    "load": [
+      7.3427734375,
+      9.32275390625,
+      10.14306640625
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 14.106733416000004,
+    "user": 14.068923999999996,
+    "system": 0.027179999999999982,
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "console_bytes": 336
+  },
+  {
+    "pair": 1,
+    "case": "public-display-starter",
+    "variant": "base",
+    "load": [
+      6.3798828125,
+      9.0126953125,
+      10.017578125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 17.072546375,
+    "user": 17.01585,
+    "system": 0.038151999999999964,
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "console_bytes": 336
+  },
+  {
+    "pair": 2,
+    "case": "hello-delay",
+    "variant": "base",
+    "load": [
+      5.7890625,
+      8.70361328125,
+      9.8828125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 3.9925017919999988,
+    "user": 3.9733769999999993,
+    "system": 0.013117999999999963,
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ],
+    "console_bytes": 9735
+  },
+  {
+    "pair": 2,
+    "case": "hello-delay",
+    "variant": "candidate",
+    "load": [
+      5.6455078125,
+      8.62548828125,
+      9.84814453125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 1.982209999999995,
+    "user": 1.9712510000000094,
+    "system": 0.007580000000000031,
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ],
+    "console_bytes": 9735
+  },
+  {
+    "pair": 2,
+    "case": "public-display-starter",
+    "variant": "base",
+    "load": [
+      5.6455078125,
+      8.62548828125,
+      9.84814453125
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 15.401116665999993,
+    "user": 15.338143000000002,
+    "system": 0.04389899999999991,
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "console_bytes": 336
+  },
+  {
+    "pair": 2,
+    "case": "public-display-starter",
+    "variant": "candidate",
+    "load": [
+      5.7666015625,
+      8.498046875,
+      9.7802734375
+    ],
+    "builds_before": 0,
+    "builds_after": 0,
+    "wall": 14.090207833000008,
+    "user": 14.042980999999997,
+    "system": 0.032313000000000036,
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "console_bytes": 336
+  }
+]

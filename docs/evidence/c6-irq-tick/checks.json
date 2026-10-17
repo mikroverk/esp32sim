@@ -1,0 +1,71 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit": 0,
+    "seconds": 9.547860916994978,
+    "empty_home": false
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit": 0,
+    "seconds": 6.074248125019949,
+    "empty_home": false
+  },
+  {
+    "check": "tests-rom",
+    "command": "cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+    "exit": 0,
+    "seconds": 218.36526120797498,
+    "empty_home": true
+  },
+  {
+    "check": "tests-plain",
+    "command": "cargo +1.99.0 test --release --workspace",
+    "exit": 0,
+    "seconds": 10.529287208046298,
+    "empty_home": true
+  },
+  {
+    "check": "wasm-build",
+    "command": "tools/wasm-build.sh",
+    "exit": 1,
+    "seconds": 21.935806749970652,
+    "empty_home": false
+  },
+  {
+    "check": "wasm-demos",
+    "command": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit": 1,
+    "seconds": 0.04741100000683218,
+    "empty_home": false
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit": 0,
+    "seconds": 0.6620391249889508,
+    "empty_home": false
+  },
+  {
+    "check": "candidate-bins",
+    "command": "cargo +1.99.0 build --release --bins",
+    "exit": 0,
+    "seconds": 28.80018691701116,
+    "empty_home": false
+  },
+  {
+    "check": "wasm-build-retry",
+    "exit": 0,
+    "reason": "wasm-build.sh copies from literal target; symlink target to task CARGO_TARGET_DIR"
+  },
+  {
+    "check": "wasm-demos-retry",
+    "exit": 0
+  },
+  {
+    "check": "post-mutation-tests",
+    "exit": 0
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "test-ci": {
+    "passed": 991,
+    "failed": 0,
+    "ignored": 0
+  },
+  "test-plain": {
+    "passed": 963,
+    "failed": 0,
+    "ignored": 50
+  }
+}

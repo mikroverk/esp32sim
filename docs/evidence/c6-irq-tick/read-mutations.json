@@ -1,0 +1,26 @@
+[
+  {
+    "mutation": "drop-fifo-read-invalidation",
+    "test": "next_usb_packet_irq_is_presented_after_guest_fifo_read",
+    "exit": 101,
+    "killed": true
+  },
+  {
+    "mutation": "miss-subword-fifo-aliases",
+    "test": "fifo_read_widths_preserve_invalidation_until_sync",
+    "exit": 101,
+    "killed": true
+  },
+  {
+    "mutation": "invalidate-every-read",
+    "test": "unrelated_reads_do_not_invalidate_a_clean_irq_gate",
+    "exit": 101,
+    "killed": true
+  },
+  {
+    "mutation": "overwrite-pending-invalidation",
+    "test": "fifo_read_widths_preserve_invalidation_until_sync",
+    "exit": 101,
+    "killed": true
+  }
+]

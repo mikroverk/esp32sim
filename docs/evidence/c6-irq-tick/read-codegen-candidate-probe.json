@@ -1,0 +1,654 @@
+{
+  "method": "EX230 normalizer; addresses normalized, field offsets/opcodes preserved; no timing",
+  "base_revision": "142805d5399e0c3cf25995fe21ba524e75a2b3cb",
+  "artifacts": [
+    {
+      "label": "base",
+      "binary_sha256": "eb3e28d1db42e892773c1d20a7a4e82379d33bb2ca91e6bf947979e7719a1676"
+    },
+    {
+      "label": "candidate",
+      "binary_sha256": "3960cdc394bebda77e9c60f632e9d782907dbee910f1a175d68375cf8d7d5171"
+    }
+  ],
+  "selected": 106,
+  "same": 106,
+  "rows": [
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_instructions": 122,
+      "candidate_instructions": 122,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_instructions": 171,
+      "candidate_instructions": 171,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_instructions": 2207,
+      "candidate_instructions": 2207,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_instructions": 817,
+      "candidate_instructions": 817,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus>::load_bytes",
+      "base_instructions": 267,
+      "candidate_instructions": 267,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus>::periph_read",
+      "base_instructions": 73,
+      "candidate_instructions": 73,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus>::store",
+      "base_instructions": 2736,
+      "candidate_instructions": 2736,
+      "same": true
+    },
+    {
+      "name": "<esp32::ledc::ClassicLedc as esp_periph::device::Device>::next_deadline::{closure#0}",
+      "base_instructions": 81,
+      "candidate_instructions": 81,
+      "same": true
+    },
+    {
+      "name": "<esp32::ledc::ClassicLedc as esp_periph::device::Device>::tick",
+      "base_instructions": 433,
+      "candidate_instructions": 433,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::ClassicGpio as esp_periph::device::Device>::read",
+      "base_instructions": 251,
+      "candidate_instructions": 251,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::ClassicGpio as esp_periph::device::Device>::write",
+      "base_instructions": 556,
+      "candidate_instructions": 556,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::ClassicRtc as esp_periph::device::Device>::read",
+      "base_instructions": 91,
+      "candidate_instructions": 91,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::ClassicRtc as esp_periph::device::Device>::write",
+      "base_instructions": 41,
+      "candidate_instructions": 41,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::ClassicSpi as esp_periph::device::Device>::read",
+      "base_instructions": 78,
+      "candidate_instructions": 78,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::ClassicSpi as esp_periph::device::Device>::write",
+      "base_instructions": 78,
+      "candidate_instructions": 78,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::Peripherals as esp_periph::mmio::Dispatch>::tick_optional",
+      "base_instructions": 10,
+      "candidate_instructions": 10,
+      "same": true
+    },
+    {
+      "name": "<esp32::periph::Peripherals>::read32",
+      "base_instructions": 518,
+      "candidate_instructions": 518,
+      "same": true
+    },
+    {
+      "name": "<esp32::rmt::ClassicRmt as esp_periph::device::Device>::tick",
+      "base_instructions": 53,
+      "candidate_instructions": 53,
+      "same": true
+    },
+    {
+      "name": "<esp32::timers::ClassicTimer as esp_periph::device::Device>::tick",
+      "base_instructions": 189,
+      "candidate_instructions": 189,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_instructions": 103,
+      "candidate_instructions": 103,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_instructions": 114,
+      "candidate_instructions": 114,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_instructions": 279,
+      "candidate_instructions": 279,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_instructions": 56,
+      "candidate_instructions": 56,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_instructions": 194,
+      "candidate_instructions": 194,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus>::load_bytes",
+      "base_instructions": 105,
+      "candidate_instructions": 105,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus>::periph_read",
+      "base_instructions": 190,
+      "candidate_instructions": 190,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus>::periph_write",
+      "base_instructions": 1734,
+      "candidate_instructions": 1734,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus>::tick_with_pins",
+      "base_instructions": 475,
+      "candidate_instructions": 475,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::periph::Peripherals as esp_periph::mmio::Dispatch>::tick_optional",
+      "base_instructions": 365,
+      "candidate_instructions": 365,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_instructions": 106,
+      "candidate_instructions": 106,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_instructions": 96,
+      "candidate_instructions": 96,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_instructions": 2135,
+      "candidate_instructions": 2135,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_instructions": 48,
+      "candidate_instructions": 48,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_instructions": 298,
+      "candidate_instructions": 298,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus>::load_bytes",
+      "base_instructions": 92,
+      "candidate_instructions": 92,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus>::periph_read",
+      "base_instructions": 233,
+      "candidate_instructions": 233,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus>::periph_write",
+      "base_instructions": 1872,
+      "candidate_instructions": 1872,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::periph::Peripherals as esp_periph::mmio::Dispatch>::tick_optional",
+      "base_instructions": 322,
+      "candidate_instructions": 322,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_instructions": 102,
+      "candidate_instructions": 102,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_instructions": 235,
+      "candidate_instructions": 235,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_instructions": 26,
+      "candidate_instructions": 26,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_instructions": 315,
+      "candidate_instructions": 315,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::load_bytes",
+      "base_instructions": 174,
+      "candidate_instructions": 174,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::periph_read",
+      "base_instructions": 795,
+      "candidate_instructions": 795,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::periph_write_inner",
+      "base_instructions": 1764,
+      "candidate_instructions": 1764,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::read32_access::<false>",
+      "base_instructions": 128,
+      "candidate_instructions": 128,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::tick_impl",
+      "base_instructions": 3686,
+      "candidate_instructions": 3686,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::write32_access::<false>",
+      "base_instructions": 199,
+      "candidate_instructions": 199,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::periph::Peripherals as esp_periph::mmio::Dispatch>::tick_optional",
+      "base_instructions": 394,
+      "candidate_instructions": 394,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::i2c::I2c as esp_periph::device::Device>::tick",
+      "base_instructions": 316,
+      "candidate_instructions": 316,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::ledc::Ledc as esp_periph::device::Device>::tick",
+      "base_instructions": 186,
+      "candidate_instructions": 186,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::ledc::Ledc<true>>::next_wrap::<<esp32::ledc::ClassicLedc as esp_periph::device::Device>::next_deadline::{closure#0}::{closure#0}>::{closure#0}",
+      "base_instructions": 175,
+      "candidate_instructions": 175,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::mcpwm::Mcpwm as esp_periph::device::Device>::tick",
+      "base_instructions": 335,
+      "candidate_instructions": 335,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::rmt::Rmt>::tick",
+      "base_instructions": 286,
+      "candidate_instructions": 286,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::rmt::RmtDma>::tick",
+      "base_instructions": 555,
+      "candidate_instructions": 555,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::rtc_cntl::RtcCntl as esp_periph::device::Device>::tick",
+      "base_instructions": 291,
+      "candidate_instructions": 291,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::systimer::Systimer as esp_periph::device::Device>::tick",
+      "base_instructions": 93,
+      "candidate_instructions": 93,
+      "same": true
+    },
+    {
+      "name": "<esp_periph::timg::TimerGroup as esp_periph::device::Device>::tick",
+      "base_instructions": 127,
+      "candidate_instructions": 127,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::after_round",
+      "base_instructions": 84,
+      "candidate_instructions": 84,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::present_irqs",
+      "base_instructions": 234,
+      "candidate_instructions": 234,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_modeled",
+      "base_instructions": 3445,
+      "candidate_instructions": 3445,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_unmodeled::<false>",
+      "base_instructions": 1708,
+      "candidate_instructions": 1708,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::step_core",
+      "base_instructions": 838,
+      "candidate_instructions": 838,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::after_round",
+      "base_instructions": 84,
+      "candidate_instructions": 84,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::present_irqs",
+      "base_instructions": 119,
+      "candidate_instructions": 119,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::run",
+      "base_instructions": 4319,
+      "candidate_instructions": 4319,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::run_unmodeled::<false>",
+      "base_instructions": 1048,
+      "candidate_instructions": 1048,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::step_core",
+      "base_instructions": 463,
+      "candidate_instructions": 463,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::after_round",
+      "base_instructions": 100,
+      "candidate_instructions": 100,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::present_irqs",
+      "base_instructions": 120,
+      "candidate_instructions": 120,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run",
+      "base_instructions": 4325,
+      "candidate_instructions": 4325,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_unmodeled::<false>",
+      "base_instructions": 1053,
+      "candidate_instructions": 1053,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::step_core",
+      "base_instructions": 465,
+      "candidate_instructions": 465,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::after_round",
+      "base_instructions": 116,
+      "candidate_instructions": 116,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::present_irqs",
+      "base_instructions": 247,
+      "candidate_instructions": 247,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::run_modeled",
+      "base_instructions": 3379,
+      "candidate_instructions": 3379,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::run_unmodeled::<false>",
+      "base_instructions": 3339,
+      "candidate_instructions": 3339,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::step_core",
+      "base_instructions": 992,
+      "candidate_instructions": 992,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_instructions": 37,
+      "candidate_instructions": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_instructions": 40,
+      "candidate_instructions": 40,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c3::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_instructions": 37,
+      "candidate_instructions": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c3::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_instructions": 90,
+      "candidate_instructions": 90,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c6::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_instructions": 37,
+      "candidate_instructions": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c6::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_instructions": 87,
+      "candidate_instructions": 87,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_instructions": 37,
+      "candidate_instructions": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_instructions": 35,
+      "candidate_instructions": 35,
+      "same": true
+    },
+    {
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32::bus::SocBus>",
+      "base_instructions": 706,
+      "candidate_instructions": 706,
+      "same": true
+    },
+    {
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32s3::bus::SocBus>",
+      "base_instructions": 948,
+      "candidate_instructions": 948,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::block::step_extra::<esp32::bus::SocBus>",
+      "base_instructions": 143,
+      "candidate_instructions": 143,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::block::step_extra::<esp32s3::bus::SocBus>",
+      "base_instructions": 143,
+      "candidate_instructions": 143,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp32::bus::SocBus>",
+      "base_instructions": 2566,
+      "candidate_instructions": 2566,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp32s3::bus::SocBus>",
+      "base_instructions": 2562,
+      "candidate_instructions": 2562,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_instructions": 2562,
+      "candidate_instructions": 2562,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_instructions": 2562,
+      "candidate_instructions": 2562,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp32::bus::SocBus>",
+      "base_instructions": 208,
+      "candidate_instructions": 208,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp32s3::bus::SocBus>",
+      "base_instructions": 208,
+      "candidate_instructions": 208,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_instructions": 261,
+      "candidate_instructions": 261,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_instructions": 261,
+      "candidate_instructions": 261,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp32::bus::SocBus>",
+      "base_instructions": 468,
+      "candidate_instructions": 468,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp32s3::bus::SocBus>",
+      "base_instructions": 467,
+      "candidate_instructions": 467,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_instructions": 776,
+      "candidate_instructions": 776,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_instructions": 768,
+      "candidate_instructions": 768,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp32::bus::SocBus>",
+      "base_instructions": 4774,
+      "candidate_instructions": 4774,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp32s3::bus::SocBus>",
+      "base_instructions": 4741,
+      "candidate_instructions": 4741,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_instructions": 5721,
+      "candidate_instructions": 5721,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_instructions": 5723,
+      "candidate_instructions": 5723,
+      "same": true
+    }
+  ]
+}

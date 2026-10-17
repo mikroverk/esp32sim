@@ -1,0 +1,42 @@
+[
+  {
+    "input": "fixture/esp32c6_rev0_rom.elf",
+    "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+    "bytes": 489768
+  },
+  {
+    "input": "fixture/c6-hello-bootloader.bin",
+    "sha256": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+    "bytes": 22464
+  },
+  {
+    "input": "fixture/c6-hello-ptable.bin",
+    "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "bytes": 3072
+  },
+  {
+    "input": "fixture/c6-hello_world.bin",
+    "sha256": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131",
+    "bytes": 120848
+  },
+  {
+    "input": "starter/boot_app0.bin",
+    "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+    "bytes": 8192
+  },
+  {
+    "input": "starter/bootloader.bin",
+    "sha256": "022390206caedbc5f780cd955b31e1dd1219091f374e420cd0531b2f5b5b5037",
+    "bytes": 20976
+  },
+  {
+    "input": "starter/firmware.bin",
+    "sha256": "fc8b0251e5a7b7dbdd9915775a96ef5c6bbaf2691fb42d83e5406da19cade0f8",
+    "bytes": 1255072
+  },
+  {
+    "input": "starter/partitions.bin",
+    "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+    "bytes": 3072
+  }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "case": "hello-delay",
+    "variant": "base",
+    "binary_sha256": "e8debc9422b34be583d79da06cd6eb4ec0d5700ce527dab790a9585c650e9139",
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "console_bytes": 9735,
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ]
+  },
+  {
+    "case": "hello-delay",
+    "variant": "candidate",
+    "binary_sha256": "3960cdc394bebda77e9c60f632e9d782907dbee910f1a175d68375cf8d7d5171",
+    "exit": 0,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "console_bytes": 9735,
+    "retired_core0": 10313837,
+    "exceptions": 0,
+    "interrupts": 3029,
+    "irq_lines": [
+      "core0 int5         33  sources [22]",
+      "core0 int8       2996  sources [57]"
+    ]
+  },
+  {
+    "case": "public-display-starter",
+    "variant": "base",
+    "binary_sha256": "e8debc9422b34be583d79da06cd6eb4ec0d5700ce527dab790a9585c650e9139",
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "console_bytes": 336,
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ]
+  },
+  {
+    "case": "public-display-starter",
+    "variant": "candidate",
+    "binary_sha256": "3960cdc394bebda77e9c60f632e9d782907dbee910f1a175d68375cf8d7d5171",
+    "exit": 0,
+    "console_sha256": "c2935031fcffb102bb9f3c720adfc300db2e16b57ddd47f55537338f947e7929",
+    "console_bytes": 336,
+    "retired_core0": 1126728507,
+    "exceptions": 0,
+    "interrupts": 31160,
+    "irq_lines": [
+      "core0 int8        960  sources [22]",
+      "core0 int9      29946  sources [57]",
+      "core0 int11       253  sources [48]",
+      "core0 int12         1  sources [50]"
+    ]
+  }
+]

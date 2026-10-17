@@ -1,0 +1,21 @@
+diff --git a/cli/src/lib.rs b/cli/src/lib.rs
+index d04e1dc1..50f56e27 100644
+--- a/cli/src/lib.rs
++++ b/cli/src/lib.rs
+@@ -364,5 +364,5 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
+ /// Everything after the chip is set up: images, boot, observers, the run, the reports.
+-fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
++fn run<S: Soc>(mut m: Machine<S>, o: &Opts) where S::Core: 'static {
+     let approximate = o.approximate_timing.then(|| {
+         let mut config = esp32s3::ApproximateTimingConfig::default();
+         if o.approximate_cache && o.approximate_memory.is_none() {
+@@ -389,6 +389,9 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
+     m.web_restart = !o.no_reboot;
+     let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom", boot == "app");
+     let dt = t0.elapsed().as_secs_f64();
++    if let Some(cpu) = (&m.cores[0] as &dyn std::any::Any).downcast_ref::<<esp32c6::soc::C6 as Soc>::Core>() {
++        eprintln!("[probe] core0 retired={}", cpu.retired_count);
++    }
+     report(&mut m, o, stop, dt);
+     let pending = m.bus.ble_pending_commands();
+     if pending != 0 { eprintln!("[ble] {pending} command(s) still pending at end of run"); }
