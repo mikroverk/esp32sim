@@ -13,8 +13,8 @@ root = Path.cwd()
 out = Path(sys.argv[1]).resolve()
 out.mkdir(parents=True, exist_ok=True)
 mutations = [
-    ('factory-omits-psram', 'wasm/src/lib.rs', 'm.bus.set_psram_size(psram_bytes) {', 'm.bus.set_psram_size(if psram_bytes == 4 << 20 { 0 } else { psram_bytes }) {', 'fresh physical pages contain no stale bytes'),
-    ('factory-ignores-size-error', 'wasm/src/lib.rs', '            return std::ptr::null_mut();\n        }\n        m.console.mask', '        }\n        m.console.mask', 'unsupported classic PSRAM size'),
+    ('factory-omits-psram', 'wasm/src/lib.rs', 'm.bus.set_psram_size(classic_psram_bytes) {', 'm.bus.set_psram_size(if classic_psram_bytes == 4 << 20 { 0 } else { classic_psram_bytes }) {', 'fresh physical pages contain no stale bytes'),
+    ('factory-rejects-unsupported-size', 'wasm/src/lib.rs', '            0\n        };\n        if let Err(reason)', '            return std::ptr::null_mut();\n        };\n        if let Err(reason)', 'unsupported classic PSRAM size must start without PSRAM'),
     ('sram-slot-offset', 'esp32/src/psram.rs', 'const SRAM_SLOT: usize = 1152;', 'const SRAM_SLOT: usize = 1153;', 'fresh physical pages contain no stale bytes'),
     ('sram-page-shift', 'esp32/src/psram.rs', 'const SRAM_SHIFT: u32 = 15;', 'const SRAM_SHIFT: u32 = 16;', 'fresh physical pages contain no stale bytes'),
     ('invalid-entry-ignored', 'esp32/src/psram.rs', 'if entry & 0x100 != 0 ||', 'if false ||', 'assertion `left == right` failed'),

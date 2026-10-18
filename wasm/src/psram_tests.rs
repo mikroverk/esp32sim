@@ -27,10 +27,31 @@ fn physical_word(b: &mut esp32::bus::SocBus, addr: u32) -> u32 {
 /// Same factory, mapping, fault and lifecycle assertions on both compilation targets.
 #[no_mangle]
 pub extern "C" fn esp32sim_test_classic_psram() -> u32 {
-    for size in [1, 2, 8, 32] {
+    // Existing manifest defaults (T-Display: 0 || 2), upload defaults and ABI callers.
+    for (board, flash, size) in [("esp32", 4, 1), ("esp32", 4, 2),
+        ("esp32", 4, 8), ("esp32", 4, 32), ("ttgo-tdisplay", 4, 2),
+        ("esp32", 32, 32)] {
+        // SAFETY: the board string is readable for its declared length.
+        let p = unsafe { esp32sim_new(board.as_ptr(), board.len(), flash, size) };
+        assert!(!p.is_null(), "unsupported classic PSRAM size must start without PSRAM");
+        {
+            // SAFETY: p is checked and exclusively owned for this scope.
+            let e = unsafe { &mut *p };
+            let MachineKind::Esp32(m) = &mut e.m else { panic!("classic factory") };
+            let b = &mut m.bus;
+            assert_eq!(b.read32(LOW), Err(Fault::Unmapped));
+            enable(b);
+            map(b, 0, 0);
+            assert_eq!(b.read32(LOW), Err(Fault::Unmapped), "unsupported size leaves PSRAM absent");
+            assert_eq!(b.write32(LOW, 0x12345678), Err(Fault::Unmapped));
+            assert!(b.set_psram_size((size as usize) << 20).is_err(), "native setter stays strict");
+        }
+        // SAFETY: p is live, uniquely owned, and not subsequently used.
+        unsafe { esp32sim_delete(p) };
+    }
+    for size in [33, u32::MAX] {
         // SAFETY: the board literal is readable for its declared length.
-        let p = unsafe { esp32sim_new(b"esp32".as_ptr(), 5, 4, size) };
-        assert!(p.is_null(), "unsupported classic PSRAM size must fail, not silently disappear");
+        assert!(unsafe { esp32sim_new(b"esp32".as_ptr(), 5, 4, size) }.is_null(), "PSRAM cap still rejects oversized requests");
     }
     for size in [4, 0, 4, 0] {
         // SAFETY: factory returns unique ownership, consumed by delete after the borrow ends.

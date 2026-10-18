@@ -13,12 +13,30 @@ identical to reviewed remediation `6d2abbbee23bb97819e84e6c906b3de7bf882220`.
 
 ## Change and scope
 
-The classic WASM factory passes its existing PSRAM-size argument to the existing
-validated bus configuration method. Only 0 (absent) and 4 MiB are supported;
-invalid classic sizes return null with a diagnostic instead of being silently
-ignored. The default remains absent. No new memory-size API or raw PSRAM pointer
+The classic WASM factory enables PSRAM at 4 MiB and leaves it absent at 0.
+Other sizes within the existing 32 MiB cap create a machine without PSRAM and
+log one diagnostic, preserving existing browser defaults and ABI callers.
+Sizes above the cap still return null. The native bus setter remains strict:
+only 0 and 4 MiB are supported. The default remains absent. No new memory-size API or raw PSRAM pointer
 is introduced. No bus, peripheral, scheduler or S3 implementation change is
 needed by this qualification.
+
+The shared native/actual-WASM lifecycle regression additionally checks requests
+for 1, 2, 8 and 32 MiB, the T-Display manifest's effective 4 MiB flash / 2 MiB
+PSRAM configuration, and classic 32 MiB flash / 32 MiB PSRAM construction.
+Every such machine is non-null, and enabling the cache and mapping page zero
+still leaves SRAM accesses unmapped. The native setter rejects these sizes.
+Requests above 32 MiB still return null. The original 4/0/4/0 lifecycle remains.
+
+Current factory mutation rows in `tools/psram-wasm-mutations.py`:
+
+| Semantic mutation | Shared native/WASM assertion |
+| --- | --- |
+| Omit the configured 4 MiB device | `fresh physical pages contain no stale bytes` |
+| Return null for unsupported in-cap sizes | `unsupported classic PSRAM size must start without PSRAM` |
+
+The latter replaces the historical reject-size contract in the retained older
+mutation JSON; those files describe their original revisions, not this contract.
 
 The separate JIT change validates cached Hot fields against their selected live
 region, not the coverage map's preferred owner. All Hot field checks and the
