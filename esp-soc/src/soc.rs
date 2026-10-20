@@ -107,6 +107,10 @@ pub trait SocBus: Bus {
     fn attach_wifi(&mut self, _cfg: crate::wifi::ApConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
     /// Attach inbound port forwarding to the virtual network. Requires an attached access point.
     fn attach_hostfwd(&mut self, _fwd: crate::hostfwd::HostFwd) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
+    /// The inverted air (`--wifi-join`): the guest runs the access point and this side joins it as
+    /// a station, taking its address from the guest's DHCP server. Replaces any virtual access
+    /// point; the link survives a guest reboot by joining again.
+    fn attach_wifi_join(&mut self, _cfg: crate::wifi::JoinConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
     /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }

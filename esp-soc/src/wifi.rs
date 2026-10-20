@@ -4,10 +4,12 @@
 
 #[cfg(test)]
 mod tests;
+pub mod join;
+pub use join::{ApSeen, JoinConfig, Lease, Phase as JoinPhase, Supplicant, STA_MAC};
 
 pub fn mac_str(m: &[u8]) -> String { m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":") }
 
-fn ies(f: &[u8], body: usize) -> Vec<(u8, &[u8])> {
+pub(super) fn ies(f: &[u8], body: usize) -> Vec<(u8, &[u8])> {
     let mut v = Vec::new(); let mut i = body;
     while i + 2 <= f.len() { let (id, l) = (f[i], f[i + 1] as usize); if i + 2 + l > f.len() { break; } v.push((id, &f[i + 2..i + 2 + l])); i += 2 + l; }
     v
@@ -483,6 +485,8 @@ pub fn fcs(data: &[u8]) -> u32 {
 #[derive(Default)]
 pub struct StationLink {
     ap: Option<VirtualAp>,
+    /// The inverted air: the guest runs the access point and this side is the station joining it.
+    join: Option<join::Supplicant>,
     net: Option<crate::net::VirtualNet>,
     /// the host relays raw Ethernet (`set_ethernet_relay`) instead of the virtual network answering
     relay: bool,
@@ -524,7 +528,18 @@ impl StationLink {
     /// Put an access point and the network behind it on the air, replacing any there were. The
     /// queues, pacing and counts start again; the relay mode stays.
     pub fn attach(&mut self, ap: Option<VirtualAp>, net: Option<crate::net::VirtualNet>) {
-        *self = StationLink { ap, net, relay: self.relay, ..Default::default() };
+        *self = StationLink { ap, join: None, net, relay: self.relay, ..Default::default() };
+    }
+    /// Put this side of the air on the guest's soft AP (`--wifi-join`) and the network backend
+    /// behind it, replacing any access point there was. The network is a client of the guest's
+    /// DHCP server rather than a server of its own, and the forward rides that link.
+    pub fn attach_join(&mut self, cfg: join::JoinConfig, nat: Option<crate::nat::Nat>, debug: &crate::DebugFlags) {
+        let mut net = crate::net::VirtualNet::new(debug.has("net"));
+        net.nat = nat;
+        net.client = true;
+        let mut link = StationLink { join: Some(join::Supplicant::new(cfg, debug.has("wifi-frames"))), net: Some(net), relay: self.relay, ..Default::default() };
+        if let Some(j) = link.join.as_ref() { if let Some(n) = link.net.as_mut() { n.client_mac = j.sta_mac(); } }
+        *self = link;
     }
     /// `attach` with a fresh access point for `cfg` and network, logging as `debug` says.
     pub fn attach_new(&mut self, cfg: ApConfig, nat: Option<crate::nat::Nat>, debug: &crate::DebugFlags) {
@@ -541,6 +556,25 @@ impl StationLink {
     }
 
     pub fn ap(&self) -> Option<&VirtualAp> { self.ap.as_ref() }
+    pub fn join(&self) -> Option<&join::Supplicant> { self.join.as_ref() }
+    /// True while there is an air to schedule: a virtual access point, or the join to the guest's.
+    pub fn on_air(&self) -> bool { self.ap.is_some() || self.join.is_some() }
+    /// The channel the air is on, once it is on one.
+    pub fn channel(&self) -> Option<u8> { self.ap.as_ref().map(|ap| ap.cfg.channel).or_else(|| self.join.as_ref().and_then(|j| j.channel())) }
+    /// The address-filter bits the receive descriptor reports in its header word 0 (`rssi` is added
+    /// by the chip). A station hears group traffic as "match 0" (bit 28) and frames addressed to it
+    /// as both matches (bits 28 and 29) — measured on S3 silicon (`wDev_IndicateFrame` drops a
+    /// unicast frame that claims only bit 28). An access point hears management frames from every
+    /// station it has not seen yet, and its hardware reports those as matched by address alone:
+    /// bit 29, without bit 28. Firmware in the AP role drops a frame that sets both, so the join
+    /// link cannot reuse the station convention — measured with a softAP image, where bit 29 alone
+    /// gets probe, authentication and association answered and both bits get nothing at all.
+    pub fn rx_match(&self, group: bool) -> u32 {
+        if self.join.is_some() { return 1 << 29; }
+        if group { 1 << 28 } else { (1 << 28) | (1 << 29) }
+    }
+    /// Whether frames are being logged.
+    pub fn log(&self) -> bool { self.ap.as_ref().is_some_and(|ap| ap.log) || self.join.as_ref().is_some_and(|j| j.log) }
     pub fn ap_mut(&mut self) -> Option<&mut VirtualAp> { self.ap.as_mut() }
     pub fn net(&self) -> Option<&crate::net::VirtualNet> { self.net.as_ref() }
     pub fn net_mut(&mut self) -> Option<&mut crate::net::VirtualNet> { self.net.as_mut() }
@@ -571,6 +605,13 @@ impl StationLink {
     /// data goes to the network or the relay.
     pub fn station_tx(&mut self, frame: &[u8], now_us: u64) {
         self.tx_frames += 1;
+        if let Some(j) = self.join.as_mut() {
+            // The guest is the access point: what it transmits is the AP's side of the air.
+            for eth in j.on_guest_tx(frame, now_us) {
+                if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) { self.eth_tx.push(eth); } else { self.tx_dropped += 1; }
+            }
+            return;
+        }
         let Some(ap) = &mut self.ap else { return };
         let Some(eth) = ap.on_station_tx(frame, now_us).and_then(|data| data_to_eth(&data)) else { return };
         if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) { self.eth_tx.push(eth); } else { self.tx_dropped += 1; }
@@ -585,7 +626,9 @@ impl StationLink {
     /// every scheduling round while WiFi is on, before it reads the ring.
     #[inline]
     pub fn nothing_due(&self, now_us: u64) -> bool {
-        self.in_rx_gap(now_us) || self.ap.as_ref().is_none_or(|ap| ap.idle_at(now_us) && self.eth_rx.is_empty())
+        if self.in_rx_gap(now_us) { return true; }
+        if let Some(j) = self.join.as_ref() { return j.idle_at(now_us) && self.eth_rx.is_empty(); }
+        self.ap.as_ref().is_none_or(|ap| ap.idle_at(now_us) && self.eth_rx.is_empty())
     }
 
     /// The next frame for the station's receive ring, if one is due: the access point's beacons
@@ -602,6 +645,16 @@ impl StationLink {
     pub fn next_rx(&mut self, now_us: u64, ring_busy: bool) -> Option<Vec<u8>> {
         if self.in_rx_gap(now_us) { return None; }
         if ring_busy && now_us.wrapping_sub(self.last_rx_us) < RX_STALL_US { return None; }
+        if let Some(j) = self.join.as_mut() {
+            let mut due = j.step(now_us);
+            for e in std::mem::take(&mut self.eth_rx) { if let Some(f) = j.wrap_eth(&e) { due.push(AirFrame { at_us: now_us, frame: f }); } }
+            if due.is_empty() { return None; }
+            due.sort_by_key(|a| a.at_us);
+            let first = due.remove(0);
+            j.requeue(due);
+            self.last_rx_us = now_us;
+            return Some(first.frame);
+        }
         let ap = self.ap.as_mut()?;
         let mut due = ap.step(now_us);
         let eth_in = if self.relay {
@@ -661,6 +714,7 @@ impl StationLink {
     pub fn report(&self) -> String {
         let mut lines = Vec::new();
         if self.tx_frames + self.rx_frames > 0 { lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.ap.as_ref().map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)))); }
+        if let Some(j) = &self.join { lines.push(j.report()); }
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
             if let Some(t) = &n.nat { lines.push(format!("[emu] nat: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest)); }
             if let Some(f) = &n.hostfwd { if let Some(line) = f.report() { lines.push(line); } } }

@@ -353,7 +353,7 @@ impl Peripherals {
     /// Recompute after MMIO or host AP configuration, not on idle scheduler rounds.
     pub fn refresh_work(&mut self) {
         self.wifi_irq = self.wifi.irq();
-        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.ap().is_some() || self.i2s_rx;
+        self.work_pending = self.ble_lc.enabled() || self.spi_exec || self.aes.dma_pending || !self.wifi.tx_pending.is_empty() || self.wifi.link.on_air() || self.i2s_rx;
     }
 
     /// Advance the fixed clock-tree devices by `cycles` CPU cycles (16 MHz systimer, 80 MHz APB, ~150 kHz

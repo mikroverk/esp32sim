@@ -47,6 +47,10 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi_mac.link.net_mut().ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
         Ok(())
     }
+    fn attach_wifi_join(&mut self, cfg: esp_soc::wifi::JoinConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi_mac.link.attach_join(cfg, nat, &self.debug);
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.periph.wifi_mac.link.set_relay(enabled);
         Ok(())

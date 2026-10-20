@@ -29,6 +29,12 @@ pub struct VirtualNet {
     pub arp_replies: u64,
     pub pings: u64,
     pub unhandled: u64,
+    /// The guest runs the access point (`--wifi-join`): this side holds only the client's own
+    /// address, so the DHCP server, gateway, DNS and NTP of the virtual network do not exist and
+    /// the only thing to answer is what the inbound forward's flows carry.
+    pub client: bool,
+    /// The client's own MAC on the guest's AP subnet.
+    pub client_mac: [u8; 6],
     now_us: u64,
 }
 
@@ -41,7 +47,7 @@ impl VirtualNet {
     pub fn new(log: bool) -> Self {
         VirtualNet { gw_mac: GATEWAY_MAC, gw_ip: [10, 0, 2, 2], dns_ip: [10, 0, 2, 3],
                      sta_ip: [10, 0, 2, 15], mask: [255, 255, 255, 0],
-                     log, nat: None, hostfwd: None, dhcp_acks: 0, dns_answers: 0, ntp_answers: 0, tcp_rejects: 0, arp_replies: 0, pings: 0, unhandled: 0, now_us: 0 }
+                     log, nat: None, hostfwd: None, dhcp_acks: 0, dns_answers: 0, ntp_answers: 0, tcp_rejects: 0, arp_replies: 0, pings: 0, unhandled: 0, client: false, client_mac: [0; 6], now_us: 0 }
     }
 
     /// Handle one Ethernet frame from the station; returns frames to send back to it.
@@ -49,6 +55,14 @@ impl VirtualNet {
         if eth.len() < 14 { return Vec::new(); }
         self.now_us = now_us;
         let mut src = [0u8; 6]; src.copy_from_slice(&eth[6..12]);
+        if self.client {
+            return match be16(&eth[12..14]) {
+                0x0800 => self.ipv4(&eth[14..], &src),
+                et => { self.unhandled += 1;
+                        if self.log { eprintln!("[net] ignoring ethertype {:#06x} ({} bytes) on the client link", et, eth.len()); }
+                        Vec::new() }
+            };
+        }
         match be16(&eth[12..14]) {
             0x0806 => self.arp(&eth[14..], &src),
             0x0800 => self.ipv4(&eth[14..], &src),
@@ -100,6 +114,7 @@ impl VirtualNet {
         }
         let mut sip = [0u8; 4]; sip.copy_from_slice(&p[12..16]);
         let mut dip = [0u8; 4]; dip.copy_from_slice(&p[16..20]);
+        if self.client { return self.client_ipv4(proto, body, src, &sip, &dip); }
         match proto {
             17 if body.len() >= 8 && be16(&body[2..4]) == 67 => self.dhcp(&body[8..], src),
             // with NAT the flow goes out through a host socket; DNS is redirected to the host's own
@@ -133,6 +148,25 @@ impl VirtualNet {
             }
             _ => { self.unhandled += 1; if self.log { eprintln!("[net] ignoring IPv4 proto {} ({} bytes)", proto, p.len()); } Vec::new() }
         }
+    }
+
+    /// A packet the guest sent to this side's own address: the client link has one listener, the
+    /// inbound forward, so nothing else here may answer.
+    fn client_ipv4(&mut self, proto: u8, body: &[u8], src: &[u8; 6], sip: &[u8; 4], dip: &[u8; 4]) -> Vec<Vec<u8>> {
+        match proto {
+            6 => self.peer_tcp(src, sip, dip, body),
+            _ => { self.unhandled += 1;
+                   if self.log { eprintln!("[net] ignoring IPv4 proto {} on the client link ({} bytes)", proto, body.len()); }
+                   Vec::new() }
+        }
+    }
+
+    /// A segment from the guest to one of this side's ports, on a link where the guest is the
+    /// access point. The forward owns those ports; without one there is nothing to answer, which
+    /// the caller counts as unhandled rather than dropping silently.
+    fn peer_tcp(&mut self, _src: &[u8; 6], _sip: &[u8; 4], _dip: &[u8; 4], _seg: &[u8]) -> Vec<Vec<u8>> {
+        self.unhandled += 1;
+        Vec::new()
     }
 
     /// BOOTP/DHCP: answer DISCOVER with OFFER and REQUEST with ACK.
