@@ -13,6 +13,9 @@
 //! authenticator side uses (`esp_periph::crypto`), and the handshake messages are built in the
 //! same wire format, only with the roles exchanged.
 
+#[cfg(test)]
+mod tests;
+
 use super::{ies, mac_str, AirFrame, RSN_IE};
 use crate::net::packet::{checksum, ethernet, ip_packet, udp_packet};
 
@@ -438,7 +441,7 @@ impl Supplicant {
                 self.phase = Phase::Handshaking;
                 self.next_timer_us = now_us + HANDSHAKE_RETRY_US;
             } else {
-                self.start_lease(now_us);
+                self.start_lease(now_us + 1_000);
             }
         }
     }
@@ -579,10 +582,10 @@ impl Supplicant {
                 self.installed = true;
                 self.stats.keys = true;
                 let m4 = self.eapol(0x030a, &[0u8; 32], &[], true);
-                self.send_at(now_us + 2_000, m4);
+                self.send_at(now_us + 1_000, m4);
                 self.stats.eapol4 += 1;
                 if self.log { eprintln!("[wifi-join] WPA2 four-way handshake complete (supplicant side)"); }
-                self.start_lease(now_us);
+                self.start_lease(now_us + 1_000);
             }
             _ => {}
         }
