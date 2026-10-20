@@ -53,6 +53,24 @@ Things that cost real time to find out, recorded so they do not have to be found
   regression WAV was re-baselined: same sample stream, five more samples over five seconds.
 - **WebSocket sends must not block the emulator thread** — a frozen browser tab stalled
   emulation until sends moved to per-client writer threads with bounded queues.
+- **Flash is state, not only an input.** A run that loads an image and keeps nothing loses everything
+  the guest stored — NVS (its own settings, WiFi credentials), `otadata`, calibration, filesystems — so
+  a "configure once, then test" flow could not exist: the second run always booted a factory-fresh chip.
+  `--flash-file` loads the array when the file holds an image and writes it back at exit; `--flash-out`
+  is the one-shot dump. Reading the model needed `SocBus::read_flash`/`flash_len`, because `write_flash`
+  alone can only put images in, never see what the guest programmed.
+- **An image file is exactly the flash size, padded with `0xFF`.** That is what an unwritten cell reads
+  as; padding with `0x00` would make the tail look like programmed data (NVS page state, partition
+  entries), so a short file must never be zero-filled, and a file longer than the array is refused rather
+  than truncated.
+- **A flash file is written by rename, not in place.** A run that is killed mid-write would otherwise
+  leave a half image that the next run boots from; the sequence is temporary file in the same directory →
+  `sync_all` → `rename`. The rename is what makes the new image appear atomically.
+- **A signal handler can only set a flag; the run loop has to poll it.** `SIGINT`/`SIGTERM` on a run that
+  owns a flash file must end at an instruction boundary, not inside a device update, so the handler stores
+  an `AtomicBool` (declare `signal(2)` directly — the workspace has no dependencies) and the run is split
+  into ~16 M-instruction chunks in which the flag is read. A run without `--flash-file` keeps a single
+  `Machine::run` call, so instruction counts and goldens are unchanged.
 
 ## Boards and firmware
 - **Atech's own Pocket Synth build drives the ST7735 over hardware SPI2 and reads the encoder

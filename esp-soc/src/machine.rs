@@ -288,6 +288,12 @@ impl<S: Soc> Machine<S> {
 
     pub fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> { self.bus.write_flash(offset, data) }
 
+    /// `len` bytes of flash as the run left them, or `None` past the end of the array.
+    pub fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]> { self.bus.read_flash(offset, len) }
+
+    /// The flash array's size in bytes.
+    pub fn flash_len(&self) -> usize { self.bus.flash_len() }
+
     /// Boot the application image at flash `app_off` the way the 2nd-stage bootloader would.
     pub fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
         if self.cost.is_some() { return Err("synthetic app boot is unsupported with a cost model; boot from the reset vector".into()); }

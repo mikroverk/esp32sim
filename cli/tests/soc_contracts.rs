@@ -112,3 +112,27 @@ fn c6_plic_and_intpri_share_host_input_interrupt_state() {
     bus.gpio_set_input(0, false);
     assert!(bus.irq_dirty);
 }
+
+/// Reading the array back is what `--flash-file` and `--flash-out` save, so every chip must report the
+/// bytes it accepted, its full size, and nothing past the end.
+#[test]
+fn flash_reads_back_what_was_written_on_every_chip() {
+    let buses: [Box<dyn SocBus>; 4] = [
+        Box::new(esp32::bus::SocBus::new(FLASH_SIZE, [0; 6])),
+        Box::new(esp32c3::bus::SocBus::new(FLASH_SIZE, [0; 6])),
+        Box::new(esp32c6::bus::SocBus::new(FLASH_SIZE, [0; 6])),
+        Box::new(esp32s3::bus::SocBus::new(FLASH_SIZE, 0, [0; 6])),
+    ];
+    for mut bus in buses {
+        assert_eq!(bus.flash_len(), FLASH_SIZE);
+        assert_eq!(bus.read_flash(0, FLASH_SIZE).map(|f| f.len()), Some(FLASH_SIZE));
+        assert!(bus.read_flash(0, FLASH_SIZE + 1).is_none(), "past the end");
+        assert!(bus.read_flash(FLASH_SIZE, 1).is_none(), "past the end");
+        assert!(bus.read_flash(FLASH_SIZE + 1, 0).is_none(), "past the end, even empty");
+        assert_eq!(bus.read_flash(FLASH_SIZE, 0), Some(&[][..]), "an empty range at the end is inside");
+        bus.write_flash(0x100, &[0x11, 0x22, 0x33]).unwrap();
+        assert_eq!(bus.read_flash(0x100, 3), Some(&[0x11, 0x22, 0x33][..]), "what was written");
+        assert_eq!(bus.read_flash(0x101, 2), Some(&[0x22, 0x33][..]), "at any offset");
+        assert_eq!(bus.read_flash(0x100, 4), Some(&[0x11, 0x22, 0x33, 0xff][..]), "an unwritten cell reads 0xff");
+    }
+}

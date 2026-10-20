@@ -57,7 +57,7 @@ fn reset_loop_spends_one_run_budget() {
     m.bus.load_bytes(0x4000_0000, &program).unwrap();
     // A watchdog for the regression itself: the old per-boot budget reaches this cap.
     m.max_cycles = 10_000;
-    assert!(matches!(run_with_reboots(&mut m, 10, true, false), Stop::MaxInsns));
+    assert!(matches!(run_with_reboots(&mut m, 10, true, false, false), Stop::MaxInsns));
     assert!(m.reboots > 0 && m.reboots < 10, "reboots: {}", m.reboots);
     assert!(m.insns() < 100, "instructions: {}", m.insns());
 }
@@ -86,7 +86,7 @@ fn the_pages_restart_brings_an_app_mode_run_back_up() {
     let mut m = app_mode_machine();
     m.web_restart = true;
     m.web.as_ref().unwrap().push_incoming(r#"{"t":"reset"}"#.into());
-    let stop = run_with_reboots(&mut m, 2000, false, true);
+    let stop = run_with_reboots(&mut m, 2000, false, true, false);
     assert!(!matches!(stop, Stop::SwReset), "the run ended at the reset: {stop:?}");
     assert_eq!(m.reboots, 1, "one chip reset, then the app again");
     assert_eq!(m.cores[0].pc(), 0x4080_0000, "back in the app");
@@ -99,13 +99,13 @@ fn the_pages_restart_brings_an_app_mode_run_back_up() {
 fn a_run_that_cannot_restart_ignores_the_pages_restart() {
     let mut m = app_mode_machine();
     m.web.as_ref().unwrap().push_incoming(r#"{"t":"reset"}"#.into());
-    assert!(matches!(run_with_reboots(&mut m, 2000, false, true), Stop::MaxInsns));
+    assert!(matches!(run_with_reboots(&mut m, 2000, false, true, false), Stop::MaxInsns));
     assert_eq!(m.reboots, 0);
 
     let mut m = app_mode_machine();
     m.web_restart = true;
     esp_soc::SocBus::request_reset(&mut m.bus, esp_periph::RST_SW_CPU);   // not the button: the firmware
-    assert!(matches!(run_with_reboots(&mut m, 2000, false, true), Stop::SwReset));
+    assert!(matches!(run_with_reboots(&mut m, 2000, false, true, false), Stop::SwReset));
 }
 
 #[test]
