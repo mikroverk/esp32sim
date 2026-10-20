@@ -183,7 +183,7 @@ fn nothing_due_means_next_rx_delivers_and_changes_nothing() {
                 l.set_relay(relay);
                 match setup {
                     1 => l.ap_mut().unwrap().queue.push(AirFrame { at_us: t + 1_000, frame: vec![0x40, 0, 0, 0] }),
-                    2 => l.eth_rx.push(vec![0; 60]),
+                    2 => l.eth_rx.push((Side::Ap, vec![0; 60])),
                     3 => { l.last_rx_us = t.saturating_sub(100); l.ap_mut().unwrap().queue.push(AirFrame { at_us: 0, frame: vec![0x40, 0, 0, 0] }); }
                     _ => {}
                 }
@@ -203,7 +203,7 @@ fn nothing_due_means_next_rx_delivers_and_changes_nothing() {
     assert!(!l.nothing_due(1_000));
     let mut l = StationLink::default();
     l.attach(Some(VirtualAp::new(config(), false)), None);
-    l.eth_rx.push(vec![0; 60]);
+    l.eth_rx.push((Side::Ap, vec![0; 60]));
     assert!(!l.nothing_due(1_000));
 }
 
@@ -248,7 +248,7 @@ fn a_reboot_keeps_the_host_side_only() {
     let ap = l.ap.take();
     l.attach(ap, Some(crate::net::VirtualNet::new(false)));
     l.set_relay(true);
-    l.eth_tx.push(vec![1]); l.eth_rx.push(vec![2]);
+    l.eth_tx.push((Side::Ap, vec![1])); l.eth_rx.push((Side::Ap, vec![2]));
     assert!(l.next_rx(1_000, false).is_some());
     l.rx_delivered(0x1000); l.drop_rx(); l.station_tx(&[0; 24], 2_000);
     let l = l.surviving_reboot();

@@ -169,6 +169,14 @@ impl VirtualNet {
         Vec::new()
     }
 
+    /// Whether `ip` is on this network's own subnet: the addresses it leases, answers for and
+    /// serves as gateway. A client network answers for none of them — it holds only the lease the
+    /// guest's DHCP server gave it.
+    pub fn owns(&self, ip: [u8; 4]) -> bool {
+        if self.client || ip == [0; 4] { return false; }
+        (0..4).all(|i| ip[i] & self.mask[i] == self.gw_ip[i] & self.mask[i])
+    }
+
     /// BOOTP/DHCP: answer DISCOVER with OFFER and REQUEST with ACK.
     fn dhcp(&mut self, d: &[u8], src: &[u8; 6]) -> Vec<Vec<u8>> {
         if d.len() < 240 || d[0] != 1 || d[236..240] != [0x63, 0x82, 0x53, 0x63] { return Vec::new(); }

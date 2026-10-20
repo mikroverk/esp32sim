@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod two_roles;
 pub mod join;
 pub use join::{ApSeen, JoinConfig, Lease, Phase as JoinPhase, Supplicant, STA_MAC};
 
@@ -476,29 +478,55 @@ pub fn fcs(data: &[u8]) -> u32 {
     !crc
 }
 
-/// The station's side of the air, the same behind every chip's MAC: the access point it hears, the
-/// network behind that access point (or the host's Ethernet relay instead), the pacing of received
-/// frames and the counts for the end-of-run report. Each chip's bus moves frames between this and
-/// its own descriptors; the descriptor and receive-header layouts are the chip's. The state is
-/// private: the bus attaches the access point and network through `SocBus::attach_wifi`, which
-/// also refreshes the chip's own scheduling of WiFi work.
+/// Which side of the air a frame belongs to: the virtual access point the guest joins as a
+/// station, or the join to the access point the guest runs. The two roles are on the air at the
+/// same time, so everything a frame needs to reach — the link that owns it and the network behind
+/// that link — is tagged with its side.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+enum Side {
+    #[default]
+    Ap,
+    Join,
+}
+
+/// The station's side of the air, the same behind every chip's MAC. Both radio roles can be on the
+/// air at once: the access point the guest joins as a station (`--wifi`) and the join to the access
+/// point the guest itself runs (`--wifi-join`). That is the first-boot flow of firmware configured
+/// through its own soft AP: the guest offers a scan, the user picks the emulated access point from
+/// the list and saves it, and after the reboot the same run has the guest join it as a station.
+///
+/// Each role keeps its own network, because they are not the same link: behind the access point the
+/// network is a server of DHCP, ARP, DNS and NTP, while on the join it is a client of the guest's
+/// DHCP server and only the forward answers. The pacing of received frames and the counts for the
+/// end-of-run report are shared — one radio hears one air. Each chip's bus moves frames between this
+/// and its own descriptors; the descriptor and receive-header layouts are the chip's. The state is
+/// private: the bus attaches the access point and the join through `SocBus::attach_wifi` and
+/// `SocBus::attach_wifi_join`, which also refresh the chip's own scheduling of WiFi work.
 #[derive(Default)]
 pub struct StationLink {
+    /// The virtual access point (`--wifi`).
     ap: Option<VirtualAp>,
-    /// The inverted air: the guest runs the access point and this side is the station joining it.
+    /// The network behind the access point: a server of DHCP, ARP, DNS and NTP.
+    ap_net: Option<crate::net::VirtualNet>,
+    /// The inverted air (`--wifi-join`): the guest runs the access point and this side is the
+    /// station joining it.
     join: Option<join::Supplicant>,
-    net: Option<crate::net::VirtualNet>,
+    /// The join's network: a client of the guest's DHCP server, where only the forward answers.
+    join_net: Option<crate::net::VirtualNet>,
     /// the host relays raw Ethernet (`set_ethernet_relay`) instead of the virtual network answering
     relay: bool,
-    /// Ethernet frames the station sent, for the network or the relay
-    eth_tx: Vec<Vec<u8>>,
-    /// Ethernet frames for the station, from the network or the relay
-    eth_rx: Vec<Vec<u8>>,
+    /// Ethernet frames the station sent, tagged with the side whose network they are for
+    eth_tx: Vec<(Side, Vec<u8>)>,
+    /// Ethernet frames for the station, from one of the two networks
+    eth_rx: Vec<(Side, Vec<u8>)>,
     /// when the last frame went into the receive ring
     last_rx_us: u64,
     /// the descriptor that frame went into, 0 before the first one
     last_rx_desc: u32,
-    /// when the network last read the host's sockets
+    /// which side delivered the frame in the ring last: the receive header reports the address
+    /// match the guest's current role expects, and that follows the side the frame came from
+    last_rx_side: Side,
+    /// when the networks last read the host's sockets
     net_polled_us: u64,
     /// frames the station sent and received
     tx_frames: u64,
@@ -525,21 +553,25 @@ const RX_STALL_US: u64 = 50_000;
 const NET_POLL_US: u64 = 500;
 
 impl StationLink {
-    /// Put an access point and the network behind it on the air, replacing any there were. The
+    /// Put an access point and the network behind it on the air, replacing any access point there
+    /// was; the join to the guest's own access point stays, so both roles can be up at once. The
     /// queues, pacing and counts start again; the relay mode stays.
     pub fn attach(&mut self, ap: Option<VirtualAp>, net: Option<crate::net::VirtualNet>) {
-        *self = StationLink { ap, join: None, net, relay: self.relay, ..Default::default() };
+        let (join, join_net) = (self.join.take(), self.join_net.take());
+        *self = StationLink { ap, ap_net: net, join, join_net, relay: self.relay, ..Default::default() };
     }
     /// Put this side of the air on the guest's soft AP (`--wifi-join`) and the network backend
-    /// behind it, replacing any access point there was. The network is a client of the guest's
-    /// DHCP server rather than a server of its own, and the forward rides that link.
+    /// behind it, replacing any join there was; a virtual access point the guest can join at the
+    /// same time stays. The join's network is a client of the guest's DHCP server rather than a
+    /// server of its own, and the forward rides that link.
     pub fn attach_join(&mut self, cfg: join::JoinConfig, nat: Option<crate::nat::Nat>, debug: &crate::DebugFlags) {
         let mut net = crate::net::VirtualNet::new(debug.has("net"));
         net.nat = nat;
         net.client = true;
-        let mut link = StationLink { join: Some(join::Supplicant::new(cfg, debug.has("wifi-frames"))), net: Some(net), relay: self.relay, ..Default::default() };
-        if let Some(j) = link.join.as_ref() { if let Some(n) = link.net.as_mut() { n.client_mac = j.sta_mac(); } }
-        *self = link;
+        let supplicant = join::Supplicant::new(cfg, debug.has("wifi-frames"));
+        net.client_mac = supplicant.sta_mac();
+        let (ap, ap_net) = (self.ap.take(), self.ap_net.take());
+        *self = StationLink { ap, ap_net, join: Some(supplicant), join_net: Some(net), relay: self.relay, ..Default::default() };
     }
     /// `attach` with a fresh access point for `cfg` and network, logging as `debug` says.
     pub fn attach_new(&mut self, cfg: ApConfig, nat: Option<crate::nat::Nat>, debug: &crate::DebugFlags) {
@@ -547,17 +579,38 @@ impl StationLink {
         net.nat = nat;
         self.attach(Some(VirtualAp::new(cfg, debug.has("wifi-frames"))), Some(net));
     }
-    /// What a guest reboot keeps: the host's access point or the join, the network and the relay
+    /// What a guest reboot keeps: the host's access point, the join, their networks and the relay
     /// mode. The queues, the pacing and the counts start again, and a join hears the guest's access
-    /// point afresh — it beacons again from scratch, so the association it had is gone.
+    /// point afresh — it beacons again from scratch, so the association it had is gone. That is also
+    /// how the receive header learns the guest changed roles: the guest is a station of the
+    /// emulated access point now, not an access point itself.
     pub fn surviving_reboot(mut self) -> Self {
         if let Some(fwd) = self.net.as_mut().and_then(|n| n.hostfwd.as_mut()) { fwd.reset_flows(); }
         if let Some(j) = self.join.as_mut() { j.restart(); }
-        StationLink { ap: self.ap, join: self.join, net: self.net, relay: self.relay, ..Default::default() }
+        StationLink { ap: self.ap, ap_net: self.ap_net, join: self.join, join_net: self.join_net, relay: self.relay, ..Default::default() }
     }
 
     pub fn ap(&self) -> Option<&VirtualAp> { self.ap.as_ref() }
+    pub fn ap_mut(&mut self) -> Option<&mut VirtualAp> { self.ap.as_mut() }
     pub fn join(&self) -> Option<&join::Supplicant> { self.join.as_ref() }
+    /// The network behind the virtual access point, when the guest is its station.
+    pub fn ap_net(&self) -> Option<&crate::net::VirtualNet> { self.ap_net.as_ref() }
+    /// The network of the join, when the guest runs the access point.
+    pub fn join_net(&self) -> Option<&crate::net::VirtualNet> { self.join_net.as_ref() }
+    /// The network the host side talks to: the access point's when there is one, the join's
+    /// otherwise.
+    pub fn net(&self) -> Option<&crate::net::VirtualNet> { self.ap_net().or_else(|| self.join_net()) }
+    pub fn net_mut(&mut self) -> Option<&mut crate::net::VirtualNet> {
+        if self.ap_net.is_some() { self.ap_net.as_mut() } else { self.join_net.as_mut() }
+    }
+    /// The network that owns the guest address `ip`: the access point's for its own subnet (the
+    /// station's address and the gateway's), the join's for anything else — the address the guest's
+    /// DHCP server leased it, and the guest's own addresses on that subnet. A host-side peer that
+    /// names the guest address it wants (`--hostfwd`) picks its link with this.
+    pub fn net_for_guest(&mut self, ip: [u8; 4]) -> Option<&mut crate::net::VirtualNet> {
+        if self.ap_net.as_ref().is_some_and(|n| n.owns(ip)) { return self.ap_net.as_mut() }
+        self.join_net.as_mut().or(self.ap_net.as_mut())
+    }
     /// True while there is an air to schedule: a virtual access point, or the join to the guest's.
     pub fn on_air(&self) -> bool { self.ap.is_some() || self.join.is_some() }
     /// The channel the air is on, once it is on one.
@@ -567,18 +620,31 @@ impl StationLink {
     /// as both matches (bits 28 and 29) — measured on S3 silicon (`wDev_IndicateFrame` drops a
     /// unicast frame that claims only bit 28). An access point hears management frames from every
     /// station it has not seen yet, and its hardware reports those as matched by address alone:
-    /// bit 29, without bit 28. Firmware in the AP role drops a frame that sets both, so the join
-    /// link cannot reuse the station convention — measured with a softAP image, where bit 29 alone
-    /// gets probe, authentication and association answered and both bits get nothing at all.
+    /// bit 29, without bit 28. Firmware in the AP role drops a frame that sets both, so a guest that
+    /// runs an access point cannot be handed the station convention — measured with a softAP image,
+    /// where bit 29 alone gets probe, authentication and association answered and both bits get
+    /// nothing at all.
+    ///
+    /// With both roles on the air the guest's own mode decides, not the frame's origin: while the
+    /// guest's access point beacons — it is the AP the join is attached to, or the frame came from
+    /// that link — its MAC reports bit 29 alone, so the probe responses a scan in its setup UI needs
+    /// are accepted. After the guest reboots as a station of the emulated access point the join
+    /// hears no access point any more and the station convention applies again.
     pub fn rx_match(&self, group: bool) -> u32 {
-        if self.join.is_some() { return 1 << 29; }
+        if self.guest_runs_ap() { return 1 << 29; }
         if group { 1 << 28 } else { (1 << 28) | (1 << 29) }
+    }
+    /// True while the guest's own access point is on the air. A run with only the join is always
+    /// that case — the guest is the AP by construction. With the access point role up as well the
+    /// frame's link and the guest's beacons say so: a join-only frame comes from the guest as an
+    /// access point, and once the join has heard the guest beacon since the last reboot it still is
+    /// one. A guest that rebooted into a station of the emulated access point has cleared that.
+    fn guest_runs_ap(&self) -> bool {
+        let Some(j) = self.join.as_ref() else { return false };
+        self.ap.is_none() || self.last_rx_side == Side::Join || j.ap.is_some()
     }
     /// Whether frames are being logged.
     pub fn log(&self) -> bool { self.ap.as_ref().is_some_and(|ap| ap.log) || self.join.as_ref().is_some_and(|j| j.log) }
-    pub fn ap_mut(&mut self) -> Option<&mut VirtualAp> { self.ap.as_mut() }
-    pub fn net(&self) -> Option<&crate::net::VirtualNet> { self.net.as_ref() }
-    pub fn net_mut(&mut self) -> Option<&mut crate::net::VirtualNet> { self.net.as_mut() }
     pub fn relay(&self) -> bool { self.relay }
     /// The descriptor the last received frame went into, 0 before the first one.
     pub fn last_rx_desc(&self) -> u32 { self.last_rx_desc }
@@ -602,72 +668,130 @@ impl StationLink {
         Some(left_out)
     }
 
-    /// The station sent `frame` at `now_us`: the access point hears it, and what it passes on as
-    /// data goes to the network or the relay.
+    /// The side of the air a frame the station transmits belongs to, by its addresses. The emulated
+    /// access point's BSSID in addr1 (or in addr3, for a data frame to the DS) means the guest is
+    /// that access point's station. Everything else — what an access point transmits to its clients
+    /// — belongs to the join. A broadcast management frame is the one both sides hear: a scan probe
+    /// request goes to the access point, which answers it, and means nothing to the join.
+    fn tx_side(&self, f: &[u8]) -> Option<Side> {
+        if f.len() < 24 { return None; }
+        let fc = u16::from_le_bytes([f[0], f[1]]);
+        let (ty, st) = ((fc >> 2) & 3, (fc >> 4) & 0xf);
+        let a1 = &f[4..10];
+        if let Some(ap) = &self.ap {
+            if a1 == ap.cfg.bssid || (ty == 2 && f.len() >= 22 && f[16..22] == ap.cfg.bssid) { return Some(Side::Ap); }
+        }
+        if self.join.is_some() {
+            if ty == 0 && st == 4 && a1 == [0xff; 6] && self.ap.is_some() { return Some(Side::Ap); }
+            return Some(Side::Join);
+        }
+        self.ap.as_ref().map(|_| Side::Ap)
+    }
+
+    /// The station sent `frame` at `now_us`: the link that owns it hears it, and what that link
+    /// passes on as data goes to its network or to the relay.
     pub fn station_tx(&mut self, frame: &[u8], now_us: u64) {
         self.tx_frames += 1;
-        if let Some(j) = self.join.as_mut() {
-            // The guest is the access point: what it transmits is the AP's side of the air.
-            for eth in j.on_guest_tx(frame, now_us) {
-                if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) { self.eth_tx.push(eth); } else { self.tx_dropped += 1; }
-            }
-            return;
+        let Some(side) = self.tx_side(frame) else { return };
+        let eths = match side {
+            Side::Join => self.join.as_mut().map(|j| j.on_guest_tx(frame, now_us)).unwrap_or_default(),
+            Side::Ap => match self.ap.as_mut().and_then(|ap| ap.on_station_tx(frame, now_us)).and_then(|data| data_to_eth(&data)) {
+                Some(eth) => vec![eth],
+                None => Vec::new(),
+            },
+        };
+        for eth in eths {
+            if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) { self.eth_tx.push((side, eth)); } else { self.tx_dropped += 1; }
         }
-        let Some(ap) = &mut self.ap else { return };
-        let Some(eth) = ap.on_station_tx(frame, now_us).and_then(|data| data_to_eth(&data)) else { return };
-        if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) { self.eth_tx.push(eth); } else { self.tx_dropped += 1; }
     }
 
     /// True while the last received frame's airtime lasts: no frame is due, whatever the ring holds.
     pub fn in_rx_gap(&self, now_us: u64) -> bool { now_us.wrapping_sub(self.last_rx_us) < RX_GAP_US }
 
     /// True when `next_rx` has nothing to deliver at `now_us`, whatever the ring holds: within the
-    /// airtime gap, or with the access point idle (`VirtualAp::idle_at`) and nothing from the
-    /// network. `next_rx` would change nothing then, so skipping it is exact. The bus asks this
-    /// every scheduling round while WiFi is on, before it reads the ring.
+    /// airtime gap, or with both links idle and nothing from either network. `next_rx` would change
+    /// nothing then, so skipping it is exact. The bus asks this every scheduling round while WiFi is
+    /// on, before it reads the ring.
     #[inline]
     pub fn nothing_due(&self, now_us: u64) -> bool {
         if self.in_rx_gap(now_us) { return true; }
-        if let Some(j) = self.join.as_ref() { return j.idle_at(now_us) && self.eth_rx.is_empty(); }
-        self.ap.as_ref().is_none_or(|ap| ap.idle_at(now_us) && self.eth_rx.is_empty())
+        if !self.eth_rx.is_empty() { return false; }
+        let ap_idle = self.ap.as_ref().is_none_or(|ap| ap.idle_at(now_us));
+        let join_idle = self.join.as_ref().is_none_or(|j| j.idle_at(now_us));
+        ap_idle && join_idle
     }
 
-    /// The next frame for the station's receive ring, if one is due: the access point's beacons
-    /// and responses, then what the network sends. `ring_busy` says the last delivered descriptor
-    /// still has data. The S3's library was seen to indicate a frame up the 802.11 stack only
-    /// while the descriptor ring is shallow: with several filled descriptors pending it switches
-    /// to batch block-recycle and drops them. So the air waits until software has recycled the
-    /// last one, which is what a real radio sees at low traffic, but not for ever: after
-    /// `RX_STALL_US` the frame goes anyway, as a real ring would overflow. The C3 and C6 are
+    /// The frames the access point and its network have due at `now_us`: its own timers and
+    /// responses, and what the network sends wrapped as frames from the DS. Sorted as they go into
+    /// the ring, management before beacons so a connect exchange is not crowded out by beacon
+    /// traffic. Frames that are not due stay in the access point's queue.
+    fn due_from_ap(&mut self, now_us: u64) -> Vec<AirFrame> {
+        // The join's frames are not this side's to deliver: they stay queued for their own link.
+        let mut ap_frames = Vec::new();
+        if !self.relay {
+            let (take, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.eth_rx).into_iter().partition(|(s, _)| *s == Side::Ap);
+            self.eth_rx = rest;
+            ap_frames = take.into_iter().map(|(_, f)| f).collect();
+        }
+        let relay = self.relay;
+        let Some(ap) = self.ap.as_mut() else { return Vec::new() };
+        let mut due = ap.step(now_us);
+        // In relay mode the host has the frames and the access point passes one on at a time, only
+        // when it has nothing of its own to say.
+        if relay && due.is_empty() {
+            if let Some(i) = self.eth_rx.iter().position(|(s, _)| *s == Side::Ap) { ap_frames.push(self.eth_rx.remove(i).1); }
+        }
+        for e in ap_frames { if let Some(f) = ap.data_from_ds(&e) { due.push(AirFrame { at_us: now_us, frame: f }); } }
+        due.sort_by_key(|a| (is_beacon(&a.frame), a.at_us));
+        due
+    }
+
+    /// The frames the join and its network have due at `now_us`: its timers and the answered
+    /// management and DHCP exchanges, and what the forward's flows carry, wrapped for the guest's
+    /// access point.
+    fn due_from_join(&mut self, now_us: u64) -> Vec<AirFrame> {
+        let (eth_in, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.eth_rx).into_iter().partition(|(s, _)| *s == Side::Join);
+        self.eth_rx = rest;
+        let eth_in: Vec<Vec<u8>> = eth_in.into_iter().map(|(_, f)| f).collect();
+        let Some(j) = self.join.as_mut() else { return Vec::new() };
+        let mut due = j.step(now_us);
+        for e in eth_in { if let Some(f) = j.wrap_eth(&e) { due.push(AirFrame { at_us: now_us, frame: f }); } }
+        due.sort_by_key(|a| a.at_us);
+        due
+    }
+
+    /// The next frame for the station's receive ring, if one is due: from whichever link has the
+    /// earlier one, management before beacons, then what the networks send. `ring_busy` says the
+    /// last delivered descriptor still has data. The S3's library was seen to indicate a frame up
+    /// the 802.11 stack only while the descriptor ring is shallow: with several filled descriptors
+    /// pending it switches to batch block-recycle and drops them. So the air waits until software
+    /// has recycled the last one, which is what a real radio sees at low traffic, but not for ever:
+    /// after `RX_STALL_US` the frame goes anyway, as a real ring would overflow. The C3 and C6 are
     /// paced the same way; their station goldens pass with it, but it was not measured on their
-    /// silicon. Management responses (auth, assoc, probe) go before beacons, so a connect
-    /// exchange is not crowded out by beacon traffic; the rest waits in the access point's queue.
-    /// The caller delivers the frame and then reports `rx_delivered` or `drop_rx`.
+    /// silicon. The caller delivers the frame and then reports `rx_delivered` or `drop_rx`.
     pub fn next_rx(&mut self, now_us: u64, ring_busy: bool) -> Option<Vec<u8>> {
         if self.in_rx_gap(now_us) { return None; }
         if ring_busy && now_us.wrapping_sub(self.last_rx_us) < RX_STALL_US { return None; }
-        if let Some(j) = self.join.as_mut() {
-            let mut due = j.step(now_us);
-            for e in std::mem::take(&mut self.eth_rx) { if let Some(f) = j.wrap_eth(&e) { due.push(AirFrame { at_us: now_us, frame: f }); } }
-            if due.is_empty() { return None; }
-            due.sort_by_key(|a| a.at_us);
-            let first = due.remove(0);
-            j.requeue(due);
-            self.last_rx_us = now_us;
-            return Some(first.frame);
-        }
-        let ap = self.ap.as_mut()?;
-        let mut due = ap.step(now_us);
-        let eth_in = if self.relay {
-            if due.is_empty() && !self.eth_rx.is_empty() { vec![self.eth_rx.remove(0)] } else { Vec::new() }
-        } else { std::mem::take(&mut self.eth_rx) };
-        for e in eth_in { if let Some(f) = ap.data_from_ds(&e) { due.push(AirFrame { at_us: now_us, frame: f }); } }
-        if due.is_empty() { return None; }
-        due.sort_by_key(|a| (is_beacon(&a.frame), a.at_us));
-        let first = due.remove(0);
-        ap.queue.extend(due);
+        let mut ap = self.due_from_ap(now_us);
+        let mut join = self.due_from_join(now_us);
+        let take_join = match (ap.first(), join.first()) {
+            (Some(a), Some(j)) => (j.at_us, false) < (a.at_us, is_beacon(&a.frame)),
+            (None, Some(_)) => true,
+            _ => false,
+        };
+        let (side, frame) = if take_join {
+            let first = join.remove(0);
+            (Side::Join, first.frame)
+        } else {
+            let first = ap.first().map(|a| a.frame.clone())?;
+            ap.remove(0);
+            (Side::Ap, first)
+        };
+        if let Some(a) = self.ap.as_mut() { a.queue.extend(ap); }
+        if let Some(j) = self.join.as_mut() { j.requeue(join); }
         self.last_rx_us = now_us;
-        Some(first.frame)
+        self.last_rx_side = side;
+        Some(frame)
     }
 
     /// A frame went into the descriptor at `desc`.
@@ -675,19 +799,31 @@ impl StationLink {
     /// A frame found no usable descriptor.
     pub fn drop_rx(&mut self) { self.rx_dropped += 1; }
 
-    /// The network behind the access point answers what the station sent at once and reads the
-    /// host's sockets every `NET_POLL_US`. Nothing to do in relay mode: the host has the frames.
+    fn net_mut_side(&mut self, side: Side) -> Option<&mut crate::net::VirtualNet> {
+        match side {
+            Side::Ap => self.ap_net.as_mut(),
+            Side::Join => self.join_net.as_mut(),
+        }
+    }
+
+    /// Each network answers what its own link sent at once and reads the host's sockets every
+    /// `NET_POLL_US`. Nothing to do in relay mode: the host has the frames.
     pub fn net_step(&mut self, now_us: u64) {
         if self.relay { return; }
-        let Some(net) = self.net.as_mut() else { return };
-        // A forward can only frame toward a station the access point has associated.
-        if let (Some(ap), Some(fwd)) = (&self.ap, net.hostfwd.as_mut()) { fwd.set_station_mac(ap.sta); }
-        let out = std::mem::take(&mut self.eth_tx);
+
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
-        if out.is_empty() && !due { return; }
+        if self.eth_tx.is_empty() && !due { return; }
         if due { self.net_polled_us = now_us; }
-        for e in out { self.eth_rx.extend(net.handle(&e, now_us)); }
-        self.eth_rx.extend(net.poll(now_us));
+        for (side, e) in std::mem::take(&mut self.eth_tx) {
+            let Some(net) = self.net_mut_side(side) else { continue };
+            let out = net.handle(&e, now_us);
+            self.eth_rx.extend(out.into_iter().map(|f| (side, f)));
+        }
+        for side in [Side::Ap, Side::Join] {
+            let Some(net) = self.net_mut_side(side) else { continue };
+            let out = net.poll(now_us);
+            self.eth_rx.extend(out.into_iter().map(|f| (side, f)));
+        }
     }
 
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
@@ -697,7 +833,10 @@ impl StationLink {
 
     /// The frames the station sent since the last call, in relay mode.
     pub fn take_relay_frames(&mut self) -> Vec<Vec<u8>> {
-        if self.relay { std::mem::take(&mut self.eth_tx) } else { Vec::new() }
+        if !self.relay { return Vec::new(); }
+        let (ap, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.eth_tx).into_iter().partition(|(s, _)| *s == Side::Ap);
+        self.eth_tx = rest;
+        ap.into_iter().map(|(_, f)| f).collect()
     }
 
     /// A frame from the host for the station, in relay mode.
@@ -705,20 +844,27 @@ impl StationLink {
         if !self.relay || self.ap.is_none() { return Err("Ethernet relay requires relay mode and a virtual AP".into()); }
         if !(14..=RELAY_FRAME_MAX).contains(&frame.len()) { return Err(format!("Ethernet frame must be 14..={RELAY_FRAME_MAX} bytes without FCS")); }
         if self.eth_rx.len() >= RELAY_QUEUE { return Err("Ethernet receive queue full".into()); }
-        self.eth_rx.push(frame.to_vec());
+        self.eth_rx.push((Side::Ap, frame.to_vec()));
         Ok(())
     }
 
     /// The end-of-run lines, one per line without a final newline: what the station sent and
-    /// received, what the access point saw, and what the network behind it answered. Empty when
-    /// the station never used the radio and there is no network.
+    /// received, what the access point saw, what the join did, and what each network answered.
+    /// Empty when the station never used the radio and there is no network. A run with one role
+    /// names the networks as it always did; with both roles on the air the join's line says so.
     pub fn report(&self) -> String {
         let mut lines = Vec::new();
-        if self.tx_frames + self.rx_frames > 0 { lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.ap.as_ref().map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)))); }
+        if self.tx_frames + self.rx_frames > 0 { lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.ap().map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)))); }
         if let Some(j) = &self.join { lines.push(j.report()); }
-        if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
-            if let Some(t) = &n.nat { lines.push(format!("[emu] nat: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest)); }
-            if let Some(f) = &n.hostfwd { if let Some(line) = f.report() { lines.push(line); } } }
+        let both = self.ap.is_some() && self.join.is_some();
+        for side in [Side::Ap, Side::Join] {
+            let net = match side { Side::Ap => self.ap_net(), Side::Join => self.join_net() };
+            let Some(n) = net else { continue };
+            let label = if both && side == Side::Join { " (join)" } else { "" };
+            lines.push(format!("[emu] net{label}: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
+            if let Some(t) = &n.nat { lines.push(format!("[emu] nat{label}: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest)); }
+            if let Some(f) = &n.hostfwd { if let Some(line) = f.report() { lines.push(line); } }
+        }
         lines.join("\n")
     }
 }

@@ -221,7 +221,6 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if (o.ble_observe || o.ble_scan) && !o.ble_full { usage_error("BLE central/observer use requires --ble full"); }
     if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
     if o.ble_full && !matches!(o.chip.as_str(), "c3" | "esp32c3") { usage_error("--ble full requires C3"); }
-    if o.wifi.is_some() && o.wifi_join.is_some() { usage_error("--wifi and --wifi-join are mutually exclusive: one puts the guest on the air as a station, the other joins the access point the guest runs"); }
     if let Some(path) = &o.script {
         let text = std::fs::read_to_string(path).unwrap_or_else(|e| usage_error(&format!("script: {e}")));
         for (ln, line) in text.lines().enumerate() {
@@ -311,14 +310,9 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     m.bus.spi2_timing = o.spi2_timing;
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat, fwd) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"), &o.hostfwd);
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-        if let Some(fwd) = fwd { m.bus.attach_hostfwd(fwd).unwrap_or_else(|e| usage_error(&e)); }
-    }
-    attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
+
     let net_log = m.bus.debug.has("net");
-    attach_air(&mut m.bus, o, (o.net == "nat" || o.net == "user").then(|| esp_soc::nat::Nat::new(net_log)));
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     if let Some(p) = &o.cam_image { match esp_soc::picture::load(p) { Ok(pic) => { eprintln!("[emu] camera picture {} ({}x{})", p, pic.w, pic.h); m.bus.board.set_camera_picture(pic).unwrap_or_else(|e| usage_error(e)); } Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2); } } }
     m.bus.periph.lcd_cam.frame_cycles = (esp32s3::periph::CPU_HZ as f64 / o.cam_fps) as u64;
     let stopwatch = m.bus.board.name() == "stopwatch";
@@ -401,12 +395,28 @@ fn join_config(spec: &str) -> esp_soc::wifi::JoinConfig {
     cfg
 }
 
-/// Attach whichever air `--wifi` or `--wifi-join` asked for; false when neither did.
-fn attach_air<B: esp_soc::SocBus>(bus: &mut B, o: &Opts, nat: Option<esp_soc::nat::Nat>) -> bool {
-    let Some(spec) = &o.wifi_join else { return false };
-    let cfg = join_config(spec);
-    bus.attach_wifi_join(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi-join: {e}"); std::process::exit(2) });
-    true
+/// Put the air `--wifi` and `--wifi-join` asked for on the wire: the access point the guest joins
+/// as a station, the join to the access point the guest runs, or both at once — a firmware in its
+/// setup-AP mode offers a scan, and the network the user picks from that list is the emulated access
+/// point, which the same run then has to lease to the guest as a station. False when neither flag
+/// was given. `nat` and `net_log` configure each link's network the same way.
+fn attach_air<B: esp_soc::SocBus>(bus: &mut B, o: &Opts, nat: bool, net_log: bool) -> bool {
+    let mut attached = false;
+    if let Some(spec) = &o.wifi {
+        let (cfg, nat) = wifi_config(spec, nat, net_log);
+        bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
+        attached = true;
+    }
+    if let Some(spec) = &o.wifi_join {
+        let cfg = join_config(spec);
+        bus.attach_wifi_join(cfg, nat.then(|| esp_soc::nat::Nat::new(net_log)))
+            .unwrap_or_else(|e| { eprintln!("--wifi-join: {e}"); std::process::exit(2) });
+        attached = true;
+    }
+    if o.wifi.is_some() && o.wifi_join.is_some() {
+        eprintln!("[emu] both radio roles are on the air: the guest can scan for the emulated access point and join it, while this side is a station of the guest's own access point");
+    }
+    attached
 }
 
 fn setup_c3(o: &Opts) -> esp32c3::Machine {
@@ -417,14 +427,8 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
         m.bus.enable_ble_full(o.ble_observe).unwrap_or_else(|e| usage_error(&e));
         m.bus.periph.ble_lc.scan(o.ble_scan);
     }
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat, fwd) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"), &o.hostfwd);
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-        if let Some(fwd) = fwd { m.bus.attach_hostfwd(fwd).unwrap_or_else(|e| usage_error(&e)); }
-    }
     let net_log = m.bus.debug.has("net");
-    attach_air(&mut m.bus, o, (o.net == "nat" || o.net == "user").then(|| esp_soc::nat::Nat::new(net_log)));
-    attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
     }
@@ -438,14 +442,8 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
     let board = if o.board == "atech14" { "none" } else { &o.board };
     m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay)")));
     m.bus.attach_board_devices();
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat, fwd) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"), &o.hostfwd);
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-        if let Some(fwd) = fwd { m.bus.attach_hostfwd(fwd).unwrap_or_else(|e| usage_error(&e)); }
-    }
     let net_log = m.bus.debug.has("net");
-    attach_air(&mut m.bus, o, (o.net == "nat" || o.net == "user").then(|| esp_soc::nat::Nat::new(net_log)));
-    attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the classic ESP32", flag); std::process::exit(2); }
     }
@@ -459,14 +457,8 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
     let name = if o.board == "atech14" { "none" } else { o.board.as_str() };   // the S3 default means "bare module" here
     match esp32c6::board::make_board(name) { Some(b) => m.bus.board = b, None => { eprintln!("--board {}: none or waveshare-c6-lcd147 on the C6", name); std::process::exit(2) } }
     m.bus.attach_board_devices();
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat, fwd) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"), &o.hostfwd);
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-        if let Some(fwd) = fwd { m.bus.attach_hostfwd(fwd).unwrap_or_else(|e| usage_error(&e)); }
-    }
     let net_log = m.bus.debug.has("net");
-    attach_air(&mut m.bus, o, (o.net == "nat" || o.net == "user").then(|| esp_soc::nat::Nat::new(net_log)));
-    attach_nearby_networks(&mut m.bus.periph.wifi_mac.link, o);
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C6", flag); std::process::exit(2); }
     }
