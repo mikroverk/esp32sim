@@ -200,7 +200,7 @@ impl HostFwd {
     }
 
     /// A segment from the guest addressed to the peer address. Returns frames for the guest.
-    pub fn tcp_in(&mut self, sip: &[u8; 4], seg: &[u8], now_us: u64) -> Vec<Vec<u8>> {
+    pub fn tcp_in(&mut self, gmac: &[u8; 6], sip: &[u8; 4], seg: &[u8], now_us: u64) -> Vec<Vec<u8>> {
         if seg.len() < 20 { return Vec::new(); }
         let off = ((seg[12] >> 4) as usize) * 4;
         if off < 20 || off > seg.len() { return Vec::new(); }
@@ -216,8 +216,7 @@ impl HostFwd {
             // or a probe. Refuse it instead of letting the guest retransmit into the void.
             if flags & RST != 0 { return Vec::new(); }
             self.no_flow += 1;
-            let gmac = self.sta_mac.unwrap_or([0xff; 6]);
-            return vec![reset(&gmac, sip, sport, dport, seq, ack, flags, data.len())];
+            return vec![reset(gmac, sip, sport, dport, seq, ack, flags, data.len())];
         };
         let log = self.log;
         let c = &mut self.flows[i];

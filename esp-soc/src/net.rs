@@ -113,7 +113,7 @@ impl VirtualNet {
             }
             6 if self.hostfwd.is_some() && dip == crate::hostfwd::PEER_IP => {
                 let now = self.now_us;
-                self.hostfwd.as_mut().unwrap().tcp_in(&sip, body, now)
+                self.hostfwd.as_mut().unwrap().tcp_in(src, &sip, body, now)
             }
             6 if self.nat.is_some() => {
                 let now = self.now_us;

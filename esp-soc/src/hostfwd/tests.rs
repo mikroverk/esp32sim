@@ -5,6 +5,7 @@ use std::net::Shutdown;
 use std::time::{Duration, Instant};
 
 const GUEST: [u8; 4] = [10, 0, 2, 15];
+const GUEST_MAC: [u8; 6] = [0x44; 6];
 
 fn forward() -> (HostFwd, u16) {
     let probe = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
@@ -111,7 +112,7 @@ fn handshake_data_and_half_close_reach_both_sides() {
     let syn = fwd.poll(0);
     let (peer_port, _, isn, _, _, _, _) = fields(&syn[0]);
 
-    let reply = fwd.tcp_in(&GUEST, &segment(80, peer_port, 1000, isn + 1, SYN | ACK, &[]), 1);
+    let reply = fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1000, isn + 1, SYN | ACK, &[]), 1);
     assert_eq!(reply.len(), 1);
     let (sport, dport, seq, ack, flags, _, _) = fields(&reply[0]);
     assert_eq!((sport, dport, seq, ack, flags), (peer_port, 80, isn + 1, 1001, ACK));
@@ -124,10 +125,10 @@ fn handshake_data_and_half_close_reach_both_sides() {
     assert_eq!(flags, PSH | ACK);
     assert_eq!((seq, ack), (isn + 1, 1001));
     assert_eq!(payload, b"GET / HTTP/1.0\r\n\r\n");
-    fwd.tcp_in(&GUEST, &segment(80, peer_port, 1001, isn + 19, ACK, &[]), 3);
+    fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1001, isn + 19, ACK, &[]), 3);
 
     let body = b"HTTP/1.0 200 OK\r\n\r\nhello";
-    let reply = fwd.tcp_in(&GUEST, &segment(80, peer_port, 1001, isn + 19, PSH | ACK, body), 4);
+    let reply = fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1001, isn + 19, PSH | ACK, body), 4);
     assert_eq!(reply.len(), 1);
     assert_eq!(fields(&reply[0]).4, ACK);
     fwd.poll(5);
@@ -142,8 +143,8 @@ fn handshake_data_and_half_close_reach_both_sides() {
     let (_, _, seq, _, flags, _, _) = fields(&frames[0]);
     assert_eq!(flags, FIN | ACK);
     let fin_seq = seq;
-    fwd.tcp_in(&GUEST, &segment(80, peer_port, 1001 + body.len() as u32, fin_seq + 1, ACK | FIN, &[]), 7);
-    let replay = fwd.tcp_in(&GUEST, &segment(80, peer_port, 1001 + body.len() as u32, fin_seq + 1, ACK | FIN, &[]), 8);
+    fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1001 + body.len() as u32, fin_seq + 1, ACK | FIN, &[]), 7);
+    let replay = fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1001 + body.len() as u32, fin_seq + 1, ACK | FIN, &[]), 8);
     assert_eq!(fields(&replay[0]).4, ACK, "a repeated FIN is still acknowledged");
     fwd.poll(9);
     assert_eq!(host.read(&mut received).unwrap(), 0, "the guest's FIN closes the host's read side");
@@ -160,8 +161,8 @@ fn guest_reset_closes_the_host_connection_and_is_counted() {
     let mut host = client(port);
     let syn = fwd.poll(0);
     let (peer_port, _, isn, _, _, _, _) = fields(&syn[0]);
-    fwd.tcp_in(&GUEST, &segment(80, peer_port, 1000, isn + 1, SYN | ACK, &[]), 1);
-    assert_eq!(fwd.tcp_in(&GUEST, &segment(80, peer_port, 1001, isn + 1, RST | ACK, &[]), 2), Vec::<Vec<u8>>::new());
+    fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1000, isn + 1, SYN | ACK, &[]), 1);
+    assert_eq!(fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1001, isn + 1, RST | ACK, &[]), 2), Vec::<Vec<u8>>::new());
     assert_eq!(fwd.refused, 1);
     fwd.poll(3);
     assert!(fwd.flows.is_empty());
@@ -174,15 +175,16 @@ fn guest_reset_closes_the_host_connection_and_is_counted() {
 #[test]
 fn a_segment_for_an_unused_peer_port_is_refused_instead_of_ignored() {
     let (mut fwd, _port) = forward();
-    let frames = fwd.tcp_in(&GUEST, &segment(80, PEER_PORT_FIRST, 500, 0, SYN, &[]), 0);
+    let frames = fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, PEER_PORT_FIRST, 500, 0, SYN, &[]), 0);
     assert_eq!(frames.len(), 1);
     let (sport, dport, seq, ack, flags, _, _) = fields(&frames[0]);
     assert_eq!((sport, dport, seq, ack, flags), (PEER_PORT_FIRST, 80, 0, 501, RST | ACK));
     assert_eq!(&frames[0][6..12], &PEER_MAC);
+    assert_eq!(&frames[0][0..6], &GUEST_MAC, "the refusal goes to the station that sent the segment");
     assert_eq!(crate::net::packet::transport_checksum(&PEER_IP, &GUEST, 6, &frames[0][34..]), 0);
     assert_eq!(fwd.no_flow, 1);
     // A RST for an unknown flow is not answered with another RST.
-    assert!(fwd.tcp_in(&GUEST, &segment(80, PEER_PORT_FIRST, 501, 0, RST, &[]), 1).is_empty());
+    assert!(fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, PEER_PORT_FIRST, 501, 0, RST, &[]), 1).is_empty());
     assert_eq!(fwd.no_flow, 1);
 }
 
