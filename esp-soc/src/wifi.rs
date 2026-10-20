@@ -547,12 +547,13 @@ impl StationLink {
         net.nat = nat;
         self.attach(Some(VirtualAp::new(cfg, debug.has("wifi-frames"))), Some(net));
     }
-    /// What a guest reboot keeps: the host's access point, network and relay mode. The queues, the
-    /// pacing and the counts start again.
+    /// What a guest reboot keeps: the host's access point or the join, the network and the relay
+    /// mode. The queues, the pacing and the counts start again, and a join hears the guest's access
+    /// point afresh — it beacons again from scratch, so the association it had is gone.
     pub fn surviving_reboot(mut self) -> Self {
-        // The guest's stack starts empty, so every forwarded connection died with the reset.
         if let Some(fwd) = self.net.as_mut().and_then(|n| n.hostfwd.as_mut()) { fwd.reset_flows(); }
-        StationLink { ap: self.ap, net: self.net, relay: self.relay, ..Default::default() }
+        if let Some(j) = self.join.as_mut() { j.restart(); }
+        StationLink { ap: self.ap, join: self.join, net: self.net, relay: self.relay, ..Default::default() }
     }
 
     pub fn ap(&self) -> Option<&VirtualAp> { self.ap.as_ref() }

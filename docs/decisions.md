@@ -88,7 +88,12 @@ Things that cost real time to find out, recorded so they do not have to be found
   indicated (`wDev_ProcessRxSucData` `a3=0xa` rather than `0x1`).
 - **`rx_ctrl` word 0 must set filter-match bit 28**, plus bit 29 for unicast. With bit 29 alone the
   frame is dropped inside `wDev_ProcessRxSucData` before it is ever indicated — silicon shows
-  `0x111b20ad` for a broadcast beacon.
+  `0x111b20ad` for a broadcast beacon. **The rule is the role's, not the model's**: a station
+  reports group traffic as match 0 and its own unicast as both, but a guest in the *AP* role reports
+  a frame it accepted because addr1 is its own address as bit 29 *alone*, and drops anything that
+  also claims bit 28. A soft AP therefore answers no probe request, authentication or association
+  with the station convention — `StationLink::rx_match` decides by which side of the air is
+  modelled.
 - **The EAPOL MIC covers exactly the 802.1X frame**, not the whole 802.11 payload, which can carry
   trailing bytes; and **group-addressed downlink frames need CCMP key id 1** (the GTK) or the
   station drops them silently.
@@ -111,6 +116,18 @@ Things that cost real time to find out, recorded so they do not have to be found
 - **Refusing an unknown peer port needs a RST, not silence.** A stale segment or a port probe
   otherwise leaves the guest retransmitting into a hole; the RFC 793 rule (RST/seq = incoming ack
   when the segment has ACK, else RST|ACK/ack = seq + length) costs a dozen lines.
+- **A guest that runs its own soft AP needs the air inverted, not a shim.** `--wifi-join` makes the
+  emulated MAC the station: beacons and probe responses teach it the BSSID, SSID, channel and RSN
+  element, and it authenticates, associates, runs the four-way handshake in the *supplicant* role and
+  takes a lease from the guest's DHCP server. The crypto is not duplicated — the same
+  `esp_periph::crypto` PMK/PTK/MIC/key-wrap primitives serve both roles, and the supplicant's test
+  drives it against the model's own authenticator (`VirtualAp`), so a mismatch between the halves
+  fails a unit test instead of an integration run.
+- **On a join link the forward's addresses come from the lease, not from the model.** The guest is
+  the access point, so there is no 10.0.2.x subnet: the peer is the address the guest's DHCP server
+  handed out and the guest side is the AP itself (or the address a `--hostfwd` specification names).
+  Until the lease arrives there is nothing to frame toward, so a host connection that arrives early
+  waits instead of being given a guessed address.
 - **Debugging aid that paid for itself**: rebuild the specimen firmware with
   `CONFIG_WPA_DEBUG_PRINT=y` and `CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y` and read the supplicant's own
   verdicts instead of guessing from the emulator side.
