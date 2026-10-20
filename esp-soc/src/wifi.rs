@@ -534,7 +534,11 @@ impl StationLink {
     }
     /// What a guest reboot keeps: the host's access point, network and relay mode. The queues, the
     /// pacing and the counts start again.
-    pub fn surviving_reboot(self) -> Self { StationLink { ap: self.ap, net: self.net, relay: self.relay, ..Default::default() } }
+    pub fn surviving_reboot(mut self) -> Self {
+        // The guest's stack starts empty, so every forwarded connection died with the reset.
+        if let Some(fwd) = self.net.as_mut().and_then(|n| n.hostfwd.as_mut()) { fwd.reset_flows(); }
+        StationLink { ap: self.ap, net: self.net, relay: self.relay, ..Default::default() }
+    }
 
     pub fn ap(&self) -> Option<&VirtualAp> { self.ap.as_ref() }
     pub fn ap_mut(&mut self) -> Option<&mut VirtualAp> { self.ap.as_mut() }
@@ -622,6 +626,8 @@ impl StationLink {
     pub fn net_step(&mut self, now_us: u64) {
         if self.relay { return; }
         let Some(net) = self.net.as_mut() else { return };
+        // A forward can only frame toward a station the access point has associated.
+        if let (Some(ap), Some(fwd)) = (&self.ap, net.hostfwd.as_mut()) { fwd.set_station_mac(ap.sta); }
         let out = std::mem::take(&mut self.eth_tx);
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
         if out.is_empty() && !due { return; }
@@ -656,7 +662,8 @@ impl StationLink {
         let mut lines = Vec::new();
         if self.tx_frames + self.rx_frames > 0 { lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.ap.as_ref().map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)))); }
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
-            if let Some(t) = &n.nat { lines.push(format!("[emu] nat: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest)); } }
+            if let Some(t) = &n.nat { lines.push(format!("[emu] nat: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest)); }
+            if let Some(f) = &n.hostfwd { if let Some(line) = f.report() { lines.push(line); } } }
         lines.join("\n")
     }
 }

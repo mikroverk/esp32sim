@@ -51,6 +51,11 @@ impl esp_soc::SocBus for SocBus {
         self.periph.refresh_work();
         Ok(())
     }
+    fn attach_hostfwd(&mut self, fwd: esp_soc::hostfwd::HostFwd) -> Result<(), String> {
+        self.periph.wifi.link.net_mut().ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
+        self.periph.refresh_work();
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.periph.wifi.link.set_relay(enabled);
         self.periph.refresh_work();

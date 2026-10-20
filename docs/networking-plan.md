@@ -17,19 +17,51 @@ MAC is handled by two layers in front of the host network:
   and retransmits; UDP flows are a bound `UdpSocket` per (port, destination) with a reply path
   and an idle reaper. Name lookups are forwarded to the host's own first resolver from
   `/etc/resolv.conf`. `--net none` refuses outbound traffic instead (immediate RST).
+- `esp-soc/src/hostfwd.rs` — `--hostfwd`: host listeners whose connections are carried *into* the
+  guest's stack, using the NAT's connection state machine in the other direction (below).
 
 No libslirp, no tun device, no entitlement, no root. TLS works: the panel fetches
 `https://www.elprisetjustnu.se` and polls Home Assistant on the LAN. That needed the RSA/MPI
 accelerator, SHA over GDMA (including SHA-384) and AES-CTR — see docs/peripherals.md.
 
+## Inbound: `--hostfwd`
+
+A server inside the guest is reachable from the host through `--hostfwd`, repeatable and spelled
+the way QEMU spells it:
+
+```sh
+esp32sim ... --wifi ssid=demo,psk=demo-pass --hostfwd tcp:127.0.0.1:8080-:80
+curl -sS http://127.0.0.1:8080/
+```
+
+`esp-soc/src/hostfwd.rs` is the counterpart of the NAT and uses the same connection state machine
+inverted: a non-blocking `TcpListener` on the host, one `nat::Tcp` flow per accepted connection,
+`SYN` toward the guest instead of the NAT's dial-and-`SYN|ACK`. The forward is a host of its own on
+the virtual subnet — **10.0.2.4**, MAC `02:53:49:4d:00:04` — so `net.rs` answers ARP for that
+address and hands every segment addressed to it to the forward; DHCP, the resolver and the station
+keep their addresses. The guest sees an ordinary same-subnet client with one ephemeral source port
+per connection (from 49152 up).
+
+What it does, in the terms the NAT already documents: cumulative ACK, one retransmission queue for
+SYN/data/FIN, the guest's advertised window, 1400-byte segments for 1500-byte frames, FIN/half-close,
+`TIME_WAIT`, and a bounded 5840-byte receive queue per flow. Limits: 64 flows (the listener still
+accepts and closes the extra connection, so a client fails at once instead of hanging), 120 s idle
+timeout, 300 ms retransmit. A connection that arrives before the guest has associated waits up to
+30 s for the station's MAC; a guest that answers `RST` closes the host connection, as a closed port
+should. No threads: the listener and every flow socket are polled once per `NET_POLL_US` tick, so
+inbound traffic reaches the guest only as frames on the normal 802.11 receive path.
+
+Not carried: UDP (a datagram forward needs no per-flow state, so it is a separate small feature),
+multicast, and a guest address other than the station's.
+
 ## Not there yet
 
-- **Inbound**: no port forwarding, so a server in the guest (autopling's web UI) is not reachable
-  from the Mac. A `hostfwd=tcp:127.0.0.1:8080-:80` option over the same NAT is the natural next step.
 - **Multicast/mDNS**: not carried, so `esp-web.local` and Home Assistant discovery do not resolve;
   use IP addresses.
 - **Real LAN presence**: a `--net tap`/vmnet backend would give the guest an address on the real
   network (and mDNS with it), at the cost of root or the macOS vmnet entitlement.
+- **RST on refusal**: `std` has no `SO_LINGER` on stable Rust, so a connection refused by the guest
+  is closed with FIN; the client sees end-of-file rather than `ECONNRESET`.
 
 ## Alternatives considered
 

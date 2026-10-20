@@ -18,8 +18,10 @@ pub struct VirtualNet {
     pub sta_ip: [u8; 4],
     pub mask: [u8; 4],
     pub log: bool,
-    /// user-mode NAT to the host's network; None keeps everything inside the emulated subnet
+    /// user-mode NAT to the host's network; None keeps everything outbound inside the emulated subnet
     pub nat: Option<crate::nat::Nat>,
+    /// inbound port forwarding: a host listener whose connections reach the guest's own stack
+    pub hostfwd: Option<crate::hostfwd::HostFwd>,
     pub dhcp_acks: u64,
     pub dns_answers: u64,
     pub ntp_answers: u64,
@@ -39,7 +41,7 @@ impl VirtualNet {
     pub fn new(log: bool) -> Self {
         VirtualNet { gw_mac: GATEWAY_MAC, gw_ip: [10, 0, 2, 2], dns_ip: [10, 0, 2, 3],
                      sta_ip: [10, 0, 2, 15], mask: [255, 255, 255, 0],
-                     log, nat: None, dhcp_acks: 0, dns_answers: 0, ntp_answers: 0, tcp_rejects: 0, arp_replies: 0, pings: 0, unhandled: 0, now_us: 0 }
+                     log, nat: None, hostfwd: None, dhcp_acks: 0, dns_answers: 0, ntp_answers: 0, tcp_rejects: 0, arp_replies: 0, pings: 0, unhandled: 0, now_us: 0 }
     }
 
     /// Handle one Ethernet frame from the station; returns frames to send back to it.
@@ -60,11 +62,16 @@ impl VirtualNet {
 
     fn arp(&mut self, p: &[u8], src: &[u8; 6]) -> Vec<Vec<u8>> {
         if p.len() < 28 || be16(&p[6..8]) != 1 { return Vec::new(); }          // only requests
-        let target = &p[24..28];
+        let mut target = [0u8; 4]; target.copy_from_slice(&p[24..28]);
         if target == self.sta_ip { return Vec::new(); }                          // not ours to answer
+        // The forwarding peer is a host of its own on this subnet, with its own MAC.
+        let sender = match &self.hostfwd {
+            Some(f) if f.peer_ip() == Some(target) => crate::hostfwd::PEER_MAC,
+            _ => self.gw_mac,
+        };
         let mut r = Vec::with_capacity(28);
         r.extend_from_slice(&[0, 1, 8, 0, 6, 4, 0, 2]);                          // ethernet/ipv4, reply
-        r.extend_from_slice(&self.gw_mac); r.extend_from_slice(target);           // sender = the address asked for
+        r.extend_from_slice(&sender); r.extend_from_slice(&target);               // sender = the address asked for
         r.extend_from_slice(src); r.extend_from_slice(&p[14..18]);                // target = the station
         self.arp_replies += 1;
         if self.log { eprintln!("[net] ARP who-has {}.{}.{}.{} -> {}", target[0], target[1], target[2], target[3], crate::wifi::mac_str(&self.gw_mac)); }
@@ -103,6 +110,10 @@ impl VirtualNet {
                 let now = self.now_us;
                 self.nat.as_mut().unwrap().udp_out(src, &sip, sport, &host_dst, &reply_src, dport, &body[8..], now);
                 Vec::new()
+            }
+            6 if self.hostfwd.is_some() && dip == crate::hostfwd::PEER_IP => {
+                let now = self.now_us;
+                self.hostfwd.as_mut().unwrap().tcp_in(&sip, body, now)
             }
             6 if self.nat.is_some() => {
                 let now = self.now_us;
@@ -175,10 +186,12 @@ impl VirtualNet {
 }
 
 impl VirtualNet {
-    /// Pump the NAT's host sockets; returns frames for the guest.
+    /// Pump the NAT's and the inbound forward's host sockets; returns frames for the guest.
     pub fn poll(&mut self, now_us: u64) -> Vec<Vec<u8>> {
         self.now_us = now_us;
-        match &mut self.nat { Some(n) => n.poll(now_us), None => Vec::new() }
+        let mut out = match &mut self.nat { Some(n) => n.poll(now_us), None => Vec::new() };
+        if let Some(f) = &mut self.hostfwd { out.extend(f.poll(now_us)); }
+        out
     }
 
     /// Answer A queries with the local resolver address, so name lookups resolve to something that

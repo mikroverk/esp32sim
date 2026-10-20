@@ -11,6 +11,7 @@ pub mod devices;
 pub mod elf;
 pub mod gpio;
 pub mod host;
+pub mod hostfwd;
 pub mod image;
 pub mod json;
 pub mod load;

@@ -3,7 +3,7 @@ use std::net::TcpListener;
 
 fn flow() -> Tcp {
     Tcp { guest_mac: [2; 6], guest_ip: [10, 0, 2, 15], guest_port: 1234,
-        dst_ip: [127, 0, 0, 1], dst_port: 80, transport: Transport::Closed,
+        dst_ip: [127, 0, 0, 1], dst_port: 80, src_mac: GATEWAY_MAC, transport: Transport::Closed,
         guest_write: GuestWrite::Open, host_closed: false,
         our_seq: 100, guest_seq: 200, guest_window: WINDOW,
         to_host: VecDeque::new(), unacked: VecDeque::new(), last_activity_us: 0 }

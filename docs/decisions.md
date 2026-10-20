@@ -95,6 +95,22 @@ Things that cost real time to find out, recorded so they do not have to be found
 - **Trim IP payloads to the header's total-length field.** An 802.11 frame carries a 4-byte FCS;
   without trimming, the NAT hands those bytes to the peer as TCP payload and the guest's real
   request then arrives at a sequence number the connection has already passed.
+- **Inbound is the same state machine inverted, not a second one.** `nat::Tcp` already keeps guest
+  bytes in `to_host` and host bytes in `unacked`, independent of who opened the connection, so a
+  forwarded connection differs only in where the socket comes from (the listener's `accept`
+  instead of a dial worker) and in the MAC frames are sourced from (a per-flow `src_mac`). One
+  consequence worth keeping: `--hostfwd` needs no thread at all, because `accept` on a
+  non-blocking listener is as cheap as a dial poll and the NAT already ticks the sockets.
+- **The forward is a separate node on the virtual subnet (10.0.2.4), not the gateway.** Reusing
+  10.0.2.2 would make the guest's ARP and demux ambiguous with DHCP and the resolver, and would
+  hide the client's identity from a server that logs it. A distinct address also means the guest
+  replies *directly* on-subnet, which is the path a real LAN client takes.
+- **A flow cannot be framed before the station's MAC is known.** The access point's association
+  state is the only honest source (the station's own frames arrive later); a host connection that
+  arrives early waits, and is closed after 30 s rather than given a guessed MAC.
+- **Refusing an unknown peer port needs a RST, not silence.** A stale segment or a port probe
+  otherwise leaves the guest retransmitting into a hole; the RFC 793 rule (RST/seq = incoming ack
+  when the segment has ACK, else RST|ACK/ack = seq + length) costs a dozen lines.
 - **Debugging aid that paid for itself**: rebuild the specimen firmware with
   `CONFIG_WPA_DEBUG_PRINT=y` and `CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y` and read the supplicant's own
   verdicts instead of guessing from the emulator side.
