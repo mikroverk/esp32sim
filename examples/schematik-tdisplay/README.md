@@ -1,24 +1,27 @@
 # Schematik T-Display
 
-The public Schematik Digital Hair Clip starter on the classic ESP32 TTGO
-T-Display: an ST7789 135×240 panel, shown landscape in the browser.
+A restyled Schematik sketch on the classic ESP32 TTGO T-Display:
+an ST7789 135×240 panel, shown landscape in the browser.
 Open `run.html?wasm&fw=tdisplay-schematik` from the web demo page.
 
-GPIO35 (next) cycles through `Schematik Hairclip`, `Schematik is great` and
-`Like and Subscribe`. GPIO0 (power) blanks the screen and enters deep sleep;
+GPIO35 (next) cycles through the lowercase `schematik` wordmark, four fun
+lines, processor/flash/ADC specs and `running in WebAssembly`, then wraps back.
+Long lines are split into two centered lines; nothing scrolls or needs assets.
+GPIO0 (power) blanks the screen and enters deep sleep;
 press it again to wake, reboot and redraw the first message. Release each
 press before pressing again. The wake press is not another power-off request.
 No physical-board verification has been performed.
 
 ## Provenance
 
-Starter seed: `esp32-digital-hair-clip`, fetched on 2026-10-16 from
-<https://www.schematik.io/api/starter-projects/esp32-digital-hair-clip>.
-`src/main.cpp` is exactly `seed.code.code` with one final newline appended.
-No application, driver or pin changes. The starter declares Arduino_GFX
-`^1.5.2`; the compatible version used here is pinned to 1.6.9 (1.5.2 does not
-compile with this core). No dependency source was modified.
-The starter is contributed under this repository's MIT licence.
+Adapted from a public Schematik Arduino starter, fetched on October 16, 2026.
+The text, layout and next-button code have been rewritten for this demo;
+this is no longer an unchanged starter. The SPI/display pins and GPIO0
+deep-sleep/EXT0 wake behavior are preserved. Arduino_GFX is pinned to 1.6.9
+(the starter's 1.5.2 does not compile with this core).
+No dependency source was modified. The sketch is contributed under this
+repository's MIT licence. See verification.md for the source of each spec
+and the intentionally omitted hardware claims.
 
 ## Build and public images
 
@@ -65,3 +68,10 @@ For button replay add `--script buttons.txt`: `1 press 35 150` advances the
 message; `1 press 0 150` followed by `3 press 0 150` powers off and wakes.
 The browser smoke test is `node tools/wasm-test.mjs tdisplay-schematik`.
 Its `min_frames` requirement rejects a boot that never draws the display.
+
+For exact text/order/layout assertions on every screen, install Pillow and run
+`python3 examples/schematik-tdisplay/verify_frames.py "$OUT"` after the native
+build and PlatformIO build. It replays all nine screens, wrap, power-off,
+EXT0 wake and another power-off after releasing the wake press. Actual PNGs,
+button scripts and console logs are retained under `$OUT`; no hardware or
+paid generation is needed.

@@ -1,6 +1,6 @@
-8419e0f852307fec604a5e1e712823e2780a7090cb3fac24fca95672ce395494  src/main.cpp
+3021e0420a39123bec516ac6bcd1978067b6ea532b4b011dd2095274a0783bb3  src/main.cpp
 a227e3ab93f15f1155efb3144810cc06ff7a259e9bc9b4542417afcc6c238214  ../../web/wasm/fw/public/schematik-tdisplay-bootloader.bin
 148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1  ../../web/wasm/fw/public/schematik-tdisplay-ptable.bin
-c6d79d90b46be2b0516c8bdcd4be298507483b2732cbabda7fd81ca485b23c05  ../../web/wasm/fw/public/schematik-tdisplay-app.bin
-4a7079f7ddc6f7bd1931f3fda7f16b836283840f0045cdc2a6320ccd86461680  ../../web/wasm/fw/public/schematik-tdisplay-sources.tar.gz
-5af79f568fd9389389a698fb97ae2eaa963c48747f87cdd33eedfdad8f8be91b  ../../web/wasm/fw/public/schematik-tdisplay-NOTICE.txt
+5462014b483ee3d569891f83fb978f5da3e89783703a57a9dc7f63a404b9a4aa  ../../web/wasm/fw/public/schematik-tdisplay-app.bin
+1e5e31168541b769a0abba5f8f4a7e27c4ca8424a197e2ee2601fcfda4c67fd4  ../../web/wasm/fw/public/schematik-tdisplay-sources.tar.gz
+6ecc3fd2ccbbb26dd5bfc90c13391c2e2057009ff23f815212e8a64a36b0eceb  ../../web/wasm/fw/public/schematik-tdisplay-NOTICE.txt

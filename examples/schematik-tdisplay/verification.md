@@ -1,115 +1,141 @@
 # Verification receipt
 
-Stack after the October 20, 2026 restack: main `63670bb1`, RTC CRC
-`d32829a3` and its CPU receipt `97fff138` (#238), then deep sleep/EXT0
-`8c55885a` (#240). Their stable patch IDs match `837ec1ce`, `4d67d576`
-and `91b204cf`, respectively. #237 is already merged and is not replayed.
-The existing MicroPython T-Display card is unchanged; Hairclip follows it.
-Demo changes are firmware, static web content and the browser smoke-test
-registration list only; no Rust/emulator changes.
+Stack: main `63670bb1`, RTC CRC `d32829a3` and CPU receipt `97fff138`
+(#238), then deep sleep/EXT0 `8c55885a` (#240). #237 is already merged.
+The existing MicroPython T-Display landing card is unchanged and precedes
+Schematik T-Display. This demo changes sketch firmware, static web content,
+packaging and verification only; no Rust/emulator code changes.
 
-## Inputs and build
+## Sketch and display contract
 
-`SHA256SUMS` pins the original starter source, images, notices and rebuild
-source archive. The source is the public `esp32-digital-hair-clip` seed's
-`seed.code.code` plus a final newline (SHA-256
-`8419e0f852307fec604a5e1e712823e2780a7090cb3fac24fca95672ce395494`).
+This is a restyled public Schematik starter, not an unchanged source export.
+Arduino_GFX, display wiring, GPIO35 next and GPIO0 power/EXT0 wake are retained.
+No image assets, function stubs or dependency source patches are used by the sketch.
+The default font is drawn directly; lines are static, centered and fit 240×135.
 
-All builds use `nice -n 10`; Rust uses `cargo +1.99.0` with a separate
-`CARGO_TARGET_DIR`. For `tools/wasm-build.sh`, `RUSTUP_TOOLCHAIN=1.99.0`
-is set and the worktree's `target` points at that separate target directory
-(the script copies its artifact from `target/`).
+GPIO35 advances exactly once per debounced press through these nine screens,
+then wraps to the wordmark:
 
-- `pio run -d examples/schematik-tdisplay`: pass.
-- `python3 examples/schematik-tdisplay/package.py`: pass; deterministic source
-  archive metadata (zero uid/gid/mtime, empty owner/group, no local paths).
-- From this directory, `shasum -a 256 -c SHA256SUMS`: six inputs pass.
-- `cargo +1.99.0 build --release --bin esp32sim`: pass.
-- `tools/fetch-demo-assets.sh --no-linux`: pass.
-
-## Behaviour
-
-Use the native command in README, adding the firmware ELF for symbol names
-and `--trace-fn '_Z5setupv$'` for setup calls. Button scripts use seconds and
-150 ms pulses:
-
-| Script | Stop time | Observed result |
+| Screen | Title | Value (line break shown as /) |
 | --- | --- | --- |
-| none | 1 s | `Schematik Hairclip`; 207 RAMWR, 33,220 pixels, backlight on |
-| `0.6 press 35 150` | 1 s | `Schematik is great`; backlight on |
-| `1 press 0 150` | 2 s and 2.5 s | blank; backlight off; both PCs and instruction counts unchanged |
-| `1 press 0 150`, `3 press 0 150` | 4 s | `rst:0x5 (DEEPSLEEP_RESET)`, setup at 3.0123 s; first frame redrawn pixel-identically |
+| 0 | none | schematik (lowercase, size 4, first letter accented) |
+| 1 | none | making hardware / less hard |
+| 2 | none | from idea to / blinking LED |
+| 3 | none | now with 100% fewer / magic smoke |
+| 4 | none | it works in / the simulator |
+| 5 | processor | Xtensa LX6 / dual core, 240 MHz |
+| 6 | storage | 4 MB flash |
+| 7 | analog inputs | 18 ADC channels |
+| 8 | web demo | running in / WebAssembly |
 
-During sleep core0 stays at `0x40084795` with 6,973,882 instructions;
-core1 at `0x40086b91` with 93,508,796 instructions. CCOUNT continues advancing;
-this observation is about parked instruction execution, not frozen clocks.
-Initial and next-message landscape PNGs were visually inspected.
+GPIO0 blanks the panel, disables the backlight, waits for release and enters
+real emulated deep sleep with active-low EXT0 wake. A later press resets into
+setup and redraws screen 0, even when sleeping from another screen. Releasing
+the wake press re-arms power-off. It does not advance the next-button cycle.
 
-## Regression checks
+## Sources for every displayed specification
 
-- `cargo +1.99.0 clippy --workspace --all-targets -- -D warnings`: pass.
-- `cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings`: pass.
-- With empty HOME, retained Rust installation paths and only the ROM fixture
-  directory configured: `cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_`:
-  1,003 pass, zero failures.
-- Empty HOME, no ROM environment: `cargo +1.99.0 test --release --workspace`:
-  975 pass, 50 ignored, zero failures.
-- `RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh`: pass.
-- `node tools/wasm-test.mjs tdisplay-schematik hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel`:
-  all nine pass, including the JIT handoff check; the new demo produces one
-  binary display frame. Separately `tdisplay-prices` also passes.
-- Mutation: new manifest `min_frames` raised from 1 to 1,000,000; same runner
-  exits 1 with `1 binary frames, wanted 1000000`. Original manifest restored.
-- `node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm`: pass,
-  DWARF absent, function names retained.
-- Headless Chromium: desktop 1440×1000 and mobile 390×844. Document widths
-  equal viewport widths, thumbnail contained, rendered/source ratios both
-  16:9, catalogue entry grouped under ESP32. Live GPIO35 changes the frame;
-  GPIO0 blanks it; a second press restores the initial canvas bytes. No page
-  exceptions. Screenshots retained with the local review evidence, not Git.
-- `node tools/check-evidence-privacy.mjs`: pass.
-- `git diff --check`: pass.
+- Xtensa LX6 / dual core: `esp32/src/lib.rs:1`,
+  `esp32/src/soc.rs:16-30` (`CORES = 2`, each core sets `lx6 = true`).
+- 240 MHz: `esp32/src/periph.rs:16-18`,
+  `docs/esp32.md:8-18` (240 MHz reference, selectable 40/80/160/240 MHz CPU
+  clocks). The pinned PlatformIO board recipe selects the normal 240 MHz
+  configuration (`boards/lilygo-t-display.json` in the pinned pioarduino
+  platform sets `build.f_cpu` to `240000000L`).
+  This is a modeled CPU frequency, not a claim of host real-time throughput.
+- 4 MB flash: `esp32/src/board/tdisplay.rs:1`, `docs/esp32.md:78-83`,
+  and this demo's `web/wasm/fw/tdisplay-schematik.json` (`flash_mb: 4`).
+  `esp32/src/bus.rs:75-85` allocates flash from the chosen size.
+- 18 ADC channels: `esp32/src/adc.rs:8-10` maps eight ADC1 and ten ADC2
+  channels and validates their pins. `docs/esp32.md:57-62` describes classic
+  ADC input support and its nominal-calibration limits. This is the SoC
+  model's channel count, not a claim that all channels are exposed on the board.
+- running in WebAssembly: `tools/wasm-build.sh:14-15` builds the
+  `esp32sim-wasm` package for `wasm32-unknown-unknown`; the landing link uses
+  `run.html?wasm&fw=tdisplay-schematik`, and `docs/esp32.md:41` confirms
+  classic ESP32 selection. This screen describes the web demo. Native runs
+  below are verification of that same firmware, not a claim that native is WASM.
 
-CPU: not applicable (web-only, no emulator code changed)
+Intentionally omitted: the combined 520 KB SRAM headline (the model exposes
+separate RAM/cache windows and aliases; no independent 520 KB capacity inventory
+was established here), the 34 physical GPIO headline (shared register support
+alone does not establish that physical-pad count), and "Wi-Fi + BT (emulated)".
+Classic Wi-Fi is modeled, but classic Bluetooth is not established by the
+limited BLE virtual controller in `docs/esp32.md:52-67`; do not advertise both
+radio stacks. The independently verifiable flash and ADC portions remain.
 
-No physical-board verification. Browser button pulses are wall-clock UI
-presses, not a hardware timing comparison. The native replay is the timed
-sleep/wake check. No CPU benchmarks were run.
+## Reproduction
 
-## October 20, 2026 restack verification
+All builds use `nice -n 10`, Rust `cargo +1.99.0`, a separate
+`CARGO_TARGET_DIR`, and `RUSTUP_TOOLCHAIN=1.99.0` for the WASM script.
+The worktree's `target` symlink points at that target directory because the
+WASM build script copies from `target/`.
 
-The checks above describe the original demo validation. Repeated on the
-restacked source with `cargo +1.99.0`, `nice -n 10` and a separate target:
+Pinned inputs: PlatformIO Core 6.1.19; pioarduino 55.03.38-1;
+Arduino-ESP32 3.3.8 / ESP-IDF 5.5.4; Xtensa GCC 14.2.0_20260121;
+Arduino_GFX 1.6.9. `SHA256SUMS` pins the sketch and all five shipped artifacts.
 
-- Both native and wasm32 Clippy commands above pass with warnings denied.
-- Empty HOME with explicit Rust installation paths and ROM directory:
-  CI-mode workspace tests pass (1,005 tests, zero failures).
-- Empty HOME without a ROM environment: plain workspace tests pass
-  (977 tests, 50 ignored, zero failures).
-- `tools/fetch-demo-assets.sh --no-linux`, `pio run -d examples/schematik-tdisplay`
-  and all six committed `SHA256SUMS` checks pass. Shipped images stay unchanged.
-- The rebuilt bootloader and partition table match the shipped bytes. The
-  application has the same length (372,464 bytes), but is not byte-identical:
-  its compile date/time, ELF digest, image checksum and appended digest differ.
-  All other bytes match. The rebuilt application also passes the WASM smoke
-  test through a separate manifest; no regenerated images are committed.
-- `RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh` and the WASM section check pass.
-- `node tools/wasm-test.mjs tdisplay-schematik tdisplay-prices hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel`:
-  all ten demos pass, including the JIT handoff check.
-- Headless Chromium at 1280×900 in light and dark mode: both T-Display cards
-  render, thumbnails load and remain contained, links are correct, and cards
-  neither overlap nor overflow. The MicroPython card precedes Hairclip and
-  is byte-identical to main. Screenshots were visually inspected.
-- Live `run.html?wasm&fw=tdisplay-schematik`: initial frame appears; GPIO35
-  changes it; GPIO0 blanks it; a second GPIO0 press restores the exact initial
-  canvas bytes. No page exceptions in the landing or live-demo checks.
-- Raising `min_frames` to 1,000,000 makes the smoke test fail as expected;
-  the original manifest is restored.
-- Both prerequisite mutation scripts pass: 10/10 RTC CRC mutations and
-  32/32 deep-sleep/EXT0 mutations compile and are killed by their tests.
-- Stable patch IDs for both #238 commits and #240 are unchanged. The rebase
-  helper reports no duplicate experiment IDs or conflict markers, preserving
-  their order. Its EX230 text warning is the intentional #238 CPU-receipt
-  addition, identical to `4d67d576`; every other main row is unchanged.
-- Evidence privacy and whitespace checks pass. No new CPU measurement or
-  hardware claim is made.
+```sh
+nice -n 10 pio run -d examples/schematik-tdisplay
+nice -n 10 python3 examples/schematik-tdisplay/package.py
+(cd examples/schematik-tdisplay && shasum -a 256 -c SHA256SUMS)
+nice -n 10 tools/fetch-demo-assets.sh --no-linux
+nice -n 10 cargo +1.99.0 build --release --bin esp32sim
+# Requires Pillow and the pinned PlatformIO dependencies above:
+python3 examples/schematik-tdisplay/verify_frames.py "$OUT"
+```
+
+The frame verifier replays the shipped application through ROM, compares
+actual landscape panel pixels with an independent expected-text mask using
+the pinned library's default glyphs, and rejects wrong text, screen order,
+placement, clipping and failed wrap. It also asserts a blank sleeping frame,
+unchanged PCs/instruction totals at 2 and 2.5 seconds, EXT0 DEEPSLEEP_RESET,
+pixel-identical initial/wake frames, and power-off after wake release.
+PNGs are actual emulator captures, not generated mockups. The landing thumbnail
+is the captured initial frame converted losslessly to WebP. The source archive
+has zero owner IDs/timestamps, no local paths, and includes the modified sketch
+and pinned build recipe alongside unchanged dependency sources.
+
+## Results
+
+- PlatformIO build, native release build, packaging and all six SHA256SUMS
+  entries pass. All 427 source archive members have canonical metadata;
+  archived sketch, README and verifier match their working source bytes.
+  The regenerated notice includes the current repository MIT copyright line.
+- Native frame assertions pass for all nine screens plus wrap. Sleeping CPUs
+  remain at PCs `0x40084795` / `0x40086b91`, with instruction totals
+  6,969,641 / 93,508,722 unchanged at 2 and 2.5 seconds. EXT0 wake gives
+  `DEEPSLEEP_RESET` and the first frame's exact RGB bytes; another GPIO0
+  press after wake/release sleeps again.
+- Both native and WASM Clippy commands from CONTRIBUTING pass with warnings
+  denied, including WASM `--release --features jit-tests`.
+- Empty HOME with retained Rust installation paths and only the ROM fixture
+  directory configured: release workspace CI mode (`--include-ignored
+  --skip external_`) passes 1,005 tests, zero failures. Empty HOME without
+  ROM environment: plain release workspace passes 977, with 50 ignored.
+- `RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh` passes. The section check
+  reports DWARF absent and function names retained.
+- `node tools/wasm-test.mjs tdisplay-schematik tdisplay-prices hello c3-hello
+  c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel`:
+  all ten pass, plus the JIT handoff check. The new demo emits one frame.
+- Headless Chromium 148.0.7778.96 at desktop 1440×1000 and mobile 390×844:
+  landing page width equals viewport, thumbnail loaded/contained and 16:9,
+  both T-Display cards retained in order, new catalogue entry under ESP32.
+  At both sizes, each of the nine live screen masks and wrap matches native;
+  power-off blanks, wake restores the wordmark; no page exceptions.
+  UI pulses allow release time for the emulated debounce; the native replay
+  is the deterministic timed behavior check, not wall-clock UI timing.
+- Compile-valid sketch mutations (all killed by the frame verifier): uppercase
+  first letter, advancing by two screens, and arming sleep before releasing
+  GPIO0. Manifest mutation `min_frames: 1000000` is rejected by the existing
+  WASM smoke test (`1 binary frames, wanted 1000000`); original restored.
+- Evidence privacy and `git diff --check` pass.
+
+Inherited mutation reruns also pass: all 10 RTC CRC and all 32 deep-sleep/EXT0
+mutations compile and are killed. Both suites restore their source files;
+restored library/RTC CRC/deep-sleep tests and native frame assertions pass.
+
+## CPU comparison
+
+Not applicable: no Rust/emulator implementation changes, no hot path changed.
+No CPU benchmarks were run. No physical-board verification is claimed.

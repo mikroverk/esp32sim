@@ -33,8 +33,8 @@ The classic ESP32 hello inputs are `public/classic-hello-*`, built from
 [`examples/hello_world-classic`](../../../examples/hello_world-classic/README.md).
 `classic-hello-NOTICE.txt` lists only linked firmware components.
 
-The committed `public/schematik-tdisplay-*` files run the public Schematik Digital Hair Clip
-Arduino starter on the same classic board. [Source, pinned build and button controls](../../../examples/schematik-tdisplay/README.md),
+The committed `public/schematik-tdisplay-*` files run a restyled Schematik T-Display
+Arduino sketch on the same classic board. [Source, pinned build and button controls](../../../examples/schematik-tdisplay/README.md),
 linked licences (`public/schematik-tdisplay-NOTICE.txt`) and LGPL rebuild sources
 (`public/schematik-tdisplay-sources.tar.gz`) accompany the three images. Pages serves them
 unchanged, without an additional download channel. `tdisplay-schematik.json` requires a

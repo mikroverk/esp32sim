@@ -66,8 +66,8 @@
  },
  {
   "fw": "tdisplay-schematik",
-  "title": "Schematik Hairclip · TTGO T-Display (Arduino)",
-  "note": "the public Schematik Digital Hair Clip starter on the classic ESP32: Arduino_GFX draws three messages on the ST7789. GPIO35 advances the message; GPIO0 powers off into deep sleep and wakes back to the first message. No physical-board verification"
+  "title": "Schematik T-Display · classic ESP32 (Arduino)",
+  "note": "a restyled Schematik Arduino sketch on the classic ESP32: a lowercase wordmark, four fun lines and verified emulator specs on the ST7789. GPIO35 advances; GPIO0 powers off into deep sleep and wakes back to the wordmark. No physical-board verification"
  },
  {
   "fw": "tdisplay-prices",

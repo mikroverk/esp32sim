@@ -12,5 +12,5 @@
  "seconds": 2,
  "min_frames": 1,
  "display_rotate": 270,
- "_note": "Unmodified public Schematik Digital Hair Clip starter, Arduino-ESP32 3.3.8 / ESP-IDF 5.5.4 / Arduino_GFX 1.6.9; no function stubs. GPIO35 advances the message; GPIO0 powers off and wakes. Source/build recipe: examples/schematik-tdisplay. Linked licences and rebuild sources: public/schematik-tdisplay-NOTICE.txt and public/schematik-tdisplay-sources.tar.gz. Not verified on physical hardware."
+ "_note": "Restyled Schematik T-Display sketch (wordmark, four fun lines and verified emulator specs), Arduino-ESP32 3.3.8 / ESP-IDF 5.5.4 / Arduino_GFX 1.6.9; no function stubs. GPIO35 advances the message; GPIO0 powers off and wakes. Source/build recipe: examples/schematik-tdisplay. Linked licences and rebuild sources: public/schematik-tdisplay-NOTICE.txt and public/schematik-tdisplay-sources.tar.gz. Not verified on physical hardware."
 }

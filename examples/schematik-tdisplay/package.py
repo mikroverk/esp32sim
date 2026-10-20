@@ -98,7 +98,7 @@ Application (MIT)
     files.extend(source_files(GFX / "src", "Arduino_GFX/src"))
     files.append(("Arduino_GFX/license.txt", gfx_license))
     files.append(("arduino-esp32/LICENSE.md", arduino_license))
-    for name in ["src/main.cpp", "platformio.ini", "README.md", "linked-archives.txt"]:
+    for name in ["src/main.cpp", "platformio.ini", "README.md", "linked-archives.txt", "verify_frames.py"]:
         files.append(("application/" + name, (HERE / name).read_bytes()))
     files.append(("application/LICENSE", (ROOT / "LICENSE").read_bytes()))
     target = PUBLIC / (PREFIX + "sources.tar.gz")
