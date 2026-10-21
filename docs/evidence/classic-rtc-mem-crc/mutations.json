@@ -1,0 +1,98 @@
+[
+  {
+    "mutation": "no-start",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED",
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED"
+    ]
+  },
+  {
+    "mutation": "no-finish",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED",
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED"
+    ]
+  },
+  {
+    "mutation": "ignore-start-bit",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED"
+    ]
+  },
+  {
+    "mutation": "finish-writable",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED"
+    ]
+  },
+  {
+    "mutation": "slow-memory",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED",
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED"
+    ]
+  },
+  {
+    "mutation": "ignore-address",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED",
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED"
+    ]
+  },
+  {
+    "mutation": "length-not-plus-one",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED",
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED"
+    ]
+  },
+  {
+    "mutation": "wrong-result",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED",
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED"
+    ]
+  },
+  {
+    "mutation": "result-writable",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_start_completes_and_uses_fast_memory_range ... FAILED"
+    ]
+  },
+  {
+    "mutation": "no-address-wrap",
+    "exit_code": 101,
+    "compiled": true,
+    "killed": true,
+    "failed_tests": [
+      "test rtc_crc_alias_subword_full_and_wrapping_ranges ... FAILED"
+    ]
+  }
+]

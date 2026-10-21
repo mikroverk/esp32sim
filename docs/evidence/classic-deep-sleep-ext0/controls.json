@@ -1,0 +1,202 @@
+[
+  {
+    "chip": "esp32",
+    "inputs": {
+      "web/wasm/fw/esp32_rev300_rom.elf": {
+        "sha256": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31",
+        "bytes": 857500
+      },
+      "web/wasm/fw/public/classic-hello-bootloader.bin": {
+        "sha256": "faa4ac0961a9ec6c02d865c874c82bfe0a01225491b89d54fe4b7393f712be2a",
+        "bytes": 26096
+      },
+      "web/wasm/fw/public/classic-hello-ptable.bin": {
+        "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "bytes": 3072
+      },
+      "web/wasm/fw/public/classic-hello_world.bin": {
+        "sha256": "fa4307fe9545e6599155ac38ad61205946b3f56e92890ad10a69c1592e120cdd",
+        "bytes": 162832
+      }
+    },
+    "results": [
+      {
+        "instructions": [
+          4610036,
+          668561
+        ],
+        "console_sha256": "8d8b7d143063e8d3d97b278cc43b326fc0378bf89d6a6ff7091a1f72b4c4c4ff",
+        "events": "3174 exceptions, 597 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int2          4  sources [24]",
+          "  core0 int6        296  sources [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,21,22,23,25,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67]",
+          "  core1 int1          1  sources [25]",
+          "  core1 int6        296  sources [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,21,22,23,24,26,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67]"
+        ]
+      },
+      {
+        "instructions": [
+          4610036,
+          668561
+        ],
+        "console_sha256": "8d8b7d143063e8d3d97b278cc43b326fc0378bf89d6a6ff7091a1f72b4c4c4ff",
+        "events": "3174 exceptions, 597 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int2          4  sources [24]",
+          "  core0 int6        296  sources [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,21,22,23,25,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67]",
+          "  core1 int1          1  sources [25]",
+          "  core1 int6        296  sources [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,21,22,23,24,26,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67]"
+        ]
+      }
+    ]
+  },
+  {
+    "chip": "esp32s3",
+    "inputs": {
+      "web/wasm/fw/esp32s3_rev0_rom.elf": {
+        "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "bytes": 949552
+      },
+      "web/wasm/fw/public/hello-bootloader.bin": {
+        "sha256": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+        "bytes": 20832
+      },
+      "web/wasm/fw/public/hello-ptable.bin": {
+        "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "bytes": 3072
+      },
+      "web/wasm/fw/public/hello_world.bin": {
+        "sha256": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+        "bytes": 161712
+      }
+    },
+    "results": [
+      {
+        "instructions": [
+          2949934,
+          1345182
+        ],
+        "console_sha256": "37bdaab6e21441d8104437c137114cd91d3b1aa3a15b9eaac05dc53fdba09e2a",
+        "events": "3255 exceptions, 602 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int1          4  sources [79]",
+          "  core0 int2        299  sources [57]",
+          "  core1 int1          1  sources [80]",
+          "  core1 int2        298  sources [58]"
+        ]
+      },
+      {
+        "instructions": [
+          2949934,
+          1345182
+        ],
+        "console_sha256": "37bdaab6e21441d8104437c137114cd91d3b1aa3a15b9eaac05dc53fdba09e2a",
+        "events": "3255 exceptions, 602 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int1          4  sources [79]",
+          "  core0 int2        299  sources [57]",
+          "  core1 int1          1  sources [80]",
+          "  core1 int2        298  sources [58]"
+        ]
+      }
+    ]
+  },
+  {
+    "chip": "esp32c3",
+    "inputs": {
+      "web/wasm/fw/esp32c3_rev3_rom.elf": {
+        "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "bytes": 556332
+      },
+      "web/wasm/fw/public/c3-hello-bootloader.bin": {
+        "sha256": "3eaeaa5fb91d462a6ce6dbd8f8d488c8dc059216bc5841e50b784aea8348eb7b",
+        "bytes": 20960
+      },
+      "web/wasm/fw/public/c3-hello-ptable.bin": {
+        "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "bytes": 3072
+      },
+      "web/wasm/fw/public/c3-hello_world.bin": {
+        "sha256": "3fd8606fd2fb10d2387ed4d238e16e7f80cd4832f380da02f0128f7bf4e0e8be",
+        "bytes": 137104
+      }
+    },
+    "results": [
+      {
+        "instructions": [
+          480000000
+        ],
+        "console_sha256": "84b4657b179f90c89567746c4fb970b9eba4f2a4758c8e3d498d49952c00ca10",
+        "events": "0 exceptions, 302 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int3          4  sources [50]",
+          "  core0 int4        298  sources [37]"
+        ]
+      },
+      {
+        "instructions": [
+          480000000
+        ],
+        "console_sha256": "84b4657b179f90c89567746c4fb970b9eba4f2a4758c8e3d498d49952c00ca10",
+        "events": "0 exceptions, 302 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int3          4  sources [50]",
+          "  core0 int4        298  sources [37]"
+        ]
+      }
+    ]
+  },
+  {
+    "chip": "esp32c6",
+    "inputs": {
+      "web/wasm/fw/esp32c6_rev0_rom.elf": {
+        "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551",
+        "bytes": 489768
+      },
+      "web/wasm/fw/public/c6-hello-bootloader.bin": {
+        "sha256": "88fd358b406ebc874cda1f4d14c1fd50d37cd064a1826192ee275ce67741ff75",
+        "bytes": 22464
+      },
+      "web/wasm/fw/public/c6-hello-ptable.bin": {
+        "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+        "bytes": 3072
+      },
+      "web/wasm/fw/public/c6-hello_world.bin": {
+        "sha256": "e302a3769d3122759ea85ed6caff857da36f558f83f9bf0eb652276657de0131",
+        "bytes": 120848
+      }
+    },
+    "results": [
+      {
+        "instructions": [
+          480000000
+        ],
+        "console_sha256": "2d02437d91f862de756bb8c254a7f2dc6aeee6cbff5eac8cb434795f2b7a29c9",
+        "events": "0 exceptions, 303 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int5          4  sources [22]",
+          "  core0 int8        299  sources [57]"
+        ]
+      },
+      {
+        "instructions": [
+          480000000
+        ],
+        "console_sha256": "2d02437d91f862de756bb8c254a7f2dc6aeee6cbff5eac8cb434795f2b7a29c9",
+        "events": "0 exceptions, 303 interrupts",
+        "irq": [
+          "[irq] per core, cpu-int: count (peripheral sources mapped to it)",
+          "  core0 int5          4  sources [22]",
+          "  core0 int8        299  sources [57]"
+        ]
+      }
+    ]
+  }
+]
