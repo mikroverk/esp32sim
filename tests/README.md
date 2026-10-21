@@ -74,6 +74,17 @@ same-machine reboot and repeated construction; the earlier hot-region ownership
 assertion is resolved by the separately retained JIT fix/regression.
 See [the qualification and retained negative receipt](../docs/evidence/classic-psram-wasm/README.md).
 
+The classic CLI PSRAM test (`classic_psram_option`) boots the committed IDF
+fixture through the executable with `--psram-mb 4`, explicit `0`, and the absent
+default; unsupported sizes are rejected without a panic. Only the ECO3 ROM is
+needed for the boot test. Unit tests replay normal and delay-clock SPI phases.
+
+The external `classic_psram_micropython` test boots the unmodified official
+MicroPython v1.29.0 SPIRAM image, waits for its REPL, then runs `gc.mem_free()`
+with 4 MiB and with none. Set `MICROPYTHON_SPIRAM_IMAGE` and `ESP32SIM_ROM_DIR`;
+[download, hash and results](../docs/evidence/classic-psram-dclk/README.md).
+This downloaded image stays local, not a new committed firmware or CI golden.
+
 Tests named `external_*` need inputs only a developer machine has (full objdump listings via
 `XTENSA_DIS_FILES`/`RISCV_DIS_FILES`, Apple's clang for the encoder fixture) and fail loudly
 without them; run them by name. Their hermetic counterparts (`decoder_matches_corpus`,
