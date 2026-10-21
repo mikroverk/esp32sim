@@ -1,0 +1,37 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32/register/soc/rtc_io_reg.h",
+    "sha256": "7b017d17cd6fee67ac047aeaf26d8fda5af5a310321b9b6c987ae182b849ab59",
+    "bytes": 96717
+  },
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/esp_hw_support/port/esp32/rtc_sleep.c",
+    "sha256": "f7cda262e0d130f9241afb5faa21cd9b3f4fa734a499fa8027a1820974cde477",
+    "bytes": 15881
+  },
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/esp_hw_support/sleep_modes.c",
+    "sha256": "9f2d3c9701df5aad8ef92ecb5603541d2405be0e02bbcfa2d9246eec062ba0f0",
+    "bytes": 103965
+  },
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32/rtc_io_periph.c",
+    "sha256": "aff0795dec5f3f970522459907e7c9045e8acf711fe5afd5d213fa8481317811",
+    "bytes": 8277
+  },
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/esp_hw_support/port/esp32/include/soc/rtc.h",
+    "sha256": "f5d523a157d3ad92f3ffa479d39f6a581f60d43de74ed16cedc69abe107fce87",
+    "bytes": 31292
+  },
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/esp_rom/esp32/include/esp32/rom/rtc.h",
+    "sha256": "ca619a9cb09247cddd73b155f11ff069336672d126592275cda4794f96b8a85b",
+    "bytes": 9083
+  },
+  {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5.4/components/soc/esp32/register/soc/rtc_cntl_reg.h",
+    "sha256": "b45536f21715a3e2f505936ad8bbed7d8de0d2f2f36418c81f6c70e6714d710b",
+    "bytes": 97274
+  }
+]

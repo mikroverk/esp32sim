@@ -1,0 +1,68 @@
+[
+  {
+    "name": "<esp32::periph::ClassicRtc as esp_periph::device::Device>::write",
+    "common_prefix": 23,
+    "base_stack": [
+      "stp\tx29, x30, [sp, #-0x10]!"
+    ],
+    "candidate_stack": [
+      "stp\tx29, x30, [sp, #-0x10]!"
+    ]
+  },
+  {
+    "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::after_round",
+    "common_prefix": 13,
+    "base_stack": [
+      "sub\tsp, sp, #0x40"
+    ],
+    "candidate_stack": [
+      "sub\tsp, sp, #0x40"
+    ]
+  },
+  {
+    "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_modeled",
+    "common_prefix": 30,
+    "base_stack": [
+      "stp\td9, d8, [sp, #-0x70]!",
+      "sub\tsp, sp, #0x280"
+    ],
+    "candidate_stack": [
+      "stp\td9, d8, [sp, #-0x70]!",
+      "sub\tsp, sp, #0x280"
+    ]
+  },
+  {
+    "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_unmodeled::<false>",
+    "common_prefix": 9,
+    "base_stack": [
+      "stp\td9, d8, [sp, #-0x70]!",
+      "sub\tsp, sp, #0x1d0"
+    ],
+    "candidate_stack": [
+      "stp\td9, d8, [sp, #-0x70]!",
+      "sub\tsp, sp, #0x1d0"
+    ]
+  },
+  {
+    "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::step_core",
+    "common_prefix": 13,
+    "base_stack": [
+      "sub\tsp, sp, #0x140"
+    ],
+    "candidate_stack": [
+      "sub\tsp, sp, #0x140"
+    ]
+  },
+  {
+    "name": "<esp32::bus::SocBus>::store",
+    "common_prefix": 335,
+    "base_stack": [
+      "stp\tx28, x27, [sp, #-0x60]!",
+      "sub\tsp, sp, #0xc10"
+    ],
+    "candidate_stack": [
+      "stp\tx28, x27, [sp, #-0x60]!",
+      "sub\tsp, sp, #0xc10"
+    ]
+  }
+]
