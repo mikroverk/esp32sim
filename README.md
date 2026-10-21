@@ -18,7 +18,7 @@ Try it in your browser, nothing to install: https://mikroverk.github.io/esp32sim
 | --- | --- | --- | --- |
 | ESP32-S3 | 2 x Xtensa LX7 | mature | Atech 14-port kit, Waveshare Touch-LCD-4B, Touch-AMOLED-1.8, ESP32-S3-CAM |
 | ESP32-C3 | RISC-V RV32IMC | draft | console only |
-| ESP32-C6 | RISC-V RV32IMAC | draft | Waveshare ESP32-C6-LCD-1.47, with the 802.15.4 radio |
+| ESP32-C6 | RISC-V RV32IMAC | draft | Waveshare ESP32-C6-LCD-1.47 (with the 802.15.4 radio), Seeed XIAO ESP32-C6 |
 | ESP32 (classic) | 2 x Xtensa LX6 | early | LilyGO TTGO T-Display |
 
 ## Features
