@@ -100,21 +100,31 @@ impl SpiMem {
         self.classic_quad.as_ref().is_some_and(|state| state.qpi)
     }
 
-    // IDF v4.4.7 spiram_psram.c and v5.1.4 esp_psram_impl_quad.c:403-503:
-    // exit uses MOSI-only f5, ID uses command 9f + 24-bit address + 64 MISO
-    // bits, entry uses an 8-bit address-only 35. spi_reg.h in both SDKs:
-    // USER phases 31/30/28/27, USER1 address length 26..31, USER2 command
-    // length 28..31. Legacy rev0 delay-clock encodings are not supported.
+    // IDF v5.5.1 components/esp_psram/esp32/esp_psram_impl_quad.c:421-519:
+    // normal exit is MOSI-only f5, ID is command 9f + 24 address bits,
+    // entry is an 8-bit address-only 35. DCLK at 40 MHz PSRAM uses MOSI
+    // 16-bit f500, or a two-bit zero command before address 9f000000 (32
+    // bits, 64 MISO bits) / 35 (8 bits). This is not limited to rev0:
+    // :936-940 selects DCLK when the PSRAM and flash CLK pins differ.
+    // soc/esp32/register/soc/spi_reg.h (IDF v5.5.1): USER phases 31/30/28/27,
+    // USER1 address length 26..31, USER2 command length 28..31.
     // Mode/reset gating below is an inferred functional model, not timing fidelity.
     fn classic_quad_opcode(&mut self, user: u32, user1: u32, user2: u32) -> Option<u32> {
         let command = user & (1 << 31) != 0;
         let address = user & (1 << 30) != 0;
         let mosi = user & (1 << 27) != 0;
         let miso = user & (1 << 28) != 0;
-        let opcode = if command && (user2 >> 28) & 15 == 7 {
-            user2 & 0xff
-        } else if !command && address && (user1 >> 26) & 63 == 7 && !mosi && !miso {
+        let delay_command = command && (user2 >> 28) & 15 == 1 && user2 & 0xffff == 0;
+        let delay_id = delay_command && address && (user1 >> 26) & 63 == 31
+            && miso && !mosi && self.regs.read(0x28) == 63;
+        let opcode = if delay_id {
             self.regs.read(4) >> 24
+        } else if command && (user2 >> 28) & 15 == 7 {
+            user2 & 0xff
+        } else if (!command || delay_command) && address && (user1 >> 26) & 63 == 7 && !mosi && !miso {
+            self.regs.read(4) >> 24
+        } else if !command && !address && mosi && !miso && self.regs.read(0x24) == 15 && self.w[0] & 0xffff == 0xf500 {
+            0xf5
         } else if !command && !address && mosi && !miso && self.regs.read(0x24) == 7 {
             self.w[0] & 0xff
         } else {
@@ -123,13 +133,13 @@ impl SpiMem {
         };
         let state = self.classic_quad.as_mut().unwrap();
         let reset_enabled = std::mem::replace(&mut state.reset_enabled, false);
-        let control = !miso && (!command || (!address && !mosi));
+        let control = !miso && (!command || (delay_command && address && !mosi) || (!address && !mosi));
         match opcode {
             0x35 if control && !state.qpi => { state.qpi = true; None }
             0xf5 if control => { state.qpi = false; None }
             0x66 if control => { state.reset_enabled = true; None }
             0x99 if control => { if reset_enabled { state.qpi = false; } None }
-            0x9f if !state.qpi && command && address && (user1 >> 26) & 63 == 23 && miso && !mosi => Some(opcode),
+            0x9f if !state.qpi && (delay_id || (command && address && (user1 >> 26) & 63 == 23 && miso && !mosi)) => Some(opcode),
             0x02 if !state.qpi && address && mosi && !miso => Some(opcode),
             0x03 | 0x0b if !state.qpi && address && miso && !mosi => Some(opcode),
             0x38 if state.qpi && address && mosi && !miso => Some(opcode),

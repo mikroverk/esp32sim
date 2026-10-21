@@ -58,6 +58,64 @@ impl Rig {
         self.spi.read(0x80)
     }
 }
+// Source-derived DCLK shapes, IDF v5.5.1 esp_psram_impl_quad.c:421-519.
+impl Rig {
+    fn delay_id(&mut self) -> [u32; 2] {
+        self.w(0x1c, (1 << 31) | (1 << 30) | (1 << 28));
+        self.w(0x20, 31 << 26);
+        self.w(0x24, 1 << 28); // two zero command bits
+        self.w(4, 0x9f000000);
+        self.w(0x2c, 63);
+        self.go();
+        [self.spi.read(0x80), self.spi.read(0x84)]
+    }
+}
+
+#[test]
+fn psram_spi_delay_clock_id_returns_device_id_and_rejects_wrong_phases() {
+    let mut r = Rig::new(4 << 20);
+    r.w(0x34, 5);
+    assert_eq!(r.delay_id(), [0x00225d0d, 0]);
+    for (reg, wrong) in [(0x24, (1 << 28) | 1), (0x24, 2 << 28), (0x20, 30 << 26), (0x2c, 31)] {
+        r.delay_id();
+        r.w(reg, wrong);
+        r.go();
+        assert_eq!(r.spi.read(0x80), u32::MAX, "malformed DCLK ID reg {reg:#x}");
+    }
+    r.enter();
+    assert_eq!(r.delay_id(), [u32::MAX; 2], "QPI still gates DCLK ID");
+    let mut absent = Rig::new(0);
+    absent.w(0x34, 5);
+    assert_eq!(absent.delay_id(), [u32::MAX; 2]);
+}
+
+#[test]
+fn psram_spi_delay_clock_mosi_exit_restores_spi() {
+    let mut r = Rig::new(4 << 20);
+    r.w(0x34, 5);
+    r.enter();
+    assert!(!valid_id(r.id()));
+    r.w(0x1c, 1 << 27);
+    r.w(0x28, 15);
+    r.w(0x80, 0xf500);
+    r.go();
+    assert!(valid_id(r.id()), "16-bit MOSI f500 exits QPI");
+}
+
+#[test]
+fn psram_spi_delay_clock_entry_enters_qpi() {
+    let mut r = Rig::new(4 << 20);
+    r.w(0x34, 5);
+    r.w(0x1c, (1 << 31) | (1 << 30));
+    r.w(0x20, 7 << 26);
+    r.w(0x24, 1 << 28);
+    r.w(4, 0x35000000);
+    r.go();
+    assert!(!valid_id(r.id()), "two zero bits plus address 35 enters QPI");
+    r.exit();
+    assert!(valid_id(r.id()));
+}
+
 fn valid_id(id: [u32; 2]) -> bool { (id[0] >> 8) & 0xff == 0x5d }
 
 #[test]

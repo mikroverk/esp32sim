@@ -343,7 +343,11 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
         let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
         m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
     }
-    for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
+    if let Some(mb) = o.psram_mb {
+        if !matches!(mb, 0 | 4) { usage_error("--psram-mb: classic ESP32 supports only 0 or 4 MiB"); }
+        m.bus.set_psram_size(mb << 20).unwrap_or_else(|e| usage_error(&e));
+    }
+    for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the classic ESP32", flag); std::process::exit(2); }
     }
     m
