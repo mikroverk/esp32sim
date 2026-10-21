@@ -1,16 +1,23 @@
 # Classic ESP32 PSRAM P0 contract (design, not implementation)
 
-Base: esp32sim 142805d5399e0c3cf25995fe21ba524e75a2b3cb. Firmware inputs:
+Historical P0 capture base (not current integrated ancestry): esp32sim
+142805d5399e0c3cf25995fe21ba524e75a2b3cb. Firmware inputs:
 Arduino-ESP32 2.0.17 (5e19e086c43d0fa5e5a596497ff8f11a0a43f6c2) and
 3.0.7 (3bfa3e0a56c80305eec90f10e8318af8d8091bab), esp32:esp32:esp32cam,
 stock dual-core SDK, 80 MHz PSRAM, BOOT_INIT disabled. recipe.sh installs each
 release in its own directory; it does not patch cores, archives or SDK config.
 
-P0 is a fixture/design slice only. Both genuine startup probes reject the current
+This document preserves the historical P0 negative and proposed design below,
+not current implementation status. The subsequent [integrated qualification](../../evidence/classic-psram-followup/README.md)
+supersedes the stage restrictions and the original WASM invalid-size proposal;
+existing callers now retain absent-device compatibility for unsupported sizes.
+The captured register values below remain the provenance for the SPI tests.
+
+P0 was a fixture/design slice only. Both genuine startup probes rejected the P0
 model and setup prints found=0, heap=0, free=0, allocation=unavailable. No PSRAM
 success is claimed. The SDK returns flash ID 0x00164020 on the unsupported classic
 CS1 path, not a correctly modeled absent-device 0xffffff. Keep that observed
-baseline distinct from the future absent-device contract.
+baseline distinct from the later implemented absent-device contract.
 
 ## Shared memory and WASM boundary: P1/P2/P7
 

@@ -97,7 +97,12 @@ Retained negative findings:
   regression fixes that diagnostic/ownership contract, without treating unexecuted
   rows as passes. See [the bounded WASM receipt](../classic-psram-wasm/README.md).
 
-The SPI test reference is now a relative link to the tracked source file.
+The SPI test's own source header points from the repository root to
+`docs/fixtures/classic-psram/README.md`, which retains the captured A2/A30
+USER/USER1/USER2, PIN, ID-word and failed-KGD values. The evidence SPI receipt
+also links the tracked test. The P0 document is explicitly historical; the IDF
+fixture names integrated ancestors and links current low/high and DCLK results
+without erasing the original failed low/high and 40/40 profiles.
 The tests index links this integrated receipt and the retained WASM negative.
 EX234 is added immediately below main's current final row because the catalog
 also contains comparable feature/emulation rows (EX224-231), not only perf work.
@@ -105,6 +110,22 @@ EX232 and EX233 are reserved by independent camera/deep-sleep branches; integrat
 must preserve those rows rather than reusing their IDs.
 
 ## Verification
+
+The reference recheck reads all tracked UTF-8 text, including Rust comments and
+fixture documentation, and checks classic-PSRAM Markdown links, bare repository
+provenance paths and current integrated ancestry claims. It resolves 56 path
+occurrences and verifies 25 current ancestry claims across 2594 text files:
+zero dangling targeted references and zero stale current ancestry claims.
+This is not a claim that all repository links or arbitrary prose are validated.
+The previous 375-path evidence-Markdown-only pass is now labeled historical in
+`checks.json`. Historical capture revisions, SDK source revisions and negative
+profiles are retained, not treated as current integrated ancestry.
+
+This remediation changes documentation/comments only. The functional, mutation
+and linked-codegen results below were run on the unchanged executable sources;
+they are not fresh executions on a new documentation-only commit. Privacy,
+fixture provenance, source equivalence, targeted references and mergeability
+are rechecked; no CPU timing clearance is claimed.
 
 All 24 local gate command entries pass. The empty-HOME suites pass 1037 tests
 with ROMs and 1006 without ROMs (60 ignored); virtual-quantum tests pass 43/43.

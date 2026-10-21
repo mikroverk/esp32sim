@@ -197,8 +197,22 @@
   "golden_changes": [],
   "archive_original_files": 167,
   "archive_manifest_sha256": "24cd108e6dfd71641a707a06d723d35daedf15c54341f0818f4a00bbab6196a5",
-  "resolved_markdown_paths": 375,
-  "dangling_targeted_references": [],
+  "historical_evidence_markdown_scan": {
+    "resolved_markdown_paths": 375,
+    "scope": "Prior docs/evidence Markdown-only pass; not a whole-tree provenance result"
+  },
+  "reference_scan": {
+    "scope": "All tracked UTF-8 text; classic-PSRAM Markdown links, bare repository provenance paths and current ancestry claims, including source comments and docs/fixtures. Not all repository links or arbitrary prose.",
+    "tracked_text_files": 2594,
+    "path_occurrences": 56,
+    "current_ancestry_claims": 25,
+    "dangling_targeted_references": [],
+    "stale_current_ancestry_claims": [],
+    "historical_exceptions": [
+      "Explicitly historical P0 capture base/proposed contract and failed probe values retained",
+      "Original IDF low/high and 40/40 negatives retained with explicit historical labeling and current qualification links"
+    ]
+  },
   "semantic_mutations": [
     {
       "mutation": "drop-load-dispatch",

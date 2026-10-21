@@ -1,5 +1,5 @@
 //! P1 command-only qualification: no CPU mapping, allocator or guest success claim.
-//! Captured A2 2.0.17/A30 3.0.7 probe values: classic-psram/README.md.
+//! Captured A2 2.0.17/A30 3.0.7 probe values: docs/fixtures/classic-psram/README.md (repository root).
 //! Entry/reset controls are source-derived (IDF v4.4.7/v5.1.4), not captured
 //! successful P0 transactions. Eight-byte ID tail is a deterministic model choice.
 use super::ClassicSpi;

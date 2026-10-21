@@ -1,6 +1,8 @@
 # Classic PSRAM: standalone ESP-IDF 4.4.7 allocator fixture (P4)
 
-Builds on accepted P3 5585ea5edc8fc9f1fdda29bff9fa2584ab20700d.
+Current integrated base: upstream main `77e43c20a70054ac84d1724d757fa9ce12668151`.
+Memory-miss implementation: `9823ed9a978c0fc798ffebc322662624566758f5`.
+Current qualification: [integrated receipt](../../evidence/classic-psram-followup/README.md).
 This fixture qualifies a deliberately standalone, unicore normal-cache profile,
 not stock Arduino, dual-core low/high cache addressing, a camera, or WASM.
 No emulator implementation, guest SDK function or allocator symbol is patched.
@@ -41,9 +43,13 @@ any external allocation, call the unmodified esp_spiram_init(),
 esp_spiram_init_cache(), esp_spiram_test(), esp_spiram_add_to_heapalloc() in that
 order, checking the result of each non-void API. Startup then does not perform
 boot registration. Arduino 2.0.17's genuine manual sequence is a separate P5
-qualification; its stock low/high cache mode currently hits P3's declared
-unsupported-mode gate. Likewise, 40 MHz legacy command encoding is outside this
-80/80 fixture; the initial 40/40 profile rejected the ID and is not called passing.
+qualification. Historically, its stock low/high cache mode hit the normal-only
+P3 unsupported-mode gate; that negative is not the current integrated result.
+See the current [low/high qualification](../../evidence/classic-psram-lowhigh/README.md).
+The initial 40/40 profile also historically rejected the ID and is not called
+passing by this 80/80 fixture. Current 40 MHz delay-clock startup is qualified
+separately by the [DCLK/MicroPython contract](../../evidence/classic-psram-dclk/README.md);
+it does not retroactively turn the earlier failed profile into a pass.
 
 ## Runtime contract
 
