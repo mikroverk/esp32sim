@@ -69,6 +69,8 @@ pub struct SocBus {
     pub(crate) clock_half: u64,
     pub(crate) pins_active: bool,
     pub ble: esp_soc::ble::vhci::Ble,
+    // One allocation shared by CPU translation and the command adapter (no flat CPU window).
+    pub(crate) psram: Vec<u8>,
 }
 
 impl SocBus {
@@ -95,6 +97,7 @@ impl SocBus {
             clock_half: 0,
             pins_active: false,
             ble: Default::default(),
+            psram: Vec::new(),
         }
     }
     fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
@@ -103,7 +106,7 @@ impl SocBus {
         }
         match self.memory(a) {
             Some((b, o, _)) if b.len().saturating_sub(o) >= N => Ok(b[o..o + N].try_into().unwrap()),
-            _ => { self.last_fault = Some((a, false)); Err(Fault::Unmapped) }
+            _ => self.load_miss(a),
         }
     }
     fn store(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
@@ -119,7 +122,30 @@ impl SocBus {
                 self.written(a, bytes.len());
                 Ok(())
             }
-            _ => { self.last_fault = Some((a, true)); Err(Fault::Prohibited) }
+            _ => self.store_miss(a, bytes),
+        }
+    }
+    // External RAM is disjoint from memory()'s ordinary windows. Dispatch only
+    // after a miss, leaving the mapped-memory and peripheral paths unchanged.
+    #[cold]
+    fn load_miss<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_load(a); }
+        self.last_fault = Some((a, false));
+        Err(Fault::Unmapped)
+    }
+    #[cold]
+    fn store_miss(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_store(a, bytes); }
+        self.last_fault = Some((a, true));
+        Err(Fault::Prohibited)
+    }
+    #[cold]
+    fn fetch_miss(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
+        self.last_fault = Some((pc, false));
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&pc) {
+            Err(Fault::Prohibited)
+        } else {
+            Err(Fault::Unmapped)
         }
     }
     // 256-byte decode pages. RTC FAST's data and instruction windows share backing bytes.
@@ -300,8 +326,10 @@ impl SocBus {
     }
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
-        self.periph.spi1.0.execute(&mut self.flash, &mut []);
-        for (_, off, len) in std::mem::take(&mut self.periph.spi1.0.dirty) { self.flash_written(off, len); }
+        self.periph.spi1.0.execute(&mut self.flash, &mut self.psram);
+        for (memory, off, len) in std::mem::take(&mut self.periph.spi1.0.dirty) {
+            if memory == esp_periph::DirtyMem::Flash { self.flash_written(off, len); }
+        }
     }
     pub fn attach_board_devices(&mut self) {
         self.irq_dirty = true;
@@ -469,6 +497,10 @@ impl SocBus {
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {
         for (i, &v) in data.iter().enumerate() {
             let a = addr.wrapping_add(i as u32);
+            if (crate::psram::LOW..crate::psram::HIGH).contains(&a) {
+                self.psram_store(a, &[v]).map_err(|f| format!("load: address {a:#010x}: {f:?}"))?;
+                continue;
+            }
             match self.memory(a) {
                 Some((b, o, _)) if o < b.len() => b[o] = v,
                 _ => return Err(format!("load: address {a:#010x} not mapped")),
@@ -498,10 +530,7 @@ impl Bus for SocBus {
                 }
                 Ok(out)
             }
-            _ => {
-                self.last_fault = Some((pc, false));
-                Err(Fault::Unmapped)
-            }
+            _ => self.fetch_miss(pc),
         }
     }
     fn page_versions(&self) -> &[u32] {
