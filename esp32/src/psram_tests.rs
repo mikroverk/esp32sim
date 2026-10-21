@@ -7,6 +7,33 @@ use cache_tests::enable_cache;
 #[path = "psram_lowhigh_tests.rs"]
 mod lowhigh_tests;
 
+#[test]
+fn sram_miss_dispatch_preserves_window_and_absent_faults() {
+    let mut b = configured();
+    map(&mut b, 0, 0);
+    map(&mut b, 127, 127);
+    for a in [0x3f800000, 0x3fbffffc] {
+        assert_eq!(b.write32(a, 0x12345678), Ok(()), "PSRAM store miss dispatch");
+        assert_eq!(b.read32(a), Ok(0x12345678), "PSRAM load miss dispatch");
+        assert_eq!(b.fetch(a), Err(Fault::Prohibited), "PSRAM is data only");
+    }
+    for a in [0x3f7fffff, 0x3fc00000] {
+        assert_eq!(b.read8(a), Err(Fault::Unmapped));
+        assert_eq!(b.write8(a, 1), Err(Fault::Prohibited));
+        assert_eq!(b.fetch(a), Err(Fault::Unmapped), "outside PSRAM window");
+        assert_eq!(b.last_fault, Some((a, false)));
+    }
+    b.set_psram_size(0).unwrap();
+    assert!(b.psram.is_empty(), "absent device has no backing");
+    enable_cache(&mut b);
+    map(&mut b, 0, 0);
+    for a in [0x3f800000, 0x3fbffffc] {
+        assert_eq!(b.read32(a), Err(Fault::Unmapped));
+        assert_eq!(b.write32(a, 1), Err(Fault::Unmapped));
+        assert_eq!(b.fetch(a), Err(Fault::Prohibited));
+    }
+}
+
 // Literal addresses/stride intentionally independent of translator constants.
 fn map(b: &mut SocBus, slot: u32, page: u32) {
     for base in [0x3ff11200, 0x3ff13200] {

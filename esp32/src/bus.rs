@@ -101,17 +101,15 @@ impl SocBus {
         }
     }
     fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
-        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_load(a); }
         if Self::is_periph(a) {
             return Ok(self.periph_read(a, N as u32).to_le_bytes()[..N].try_into().unwrap());
         }
         match self.memory(a) {
             Some((b, o, _)) if b.len().saturating_sub(o) >= N => Ok(b[o..o + N].try_into().unwrap()),
-            _ => { self.last_fault = Some((a, false)); Err(Fault::Unmapped) }
+            _ => self.load_miss(a),
         }
     }
     fn store(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
-        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_store(a, bytes); }
         if Self::is_periph(a) {
             let mut value = [0; 4];
             value[..bytes.len()].copy_from_slice(bytes);
@@ -124,7 +122,30 @@ impl SocBus {
                 self.written(a, bytes.len());
                 Ok(())
             }
-            _ => { self.last_fault = Some((a, true)); Err(Fault::Prohibited) }
+            _ => self.store_miss(a, bytes),
+        }
+    }
+    // External RAM is disjoint from memory()'s ordinary windows. Dispatch only
+    // after a miss, leaving the mapped-memory and peripheral paths unchanged.
+    #[cold]
+    fn load_miss<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_load(a); }
+        self.last_fault = Some((a, false));
+        Err(Fault::Unmapped)
+    }
+    #[cold]
+    fn store_miss(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_store(a, bytes); }
+        self.last_fault = Some((a, true));
+        Err(Fault::Prohibited)
+    }
+    #[cold]
+    fn fetch_miss(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
+        self.last_fault = Some((pc, false));
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&pc) {
+            Err(Fault::Prohibited)
+        } else {
+            Err(Fault::Unmapped)
         }
     }
     // 256-byte decode pages. RTC FAST's data and instruction windows share backing bytes.
@@ -499,10 +520,6 @@ impl Bus for SocBus {
     fn write16(&mut self, a: u32, v: u16) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
     fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> { self.store(a, &v.to_le_bytes()) }
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
-        if (crate::psram::LOW..crate::psram::HIGH).contains(&pc) {
-            self.last_fault = Some((pc, false));
-            return Err(Fault::Prohibited);
-        }
         match self.memory(pc) {
             Some((b, o, _)) if o < b.len() => {
                 let mut out = [0; 4];
@@ -513,10 +530,7 @@ impl Bus for SocBus {
                 }
                 Ok(out)
             }
-            _ => {
-                self.last_fault = Some((pc, false));
-                Err(Fault::Unmapped)
-            }
+            _ => self.fetch_miss(pc),
         }
     }
     fn page_versions(&self) -> &[u32] {
