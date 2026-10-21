@@ -1,0 +1,74 @@
+{
+  "archive_revision": "7352bc817954a6e5e287d5b2118c36315635c659",
+  "archive_url": "https://github.com/schematik-engineering/esp32sim/tree/7352bc817954a6e5e287d5b2118c36315635c659/docs/evidence/camera-shared-state",
+  "original_directory": "docs/evidence/camera-shared-state",
+  "note": "Original JSONs verified byte-for-byte via public raw URLs before curation. Historical source/artifact hashes remain unchanged. Equivalent summaries share a target; originals remain separately fingerprinted. Omitted replacements, test-name arrays, disassembly captures and check batches remain archived.",
+  "files": {
+    "README.md": {
+      "bytes": 6819,
+      "sha256": "36fb8c37610da2b8b7dea87021c1dc358795b7c81037e94ee066058ceaae8fcc",
+      "curated": "README.md",
+      "curated_sha256": "512f6c421a3fb0bffd9183dbd249dde037e29181a016d2dfd810d08a9c29020c"
+    },
+    "checks.json": {
+      "bytes": 1041,
+      "sha256": "67316f20f906b118c12e84546a5ea3aecc61d4f81048316a85be8144458fb9b5",
+      "curated": "checks.json",
+      "curated_sha256": "f36ee6e06f3182aa569c42f0efd06427f8c4181eaaf46f7183df89685295f71d"
+    },
+    "codegen.json": {
+      "bytes": 47756,
+      "sha256": "38e8b6320f2a54a99112ce4009bbf97b2407353a8af52599aafadcb5856c054e",
+      "curated": "codegen.json",
+      "curated_sha256": "15b05b5df384fba98171cc5cd06970ffb635c670f16f4c82dd336aa493288472"
+    },
+    "codegen.py": {
+      "bytes": 2116,
+      "sha256": "3fec05d464ae5faece1267fcd593942f64371d4dc99111275a154dd5da6f55cc",
+      "curated": "codegen.py",
+      "curated_sha256": "3fec05d464ae5faece1267fcd593942f64371d4dc99111275a154dd5da6f55cc"
+    },
+    "dependencies.json": {
+      "bytes": 1099,
+      "sha256": "0082310884320b2ec31b10e32406b9ed99e9a5ff22ef8ad0c77ee7ec5c675361",
+      "curated": "dependencies.json",
+      "curated_sha256": "72f68691614a2fc29e870a0749061b91c177f2960b3392b0ec8181108b12ab61"
+    },
+    "fixture-comparison.json": {
+      "bytes": 2701,
+      "sha256": "c55074fafa3b22525249558dd752a05777fe570fed5c5f533d897d5e671fc813",
+      "curated": "fixture-comparison.json",
+      "curated_sha256": "27adfcaf11f804168cbeddaa9d5e226e709fd0f5eed93dd072c3418024f3735d"
+    },
+    "fixture.py": {
+      "bytes": 2175,
+      "sha256": "0c109aa4f4720d1e9e4f5bb0de60976f13f5b990d20cdebd629f46f6a2ccd61c",
+      "curated": "fixture.py",
+      "curated_sha256": "0c109aa4f4720d1e9e4f5bb0de60976f13f5b990d20cdebd629f46f6a2ccd61c"
+    },
+    "mutate.py": {
+      "bytes": 2404,
+      "sha256": "0e0928fea39a6dfcf70bb5fa3e191d0f9e60bedfdacd3dd83bfbe25ee9317faa",
+      "curated": "mutate.py",
+      "curated_sha256": "0e0928fea39a6dfcf70bb5fa3e191d0f9e60bedfdacd3dd83bfbe25ee9317faa"
+    },
+    "mutations.json": {
+      "bytes": 4248,
+      "sha256": "5dd17e0b3a425512004e850ee746bb5527175bf4a1b593d26a08f726926a8c46",
+      "curated": "mutations.json",
+      "curated_sha256": "75b36e909be55749d1da64843a79f363505ffd0cd8642f456c338c10f23ac41d"
+    },
+    "source-equivalence.json": {
+      "bytes": 305,
+      "sha256": "bc9760535adb765c43970cabd54fa2dcd122a37154c8bb7df9fad8977b62e3d0",
+      "curated": "source-equivalence.json",
+      "curated_sha256": "bc9760535adb765c43970cabd54fa2dcd122a37154c8bb7df9fad8977b62e3d0"
+    },
+    "test-totals.json": {
+      "bytes": 296,
+      "sha256": "eec77ae77f4a17c4dbfc34222d86087b4bf10e9941b2f670f8c7fe79d69898a7",
+      "curated": "test-totals.json",
+      "curated_sha256": "3bee480bf83c1b23d346f1aaa989627d7d566e8362e9a92e0e5515c10062dfad"
+    }
+  }
+}

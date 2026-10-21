@@ -1,0 +1,32 @@
+{
+  "base": "8f3a9eaa4ab2e4ba0d58721c0abe9fcf7428ecd6",
+  "main": "142805d5399e0c3cf25995fe21ba524e75a2b3cb",
+  "required_checks": {"clippy":0,"wasm-clippy":0,"rom":0,"plain":0,"wasm-build":0,"demos":0,"privacy":0},
+  "empty_home": true,
+  "toolchain": "1.99.0",
+  "nice": 10,
+  "cpu_timing": "NOT RUN",
+  "implementation": "8ac344b77038631660f87025f76b272ec3a87b4f",
+  "source_sha256": {
+    "esp32/src/camera_dma.rs": "0f8068548f094ee779c6452f3df798a3b5a58545f92b4fad7e7bd8f0bd337f35",
+    "esp32/src/camera_fifo.rs": "e75cf31a7ab5c2b3169bd4261a0c6effce354ba7e84b12fd3740fa6f64af30c5",
+    "esp32/src/i2s.rs": "7c683bacf571deb3992e3f08a73a5ca93dd90a7e652ca393e1788c8b7aedfb57",
+    "esp32/src/periph.rs": "26b36fd4a31eee852d42f6387668b78a48747bd3e79f6075224f3a5366949500",
+    "esp32/src/bus.rs": "86ac7ed6eb490fab842eb96825974ff0e1e24f71d6cfed4d161de16813dc2eaf",
+    "esp-periph/src/gdma/receive.rs": "e2158d1a172f20bc5580bc46014abb7851f36319c60a022e0e5a24d469e9a76f",
+    "esp32/tests/camera_dma/cases.rs": "215120a846b3414ef21edb4a12fcfe7926f96df7bec90fced3d5547fb93b899a"
+  },
+  "tests": {
+    "rom": {"passed":1027,"failed":0,"ignored":0,"measured":0,"filtered":22},
+    "plain": {"passed":999,"failed":0,"ignored":50,"measured":0,"filtered":0}
+  },
+  "c7_assertion_kills": 25,
+  "c5_assertion_kills": 12,
+  "c4_assertion_kills": 23,
+  "c6_assertion_kills": 35,
+  "actual_c_filter_recoveries": 13,
+  "retained_c_filter_partial_group_negatives": 3,
+  "s3_frames": 7,
+  "s3_console_sha256": "b0011b04b138834fd6d6697ed6a9cfd328065f5af87b1a68d7eb146f6ba01bd2",
+  "codegen": {"base":{"equal":10,"total":21},"main":{"equal":10,"total":21}}
+}

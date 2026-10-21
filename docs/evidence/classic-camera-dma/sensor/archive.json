@@ -1,0 +1,20 @@
+{
+  "archive_revision": "7352bc817954a6e5e287d5b2118c36315635c659",
+  "archive_url": "https://github.com/schematik-engineering/esp32sim/tree/7352bc817954a6e5e287d5b2118c36315635c659/docs/evidence/ov2640-sccb",
+  "original_directory": "docs/evidence/ov2640-sccb",
+  "note": "Original JSONs verified byte-for-byte via public raw URLs before curation. Historical source/artifact hashes remain unchanged. Equivalent summaries share a target; originals remain separately fingerprinted. Omitted replacements, test-name arrays, disassembly captures and check batches remain archived.",
+  "files": {
+    "README.md": {
+      "bytes": 5696,
+      "sha256": "a3437ef6ece0ab9d78c251a158eb2448e81371d705ac03a678f457eafedf8ef2",
+      "curated": "README.md",
+      "curated_sha256": "a3437ef6ece0ab9d78c251a158eb2448e81371d705ac03a678f457eafedf8ef2"
+    },
+    "mutations.json": {
+      "bytes": 2460,
+      "sha256": "6df9fbb8d2ba12f1ed96cdce18e43a7b695a16a08146063684487517a3c0c020",
+      "curated": "mutations.json",
+      "curated_sha256": "874d2d2b79b19aadea71a8439f63cb12b5d868ad5fe378e676e6b74cb7a9cfed"
+    }
+  }
+}

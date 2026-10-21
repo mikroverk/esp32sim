@@ -1,0 +1,14 @@
+{
+  "i2s_reg.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/38eeba213aa695aabfd6d89aa9f5078dbe5a94c3/components/soc/esp32/include/soc/i2s_reg.h",
+    "sha256": "90a6c0494066bd1779f676cda7a99f1df40e85ee0cd05c52951e31b635730ada"
+  },
+  "i2s_struct.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/38eeba213aa695aabfd6d89aa9f5078dbe5a94c3/components/soc/esp32/include/soc/i2s_struct.h",
+    "sha256": "4f7d6fc612af2f970130cc7888f8195fb6482dd259e21c93ddf48f488c160fdb"
+  },
+  "ll_cam.c": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/target/esp32/ll_cam.c",
+    "sha256": "caec256ebf514250aca3ef0b5154fff875afb4949f9beda800ebace9b8c84512"
+  }
+}

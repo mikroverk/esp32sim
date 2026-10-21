@@ -1,0 +1,129 @@
+{
+  "runtime_source": "b9d2bea4626417ccd9df4964e2a8994aae3b54dd",
+  "base": "77e43c20a70054ac84d1724d757fa9ce12668151",
+  "toolchain": "1.99.0",
+  "host": "aarch64-apple-darwin",
+  "environment": "empty HOME, explicit Cargo/Rustup paths; ROM_DIR points to fetched ROMs; two jobs and nice -n 10",
+  "remote_ci": "Not run: publication is supervisor-owned",
+  "rust_source_files_verified": 320,
+  "rust_source_manifest_sha256": "d874225640225d019b7fd94788a3b441280f06d758991e4b187f0db7c9a0f6d3",
+  "unchanged_golden_files_and_harnesses": 57,
+  "mutations": {
+    "killed": 18,
+    "total": 18,
+    "compile_error_kills": 0,
+    "timeout_kills": 0,
+    "receipt": "review-mutations.json"
+  },
+  "commands": [
+    {
+      "name": "build",
+      "command": "nice -n 10 cargo +1.99.0 build --release --workspace -j2",
+      "exit": 0
+    },
+    {
+      "name": "native-clippy",
+      "command": "nice -n 10 cargo +1.99.0 clippy --workspace --all-targets -j2 -- -D warnings",
+      "exit": 0
+    },
+    {
+      "name": "wasm-clippy",
+      "command": "nice -n 10 cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -j2 -- -D warnings",
+      "exit": 0
+    },
+    {
+      "name": "ci-tests",
+      "command": "ESP32SIM_ROM_DIR=\"$ROM_DIR\" nice -n 10 cargo +1.99.0 test --release --workspace -j2 -- --include-ignored --skip external_",
+      "exit": 0,
+      "rust_totals": {
+        "passed": 1079,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 22
+      }
+    },
+    {
+      "name": "plain-tests",
+      "command": "env -u ESP32SIM_ROM_DIR nice -n 10 cargo +1.99.0 test --release --workspace -j2",
+      "exit": 0,
+      "rust_totals": {
+        "passed": 1048,
+        "failed": 0,
+        "ignored": 53,
+        "filtered": 0
+      }
+    },
+    {
+      "name": "virtual-quantum",
+      "command": "ESP32SIM_VQ_NATIVE=1 nice -n 10 cargo +1.99.0 test --release -p esp32s3 -j2 --test machine --test virtual_stops",
+      "exit": 0,
+      "rust_totals": {
+        "passed": 43,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    {
+      "name": "wasm-build",
+      "command": "nice -n 10 sh tools/wasm-build.sh",
+      "exit": 0
+    },
+    {
+      "name": "wasm-sections",
+      "command": "node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm",
+      "exit": 0
+    },
+    {
+      "name": "wasm-demos",
+      "command": "ESP32SIM_ROM_DIR=\"$ROM_DIR\" node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel tdisplay-prices",
+      "exit": 0
+    },
+    {
+      "name": "wasm-abi",
+      "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm && node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public $ROM_DIR/esp32c3_rev3_rom.elf && node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public $ROM_DIR/esp32c3_rev3_rom.elf",
+      "exit": 0
+    },
+    {
+      "name": "worker",
+      "command": "node tools/worker-pacing-test.mjs && node tools/worker-channel-test.mjs && node --test tools/touch-input-test.mjs",
+      "exit": 0
+    },
+    {
+      "name": "browser-contracts",
+      "command": "node --test tools/wasm-build-policy.test.mjs && node --test tools/browser-benchmark/*.test.mjs && python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+      "exit": 0
+    },
+    {
+      "name": "retained-receipts",
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs && node docs/evidence/perf-x5-2026-09-22/verify-results.mjs && node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs && node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs && node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs && node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "exit": 0
+    },
+    {
+      "name": "wasm-jit",
+      "command": "nice -n 10 sh tools/wasm-jit-test.sh",
+      "exit": 0
+    },
+    {
+      "name": "wasm-profile",
+      "command": "nice -n 10 sh -c \". ./tools/wasm-rustflags.sh; cargo +1.99.0 build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile -j2\"",
+      "exit": 0
+    },
+    {
+      "name": "aarch64",
+      "command": "nice -n 10 cargo +1.99.0 test --release -p xtensa-lx7 -j2",
+      "exit": 0,
+      "rust_totals": {
+        "passed": 53,
+        "failed": 0,
+        "ignored": 1,
+        "filtered": 0
+      }
+    },
+    {
+      "name": "privacy",
+      "command": "node tools/check-evidence-privacy.mjs",
+      "exit": 0
+    }
+  ]
+}

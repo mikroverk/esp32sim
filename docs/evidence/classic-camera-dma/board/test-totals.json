@@ -1,0 +1,4 @@
+{
+  "rom-tests": {"passed":1000,"failed":0,"ignored":0,"measured":0,"filtered":22},
+  "plain-tests": {"passed":972,"failed":0,"ignored":50,"measured":0,"filtered":0}
+}

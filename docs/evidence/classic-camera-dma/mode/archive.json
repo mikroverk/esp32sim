@@ -1,0 +1,62 @@
+{
+  "archive_revision": "7352bc817954a6e5e287d5b2118c36315635c659",
+  "archive_url": "https://github.com/schematik-engineering/esp32sim/tree/7352bc817954a6e5e287d5b2118c36315635c659/docs/evidence/classic-camera-mode",
+  "original_directory": "docs/evidence/classic-camera-mode",
+  "note": "Original JSONs verified byte-for-byte via public raw URLs before curation. Historical source/artifact hashes remain unchanged. Equivalent summaries share a target; originals remain separately fingerprinted. Omitted replacements, test-name arrays, disassembly captures and check batches remain archived.",
+  "files": {
+    "README.md": {
+      "bytes": 6440,
+      "sha256": "26eeef75ca99ec9fbc03355bfbc2f33bd3fb4db088b600c78d300ac416be9bfe",
+      "curated": "README.md",
+      "curated_sha256": "2d325514812836e4f969c181f16c483da9dc0a059eb11946b3ebb116f0994d7f"
+    },
+    "checks.json": {
+      "bytes": 1701,
+      "sha256": "1adf4924aec47e70cad6e135926be6bdbc2e68a80cc91b93c9b600cc94aec562",
+      "curated": "checks.json",
+      "curated_sha256": "c934e1a896642d35800e9b604003c00fffff87fdc3dd70257de6f6f9d11cfef0"
+    },
+    "codegen.json": {
+      "bytes": 1674,
+      "sha256": "19b317d195c0a0abc252103dc1feebba2198eab08d534376765a3eb987702fbd",
+      "curated": "codegen.json",
+      "curated_sha256": "3cf8b1361c96ea671200641ba19b541cc421284f22379e9954ad2e9ddd3e6014"
+    },
+    "codegen.py": {
+      "bytes": 1745,
+      "sha256": "1ce4bdb5b7574c6cfb059bef77cdd8c47b42702413ef8cfb9ee1f4e7b81a0174",
+      "curated": "codegen.py",
+      "curated_sha256": "1ce4bdb5b7574c6cfb059bef77cdd8c47b42702413ef8cfb9ee1f4e7b81a0174"
+    },
+    "environment.json": {
+      "bytes": 263,
+      "sha256": "08796c53f65d8b6a88fcdaf4a619243c3f46130e8ad97a97f7018835424b4b0d",
+      "curated": "environment.json",
+      "curated_sha256": "08796c53f65d8b6a88fcdaf4a619243c3f46130e8ad97a97f7018835424b4b0d"
+    },
+    "mutate.py": {
+      "bytes": 3481,
+      "sha256": "8b73691df0baf24cc7cdd6e14c36cd00378ff9ad1d51a1f1e0d91b3c18e7602a",
+      "curated": "mutate.py",
+      "curated_sha256": "8b73691df0baf24cc7cdd6e14c36cd00378ff9ad1d51a1f1e0d91b3c18e7602a"
+    },
+    "mutations.json": {
+      "bytes": 6997,
+      "sha256": "9527003fbc091a15dd84199841dc796c0effab277705f077bc35976b4cf6a5c6",
+      "curated": "mutations.json",
+      "curated_sha256": "32d71a95a3fcacb1487f7ebb36de2e236f27940557bd255c0e543d5c314a2271"
+    },
+    "sources.json": {
+      "bytes": 751,
+      "sha256": "14746e11171412a8bf3e937cce46b0392c4500ad9b24d2c53046adc43a786fae",
+      "curated": "sources.json",
+      "curated_sha256": "14746e11171412a8bf3e937cce46b0392c4500ad9b24d2c53046adc43a786fae"
+    },
+    "verify-sources.py": {
+      "bytes": 1691,
+      "sha256": "caa2ea4d5856d9c6fa4dbf014e2282bdc2a483a8b583b19643fb37d068d7e85c",
+      "curated": "verify-sources.py",
+      "curated_sha256": "caa2ea4d5856d9c6fa4dbf014e2282bdc2a483a8b583b19643fb37d068d7e85c"
+    }
+  }
+}

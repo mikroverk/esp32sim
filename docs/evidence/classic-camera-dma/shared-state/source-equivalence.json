@@ -1,0 +1,6 @@
+{
+  "sensor_implementation_identical": true,
+  "sensor_sha256": "f954607412ff083d9d52a88eb3b44837b92cd3804728cbc150f13c614038116b",
+  "frame_methods_identical_except_visibility_and_board_owned_counters": true,
+  "frame_methods_sha256": "0b4d8bc7df809c1b8a86a24a1777624c96724bc307f90a901d5a9d274fc4de6d"
+}

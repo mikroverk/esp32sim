@@ -1,0 +1,18 @@
+{
+  "acyclic": true,
+  "no_classic_to_s3": true,
+  "graph": {
+    "emu-core": [],
+    "esp-periph": ["emu-core"],
+    "esp-soc": ["emu-core","esp-periph"],
+    "xtensa-lx7": ["emu-core"],
+    "esp32s3": ["emu-core","esp-periph","esp-soc","xtensa-lx7"],
+    "esp32sim": ["emu-core","esp-periph","esp-soc","esp32","esp32c3","esp32c6","esp32s3"],
+    "esp32": ["emu-core","esp-periph","esp-soc","xtensa-lx7"],
+    "esp32c3": ["emu-core","esp-periph","esp-soc","riscv-rv32"],
+    "riscv-rv32": ["emu-core"],
+    "esp32c6": ["emu-core","esp-periph","esp-soc","riscv-rv32"],
+    "esp32sim-wasm": ["esp-periph","esp-soc","esp32","esp32c3","esp32c6","esp32s3","esp32sim-wasm-jit","xtensa-lx7"],
+    "esp32sim-wasm-jit": ["emu-core","esp32s3","xtensa-lx7","esp-soc"]
+  }
+}

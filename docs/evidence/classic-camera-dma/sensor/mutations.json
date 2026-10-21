@@ -1,0 +1,36 @@
+{
+  "recorded_rows": 17,
+  "outcome_counts": {"killed":{"true":17}},
+  "groups": [
+    {
+      "count": 3,
+      "outcome": {"test":"ov2640_bank_isolated_ordinary_writes","killed":true,"returncode":101},
+      "names": ["bank_selection","write_phase","ordinary_storage"]
+    },
+    {
+      "count": 2,
+      "outcome": {"test":"ov2640_com7_reset_clears_both_banks_and_stream","killed":true,"returncode":101},
+      "names": ["software_reset","reset_leaves_stale_state"]
+    },
+    {
+      "count": 2,
+      "outcome": {"test":"ov2640_public_uxga_requires_high_geometry_bits","killed":true,"returncode":101},
+      "names": ["width_high_bits","height_high_bit"]
+    },
+    {
+      "count": 3,
+      "outcome": {"test":"ov2640_public_qqvga_vga_and_format_sequences","killed":true,"returncode":101},
+      "names": ["width_low_bits","height_low_bits","format"]
+    },
+    {
+      "count": 4,
+      "outcome": {"test":"ov2640_stream_gates_are_bank_specific_and_reversible","killed":true,"returncode":101},
+      "names": ["standby","dvp_reset","dsp_bypass","reset_bank_scope"]
+    },
+    {
+      "count": 3,
+      "outcome": {"test":"ov2640_public_probe_reset_and_stop_reads","killed":true,"returncode":101},
+      "names": ["read_pointer","reset_ids","id_write_protection"]
+    }
+  ]
+}

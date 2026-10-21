@@ -1,0 +1,41 @@
+{
+  "recorded_rows": 26,
+  "outcome_counts": {"killed":{"false":1,"true":25}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"killed":false,"failed_test_count":0},"names":["baseline"]},
+    {
+      "count": 9,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":1},
+      "names": [
+        "peripheral reset preserves stale frame",
+        "camera-free board polling",
+        "ignore VSYNC arm",
+        "charge pulse as pixels",
+        "route loss not terminal",
+        "RX resets keep DMA running",
+        "inlink stop ignored",
+        "DRAM rule admits CPU-only prefix",
+        "mode3 sensor sample lane"
+      ]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failed_test_count":9},"names":["camera dispatch cache missing"]},
+    {
+      "count": 3,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":4},
+      "names": ["transport disabled","length not written","EOF flag not written"]
+    },
+    {"count":2,"outcome":{"exit":101,"killed":true,"failed_test_count":2},"names":["lose fractional word position","owner check bypassed"]},
+    {
+      "count": 4,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":3},
+      "names": ["wrong frame rate","do not consume byte position","wrong EOF descriptor register","wrong descriptor advance"]
+    },
+    {"count":2,"outcome":{"exit":101,"killed":true,"failed_test_count":8},"names":["drop final boundary word","wrong EOF count unit"]},
+    {"count":2,"outcome":{"exit":101,"killed":true,"failed_test_count":5},"names":["wrong FIFO mode","owner not returned"]},
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":6},
+      "names": ["wrong classic IRQ mapping","mode1 sensor sample ordering"]
+    }
+  ]
+}

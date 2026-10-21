@@ -1,0 +1,23 @@
+[
+  {
+    "file": "bootloader/bootloader.bin",
+    "bytes": 25584,
+    "sha256": "9fe22a0bd805d8830602afa2d92f99312b7f567503db22808e3f7cc903f68850",
+    "clean_builds_equal": true,
+    "committed_equal": true
+  },
+  {
+    "file": "partition_table/partition-table.bin",
+    "bytes": 3072,
+    "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "clean_builds_equal": true,
+    "committed_equal": true
+  },
+  {
+    "file": "classic_camera.bin",
+    "bytes": 248256,
+    "sha256": "2746afe90c3d855244339c2b6e505b0e3c7c5b69c09dc9ecf560bbed120dd661",
+    "clean_builds_equal": true,
+    "committed_equal": true
+  }
+]

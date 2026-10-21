@@ -215,6 +215,14 @@ separates the historical probe-b field checks from unvalidated RF timing.
 
 ## Live camera input
 
+For classic ESP32 use `--chip esp32 --board ai-thinker-cam --cam-image image.bmp`
+(BMP or PPM). This is a still source for OV2640 raw RGB565/YUV422 capture into
+internal DRAM, with fixed approximate 10 FPS. JPEG+PSRAM CameraWebServer and
+adjustable classic frame cadence are unsupported. The public-driver fixture and
+complete command are in [esp32.md](esp32.md#the-camera---board-ai-thinker-cam).
+The live stream, crop and adjustable FPS description below applies to the S3
+`waveshare-cam`, not the classic model.
+
 On `--board waveshare-cam`, `--cam-stream PATH --cam-size WIDTHxHEIGHT` reads
 consecutive RGB24 frames with no headers or row padding. Use `-` for stdin or a FIFO
 path for a producer in another process. Streaming enables real-time pacing, keeps only

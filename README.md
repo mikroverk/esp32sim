@@ -12,6 +12,11 @@ It also models the board around the chip: displays, touch, LEDs, buttons, audio,
 
 Try it in your browser, nothing to install: https://mikroverk.github.io/esp32sim/
 
+`--chip esp32 --board ai-thinker-cam --cam-image image.ppm` supplies the AI-Thinker
+ESP32-CAM's OV2640 with a BMP/PPM still image. Capture supports raw RGB565/YUV422
+into internal DRAM at a fixed approximate 10 FPS; the usual JPEG+PSRAM
+CameraWebServer path is unsupported. See the [camera scope and example](docs/esp32.md#the-camera---board-ai-thinker-cam).
+
 ## Supported chips
 
 | Chip | CPU | Status | Boards |
@@ -19,7 +24,7 @@ Try it in your browser, nothing to install: https://mikroverk.github.io/esp32sim
 | ESP32-S3 | 2 x Xtensa LX7 | mature | Atech 14-port kit, Waveshare Touch-LCD-4B, Touch-AMOLED-1.8, ESP32-S3-CAM |
 | ESP32-C3 | RISC-V RV32IMC | draft | console only |
 | ESP32-C6 | RISC-V RV32IMAC | draft | Waveshare ESP32-C6-LCD-1.47, with the 802.15.4 radio |
-| ESP32 (classic) | 2 x Xtensa LX6 | early | LilyGO TTGO T-Display |
+| ESP32 (classic) | 2 x Xtensa LX6 | early | LilyGO TTGO T-Display, AI-Thinker ESP32-CAM (raw capture) |
 
 ## Features
 

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "clippy-native",
+    "command": "nice -n 10 cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "empty_home": false,
+    "rom": false,
+    "exit": 0
+  },
+  {
+    "name": "clippy-wasm",
+    "command": "nice -n 10 cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "empty_home": false,
+    "rom": false,
+    "exit": 0
+  },
+  {
+    "name": "tests-rom",
+    "command": "nice -n 10 cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+    "empty_home": true,
+    "rom": true,
+    "exit": 0,
+    "totals": {"passed":990,"failed":0,"ignored":0,"measured":0,"filtered":22}
+  },
+  {
+    "name": "tests-plain",
+    "command": "nice -n 10 cargo +1.99.0 test --release --workspace",
+    "empty_home": true,
+    "rom": false,
+    "exit": 0,
+    "totals": {"passed":962,"failed":0,"ignored":50,"measured":0,"filtered":0}
+  },
+  {"name":"wasm-build","command":"RUSTUP_TOOLCHAIN=1.99.0 nice -n 10 tools/wasm-build.sh","empty_home":false,"rom":false,"exit":0},
+  {
+    "name": "wasm-demos",
+    "command": "nice -n 10 node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "empty_home": false,
+    "rom": false,
+    "exit": 0
+  },
+  {"name":"privacy","command":"node tools/check-evidence-privacy.mjs","empty_home":false,"rom":false,"exit":0},
+  {"name":"diff-check","command":"git diff --check","empty_home":false,"rom":false,"exit":0}
+]

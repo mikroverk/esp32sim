@@ -1,0 +1,93 @@
+{
+  "archive_revision": "7352bc817954a6e5e287d5b2118c36315635c659",
+  "archive_url": "https://github.com/schematik-engineering/esp32sim/tree/7352bc817954a6e5e287d5b2118c36315635c659/docs/evidence/aithinker-board",
+  "original_directory": "docs/evidence/aithinker-board",
+  "note": "Original JSONs verified byte-for-byte via public raw URLs before curation. Historical source/artifact hashes remain unchanged. Equivalent summaries share a target; originals remain separately fingerprinted. Omitted replacements, test-name arrays, disassembly captures and check batches remain archived.",
+  "files": {
+    "README.md": {
+      "bytes": 8325,
+      "sha256": "5d33087138dab23546f6d5cf231ed5943189841e596ea6982e3964871c967170",
+      "curated": "README.md",
+      "curated_sha256": "081c57ebd77b37e5651af664fab445ac4cb2f359cf914e76f4728a78995eb690"
+    },
+    "checks.json": {
+      "bytes": 2239,
+      "sha256": "c7124d990851cdc7ddbcf6f994dd49be7bf190bfd85b5491c7599af5d71829c9",
+      "curated": "checks.json",
+      "curated_sha256": "440deaa149dae55cbd5729d9d40dde25f690981c9e563b30378a95b42b3b20ce"
+    },
+    "codegen.json": {
+      "bytes": 4730,
+      "sha256": "b029fd63056987bdd2d6f02d2f27ab5d55cee9bd55d1df6d141e16ac38851f11",
+      "curated": "codegen.json",
+      "curated_sha256": "321dbd7af23dd8c3a88b6cd3c322e26c21367a1edbd0be8de46846e57d125475"
+    },
+    "codegen.py": {
+      "bytes": 1996,
+      "sha256": "60738e06b6da6ea1d128dd94070fe77c7426aff93f9a4e5ce731cbf036cdf21f",
+      "curated": "codegen.py",
+      "curated_sha256": "60738e06b6da6ea1d128dd94070fe77c7426aff93f9a4e5ce731cbf036cdf21f"
+    },
+    "fixture-comparison.json": {
+      "bytes": 2701,
+      "sha256": "599454cf308a5c739936b54e8368ac96be7e2d594728a8094d6fc34f3c39dd16",
+      "curated": "fixture-comparison.json",
+      "curated_sha256": "d657eaa38b584cb8523e7439cb2bacc5817b1ff37fe906eaeff9dcdda541fb26"
+    },
+    "goldens.json": {
+      "bytes": 8399,
+      "sha256": "c7098f069b36d38333178cfb4e07a252f865d6bfdd4ec983e55c7dbb4329e318",
+      "curated": "goldens.json",
+      "curated_sha256": "0b547a510f8155bc7191e864d9108c274a996b2a5f80759ca0d1db614f597490"
+    },
+    "mutations.json": {
+      "bytes": 11299,
+      "sha256": "44b52639948a67ada3ccfc02718ba55ee1593ad29f1e7e47d22019821f41e6a4",
+      "curated": "mutations.json",
+      "curated_sha256": "c0ce61a82b88a0bef0b8b931ae2f16166e40a0db090d4ba5065972a9ea27c89d"
+    },
+    "mutations.py": {
+      "bytes": 3743,
+      "sha256": "fb9fc62769d44fcb47a99da6c83def6e960e6bf3dec2f3641450cb612dcf8bdc",
+      "curated": "mutations.py",
+      "curated_sha256": "f357ca15397d036907b72b22476ccb7826110aacb0ac2b012333a15c7cea2af3",
+      "initial_curated_sha256": "fb9fc62769d44fcb47a99da6c83def6e960e6bf3dec2f3641450cb612dcf8bdc"
+    },
+    "qualify.py": {
+      "bytes": 2340,
+      "sha256": "9edd3751071b477dd6733c41b52ff6e10ada53794736af47d0c7f64fa45f8729",
+      "curated": "qualify.py",
+      "curated_sha256": "315eaf66c6423bccc906d873d6c2095d1b225770e24061372a5ec5578854d890"
+    },
+    "s3-mutations.json": {
+      "bytes": 2175,
+      "sha256": "5a843ef7475f4ba7195683ead37d2c6541303e7ea36bec7cba3783aaf83b42e7",
+      "curated": "s3-mutations.json",
+      "curated_sha256": "0c454578bd8ee1d8915aaed2334bf3696abaaec0c3608397f002748fb9abaa86"
+    },
+    "sources.json": {
+      "bytes": 893,
+      "sha256": "833d918c07ae07aea0b626b6a75ae8450d1ec23365d73664919729d7121d6963",
+      "curated": "sources.json",
+      "curated_sha256": "833d918c07ae07aea0b626b6a75ae8450d1ec23365d73664919729d7121d6963"
+    },
+    "sources.py": {
+      "bytes": 1026,
+      "sha256": "8dbb9c0477c9a0fabe3a9e83cf29a190c259c1830f53a133a4a7b2f9891e87f7",
+      "curated": "sources.py",
+      "curated_sha256": "8dbb9c0477c9a0fabe3a9e83cf29a190c259c1830f53a133a4a7b2f9891e87f7"
+    },
+    "summarize.py": {
+      "bytes": 2092,
+      "sha256": "5e22eec342594d315c06160762679539292686aa585702796d6da683c959cf45",
+      "curated": "summarize.py",
+      "curated_sha256": "0267f5c25d67368662549d6ee5a7b43ef44ef7c83f3ab53986f6a36588c69adf"
+    },
+    "test-totals.json": {
+      "bytes": 234,
+      "sha256": "f393b03124d5e96efa8f885b2b23681c9668a5f8de861ac0ae8308db2fceb971",
+      "curated": "test-totals.json",
+      "curated_sha256": "caa308d9af37a214d75963b40a0231f3be55b8bfa626cec39ab0a85f8ad10c91"
+    }
+  }
+}

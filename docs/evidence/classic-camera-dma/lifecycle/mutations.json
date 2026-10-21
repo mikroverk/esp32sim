@@ -1,0 +1,17 @@
+{
+  "recorded_rows": 7,
+  "outcome_counts": {"assertion_killed":{"false":1,"true":6}},
+  "groups": [
+    {"count":1,"outcome":{"firmware":false,"exit":0,"assertion_killed":false},"names":["baseline"]},
+    {
+      "count": 3,
+      "outcome": {"firmware":false,"exit":101,"assertion_killed":true},
+      "names": ["initial frame ordering","replacement cache stays stale","reboot keeps live I2S"]
+    },
+    {
+      "count": 3,
+      "outcome": {"firmware":true,"exit":101,"assertion_killed":true},
+      "names": ["deinit omitted","reinit omitted","reinit sensor format stays YUV"]
+    }
+  ]
+}

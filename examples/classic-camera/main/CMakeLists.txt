@@ -1,0 +1,6 @@
+if(C9_LIFECYCLE)
+    set(FIXTURE_SOURCE "lifecycle.c")
+else()
+    set(FIXTURE_SOURCE "main.c")
+endif()
+idf_component_register(SRCS "${FIXTURE_SOURCE}" INCLUDE_DIRS "." REQUIRES esp32-camera mbedtls)

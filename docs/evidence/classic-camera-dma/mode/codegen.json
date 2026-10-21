@@ -1,0 +1,19 @@
+{
+  "base": "eae1ba46bb7c19fcb457120fc66766acfcd52bdd",
+  "method": "classic-core asmcmp address/page/call-alias normalization; not CPU timing",
+  "selector": "(esp32::bus::SocBus.*::(?:tick|i2s_step)|esp32::i2s::ClassicI2s.*::data|Machine<esp32::soc::Esp32>.*::(?:run|step_core|after_round))",
+  "artifacts": [
+    {
+      "label": "base",
+      "binary_sha256": "9b23f5ee23e6266f6fe850d47ed54f9e75f7469dc62c175533c44acb8cf92746",
+      "disassembly_sha256": "eb2c6fdae5216e16228fd41fcb0d8b35d0476890d7227b632a54ce9781d4063a"
+    },
+    {
+      "label": "candidate",
+      "binary_sha256": "6945708b90e7babdf1614011a1a3733a8024209512cc2fa6ca05847f74b17c40",
+      "disassembly_sha256": "20a8dbb014a17b616e116f635af0df95b39789bf96c0107b5ecfce0fe3effeec"
+    }
+  ],
+  "body_totals": {"selected":{"compared":5,"identical":5,"base_instructions":8282,"candidate_instructions":8282}},
+  "different_bodies": []
+}

@@ -1,0 +1,22 @@
+OV2640 transaction fixture attribution
+
+The numeric SCCB traces are generated from espressif/esp32-camera v2.1.4,
+commit b817e9b81041980608d1a3d3e0b08d86e3666382.
+
+sensors/private_include/ov2640_settings.h:
+Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
+Licensed under the Apache License, Version 2.0. The full text is in
+web/wasm/fw/public/crypto-tls-runtime-licenses.txt at the repository root
+(Apache License, Version 2.0 section).
+
+sensors/ov2640.c and sensors/private_include/ov2640_regs.h:
+This file is part of the OpenMV project.
+Copyright (c) 2013/2014 Ibrahim Abdelkader
+Licensed under the MIT License. See LICENSE at the repository root for the
+permission and warranty terms; the OpenMV copyright notice above applies here.
+
+The fixtures are generated transaction data, not compiled guest firmware. No
+third-party driver code is linked into the emulator. Source URLs and SHA-256
+values are recorded in sources.json. The generator compiles selected unchanged
+driver routines with host stubs and emits writes/read expectations; it does not
+build or boot ESP-IDF or establish successful esp_camera_init/frame capture.

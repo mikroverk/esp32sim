@@ -373,6 +373,15 @@ impl ClassicGpio {
             self.gpio.set_input(pin as u8, false);
         }
     }
+    /// Physical matrix input, retaining inversion. IDF v4.4.7 gpio_reg.h:
+    /// GPIO_FUNCm_IN_SEL_CFG source bits 0..5, invert bit 6, matrix-select bit 7.
+    /// Unlike the non-inverted input_pin helper, DVP data can use inversion.
+    pub(crate) fn matrix_input_route(&self, signal: usize) -> Option<(u8, bool)> {
+        let cfg = *self.gpio.func_in_sel.get(signal)?;
+        let pin = (cfg & 0x3f) as usize;
+        (cfg & (1 << 7) != 0 && pin < 40 && self.matrix_pad(pin) && self.input_enabled(pin))
+            .then_some((pin as u8, cfg & (1 << 6) != 0))
+    }
     pub fn input_pin(&self, signal: usize) -> Option<u8> {
         esp_soc::pins::ChipPins::ESP32.routes(&self.gpio, &self.route_mux).input_pin(signal)
             .or_else(|| Self::direct_pin(signal).filter(|&pin| (self.mux(pin) >> 12) & 7 == 1 && self.input_enabled(pin)).map(|p| p as u8))
@@ -761,7 +770,7 @@ impl Peripherals {
             analog: crate::wifi::Analog::default(),
             fe: crate::wifi::FrontEnd::default(),
             adc: ClassicAdc::new(),
-            i2s: Default::default(),
+            i2s: [crate::i2s::ClassicI2s::for_port(0), crate::i2s::ClassicI2s::for_port(1)],
         };
         for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
         p.sync_crypto();
@@ -881,6 +890,11 @@ impl Peripherals {
             // IDF v5.5.4 register/soc/dport_reg.h:947,965 (I2S clocks),
             // 982,1000 (resets). Cache on writes, not in the per-tick DMA loop.
             for (port, bit) in [4, 21].into_iter().enumerate() {
+                // Camera DMA must not survive a peripheral reset. Keep the
+                // established PCM reset behavior unchanged in this slice.
+                if self.dport.ram.read(0xc4) & (1 << bit) != 0 && self.i2s[port].camera_rx().is_some() {
+                    self.i2s[port] = crate::i2s::ClassicI2s::for_port(port);
+                }
                 self.i2s[port].clock_enabled = self.dport.ram.read(0xc0) & (1 << bit) != 0
                     && self.dport.ram.read(0xc4) & (1 << bit) == 0;
             }

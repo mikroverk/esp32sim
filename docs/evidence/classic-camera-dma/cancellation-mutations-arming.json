@@ -1,0 +1,22 @@
+{
+  "recorded_rows": 10,
+  "outcome_counts": {"killed":{"false":1,"true":9}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"killed":false,"failed_test_count":0},"names":["baseline"]},
+    {
+      "count": 5,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":1},
+      "names": ["exclusive boundary","unbounded window","frame claim replayed","unqualified start aborts early","unrelated pad bits close window"]
+    },
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":3},
+      "names": ["window disabled","delivery timed from start"]
+    },
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":2},
+      "names": ["forced low counted as start","route loss ignored"]
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "base": "213b1adda7910923ba6ac65ad6e2446c36d47d6a",
+  "scope": "Local-only classic capture cancellation; no PSRAM/public-driver/waveform/DMA-walker changes",
+  "toolchain": {"cargo":"1.99.0 (5f94df478 2026-08-27)","rustc":"1.99.0 (b940084d7 2026-09-28)"},
+  "source_sha256": {
+    "esp32/src/bus.rs": "f1fa860eb6b8cf726ca699a36f1d5652628c33e9af085e2eb1ad930b57cc6bc7",
+    "esp32/src/camera_dma.rs": "0985668826778740e51ef3d905687f664da6f6078b06d1977cee9888ff5a221d",
+    "esp32/tests/camera_dma/cases.rs": "4713f2e73d719f2db650d843f1b57c99d51128755574013f03878101673a44b4",
+    "esp32/tests/camera_dma/cancellation.rs": "de97ab0db9556a1ab82ed165f3f28b19e6961b8412e705162f26c00a94b0ea16",
+    "docs/evidence/classic-camera-dma/mutate.py": "1aac06d23710589aa1cffbe7e2559add82c3954147a385d82d3685b5dc1d7a3f",
+    "docs/evidence/classic-camera-dma/mutate-cancellation.py": "0a93def3bf555da66e95cca3691bb00857d553b9bb417ea501e077d511c0c96d"
+  },
+  "tests": {
+    "rom": {"passed":1048,"failed":0,"ignored":0},
+    "plain": {"passed":1020,"failed":0,"ignored":50},
+    "camera": {"passed":44,"inherited_unchanged":34,"new":10}
+  },
+  "gates": [
+    {"name":"assets","command":["sh","tools/fetch-demo-assets.sh","--no-linux"],"exit":0,"target_logical_bytes":121519089},
+    {
+      "name": "clippy-native",
+      "command": ["nice","-n","10","cargo","+1.99.0","clippy","--workspace","--all-targets","--","-D","warnings"],
+      "exit": 0,
+      "target_logical_bytes": 304194256
+    },
+    {
+      "name": "clippy-wasm",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "cargo",
+        "+1.99.0",
+        "clippy",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "esp32sim-wasm",
+        "--features",
+        "jit-tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "target_logical_bytes": 309261457
+    },
+    {
+      "name": "rom",
+      "command": ["nice","-n","10","cargo","+1.99.0","test","--release","--workspace","--","--include-ignored","--skip","external_"],
+      "exit": 0,
+      "target_logical_bytes": 1629248380
+    },
+    {
+      "name": "plain",
+      "command": ["nice","-n","10","cargo","+1.99.0","test","--release","--workspace"],
+      "exit": 0,
+      "target_logical_bytes": 1629248380
+    },
+    {"name":"wasm-build","command":["nice","-n","10","sh","tools/wasm-build.sh"],"exit":0,"target_logical_bytes":1675098089},
+    {
+      "name": "demos",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "node",
+        "tools/wasm-test.mjs",
+        "hello",
+        "c3-hello",
+        "c6-hello",
+        "c6-energy-scan",
+        "c6-contiki",
+        "c6-contiki-net",
+        "c6-rpl-net",
+        "panel"
+      ],
+      "exit": 0,
+      "target_logical_bytes": 1675098089
+    },
+    {"name":"privacy","command":["node","tools/check-evidence-privacy.mjs"],"exit":0,"target_logical_bytes":1675098089},
+    {
+      "name": "classic-build",
+      "command": ["nice","-n","10","cargo","+1.99.0","build","--release","--bin","esp32sim"],
+      "exit": 0,
+      "target_logical_bytes": 1675109567
+    }
+  ],
+  "environment": "Empty HOME; explicit CARGO_HOME/RUSTUP_HOME; only ROM-enabled mode sets ESP32SIM_ROM_DIR; one owned target; worktree target symlink for wasm-build.sh literal copy path",
+  "mutations": {
+    "new": {"runtime_killed":7,"assertion_killed":7,"compile_error_or_timeout_kills":0},
+    "arming": {"runtime_killed":9,"assertion_killed":9,"compile_error_or_timeout_kills":0},
+    "c7": {"runtime_killed":26,"assertion_killed":26,"compile_error_or_timeout_kills":0},
+    "c6": {"runtime_killed":35,"assertion_killed":24,"compile_error_or_timeout_kills":0},
+    "c5": {"runtime_killed":12,"assertion_killed":12,"compile_error_or_timeout_kills":0},
+    "c4": {"runtime_killed":23,"assertion_killed":22,"compile_error_or_timeout_kills":0}
+  },
+  "total_runtime_killed": 112,
+  "total_assertion_killed": 100,
+  "negative_control": {
+    "tick_only_terminal_loss_mutant": "Survives due to redundant configuration-horizon cancellation; C7 terminal-rule mutation now targets shared abort operation"
+  },
+  "reproduction": {"causes":[0,1,2],"base":"All compile and assertion-fail, EOF 512 expected 0","candidate":"All pass"},
+  "native": {
+    "expected_bytes": 38400,
+    "expected_sha256": "c67913e0afba1703e8c9c47e02b1ae2ea62e47596a8440d83f1ebba14aed6cf1",
+    "format": "RGB565 MSB first; RGB888 quantization with integer division",
+    "frames": [
+      ["0","160","120","38400","c67913e0afba1703e8c9c47e02b1ae2ea62e47596a8440d83f1ebba14aed6cf1"],
+      ["1","160","120","38400","c67913e0afba1703e8c9c47e02b1ae2ea62e47596a8440d83f1ebba14aed6cf1"]
+    ],
+    "arm_window": 240000,
+    "quarter_window": 60000,
+    "latencies": [
+      {"edge":52770195,"start":52771827,"latency":1632},
+      {"edge":100770195,"start":100771827,"latency":1632},
+      {"edge":148770195,"start":148771827,"latency":1632}
+    ],
+    "trace_source_restored": true,
+    "clean_final_result": "C8 PASS",
+    "manifest": {
+      "classic_camera.bin": {"bytes":247456,"sha256":"685ce513255eff2247eb9ff12d60ff5773529522703d26db5866898a1d3483db"},
+      "classic_camera.elf": {"bytes":4346440,"sha256":"80ac10d1744ee029439782abc8b5d362e7190026d87d29843f343a04963f2204"},
+      "bootloader/bootloader.bin": {"bytes":25584,"sha256":"9fe22a0bd805d8830602afa2d92f99312b7f567503db22808e3f7cc903f68850"},
+      "partition_table/partition-table.bin": {"bytes":3072,"sha256":"7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820"}
+    },
+    "rom_sha256": "920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31",
+    "runner_sha256": "b16e5687be90c40da4b0a33553a39467a26fcbad3891d5bfef8a754e0f3553d6"
+  },
+  "codegen": {
+    "selected_bodies": 21,
+    "strict_normalized_equal": 21,
+    "base": "213b1adda7910923ba6ac65ad6e2446c36d47d6a",
+    "tick_instructions": [2236],
+    "receipt": "cancellation-codegen.json",
+    "cpu_timing": "PENDING; none run"
+  },
+  "goldens_unchanged": 60,
+  "target_peak_measured_logical_bytes": 1675109567,
+  "cleanup": {
+    "target_deleted": true,
+    "detached_base_worktree_removed": true,
+    "worktree_target_symlink_deleted": true,
+    "untracked_runner_removed": true,
+    "unique_logical_bytes_removed": 1671313334,
+    "allocated_bytes_removed": 1681043456
+  }
+}

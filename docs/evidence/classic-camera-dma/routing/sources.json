@@ -1,0 +1,90 @@
+{
+  "gpio_sig_map.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/38eeba213aa695aabfd6d89aa9f5078dbe5a94c3/components/soc/esp32/include/soc/gpio_sig_map.h",
+    "bytes": 12574,
+    "sha256": "40d374f73e03922ac13f4a9d7b6fa780f54e5afde7178ac5369bef4a41cc7c49",
+    "selected_lines": [
+      {"line":69,"text":"#define I2S0I_BCK_IN_IDX\t\t\t27"},
+      {"line":70,"text":"#define I2S0I_BCK_OUT_IDX\t\t\t27"},
+      {"line":71,"text":"#define I2S0I_WS_IN_IDX\t\t\t28"},
+      {"line":72,"text":"#define I2S0I_WS_OUT_IDX\t\t\t28"},
+      {"line":269,"text":"#define I2S0I_DATA_IN0_IDX\t\t\t140"},
+      {"line":271,"text":"#define I2S0I_DATA_IN1_IDX\t\t\t141"},
+      {"line":273,"text":"#define I2S0I_DATA_IN2_IDX\t\t\t142"},
+      {"line":275,"text":"#define I2S0I_DATA_IN3_IDX\t\t\t143"},
+      {"line":277,"text":"#define I2S0I_DATA_IN4_IDX\t\t\t144"},
+      {"line":279,"text":"#define I2S0I_DATA_IN5_IDX\t\t\t145"},
+      {"line":281,"text":"#define I2S0I_DATA_IN6_IDX\t\t\t146"},
+      {"line":283,"text":"#define I2S0I_DATA_IN7_IDX\t\t\t147"},
+      {"line":285,"text":"#define I2S0I_DATA_IN8_IDX\t\t\t148"},
+      {"line":287,"text":"#define I2S0I_DATA_IN9_IDX\t\t\t149"},
+      {"line":289,"text":"#define I2S0I_DATA_IN10_IDX\t\t\t150"},
+      {"line":291,"text":"#define I2S0I_DATA_IN11_IDX\t\t\t151"},
+      {"line":293,"text":"#define I2S0I_DATA_IN12_IDX\t\t\t152"},
+      {"line":295,"text":"#define I2S0I_DATA_IN13_IDX\t\t\t153"},
+      {"line":297,"text":"#define I2S0I_DATA_IN14_IDX\t\t\t154"},
+      {"line":299,"text":"#define I2S0I_DATA_IN15_IDX\t\t\t155"},
+      {"line":353,"text":"#define I2S0I_H_SYNC_IDX\t\t\t190"},
+      {"line":354,"text":"#define I2S0I_V_SYNC_IDX\t\t\t191"},
+      {"line":355,"text":"#define I2S0I_H_ENABLE_IDX\t\t\t192"}
+    ]
+  },
+  "gpio_reg.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/38eeba213aa695aabfd6d89aa9f5078dbe5a94c3/components/soc/esp32/include/soc/gpio_reg.h",
+    "bytes": 393699,
+    "sha256": "87609e6eb2349cfaa569344e3ee0fb6c38b9a1dbb23b81af32e701c53af1cf84",
+    "selected_lines": [
+      {"line":305,"text":"/* GPIO_PIN0_INT_ENA : R/W ;bitpos:[17:13] ;default: x ; */"},
+      {"line":308,"text":"#define GPIO_PIN0_INT_ENA  0x0000001F"},
+      {"line":309,"text":"#define GPIO_PIN0_INT_ENA_M  ((GPIO_PIN0_INT_ENA_V)<<(GPIO_PIN0_INT_ENA_S))"},
+      {"line":310,"text":"#define GPIO_PIN0_INT_ENA_V  0x1F"},
+      {"line":311,"text":"#define GPIO_PIN0_INT_ENA_S  13"},
+      {"line":1697,"text":"#define GPIO_FUNC0_IN_SEL_CFG_REG          (DR_REG_GPIO_BASE + 0x0130)"},
+      {"line":1698,"text":"/* GPIO_SIG0_IN_SEL : R/W ;bitpos:[7] ;default: x ; */"},
+      {"line":1701,"text":"#define GPIO_SIG0_IN_SEL  (BIT(7))"},
+      {"line":1702,"text":"#define GPIO_SIG0_IN_SEL_M  (BIT(7))"},
+      {"line":1703,"text":"#define GPIO_SIG0_IN_SEL_V  0x1"},
+      {"line":1704,"text":"#define GPIO_SIG0_IN_SEL_S  7"},
+      {"line":1705,"text":"/* GPIO_FUNC0_IN_INV_SEL : R/W ;bitpos:[6] ;default: x ; */"},
+      {"line":1707,"text":"#define GPIO_FUNC0_IN_INV_SEL  (BIT(6))"},
+      {"line":1708,"text":"#define GPIO_FUNC0_IN_INV_SEL_M  (BIT(6))"},
+      {"line":1709,"text":"#define GPIO_FUNC0_IN_INV_SEL_V  0x1"},
+      {"line":1710,"text":"#define GPIO_FUNC0_IN_INV_SEL_S  6"},
+      {"line":1711,"text":"/* GPIO_FUNC0_IN_SEL : R/W ;bitpos:[5:0] ;default: x ; */"},
+      {"line":1713,"text":"#define GPIO_FUNC0_IN_SEL  0x0000003F"},
+      {"line":1714,"text":"#define GPIO_FUNC0_IN_SEL_M  ((GPIO_FUNC0_IN_SEL_V)<<(GPIO_FUNC0_IN_SEL_S))"},
+      {"line":1715,"text":"#define GPIO_FUNC0_IN_SEL_V  0x3F"},
+      {"line":1716,"text":"#define GPIO_FUNC0_IN_SEL_S  0"}
+    ]
+  },
+  "io_mux_reg.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/38eeba213aa695aabfd6d89aa9f5078dbe5a94c3/components/soc/esp32/include/soc/io_mux_reg.h",
+    "bytes": 17267,
+    "sha256": "00c53a396249d4e2714b3577d3a9dc3b39cfe8c9f0e485ae22374724047894ea",
+    "selected_lines": []
+  },
+  "dport_reg.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp-idf/38eeba213aa695aabfd6d89aa9f5078dbe5a94c3/components/soc/esp32/include/soc/dport_reg.h",
+    "bytes": 207386,
+    "sha256": "38deaa4ef02016ee9cdf490a9bfe4b587f11d1d1e6a2329dc858a50b9b248817",
+    "selected_lines": [
+      {"line":946,"text":"#define DPORT_PERIP_CLK_EN_REG          (DR_REG_DPORT_BASE + 0x0C0)"},
+      {"line":977,"text":"#define DPORT_I2S0_CLK_EN   (BIT(4))"}
+    ]
+  },
+  "ll_cam.c": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/target/esp32/ll_cam.c",
+    "bytes": 18218,
+    "sha256": "caec256ebf514250aca3ef0b5154fff875afb4949f9beda800ebace9b8c84512",
+    "selected_lines": [
+      {"line":45,"text":"#define gpio_matrix_in(a,b,c) esp_rom_gpio_connect_in_signal(a,b,c)"},
+      {"line":218,"text":"    ets_delay_us(1);"},
+      {"line":298,"text":"    DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_I2S0_CLK_EN);"},
+      {"line":367,"text":"    gpio_matrix_in(config->pin_pclk, I2S0I_WS_IN_IDX, false);"},
+      {"line":372,"text":"    gpio_matrix_in(config->pin_vsync, I2S0I_V_SYNC_IDX, false);"},
+      {"line":377,"text":"    gpio_matrix_in(config->pin_href, I2S0I_H_SYNC_IDX, false);"},
+      {"line":386,"text":"        gpio_matrix_in(data_pins[i], I2S0I_DATA_IN0_IDX + i, false);"},
+      {"line":389,"text":"    gpio_matrix_in(0x38, I2S0I_H_ENABLE_IDX, false);"}
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "file": "esp32/tests/fixtures/classic-camera/bootloader/bootloader.bin",
+    "bytes": 25584,
+    "sha256": "9fe22a0bd805d8830602afa2d92f99312b7f567503db22808e3f7cc903f68850",
+    "published_source": "7352bc81:web/wasm/fw/public/classic-camera/bootloader/bootloader.bin",
+    "byte_equal": true
+  },
+  {
+    "file": "esp32/tests/fixtures/classic-camera/partition_table/partition-table.bin",
+    "bytes": 3072,
+    "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "published_source": "7352bc81:web/wasm/fw/public/classic-camera/partition_table/partition-table.bin",
+    "byte_equal": true
+  },
+  {
+    "file": "esp32/tests/fixtures/classic-camera/classic_camera.bin",
+    "bytes": 247456,
+    "sha256": "ed71f35e87be722f446b2a3f5fdb1f98de2fb2356d85d4586317825962cba6ea",
+    "published_source": "7352bc81:web/wasm/fw/public/classic-camera/classic_camera.bin",
+    "byte_equal": true
+  },
+  {
+    "file": "esp32/tests/fixtures/classic-camera/lifecycle.bin",
+    "bytes": 248256,
+    "sha256": "2746afe90c3d855244339c2b6e505b0e3c7c5b69c09dc9ecf560bbed120dd661",
+    "published_source": "7352bc81:web/wasm/fw/public/classic-camera-lifecycle/classic_camera.bin",
+    "byte_equal": true
+  }
+]

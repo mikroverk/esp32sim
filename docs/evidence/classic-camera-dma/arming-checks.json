@@ -1,0 +1,112 @@
+{
+  "base": "a3315ab85be28cd5318f2ab381a59f9b4b9c6b7a",
+  "checks": [
+    {
+      "name": "native-clippy",
+      "command": "nice -n 10 cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+      "exit": 0,
+      "results": [],
+      "passed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "wasm-clippy",
+      "command": "nice -n 10 cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exit": 0,
+      "results": [],
+      "passed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "rom-tests",
+      "command": "nice -n 10 cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_",
+      "exit": 0,
+      "result_batches": 102,
+      "result_totals": {"failed":0,"ignored":0,"passed":1038},
+      "passed": 1038,
+      "ignored": 0
+    },
+    {
+      "name": "plain-tests",
+      "command": "nice -n 10 cargo +1.99.0 test --release --workspace",
+      "exit": 0,
+      "result_batches": 102,
+      "result_totals": {"failed":0,"ignored":50,"passed":1010},
+      "passed": 1010,
+      "ignored": 50
+    },
+    {"name":"wasm-build","command":"nice -n 10 sh tools/wasm-build.sh","exit":0,"results":[],"passed":0,"ignored":0},
+    {
+      "name": "demos",
+      "command": "nice -n 10 node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "exit": 0,
+      "results": [],
+      "passed": 0,
+      "ignored": 0
+    },
+    {"name":"privacy","command":"node tools/check-evidence-privacy.mjs","exit":0,"results":[],"passed":0,"ignored":0},
+    {
+      "name": "candidate-cli",
+      "command": "nice -n 10 cargo +1.99.0 build --release --bin esp32sim",
+      "exit": 0,
+      "results": [],
+      "passed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "native-fixture-build",
+      "command": "nice -n 10 cargo +1.99.0 build --release -p esp32 --example camera_capture",
+      "exit": 0,
+      "results": [],
+      "passed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "native-fixture",
+      "command": "nice -n 10 $OUTPUT/target/release/examples/camera_capture $FIXTURE $FIXTURE/esp32_rev300_rom.elf",
+      "exit": 0,
+      "results": [],
+      "passed": 0,
+      "ignored": 0
+    }
+  ],
+  "frame": {
+    "expected": {
+      "width": 160,
+      "height": 120,
+      "bytes": 38400,
+      "byte_order": "RGB565 MSB-first",
+      "sha256": "c67913e0afba1703e8c9c47e02b1ae2ea62e47596a8440d83f1ebba14aed6cf1"
+    },
+    "observed_hashes": ["c67913e0afba1703e8c9c47e02b1ae2ea62e47596a8440d83f1ebba14aed6cf1","c67913e0afba1703e8c9c47e02b1ae2ea62e47596a8440d83f1ebba14aed6cf1"]
+  },
+  "latency": [
+    {"edge":52770195,"start":52771827,"latency_cycles":1632},
+    {"edge":100770195,"start":100771827,"latency_cycles":1632},
+    {"edge":148770195,"start":148771827,"latency_cycles":1632}
+  ],
+  "arm_window_cycles": 240000,
+  "latency_limit_cycles": 60000,
+  "measured_max_latency_cycles": 1632,
+  "mutation_count": 105,
+  "new_assertion_kills": 9,
+  "source_sha256": {
+    "esp32/src/camera_dma.rs": "5307253c8de47a0e3286aabe324870e4602810497c69c3f35a5b1e50b66c5741",
+    "esp32/src/board/aithinker.rs": "a285029220fb29d8385a8259f2a64c90c7f9904bb5e61066c25b25b8afec3e10",
+    "esp32/src/bus.rs": "ae87136587d752bb7095e3cf9d39d909f980b23bd041171fea473f507bcc698b",
+    "esp32/src/i2s.rs": "0375f514a7e879dd4ac4ac94b761b8fe062f1ac811c1359628bf55644c51d66c",
+    "esp-soc/src/board.rs": "e5440bc0bd1ca682dd8cb61bfd83a8cf8d04cd8748800e1ab7512a7f9a4913a5",
+    "esp32/tests/camera_dma/cases.rs": "d118890ff0875ee93117449f50d39699c9920b9111f1907d3693e25b58156bbf",
+    "esp32/tests/camera_dma/arming.rs": "ed1b2904a3a4fcedb062d47a5d8aabde956df08d101a24261818c4e2ab27d94e"
+  },
+  "unchanged_golden_paths": 60,
+  "inherited_test_bodies_unchanged": true,
+  "environment": "Empty HOME; explicit CARGO_HOME/RUSTUP_HOME; only ROM-enabled tests set ESP32SIM_ROM_DIR. Single target, cargo +1.99.0, nice -n 10.",
+  "limits": "No CPU timing, silicon, Docker or publication.",
+  "cleanup": {
+    "target_logical_bytes_removed": 1836841496,
+    "target_allocated_bytes_removed": 1945608192,
+    "file_paths_removed": 2650,
+    "unique_file_inodes": 2632
+  }
+}

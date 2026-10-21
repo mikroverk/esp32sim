@@ -1,0 +1,242 @@
+{
+  "recorded_rows": 105,
+  "outcome_counts": {"killed":{"true":105},"assertion":{"true":93,"false":12}},
+  "groups": [
+    {
+      "count": 2,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_inclusive_window_boundary_and_exact_catchup"},
+      "names": ["exclusive boundary","unbounded window"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_driver_stop_reset_start_inside_window"},
+      "names": ["window disabled","delivery timed from start"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_forced_low_power_clock_stream_stop_never_starts_frame"},
+      "names": ["forced low counted as start"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_second_start_cannot_replay_claimed_frame"},
+      "names": ["frame claim replayed"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_route_loss_and_restore_inside_window_requires_new_pulse"},
+      "names": ["route loss ignored"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_initially_invalid_route_waits_instead_of_aborting"},
+      "names": ["unqualified start aborts early"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"arming","killed":true,"assertion":true,"test":"c7::arming::c71_unrelated_pad_and_noroute_bit_writes_keep_window"},
+      "names": ["unrelated pad bits close window"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_dport_reset_drops_capture_and_requires_fresh_inlink"},
+      "names": ["peripheral reset preserves stale frame"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_camera_free_active_pcm_does_not_poll_board_camera"},
+      "names": ["camera-free board polling"]
+    },
+    {
+      "count": 4,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::arming::c71_driver_stop_reset_start_inside_window"},
+      "names": ["camera dispatch cache missing","lose fractional word position","wrong frame rate","mode1 sensor sample ordering"]
+    },
+    {
+      "count": 4,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::arming::c71_falling_edge_full_frame_and_tick_splits"},
+      "names": ["transport disabled","wrong classic IRQ mapping","owner not returned","EOF flag not written"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::arming::c71_second_start_cannot_replay_claimed_frame"},
+      "names": ["ignore VSYNC arm","charge pulse as pixels"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_ring_starvation_and_finite_guest_service_reuse"},
+      "names": ["do not consume byte position"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::arming::c71_route_loss_and_restore_inside_window_requires_new_pulse"},
+      "names": ["drop final boundary word","wrong EOF count unit"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::arming::c71_initially_invalid_route_waits_instead_of_aborting"},
+      "names": ["wrong FIFO mode"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_mid_frame_route_or_power_loss_is_terminal_until_rearm"},
+      "names": ["route loss not terminal"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_stop_restart_and_every_rx_reset_discard_incomplete_frame"},
+      "names": ["RX resets keep DMA running"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_inlink_rmw_stop_must_remain_stopped_until_fresh_start"},
+      "names": ["START command retained in readback","length not written"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_rx_disable_rmw_stop_and_reenable_requires_fresh_start"},
+      "names": ["inlink stop ignored"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_qqvga_pattern_twenty_descriptors_ten_serviced_eof_chunks"},
+      "names": ["wrong EOF descriptor register"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_bad_owner_forbidden_descriptor_and_buffer_never_eof"},
+      "names": ["owner check bypassed","DRAM rule admits CPU-only prefix"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c7","killed":true,"assertion":true,"test":"c7::c7_exact_native_descriptors_two_eofs_and_classic_irq"},
+      "names": ["wrong descriptor advance","mode3 sensor sample lane"]
+    },
+    {
+      "count": 8,
+      "outcome": {"suite":"c6","killed":true,"assertion":true,"test":"c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma"},
+      "names": [
+        "vsync-pin",
+        "pulse-shorter-than-isr",
+        "vsync-stuck-low",
+        "vsync-stuck-high",
+        "first-edge-too-early",
+        "no-gpio-delivery",
+        "no-board-deadline-in-scheduler",
+        "dma-write-before-transport"
+      ]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c6","killed":true,"assertion":false,"test":"c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma"},
+      "names": ["missing-deadline","capture-start-gates-vsync"]
+    },
+    {
+      "count": 5,
+      "outcome": {"suite":"c6","killed":true,"assertion":true,"test":"c6_power_clock_and_sensor_stop_cancel_and_restart_vsync"},
+      "names": ["vsync-power-ignored","vsync-xclk-ignored","vsync-stream-ignored","stop-retains-high","stop-retains-deadline"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c6","killed":true,"assertion":true,"test":"c6_deadline_edges_preserve_timestamps_and_large_steps"},
+      "names": ["edge-timestamps-lost","skip-intermediate-edges"]
+    },
+    {
+      "count": 5,
+      "outcome": {"suite":"c6","killed":true,"assertion":false,"test":"c6_physical_routes_inversion_and_reconfiguration"},
+      "names": ["data-wire-unqualified","clock-wire-unqualified","href-wire-unqualified","vsync-wire-unqualified","control-polarity-ignored"]
+    },
+    {
+      "count": 4,
+      "outcome": {"suite":"c6","killed":true,"assertion":true,"test":"c6_physical_routes_inversion_and_reconfiguration"},
+      "names": ["ignore-data-inversion","ignore-enable","pad-input-disable-ignored","pad-function-ignored"]
+    },
+    {
+      "count": 5,
+      "outcome": {"suite":"c6","killed":true,"assertion":true,"test":"c6_receiver_unarmed_reset_and_modes_withhold_routed_frames"},
+      "names": ["rx-start-ignored","rx-slave-ignored","rx-descriptor-ignored","rx-force-ignored","rx-fifo-mode-ignored"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c6","killed":true,"assertion":false,"test":"c6_receiver_unarmed_reset_and_modes_withhold_routed_frames"},
+      "names": ["rx-clock-gate-ignored"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c6","killed":true,"assertion":false,"test":"c6_camera_free_has_no_producer_deadlines_or_steps"},
+      "names": ["camera-free-input-poll","camera-free-deadline-poll"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c6","killed":true,"assertion":false,"test":"c6_active_non_camera_board_never_queries_camera_clock"},
+      "names": ["non-camera-clock-poll"]
+    },
+    {
+      "count": 5,
+      "outcome": {"suite":"c5","killed":true,"assertion":true,"test":"camera_fifo::tests::camera_fifo_row_tail_is_not_next_row"},
+      "names": ["mode1 sample ordering","mode3 sample lane","row tail emission","row tail lane","row boundary consumes tail"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c5","killed":true,"assertion":true,"test":"camera_fifo::tests::camera_fifo_exact_little_endian_words"},
+      "names": ["mode1 zero padding","mode3 zero padding"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c5","killed":true,"assertion":true,"test":"camera_fifo::tests::camera_fifo_arbitrary_splits_and_empty_chunks"},
+      "names": ["split carry"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c5","killed":true,"assertion":true,"test":"camera_fifo::tests::camera_fifo_reset_discards_partial_word"},
+      "names": ["reset discards tail"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c5","killed":true,"assertion":true,"test":"camera_fifo::tests::camera_fifo_rejects_every_unsupported_mode"},
+      "names": ["reject overlap mode zero","reject mode two"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c5","killed":true,"assertion":true,"test":"camera_fifo::tests::camera_fifo_rgb565_yuv_and_grayscale"},
+      "names": ["mode3 differs from mode1"]
+    },
+    {
+      "count": 6,
+      "outcome": {"suite":"c4","killed":true,"assertion":true,"test":"i2s::tests::camera_bypasses_audio_and_mode_exit_restores_pcm"},
+      "names": ["zero camera width","port identity","camera bypass","audio rate disabled","audio producer stopped","mode write synchronizes"]
+    },
+    {
+      "count": 1,
+      "outcome": {"suite":"c4","killed":true,"assertion":false,"test":"i2s::tests::camera_bypasses_audio_and_mode_exit_restores_pcm"},
+      "names": ["camera audio clock validation"]
+    },
+    {
+      "count": 2,
+      "outcome": {"suite":"c4","killed":true,"assertion":true,"test":"i2s::tests::camera_requires_both_mode_bits_on_port_zero_only"},
+      "names": ["LCD required","CAMERA required"]
+    },
+    {
+      "count": 11,
+      "outcome": {"suite":"c4","killed":true,"assertion":true,"test":"i2s::tests::camera_reset_bits_and_fifo_fields_are_live"},
+      "names": [
+        "CONF2 offset",
+        "RX reset",
+        "RX FIFO reset",
+        "TX reset isolation",
+        "LC input reset",
+        "LC AHB FIFO reset",
+        "LC AHB reset",
+        "TX LC reset isolation",
+        "start bit",
+        "reset gates start",
+        "FIFO mode"
+      ]
+    },
+    {
+      "count": 3,
+      "outcome": {"suite":"c4","killed":true,"assertion":true,"test":"i2s::tests::camera_driver_config_start_stop_trace"},
+      "names": ["slave bit","descriptor enable","forced mode"]
+    }
+  ]
+}

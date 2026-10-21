@@ -1,0 +1,36 @@
+{
+  "recorded_rows": 24,
+  "outcome_counts": {"killed":{"false":1,"true":23}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"killed":false,"failed_test_count":0},"names":["baseline"]},
+    {"count":2,"outcome":{"exit":101,"killed":true,"failed_test_count":4},"names":["zero camera width","CONF2 offset"]},
+    {
+      "count": 16,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":1},
+      "names": [
+        "camera audio clock validation",
+        "LCD required",
+        "CAMERA required",
+        "RX reset",
+        "RX FIFO reset",
+        "TX reset isolation",
+        "LC input reset",
+        "LC AHB FIFO reset",
+        "LC AHB reset",
+        "TX LC reset isolation",
+        "reset gates start",
+        "slave bit",
+        "FIFO mode",
+        "descriptor enable",
+        "forced mode",
+        "mode write synchronizes"
+      ]
+    },
+    {
+      "count": 4,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":2},
+      "names": ["port identity","camera bypass","audio rate disabled","audio producer stopped"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failed_test_count":3},"names":["start bit"]}
+  ]
+}

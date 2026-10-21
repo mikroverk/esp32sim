@@ -1,0 +1,152 @@
+{
+  "total": 18,
+  "killed": 18,
+  "compile_error_kills": 0,
+  "timeout_kills": 0,
+  "rows": [
+    {
+      "group": "review",
+      "name": "missing unsupported-output notice",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "review",
+      "name": "notice repeated on every query",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "review",
+      "name": "classic CLI image refused",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": "Custom-message status assertion at cli/tests/classic_camera.rs:36; initial harness required the literal word assertion."
+    },
+    {
+      "group": "review",
+      "name": "image never attached",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "review",
+      "name": "camera missing from usage",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "review",
+      "name": "inverted frame not reused",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "review",
+      "name": "inverted mask stays stale",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "review",
+      "name": "inverted source stays stale",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "fixture",
+      "name": "camera dispatch disabled",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "fixture",
+      "name": "transport drops bytes",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "fixture",
+      "name": "wrong FIFO mode",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "fixture",
+      "name": "wrong sensor sample ordering",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "fixture",
+      "name": "wrong classic EOF count unit",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": null,
+      "classification_note": null
+    },
+    {
+      "group": "board",
+      "name": "sccb-power",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": "aithinker_pwdn_stop_and_reset_withhold_frames",
+      "classification_note": null
+    },
+    {
+      "group": "board",
+      "name": "frame-power",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": "aithinker_pwdn_stop_and_reset_withhold_frames",
+      "classification_note": null
+    },
+    {
+      "group": "board",
+      "name": "unsupported-jpeg",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": "aithinker_host_and_register_updates_invalidate_shared_cache",
+      "classification_note": null
+    },
+    {
+      "group": "routing",
+      "name": "vsync-power-ignored",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": "c6_power_clock_and_sensor_stop_cancel_and_restart_vsync",
+      "classification_note": null
+    },
+    {
+      "group": "routing",
+      "name": "ignore-data-inversion",
+      "assertion_killed": true,
+      "exit": 101,
+      "test": "c6_physical_routes_inversion_and_reconfiguration",
+      "classification_note": null
+    }
+  ]
+}

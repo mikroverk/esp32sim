@@ -1,0 +1,12 @@
+{
+  "recorded_rows": 6,
+  "outcome_counts": {"assertion_killed":{"false":1,"true":5}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"assertion_killed":false},"names":["baseline"]},
+    {
+      "count": 5,
+      "outcome": {"exit":101,"assertion_killed":true},
+      "names": ["camera dispatch disabled","transport drops bytes","wrong FIFO mode","wrong sensor sample ordering","wrong classic EOF count unit"]
+    }
+  ]
+}

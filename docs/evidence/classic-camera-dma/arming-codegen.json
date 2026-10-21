@@ -1,0 +1,38 @@
+{
+  "base": "a3315ab85be28cd5318f2ab381a59f9b4b9c6b7a",
+  "method": "EX230 address/page relocation and equivalent call alias normalization; differences retained, not whole binary equivalence",
+  "artifacts": [
+    {
+      "label": "base",
+      "sha256": "bbdf31a314339b81a3e980bf9f85ff3d9b4b9d96054a06ade22585a95d0ec7b3",
+      "disassembly_sha256": "617d2b03d7f74a51917a1ddf102f101c2b6e18629f07268ad6a5f6d7e12e12cf"
+    },
+    {
+      "label": "candidate",
+      "sha256": "84c990ebc8660beb6339b3e6bc69211386fee66ac3f2c27de110195312981fce",
+      "disassembly_sha256": "1f5b6e7d68c9f0b8988687ae5159019178840979edf63315cdc6918b5b18e9fe"
+    }
+  ],
+  "explanation": {
+    "function": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+    "removed_instruction": "ldr\tx2, [sp, #0xb8]",
+    "reason": "camera_dma_data no longer consumes the cycles argument; its old argument load disappears only in the existing active camera branch. All remaining differences are SP-relative spill slot assignments, verified after this single exact call-site removal. Equality score remains 20/21; not whole-binary equivalence or a CPU measurement.",
+    "strictly_identical": 20,
+    "compared": 21,
+    "base_instructions": 2237,
+    "candidate_instructions": 2236,
+    "sp_slot_normalized_sequences_equal": true,
+    "base_guard_window_omitted_entries": 48,
+    "candidate_guard_window_omitted_entries": 48
+  },
+  "body_totals": {"selected":{"compared":21,"identical":20,"base_instructions":27918,"candidate_instructions":27917}},
+  "different_bodies": [
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+      "same": false,
+      "base_instructions": 2237,
+      "candidate_instructions": 2236,
+      "diff_omitted_entries": 149
+    }
+  ]
+}

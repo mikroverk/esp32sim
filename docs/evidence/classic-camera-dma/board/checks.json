@@ -1,0 +1,55 @@
+[
+  {
+    "name": "mutations",
+    "command": ["python3","docs/evidence/classic-camera-dma/board/mutations.py",".","<output>/mutations"],
+    "returncode": 0,
+    "empty_home": true,
+    "rom_enabled": false
+  },
+  {
+    "name": "clippy-native",
+    "command": ["cargo","+1.99.0","clippy","--workspace","--all-targets","--","-D","warnings"],
+    "returncode": 0,
+    "empty_home": true,
+    "rom_enabled": false
+  },
+  {
+    "name": "clippy-wasm",
+    "command": [
+      "cargo",
+      "+1.99.0",
+      "clippy",
+      "--release",
+      "--target",
+      "wasm32-unknown-unknown",
+      "-p",
+      "esp32sim-wasm",
+      "--features",
+      "jit-tests",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "returncode": 0,
+    "empty_home": true,
+    "rom_enabled": false
+  },
+  {
+    "name": "rom-tests",
+    "command": ["cargo","+1.99.0","test","--release","--workspace","--","--include-ignored","--skip","external_"],
+    "returncode": 0,
+    "empty_home": true,
+    "rom_enabled": true
+  },
+  {"name":"plain-tests","command":["cargo","+1.99.0","test","--release","--workspace"],"returncode":0,"empty_home":true,"rom_enabled":false},
+  {"name":"wasm-build","command":["tools/wasm-build.sh"],"returncode":0,"empty_home":true,"rom_enabled":false},
+  {
+    "name": "wasm-demos",
+    "command": ["node","tools/wasm-test.mjs","hello","c3-hello","c6-hello","c6-energy-scan","c6-contiki","c6-contiki-net","c6-rpl-net","panel"],
+    "returncode": 0,
+    "empty_home": true,
+    "rom_enabled": false
+  },
+  {"name":"privacy","command":["node","tools/check-evidence-privacy.mjs"],"returncode":0,"empty_home":true,"rom_enabled":false},
+  {"name":"build-bins","command":["cargo","+1.99.0","build","--release","--bins"],"returncode":0,"empty_home":true,"rom_enabled":false}
+]

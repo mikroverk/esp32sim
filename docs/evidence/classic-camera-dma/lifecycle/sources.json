@@ -1,0 +1,37 @@
+{
+  "driver_sha": "b817e9b81041980608d1a3d3e0b08d86e3666382",
+  "driver_files_verified": 107,
+  "idf_sha": "ea1c174c1cbb7348bd8ba0ff1eb306246938dd80",
+  "compiler": "xtensa-esp-elf-gcc (crosstool-NG esp-14.2.0_20250730) 14.2.0",
+  "files": [
+    {
+      "file": "examples/classic-camera/main/lifecycle.c",
+      "sha256": "5806e3b292b3c2875cef6e0a6c366d61beeb7f03f185b09e9669b44e4256e15c"
+    },
+    {
+      "file": "examples/classic-camera/main/main.c",
+      "sha256": "3d3a0f96fa136eece2dd60fa42da0c97b2c0dcab874993130ba1e3e10fa03069"
+    },
+    {
+      "file": "examples/classic-camera/main/CMakeLists.txt",
+      "sha256": "329703db9408bc890276c7516893c4f217c804a32d7fd11c6fda699edc68829a"
+    },
+    {
+      "file": "examples/classic-camera/CMakeLists.txt",
+      "sha256": "76bb49fa63311b360c4e9d87502c5fbb3b3b4f04d2710da98630b1a240f30261"
+    },
+    {
+      "file": "examples/classic-camera/build.sh",
+      "sha256": "d5f767a0ad1b3b66c167e3888a463475b84b2ff4c218e16583ddeec380576e1b"
+    },
+    {
+      "file": "examples/classic-camera/sdkconfig.defaults",
+      "sha256": "3c86f32dbb5bf3c732f525ac8aebe925c87bc3dbc425ad100997eb22ee59794d"
+    },
+    {
+      "file": "examples/classic-camera/dependencies.lock",
+      "sha256": "358a1ba4ba33cea5c8f3533d7360816d41ccaeeea6aae59bbed46ba867f9ba70"
+    }
+  ],
+  "driver_manifest": "../fixture-driver-sources.json"
+}

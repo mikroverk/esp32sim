@@ -1,0 +1,26 @@
+{
+  "command": "cargo +1.99.0 test -p esp-soc -p esp32s3 --lib camera",
+  "procedure": "Each replacement applied individually, source restored after every case; compile errors do not count as kills.",
+  "recorded_rows": 12,
+  "outcome_counts": {"killed":{"false":1,"true":11}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"killed":false,"failed_test_count":0},"names":["baseline"]},
+    {
+      "count": 11,
+      "outcome": {"exit":101,"killed":true,"failed_test_count":1},
+      "names": [
+        "SCCB reset",
+        "window sync",
+        "config cache invalidation",
+        "picture cache invalidation",
+        "stream gating",
+        "JPEG rejection",
+        "RGB565 conversion",
+        "YUYV conversion",
+        "grayscale conversion",
+        "black fallback",
+        "preview source"
+      ]
+    }
+  ]
+}

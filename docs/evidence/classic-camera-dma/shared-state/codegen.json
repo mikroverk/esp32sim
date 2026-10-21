@@ -1,0 +1,49 @@
+{
+  "base": "142805d5399e0c3cf25995fe21ba524e75a2b3cb",
+  "method": "EX230 asmcmp: addresses/page relocations and equivalent call aliases normalized; selected hot functions, not entire binary equivalence",
+  "selector": "(Machine<esp32(?:::|s3::|c3::|c6::).*>::(?:run|step_core|after_round|present_irqs)|esp32(?:::|s3::|c3::|c6::)bus::SocBus.*::(?:tick|read32|write32|fetch|next_deadline)|(?:xtensa_lx7|riscv_rv32)::.*::(?:run|step|exec).*esp32(?:::|s3::|c3::|c6::)bus::SocBus)",
+  "artifacts": [
+    {
+      "label": "base",
+      "binary": "esp32sim",
+      "sha256": "f2233ae632a0833c0fe249d846a0644d0de9fdd43e8635f386f8df8325fb80dc",
+      "disassembly_sha256": "7547c91e024989b1a4784618655ca97a2e723e99ef21852c9437d61d96a1cad2"
+    },
+    {
+      "label": "candidate",
+      "binary": "esp32sim",
+      "sha256": "3cf12a222092bec49f89a627687b050e8d39fed95087b96b74de2c9abb85b510",
+      "disassembly_sha256": "e4aeb81043168d81ead3edb98e26838366e7ec0273858ee9bebf20357a41a6f1"
+    },
+    {
+      "label": "base",
+      "binary": "esp32sim-c3",
+      "sha256": "b136b7c9cc4510ab83c0c489c59d941f2cc9afd9a8f09e2ac50147645b068fae",
+      "disassembly_sha256": "459ea153b14aad403c77333c802bb60ef35b56aea7ff34c12a6f00717651f630"
+    },
+    {
+      "label": "candidate",
+      "binary": "esp32sim-c3",
+      "sha256": "3ab031d0953cebdc1d05aa0641948a0a13f67e1d503543836a3b3ea6a22f3d0f",
+      "disassembly_sha256": "4d2f9832aeec489b5fa62b077d68f8201acc9aec0b32db44899ef41ff0c86bb1"
+    },
+    {
+      "label": "base",
+      "binary": "esp32sim-c6",
+      "sha256": "684c5e37732eb13cbf32edacf7eaafea04bb2fc6bb57ad4086ebf25960bc7a2e",
+      "disassembly_sha256": "98dee49da6929da391afe2328c913c61f4211a71c370e4a23ca58bdd323a116f"
+    },
+    {
+      "label": "candidate",
+      "binary": "esp32sim-c6",
+      "sha256": "657137924993bc7edfd4719656c5a6679144ef11d9e2c588a492e9a6f4c70bd8",
+      "disassembly_sha256": "0608b5e0727f5d1a1bcc5d69076c433025aba24527f5e6d4d6cc8b09ee992db0"
+    }
+  ],
+  "body_totals": {
+    "esp32sim": {"compared":72,"identical":72,"base_instructions":76890,"candidate_instructions":76890},
+    "esp32sim-c3": {"compared":72,"identical":72,"base_instructions":76890,"candidate_instructions":76890},
+    "esp32sim-c6": {"compared":72,"identical":72,"base_instructions":76890,"candidate_instructions":76890}
+  },
+  "different_bodies": []
+}

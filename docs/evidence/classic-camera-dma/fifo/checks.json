@@ -1,0 +1,71 @@
+[
+  {
+    "check": "native-clippy",
+    "command": ["nice","-n","10","cargo","+1.99.0","clippy","--workspace","--all-targets","--","-D","warnings"],
+    "exit": 0,
+    "empty_home": false
+  },
+  {
+    "check": "wasm-clippy",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "clippy",
+      "--release",
+      "--target",
+      "wasm32-unknown-unknown",
+      "-p",
+      "esp32sim-wasm",
+      "--features",
+      "jit-tests",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0,
+    "empty_home": false
+  },
+  {
+    "check": "tests-rom",
+    "command": ["nice","-n","10","cargo","+1.99.0","test","--release","--workspace","--","--include-ignored","--skip","external_"],
+    "exit": 0,
+    "empty_home": true
+  },
+  {"check":"tests-plain","command":["nice","-n","10","cargo","+1.99.0","test","--release","--workspace"],"exit":0,"empty_home":true},
+  {"check":"wasm-build","command":["nice","-n","10","tools/wasm-build.sh"],"exit":0,"empty_home":false},
+  {
+    "check": "wasm-demos",
+    "command": [
+      "nice",
+      "-n",
+      "10",
+      "node",
+      "tools/wasm-test.mjs",
+      "hello",
+      "c3-hello",
+      "c6-hello",
+      "c6-energy-scan",
+      "c6-contiki",
+      "c6-contiki-net",
+      "c6-rpl-net",
+      "panel"
+    ],
+    "exit": 0,
+    "empty_home": false
+  },
+  {
+    "check": "driver",
+    "command": ["python3","docs/evidence/classic-camera-dma/fifo/verify-driver.py","REPO","OUT/driver"],
+    "exit": 0,
+    "empty_home": false
+  },
+  {
+    "check": "release-bin",
+    "command": ["nice","-n","10","cargo","+1.99.0","build","--release","-p","esp32sim","--bin","esp32sim"],
+    "exit": 0,
+    "empty_home": false
+  }
+]

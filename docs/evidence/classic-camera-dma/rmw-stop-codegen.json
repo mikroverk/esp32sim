@@ -1,0 +1,239 @@
+{
+  "method": "Additional explanation only; original 10/21 equality score is not changed",
+  "rows": [
+    {
+      "comparison": "base",
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 11,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::read32",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 17,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+      "classification": "active-DMA camera dispatch plus layout/stack/register allocation changes",
+      "instruction_delta": 30,
+      "opcode_delta": {
+        "add": 2,
+        "and": 2,
+        "b": 3,
+        "b.eq": 1,
+        "b.hi": 1,
+        "b.ls": -1,
+        "bl": 2,
+        "cbnz": 1,
+        "cbz": 1,
+        "cmn": 1,
+        "ldp": 2,
+        "ldr": -1,
+        "ldrb": 2,
+        "ldur": 4,
+        "mov": -3,
+        "movk": -5,
+        "stp": 1,
+        "str": 10,
+        "stur": 3,
+        "sub": 4
+      },
+      "camera_call_windows_omitted_entries": 1
+    },
+    {
+      "comparison": "base",
+      "name": "<esp32::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 7,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::after_round",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 20,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::present_irqs",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 15,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_modeled",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 143,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_unmodeled::<false>",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [
+        {
+          "before": {
+            "address": "0x1001eb000",
+            "bytes_hex": "0004004000000000010000001f000000",
+            "sha256": "8439af16ba673956ea7f98bfd003430c76a8e6aa35317e166cce13743da3b059",
+            "instruction_addresses": ["0x1000cdd78","0x1000cdd7c"]
+          },
+          "after": {
+            "address": "0x1001ec4c0",
+            "bytes_hex": "0004004000000000010000001f000000",
+            "sha256": "8439af16ba673956ea7f98bfd003430c76a8e6aa35317e166cce13743da3b059",
+            "instruction_addresses": ["0x1000cf138","0x1000cf13c"]
+          },
+          "index": 319
+        }
+      ],
+      "changed_field_operands": 121,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::step_core",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 54,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32::bus::SocBus>",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 5,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "base",
+      "name": "xtensa_lx7::block::step_extra::<esp32::bus::SocBus>",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 4,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 11,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::read32",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 17,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+      "classification": "active-DMA camera dispatch plus layout/stack/register allocation changes",
+      "instruction_delta": 30,
+      "opcode_delta": {
+        "add": 2,
+        "and": 2,
+        "b": 3,
+        "b.eq": 1,
+        "b.hi": 1,
+        "b.ls": -1,
+        "bl": 2,
+        "cbnz": 1,
+        "cbz": 1,
+        "cmn": 1,
+        "ldp": 2,
+        "ldr": -1,
+        "ldrb": 2,
+        "ldur": 4,
+        "mov": -3,
+        "movk": -5,
+        "stp": 1,
+        "str": 10,
+        "stur": 3,
+        "sub": 4
+      },
+      "camera_call_windows_omitted_entries": 1
+    },
+    {
+      "comparison": "main",
+      "name": "<esp32::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 7,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::after_round",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 20,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::present_irqs",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 15,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_modeled",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 143,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_unmodeled::<false>",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 121,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::step_core",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 54,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32::bus::SocBus>",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 5,
+      "examples_omitted_entries": 3
+    },
+    {
+      "comparison": "main",
+      "name": "xtensa_lx7::block::step_extra::<esp32::bus::SocBus>",
+      "classification": "same operations/registers/order; +16-byte struct field displacements, equivalent call aliases and verified constant relocations",
+      "verified_constant_loads": [],
+      "changed_field_operands": 4,
+      "examples_omitted_entries": 3
+    }
+  ]
+}

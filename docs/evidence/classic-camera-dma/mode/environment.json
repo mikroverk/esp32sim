@@ -1,0 +1,9 @@
+{
+  "rustc": "1.99.0 (b940084d7 2026-09-28)",
+  "rust_llvm": "23.1.1",
+  "disassembler": "Apple LLVM 21.0.0",
+  "host_target": "aarch64-apple-darwin",
+  "os": "macOS 27.0.1",
+  "node": "v22.23.1",
+  "profile": "release; repository defaults; no extra RUSTFLAGS"
+}

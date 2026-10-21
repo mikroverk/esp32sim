@@ -1,0 +1,32 @@
+{
+  "recorded_rows": 8,
+  "outcome_counts": {"assertion_killed":{"false":1,"true":7}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"assertion_killed":false,"failed_test_count":0},"names":["baseline"]},
+    {
+      "count": 1,
+      "outcome": {"exit":101,"assertion_killed":true,"failure_class":"assertion","failed_test_count":8},
+      "names": ["ignore transient loss"]
+    },
+    {
+      "count": 1,
+      "outcome": {"exit":101,"assertion_killed":true,"failure_class":"assertion","failed_test_count":6},
+      "names": ["only route-mask writes cancel"]
+    },
+    {
+      "count": 2,
+      "outcome": {"exit":101,"assertion_killed":true,"failure_class":"assertion","failed_test_count":9},
+      "names": ["only I2S writes cancel","clear frame but leave DMA running"]
+    },
+    {
+      "count": 2,
+      "outcome": {"exit":101,"assertion_killed":true,"failure_class":"assertion","failed_test_count":1},
+      "names": ["qualified waiting capture ignored","initially unavailable capture cancelled"]
+    },
+    {
+      "count": 1,
+      "outcome": {"exit":101,"assertion_killed":true,"failure_class":"assertion","failed_test_count":13},
+      "names": ["valid configuration cancels capture"]
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "recorded_rows": 35,
+  "outcome_counts": {"killed":{"true":35}},
+  "groups": [
+    {
+      "count": 10,
+      "outcome": {"test":"c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma","killed":true,"returncode":101,"command_index":0},
+      "names": [
+        "vsync-pin",
+        "pulse-shorter-than-isr",
+        "missing-deadline",
+        "vsync-stuck-low",
+        "vsync-stuck-high",
+        "first-edge-too-early",
+        "capture-start-gates-vsync",
+        "no-gpio-delivery",
+        "no-board-deadline-in-scheduler",
+        "dma-write-before-transport"
+      ]
+    },
+    {
+      "count": 5,
+      "outcome": {"test":"c6_power_clock_and_sensor_stop_cancel_and_restart_vsync","killed":true,"returncode":101,"command_index":1},
+      "names": ["vsync-power-ignored","vsync-xclk-ignored","vsync-stream-ignored","stop-retains-high","stop-retains-deadline"]
+    },
+    {
+      "count": 2,
+      "outcome": {"test":"c6_deadline_edges_preserve_timestamps_and_large_steps","killed":true,"returncode":101,"command_index":2},
+      "names": ["edge-timestamps-lost","skip-intermediate-edges"]
+    },
+    {
+      "count": 9,
+      "outcome": {"test":"c6_physical_routes_inversion_and_reconfiguration","killed":true,"returncode":101,"command_index":3},
+      "names": [
+        "data-wire-unqualified",
+        "clock-wire-unqualified",
+        "href-wire-unqualified",
+        "vsync-wire-unqualified",
+        "control-polarity-ignored",
+        "ignore-data-inversion",
+        "ignore-enable",
+        "pad-input-disable-ignored",
+        "pad-function-ignored"
+      ]
+    },
+    {
+      "count": 6,
+      "outcome": {"test":"c6_receiver_unarmed_reset_and_modes_withhold_routed_frames","killed":true,"returncode":101,"command_index":4},
+      "names": ["rx-start-ignored","rx-slave-ignored","rx-descriptor-ignored","rx-force-ignored","rx-fifo-mode-ignored","rx-clock-gate-ignored"]
+    },
+    {
+      "count": 2,
+      "outcome": {"test":"c6_camera_free_has_no_producer_deadlines_or_steps","killed":true,"returncode":101,"command_index":5},
+      "names": ["camera-free-input-poll","camera-free-deadline-poll"]
+    },
+    {
+      "count": 1,
+      "outcome": {"test":"c6_active_non_camera_board_never_queries_camera_clock","killed":true,"returncode":101,"command_index":6},
+      "names": ["non-camera-clock-poll"]
+    }
+  ],
+  "commands": [
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_power_clock_and_sensor_stop_cancel_and_restart_vsync",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_deadline_edges_preserve_timestamps_and_large_steps",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_physical_routes_inversion_and_reconfiguration",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_receiver_unarmed_reset_and_modes_withhold_routed_frames",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_camera_free_has_no_producer_deadlines_or_steps",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "c6_active_non_camera_board_never_queries_camera_clock",
+      "--",
+      "--exact"
+    ]
+  ]
+}

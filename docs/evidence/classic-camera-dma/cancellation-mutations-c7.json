@@ -1,0 +1,58 @@
+{
+  "recorded_rows": 27,
+  "outcome_counts": {"killed":{"false":1,"true":26}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"killed":false,"failed_test_count":0},"names":["baseline"]},
+    {
+      "count": 4,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":1},
+      "names": ["peripheral reset preserves stale frame","camera-free board polling","RX resets keep DMA running","DRAM rule admits CPU-only prefix"]
+    },
+    {
+      "count": 1,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":25},
+      "names": ["camera dispatch cache missing"]
+    },
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":19},
+      "names": ["transport disabled","mode1 sensor sample ordering"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":21},"names":["ignore VSYNC arm"]},
+    {
+      "count": 3,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":3},
+      "names": ["charge pulse as pixels","inlink stop ignored","wrong EOF descriptor register"]
+    },
+    {
+      "count": 3,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":5},
+      "names": ["lose fractional word position","do not consume byte position","wrong descriptor advance"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":8},"names":["wrong frame rate"]},
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":24},
+      "names": ["drop final boundary word","wrong FIFO mode"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":10},"names":["route loss not terminal"]},
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":2},
+      "names": ["START command retained in readback","owner check bypassed"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":27},"names":["wrong EOF count unit"]},
+    {
+      "count": 1,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":26},
+      "names": ["wrong classic IRQ mapping"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":17},"names":["owner not returned"]},
+    {
+      "count": 2,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":16},
+      "names": ["length not written","EOF flag not written"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":12},"names":["mode3 sensor sample lane"]}
+  ]
+}

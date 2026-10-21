@@ -33,6 +33,15 @@ The classic ESP32 hello inputs are `public/classic-hello-*`, built from
 [`examples/hello_world-classic`](../../../examples/hello_world-classic/README.md).
 `classic-hello-NOTICE.txt` lists only linked firmware components.
 
+`esp32/tests/fixtures/classic-camera/` at the repository root holds the
+reproducible public-driver RGB565 camera fixture from
+[`examples/classic-camera`](../../../examples/classic-camera/README.md).
+It is a native CI input, not a Pages asset; its `NOTICE`
+lists its linked components and points to the accompanying runtime licences.
+The companion `lifecycle.bin` uses the same pinned project
+and public driver for replacement, deinit/reinit and reboot tests; [recipe](../../../examples/classic-camera/lifecycle.md)
+and `lifecycle-NOTICE` accompany it. The bootloader and partition table are shared.
+
 `tdisplay-prices.json` is the LilyGO TTGO T-Display demo on the classic ESP32: stock MicroPython
 v1.29.0 (`ESP32_GENERIC-20260824-v1.29.0.bin`, MIT, fetched from micropython.org by
 `tools/fetch-micropython.sh` and pinned by SHA-256; not committed) written whole at flash 0x1000 through

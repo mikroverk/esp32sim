@@ -1,0 +1,62 @@
+{
+  "archive_revision": "7352bc817954a6e5e287d5b2118c36315635c659",
+  "archive_url": "https://github.com/schematik-engineering/esp32sim/tree/7352bc817954a6e5e287d5b2118c36315635c659/docs/evidence/classic-camera-fifo",
+  "original_directory": "docs/evidence/classic-camera-fifo",
+  "note": "Original JSONs verified byte-for-byte via public raw URLs before curation. Historical source/artifact hashes remain unchanged. Equivalent summaries share a target; originals remain separately fingerprinted. Omitted replacements, test-name arrays, disassembly captures and check batches remain archived.",
+  "files": {
+    "README.md": {
+      "bytes": 4467,
+      "sha256": "7cf4a5da5cccc4cd295f939733cf31fe9ef24c5a86aecd0aaf6cbc58680a833b",
+      "curated": "README.md",
+      "curated_sha256": "39883869a7f9a209e8c1a7b00da083b3ebd765a257203169d98e024c00c4ce86"
+    },
+    "checks.json": {
+      "bytes": 2131,
+      "sha256": "13522ba4398ecaff109dd598af70286fa3f7bbf7836d77be8cbc4da3fbcc1d5d",
+      "curated": "checks.json",
+      "curated_sha256": "f7ae916d9b4f8075a4a4969e7afbe9c2c41421d592c736c30974cb0ba74fe640"
+    },
+    "codegen.json": {
+      "bytes": 1674,
+      "sha256": "d6114ac93f6e88ebc9963443ea4ddeeb28391db93a9cb84bc0299a9f8e8083e5",
+      "curated": "codegen.json",
+      "curated_sha256": "cfc73d98b93fd5a4314814c2fc5c46bae1a33f1a5a10c334181b4736d689fa49"
+    },
+    "codegen.py": {
+      "bytes": 1831,
+      "sha256": "e4de5eb632e13d68dda2768092c46ea5efa02ec1f11b85604a25830f59da5e14",
+      "curated": "codegen.py",
+      "curated_sha256": "e4de5eb632e13d68dda2768092c46ea5efa02ec1f11b85604a25830f59da5e14"
+    },
+    "driver-results.json": {
+      "bytes": 3234,
+      "sha256": "6af01b39ca36e3e67b8bf0ef3a3fb2d6b9ae6eb75b6e4e95bfc9edae68fa4c2d",
+      "curated": "driver-results.json",
+      "curated_sha256": "a148fa15378bc51d9eec5ba21e37a99a08e572ec5bd300aacffe634e2d931f06"
+    },
+    "mutate.py": {
+      "bytes": 2469,
+      "sha256": "39ba21000012323163673c7daf28e054378307ceca1df0d8019dd3a211acf728",
+      "curated": "mutate.py",
+      "curated_sha256": "39ba21000012323163673c7daf28e054378307ceca1df0d8019dd3a211acf728"
+    },
+    "mutations.json": {
+      "bytes": 4101,
+      "sha256": "6c37c6c121e8427927a1adfb6aeb19caf3db7bd99e4d7fe723982a2811ee23a2",
+      "curated": "mutations.json",
+      "curated_sha256": "9f152e3b68ed44062f5faadb41440cd55de7d84f15ee60369ae335ac4ab7c4a5"
+    },
+    "source.json": {
+      "bytes": 218,
+      "sha256": "e708001873866a185878cf86ba69916cca40095e357faec6b961a5e0fbf1160e",
+      "curated": "source.json",
+      "curated_sha256": "e708001873866a185878cf86ba69916cca40095e357faec6b961a5e0fbf1160e"
+    },
+    "verify-driver.py": {
+      "bytes": 3264,
+      "sha256": "7e31a648f5080314dbd75ffdc1da0e4e8b04e026f17d57be5e2888a1f6680667",
+      "curated": "verify-driver.py",
+      "curated_sha256": "c665cecea4c083a2442d03e6d3bcc45e7a9d7b4b150c8198e61549c23da7cc5d"
+    }
+  }
+}

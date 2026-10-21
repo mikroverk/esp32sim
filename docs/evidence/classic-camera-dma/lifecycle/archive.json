@@ -1,0 +1,68 @@
+{
+  "archive_revision": "7352bc817954a6e5e287d5b2118c36315635c659",
+  "archive_url": "https://github.com/schematik-engineering/esp32sim/tree/7352bc817954a6e5e287d5b2118c36315635c659/docs/evidence/classic-camera-lifecycle",
+  "original_directory": "docs/evidence/classic-camera-lifecycle",
+  "note": "Original JSONs verified byte-for-byte via public raw URLs before curation. Historical source/artifact hashes remain unchanged. Equivalent summaries share a target; originals remain separately fingerprinted. Omitted replacements, test-name arrays, disassembly captures and check batches remain archived.",
+  "files": {
+    "README.md": {
+      "bytes": 6950,
+      "sha256": "cb06b3831a51f381b8305e256e793bb81dfba2a8cf96b5aecff71186c8758db7",
+      "curated": "README.md",
+      "curated_sha256": "0e0d7c9a89ae7376ba1b75e398bb6894b1f2074e2cf999b95148df636d3cac58"
+    },
+    "builds.json": {
+      "bytes": 642,
+      "sha256": "44f5a24986c661681d8601e001350e3cd7c5dd5927f0f3c9753c1d378ef12dba",
+      "curated": "builds.json",
+      "curated_sha256": "44f5a24986c661681d8601e001350e3cd7c5dd5927f0f3c9753c1d378ef12dba"
+    },
+    "c8-mutations.json": {
+      "bytes": 1288,
+      "sha256": "2f96a42774c01b3f8250911ca2d0bcb51c949c390d241cb587a82be9c1575bbf",
+      "curated": "../fixture-mutations.json",
+      "curated_sha256": "c9fb486023091dfc81bb41f3b9c5ef20baa70db26b4f8bcecc604b5b957c498c"
+    },
+    "checks.json": {
+      "bytes": 1181,
+      "sha256": "095583924560a1335225fd596381888a50840a1a2f87937dc5b154666c45fbd9",
+      "curated": "checks.json",
+      "curated_sha256": "ec776b93ef6a0d18a9df7b5e707dfc146778de7ca219182f466f44f03a77705a"
+    },
+    "codegen-c8.json": {
+      "bytes": 4741,
+      "sha256": "b47e34fc70787e470fc85121bb038494b1468ba6646f16d712debdd9cf851285",
+      "curated": "codegen-c8.json",
+      "curated_sha256": "0fc2ff7d399d5cad90f6af72d3ee826ed8bb16ba954321a8fea92e6572254db2"
+    },
+    "initial-frame.json": {
+      "bytes": 170,
+      "sha256": "6df66f908b73c69d007e9dc3a86a3447b53fc2cffdac904fef5c3b843b7e67e8",
+      "curated": "../fixture-frame.json",
+      "curated_sha256": "6df66f908b73c69d007e9dc3a86a3447b53fc2cffdac904fef5c3b843b7e67e8"
+    },
+    "linked-archives.json": {
+      "bytes": 2041,
+      "sha256": "2b1dc4652f785cb62f923f35f3efd15b4ea63bad59e688c2498ac309ea190c34",
+      "curated": "linked-archives.json",
+      "curated_sha256": "2b1dc4652f785cb62f923f35f3efd15b4ea63bad59e688c2498ac309ea190c34"
+    },
+    "mutations.json": {
+      "bytes": 2070,
+      "sha256": "89a25fd4773f22ad027e00873dd47a3adfafab86252d48863708403bfe6b686e",
+      "curated": "mutations.json",
+      "curated_sha256": "79bdb7956609a1881166dda2b53dc3413b308543a8166f1babb1585a8bf55aaa"
+    },
+    "replacement-frame.json": {
+      "bytes": 170,
+      "sha256": "232fe205419b6fea271e88c594db8f3afe824542ea058c13623e92ed9d6fa33d",
+      "curated": "replacement-frame.json",
+      "curated_sha256": "232fe205419b6fea271e88c594db8f3afe824542ea058c13623e92ed9d6fa33d"
+    },
+    "sources.json": {
+      "bytes": 1316,
+      "sha256": "e173db369d16b4c515494374f87a48cd15b37d6d8932b8e2761920a4609d951f",
+      "curated": "sources.json",
+      "curated_sha256": "9ba6dcbefecb784edb6a47f01ddb934269523569a3308b94583eaf5ae7c86e09"
+    }
+  }
+}

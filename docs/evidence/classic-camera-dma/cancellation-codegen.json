@@ -1,0 +1,19 @@
+{
+  "base": "213b1adda7910923ba6ac65ad6e2446c36d47d6a",
+  "method": "EX230 address/page relocation and equivalent call alias normalization; differences retained, not whole binary equivalence",
+  "selector": "(Machine<esp32::.*>::(?:run|step_core|after_round|present_irqs)|esp32::bus::SocBus.*::(?:tick|read32|write32|fetch|next_deadline)|xtensa_lx7::.*::(?:run|step|exec).*esp32::bus::SocBus)",
+  "artifacts": [
+    {
+      "label": "base",
+      "sha256": "7bea7753fb9d71da82de090efdd927667f6e08d886e457e1f79587d7e2d156f3",
+      "disassembly_sha256": "a9469fbc25f8a0a4a80d7f5f54d71f16c566a17184be965ed47352f592248189"
+    },
+    {
+      "label": "candidate",
+      "sha256": "3b0e25ffeee5bd6ca85e7dded6c5edbba92848285d787b768f0281c6dd5df5ce",
+      "disassembly_sha256": "806a9dd62f9050046e365973f5b1a3b55616dced60b4e7cdb900343a2e4fcb09"
+    }
+  ],
+  "body_totals": {"selected":{"compared":21,"identical":21,"base_instructions":27917,"candidate_instructions":27917}},
+  "different_bodies": []
+}

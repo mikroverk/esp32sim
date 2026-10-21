@@ -1,0 +1,27 @@
+{
+  "sensors/ov2640.c": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/sensors/ov2640.c",
+    "sha256": "668f928758c247050fc31f4f91f159ca56ef458ddca98dd9ff303b58c32b5a0b",
+    "bytes": 17843
+  },
+  "sensors/private_include/ov2640_regs.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/sensors/private_include/ov2640_regs.h",
+    "sha256": "7ffc0cebb0f67aaac037b8111c5f247383a8e502ff2fd62fe4caf4383222d213",
+    "bytes": 7043
+  },
+  "sensors/private_include/ov2640_settings.h": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/sensors/private_include/ov2640_settings.h",
+    "sha256": "b0086d2fd8498f126bb0483ae0992b46a03c82503be1c0f5b778037930d9da66",
+    "bytes": 11495
+  },
+  "driver/sensor.c": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/driver/sensor.c",
+    "sha256": "6623a2bcdf2e93e2c41bfd1d62c1afa225f874dd9a2c0c19e92a4fbdd6276854",
+    "bytes": 3300
+  },
+  "driver/sccb.c": {
+    "url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/driver/sccb.c",
+    "sha256": "2cd60ba6e175839d4ecb7502ff7779be163c52f7b4d819009f2066748eb53970",
+    "bytes": 8589
+  }
+}

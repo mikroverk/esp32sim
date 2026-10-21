@@ -245,6 +245,23 @@ impl SocBus {
         }
         let v = if size == 4 { value } else { merge(self.periph.read32(a), value, addr, size) };
         let old_enable = self.periph.gpio.gpio.enable;
+        // Configuration-only bookkeeping; no new work in ordinary ticks.
+        // Only physical DVP routing bits matter (IDF v4.4.7 gpio_reg.h,
+        // io_mux_reg.h and rtc_io_reg.h). Unrelated pad writes cannot close
+        // a valid window. Loss/restoration without elapsed time still does.
+        let camera_route_mask = match a {
+            a if ((140..148).chain([28, 190, 191, 192])).any(|s| a == 0x3ff4_4130 + 4 * s) => 0xff,
+            0x3ff4_906c | 0x3ff4_9070 | 0x3ff4_9074 | 0x3ff4_907c |
+            0x3ff4_9004 | 0x3ff4_9010 | 0x3ff4_9014 | 0x3ff4_9018 |
+            0x3ff4_9080 | 0x3ff4_908c | 0x3ff4_9024 => (7 << 12) | (1 << 9),
+            0x3ff4_847c => (1 << 27) | (1 << 24), // GPIO36/39
+            0x3ff4_8480 => (1 << 29) | (1 << 28), // GPIO34/35
+            0x3ff4_8484 => 1 << 17, // GPIO25
+            _ => 0,
+        };
+        if camera_route_mask != 0 && (self.periph.read32(a) ^ v) & camera_route_mask != 0 {
+            self.board.invalidate_camera_frame_start();
+        }
         if (0x3ff4_8800..=0x3ff4_88ff).contains(&a) { self.periph.adc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         // IDF v5.5.4 esp32/rtc_cntl_reg.h:2017-2039. Only a CRC START write
@@ -266,6 +283,18 @@ impl SocBus {
         self.run_gp_spi();
         self.flush_rmt();
         self.flush_gpio();
+        // Clock, matrix and SCCB writes can start/stop autonomous sensor inputs
+        // without changing an output GPIO. Reconcile at this same bus horizon.
+        if self.pins_active { self.deliver_board_inputs(); }
+        if (0x3ff4_f000..0x3ff4_f100).contains(&a) { self.camera_dma_written(); }
+        // Configuration horizon, not an idle-tick poll: a qualified receiver
+        // must observe even a loss restored before the next DMA step (matrix,
+        // IO_MUX/RTC, PWDN, SCCB streaming, XCLK or peripheral clock gating).
+        // An initially unavailable source still waits for its first valid route.
+        if self.periph.i2s[0].camera.as_ref().is_some_and(|c| c.qualified())
+            && self.camera_routed_frame().is_none() {
+            self.periph.i2s[0].abort_camera_dma();
+        }
         self.irq_dirty = true;
     }
     #[inline]
@@ -281,7 +310,8 @@ impl SocBus {
         }
     }
     fn deliver_board_inputs(&mut self) {
-        self.board.advance_to(self.cycles);
+        let periph = &self.periph;
+        self.board.advance_inputs_with_clock(self.cycles, &|pin| periph.pwm_output(u32::from(pin)));
         for edge in self.board.take_edges() {
             self.periph.gpio.set_input(edge.pin, edge.level);
             self.irq_dirty = true;
@@ -302,6 +332,44 @@ impl SocBus {
         self.periph.spi_exec = false;
         self.periph.spi1.0.execute(&mut self.flash, &mut []);
         for (_, off, len) in std::mem::take(&mut self.periph.spi1.0.dirty) { self.flash_written(off, len); }
+    }
+    /// Request sensor bytes using current physical XCLK routing, without polling
+    /// the camera from the ordinary bus tick. I2S transport is a separate adapter.
+    pub fn camera_frame(&mut self) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> {
+        let periph = &self.periph;
+        self.board.camera_frame_with_clock(&|pin| periph.pwm_output(u32::from(pin)))
+    }
+    /// Qualify a camera frame for I2S0's parallel receiver. No FIFO or DMA work
+    /// occurs here. esp32-camera v2.1.4 ll_cam.c:350-395 and IDF v4.4.7
+    /// gpio_sig_map.h define D0=140, WS/PCLK=28, H/V_SYNC=190/191,
+    /// H_ENABLE=192 (constant high). A fixed sensor's inverted data lines
+    /// invert the actual bytes; inverted control polarities are unsupported.
+    pub fn camera_routed_frame(&mut self) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> {
+        if !self.periph.i2s[0].clock_enabled { return None; }
+        let rx = self.periph.i2s[0].camera_rx()?;
+        if !rx.started || rx.reset || !rx.slave || !rx.descriptor_enabled || !rx.fifo_mode_forced || ![1, 3].contains(&rx.fifo_mode) { return None; }
+        let pins = self.board.camera_dvp_pins()?;
+        let gpio = &self.periph.gpio;
+        for (signal, pin) in [(28, pins[8]), (190, pins[9]), (191, pins[10])] {
+            if gpio.matrix_input_route(signal) != Some((pin, false)) { return None; }
+        }
+        let enable = gpio.gpio.func_in_sel[192];
+        if ![0x30, 0x38].contains(&(enable & 0x3f)) || gpio.signal_input(192) != Some(true) { return None; }
+        let mut invert = 0u8;
+        for (bit, pin) in pins[..8].iter().enumerate() {
+            let (actual, inverted) = gpio.matrix_input_route(140 + bit)?;
+            if actual != *pin { return None; }
+            if inverted { invert |= 1 << bit; }
+        }
+        let (w, h, mut frame) = self.camera_frame()?;
+        if invert != 0 {
+            if let Some(capture) = &mut self.periph.i2s[0].camera {
+                frame = capture.inverted_frame(frame, invert);
+            } else {
+                for byte in std::sync::Arc::make_mut(&mut frame) { *byte ^= invert; }
+            }
+        }
+        Some((w, h, frame))
     }
     pub fn attach_board_devices(&mut self) {
         self.irq_dirty = true;

@@ -75,6 +75,36 @@ LC_CONF CHECK_OWNER (off at reset, as IDF leaves it). APLL, slave clocks and
 bit-level I2S timing are not modeled. An inline DPORT clock/channel gate guards
 receive work. See EX229 for checks and limits.
 
+## The camera: `--board ai-thinker-cam`
+
+The AI-Thinker ESP32-CAM (alias `esp32cam`) models OV2640 SCCB configuration,
+physical GPIO routing and I2S0 RX DMA into internal DRAM. Supply a BMP/PPM still
+with `--cam-image`; absent input produces black frames. Supported sensor output
+is raw RGB565 or YUV422 (grayscale requests use the YUV wire format), at a fixed
+approximate 10 FPS. JPEG+PSRAM CameraWebServer is unsupported; unsupported output
+prints one `[camera] unsupported sensor output` notice per board instance.
+There is no adjustable FPS, JPEG encoding, ISP fidelity or per-PCLK timing claim.
+Losing a route mid-frame raises IN_DSCR_ERR as a conservative model policy to
+prevent splicing partial frames, not as a measured hardware fault mapping.
+
+For the reproducible public-driver fixture (two non-zero RGB565 frame hashes):
+
+```sh
+python3 examples/classic-camera/expected-frame.py
+# Supply a BMP/PPM of your choice, or the deterministic source used by the CLI test.
+target/release/esp32sim --chip esp32 --board ai-thinker-cam --boot rom \
+  --rom roms/esp32_rev300_rom.elf \
+  --bootloader esp32/tests/fixtures/classic-camera/bootloader/bootloader.bin \
+  --ptable esp32/tests/fixtures/classic-camera/partition_table/partition-table.bin \
+  --app esp32/tests/fixtures/classic-camera/classic_camera.bin \
+  --cam-image image.ppm --max-seconds 3 --no-dump
+```
+
+The [build recipe](../examples/classic-camera/README.md) pins IDF and the camera
+driver. Its guest fixture uses 10 MHz XCLK / FIFO mode 1. FIFO mode 3 (normally
+selected at 20 MHz by Arduino) has exact-vector unit coverage only, not a
+20 MHz compiled-driver fixture. See [EX232](experiments.md#ex232) and its receipt.
+
 ## The board: `--board ttgo-tdisplay`
 
 The LilyGO TTGO T-Display (ESP32-D0WDQ6-V3, 4 MB flash, no PSRAM) wires an ST7789V 1.14"

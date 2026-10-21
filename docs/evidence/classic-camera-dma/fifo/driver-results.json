@@ -1,0 +1,38 @@
+{
+  "source_url": "https://raw.githubusercontent.com/espressif/esp32-camera/b817e9b81041980608d1a3d3e0b08d86e3666382/target/esp32/ll_cam.c",
+  "source_sha256": "caec256ebf514250aca3ef0b5154fff875afb4949f9beda800ebace9b8c84512",
+  "rows": [
+    {"vector":"rgb565","mode":1,"grayscale":false,"bytes":8,"sha256":"40828dd0075675e888c885f144c5c58bbcde3d105c5ac5fcd20e22bd6494b636"},
+    {"vector":"rgb565","mode":1,"grayscale":true,"bytes":4,"sha256":"ad7ff95e3f90fa30c6e1cd6d4744437b863865ad7f021502212459eddb6fc9ec"},
+    {"vector":"rgb565","mode":3,"grayscale":false,"bytes":8,"sha256":"40828dd0075675e888c885f144c5c58bbcde3d105c5ac5fcd20e22bd6494b636"},
+    {"vector":"rgb565","mode":3,"grayscale":true,"bytes":4,"sha256":"ad7ff95e3f90fa30c6e1cd6d4744437b863865ad7f021502212459eddb6fc9ec"},
+    {"vector":"row12","mode":3,"grayscale":true,"bytes":6,"sha256":"371b2950c0517824ea869b51a6cb3cfd72cc37e5cab5c8223796985ef192250d"},
+    {"vector":"row16","mode":1,"grayscale":false,"bytes":16,"sha256":"cdcb8fc0aeb65d7318d90a63c59849fbdc2291ec9f496c2132f1a2a68fea92e8"},
+    {"vector":"row16","mode":1,"grayscale":true,"bytes":8,"sha256":"1fcfa4cab90b8a715898288339b4e30f9a1560955e726933c0bb25eb7d605370"},
+    {"vector":"row16","mode":3,"grayscale":false,"bytes":16,"sha256":"cdcb8fc0aeb65d7318d90a63c59849fbdc2291ec9f496c2132f1a2a68fea92e8"},
+    {"vector":"row16","mode":3,"grayscale":true,"bytes":8,"sha256":"1fcfa4cab90b8a715898288339b4e30f9a1560955e726933c0bb25eb7d605370"},
+    {"vector":"yuv","mode":1,"grayscale":false,"bytes":8,"sha256":"55be2576b0bc8d7516ac778abdae1b0c12d9d13630250677ec22e6cd7bf8b82e"},
+    {"vector":"yuv","mode":1,"grayscale":true,"bytes":4,"sha256":"f4e3f0b04771c047e227c9ecaba65d3fe2fd0e1eee0a7552b956d1a7c535a7cf"},
+    {"vector":"yuv","mode":3,"grayscale":false,"bytes":8,"sha256":"55be2576b0bc8d7516ac778abdae1b0c12d9d13630250677ec22e6cd7bf8b82e"},
+    {"vector":"yuv","mode":3,"grayscale":true,"bytes":4,"sha256":"f4e3f0b04771c047e227c9ecaba65d3fe2fd0e1eee0a7552b956d1a7c535a7cf"}
+  ],
+  "partial_group_limits": [
+    {
+      "vector": "row12",
+      "mode": 1,
+      "grayscale": false,
+      "returned_bytes": 12,
+      "output_hex": "010203040506070800000000",
+      "expected_hex": "0102030405060708090a0b0c"
+    },
+    {"vector":"row12","mode":1,"grayscale":true,"returned_bytes":6,"output_hex":"010305070000","expected_hex":"01030507090b"},
+    {
+      "vector": "row12",
+      "mode": 3,
+      "grayscale": false,
+      "returned_bytes": 16,
+      "output_hex": "0102030405060708090a0b0000000000",
+      "expected_hex": "0102030405060708090a0b0c"
+    }
+  ]
+}

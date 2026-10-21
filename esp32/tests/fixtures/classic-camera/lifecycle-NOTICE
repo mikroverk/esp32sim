@@ -1,0 +1,26 @@
+Classic camera public-driver lifecycle fixture
+=============================================
+
+Files in this directory: shared bootloader/bootloader.bin,
+shared partition_table/partition-table.bin, lifecycle.bin.
+Source and pinned rebuild recipe: examples/classic-camera/lifecycle.md.
+
+Linked application code is the simulator-owned MIT fixture, ESP-IDF v5.4.3
+and esp32-camera b817e9b81041980608d1a3d3e0b08d86e3666382 (Apache-2.0),
+Mbed TLS SHA-256 (Apache-2.0), FreeRTOS (MIT), TLSF (BSD-3-Clause),
+Xtensa HAL (MIT), newlib (per-file licences), and GCC runtime
+(GPLv3 with GCC Runtime Library Exception 3.1).
+The bootloader contains the same applicable ESP-IDF/runtime components.
+
+Full third-party licence texts are at the repository-root path
+web/wasm/fw/public/classic-hello-NOTICE.txt (ESP-IDF, Mbed TLS, FreeRTOS, newlib, GCC runtime,
+TLSF and Xtensa HAL). The MIT application licence is the repository LICENSE.
+The Apache-2.0 text there also applies to esp32-camera, Copyright Espressif
+Systems (Shanghai) CO LTD. esp32-camera source is unchanged.
+
+Inventory checked from the application and bootloader link maps, archive
+members included to satisfy references. esp_phy contributes initialization
+glue only: no Wi-Fi/Bluetooth controller archive is linked. esp_jpeg 1.3.1
+is a pinned build dependency, but its decoder is not linked into these
+RGB565/SHA-256 images. No JPEG runtime licence is claimed for this fixture.
+No ROM ELF is redistributed here; tools/fetch-rom-elfs.sh fetches it separately.

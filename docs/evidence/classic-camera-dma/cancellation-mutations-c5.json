@@ -1,0 +1,27 @@
+{
+  "recorded_rows": 13,
+  "outcome_counts": {"killed":{"false":1,"true":12}},
+  "groups": [
+    {"count":1,"outcome":{"exit":0,"killed":false,"failed_test_count":0},"names":["baseline"]},
+    {
+      "count": 3,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":4},
+      "names": ["mode1 sample ordering","mode3 sample lane","mode3 differs from mode1"]
+    },
+    {"count":1,"outcome":{"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":2},"names":["mode1 zero padding"]},
+    {
+      "count": 8,
+      "outcome": {"exit":101,"killed":true,"failure_class":"assertion","failed_test_count":1},
+      "names": [
+        "mode3 zero padding",
+        "split carry",
+        "row tail emission",
+        "row tail lane",
+        "row boundary consumes tail",
+        "reset discards tail",
+        "reject overlap mode zero",
+        "reject mode two"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "c4": {
+    "recorded_rows": 23,
+    "outcome_counts": {"runtime_semantic_killed":{"true":23}},
+    "groups": [
+      {
+        "count": 2,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"unwrap_expectation","failed_test_count":4},
+        "names": ["zero camera width","CONF2 offset"]
+      },
+      {
+        "count": 1,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"unwrap_expectation","failed_test_count":1},
+        "names": ["camera audio clock validation"]
+      },
+      {
+        "count": 4,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":2},
+        "names": ["port identity","camera bypass","audio rate disabled","audio producer stopped"]
+      },
+      {
+        "count": 15,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":1},
+        "names": [
+          "LCD required",
+          "CAMERA required",
+          "RX reset",
+          "RX FIFO reset",
+          "TX reset isolation",
+          "LC input reset",
+          "LC AHB FIFO reset",
+          "LC AHB reset",
+          "TX LC reset isolation",
+          "reset gates start",
+          "slave bit",
+          "FIFO mode",
+          "descriptor enable",
+          "forced mode",
+          "mode write synchronizes"
+        ]
+      },
+      {
+        "count": 1,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":3},
+        "names": ["start bit"]
+      }
+    ]
+  },
+  "c5": {
+    "recorded_rows": 12,
+    "outcome_counts": {"runtime_semantic_killed":{"true":12}},
+    "groups": [
+      {
+        "count": 3,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":4},
+        "names": ["mode1 sample ordering","mode3 sample lane","mode3 differs from mode1"]
+      },
+      {
+        "count": 1,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":2},
+        "names": ["mode1 zero padding"]
+      },
+      {
+        "count": 8,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":1},
+        "names": [
+          "mode3 zero padding",
+          "split carry",
+          "row tail emission",
+          "row tail lane",
+          "row boundary consumes tail",
+          "reset discards tail",
+          "reject overlap mode zero",
+          "reject mode two"
+        ]
+      }
+    ]
+  },
+  "c6": {
+    "recorded_rows": 35,
+    "outcome_counts": {"runtime_semantic_killed":{"true":35}},
+    "groups": [
+      {
+        "count": 33,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":1},
+        "names": [
+          "vsync-pin",
+          "pulse-shorter-than-isr",
+          "vsync-stuck-low",
+          "vsync-stuck-high",
+          "first-edge-too-early",
+          "no-gpio-delivery",
+          "no-board-deadline-in-scheduler",
+          "dma-write-before-transport",
+          "vsync-power-ignored",
+          "vsync-xclk-ignored",
+          "vsync-stream-ignored",
+          "stop-retains-high",
+          "stop-retains-deadline",
+          "edge-timestamps-lost",
+          "skip-intermediate-edges",
+          "data-wire-unqualified",
+          "clock-wire-unqualified",
+          "href-wire-unqualified",
+          "vsync-wire-unqualified",
+          "control-polarity-ignored",
+          "ignore-data-inversion",
+          "ignore-enable",
+          "pad-input-disable-ignored",
+          "pad-function-ignored",
+          "rx-start-ignored",
+          "rx-slave-ignored",
+          "rx-descriptor-ignored",
+          "rx-force-ignored",
+          "rx-fifo-mode-ignored",
+          "rx-clock-gate-ignored",
+          "camera-free-input-poll",
+          "camera-free-deadline-poll",
+          "non-camera-clock-poll"
+        ]
+      },
+      {
+        "count": 2,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"unwrap_expectation","failed_test_count":1},
+        "names": ["missing-deadline","capture-start-gates-vsync"]
+      }
+    ]
+  },
+  "c7": {
+    "recorded_rows": 26,
+    "outcome_counts": {"runtime_semantic_killed":{"true":26}},
+    "groups": [
+      {
+        "count": 7,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":1},
+        "names": [
+          "peripheral reset preserves stale frame",
+          "camera-free board polling",
+          "ignore VSYNC arm",
+          "charge pulse as pixels",
+          "route loss not terminal",
+          "RX resets keep DMA running",
+          "DRAM rule admits CPU-only prefix"
+        ]
+      },
+      {
+        "count": 1,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":11},
+        "names": ["camera dispatch cache missing"]
+      },
+      {
+        "count": 3,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":6},
+        "names": ["transport disabled","length not written","EOF flag not written"]
+      },
+      {
+        "count": 3,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":2},
+        "names": ["lose fractional word position","START command retained in readback","owner check bypassed"]
+      },
+      {
+        "count": 5,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":3},
+        "names": ["wrong frame rate","do not consume byte position","inlink stop ignored","wrong EOF descriptor register","mode3 sensor sample lane"]
+      },
+      {
+        "count": 2,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":9},
+        "names": ["drop final boundary word","wrong EOF count unit"]
+      },
+      {
+        "count": 2,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":7},
+        "names": ["wrong FIFO mode","owner not returned"]
+      },
+      {
+        "count": 2,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":8},
+        "names": ["wrong classic IRQ mapping","mode1 sensor sample ordering"]
+      },
+      {
+        "count": 1,
+        "outcome": {"runtime_semantic_killed":true,"failure_kind":"assertion_or_explicit_panic_guard","failed_test_count":4},
+        "names": ["wrong descriptor advance"]
+      }
+    ]
+  }
+}

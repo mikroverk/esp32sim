@@ -1,0 +1,155 @@
+{
+  "recorded_rows": 21,
+  "outcome_counts": {"killed":{"true":21}},
+  "groups": [
+    {
+      "count": 2,
+      "outcome": {"test":"aithinker_selection_and_only_sensor_attachment","killed":true,"returncode":101,"command_index":0},
+      "names": ["board-selection","no-reset-sentinel"]
+    },
+    {
+      "count": 3,
+      "outcome": {"test":"aithinker_sccb_requires_both_physical_wires","killed":true,"returncode":101,"command_index":1},
+      "names": ["sccb-sda","sccb-scl","sccb-unqualified"]
+    },
+    {
+      "count": 4,
+      "outcome": {"test":"aithinker_pwdn_stop_and_reset_withhold_frames","killed":true,"returncode":101,"command_index":2},
+      "names": ["sccb-power","frame-power","pwdn-release","stream-stop"]
+    },
+    {
+      "count": 2,
+      "outcome": {"test":"aithinker_xclk_requires_live_routed_pwm_not_gpio_level","killed":true,"returncode":101,"command_index":3},
+      "names": ["xclk-route","xclk-pin"]
+    },
+    {
+      "count": 4,
+      "outcome": {"test":"aithinker_xclk_rejects_constant_or_invalid_clock","killed":true,"returncode":101,"command_index":4},
+      "names": ["xclk-finite","xclk-positive","xclk-duty-zero","xclk-duty-full"]
+    },
+    {
+      "count": 1,
+      "outcome": {"test":"aithinker_grayscale_requests_keep_yuv_wire_bytes","killed":true,"returncode":101,"command_index":5},
+      "names": ["grayscale-wire"]
+    },
+    {
+      "count": 5,
+      "outcome": {"test":"aithinker_host_and_register_updates_invalidate_shared_cache","killed":true,"returncode":101,"command_index":6},
+      "names": ["rgb565-wire","unsupported-jpeg","picture-validation","picture-invalidation","register-invalidation"]
+    }
+  ],
+  "commands": [
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_selection_and_only_sensor_attachment",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_sccb_requires_both_physical_wires",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_pwdn_stop_and_reset_withhold_frames",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_xclk_requires_live_routed_pwm_not_gpio_level",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_xclk_rejects_constant_or_invalid_clock",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_grayscale_requests_keep_yuv_wire_bytes",
+      "--",
+      "--exact"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "cargo",
+      "+1.99.0",
+      "test",
+      "--release",
+      "-p",
+      "esp32",
+      "--test",
+      "aithinker",
+      "aithinker_host_and_register_updates_invalidate_shared_cache",
+      "--",
+      "--exact"
+    ]
+  ]
+}

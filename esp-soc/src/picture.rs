@@ -24,7 +24,7 @@ pub fn rgba_len(w: u32, h: u32) -> Option<usize> {
     (n + 5 <= MAX_RGBA_BYTES).then_some(n as usize)
 }
 fn luma(r: f32, g: f32, b: f32) -> f32 { 0.299 * r + 0.587 * g + 0.114 * b }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PixelFormat { Rgb565, Yuyv, Grayscale }
 
 pub fn load(path: &str) -> Result<Picture, String> {

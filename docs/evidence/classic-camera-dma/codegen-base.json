@@ -1,0 +1,119 @@
+{
+  "base": "8f3a9eaa4ab2e4ba0d58721c0abe9fcf7428ecd6",
+  "method": "EX230 address/page relocation and equivalent call alias normalization; differences retained, not whole binary equivalence",
+  "selector": "(Machine<esp32::.*>::(?:run|step_core|after_round|present_irqs)|esp32::bus::SocBus.*::(?:tick|read32|write32|fetch|next_deadline)|xtensa_lx7::.*::(?:run|step|exec).*esp32::bus::SocBus)",
+  "artifacts": [
+    {
+      "label": "base",
+      "sha256": "e8847f02b40282ecb92d62d2673d52970fb99422edcd8f2ddcf3c19eb81de232",
+      "disassembly_sha256": "f298baf0fd7633d0b54464c1c274297528da963c2de18f42268cd731c85d16fc"
+    },
+    {
+      "label": "candidate",
+      "sha256": "5eee2cac687eba7525a6dc31023faadc1045af78e6091f5c362e388cf932d471",
+      "disassembly_sha256": "f557ad0c08ab8b894833af7403e1e1317c2f10ec965f2919106d99e66b6d1366"
+    }
+  ],
+  "body_totals": {"selected":{"compared":21,"identical":10,"base_instructions":27888,"candidate_instructions":27918}},
+  "different_bodies": [
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "same": false,
+      "base_instructions": 122,
+      "candidate_instructions": 122,
+      "normalized_diff_sha256": "24a47463622f531461f352999b9d2342583d490986cff054ffeeb6701d8ebbfb",
+      "normalized_diff_lines": 77,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::read32",
+      "same": false,
+      "base_instructions": 171,
+      "candidate_instructions": 171,
+      "normalized_diff_sha256": "e36f52c639486f5182238fde49046f8c27c3098bcd45f82446bdca683f866b52",
+      "normalized_diff_lines": 109,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+      "same": false,
+      "base_instructions": 2207,
+      "candidate_instructions": 2237,
+      "normalized_diff_sha256": "4d5510e8529f2b64b877a185a7850a71316c28749aca0184d035aa2c3e415db7",
+      "normalized_diff_lines": 1931,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp32::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "same": false,
+      "base_instructions": 817,
+      "candidate_instructions": 817,
+      "normalized_diff_sha256": "375fcee000f24431c93380bb3545758e442050c205c5188971d03c9e12047225",
+      "normalized_diff_lines": 44,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::after_round",
+      "same": false,
+      "base_instructions": 84,
+      "candidate_instructions": 84,
+      "normalized_diff_sha256": "fa00025b0ac45853a03dbedc2df9bd092ce4eb79c0c1e0cb4f2907ce2030981d",
+      "normalized_diff_lines": 86,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::present_irqs",
+      "same": false,
+      "base_instructions": 234,
+      "candidate_instructions": 234,
+      "normalized_diff_sha256": "e957a03f841baeec37a0d62fde45a41c7416d9e2f0d50d1cd48e24088fcb4938",
+      "normalized_diff_lines": 91,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_modeled",
+      "same": false,
+      "base_instructions": 3445,
+      "candidate_instructions": 3445,
+      "normalized_diff_sha256": "b86c3e71bcb43fbc2559f42890c22a6a98554de21c83e223c585270b657e47b5",
+      "normalized_diff_lines": 743,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_unmodeled::<false>",
+      "same": false,
+      "base_instructions": 1708,
+      "candidate_instructions": 1708,
+      "normalized_diff_sha256": "42618ea41807df96e7961df0828c85590ec9be6821f6d76b8ba00d4a4e8dffc0",
+      "normalized_diff_lines": 644,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::step_core",
+      "same": false,
+      "base_instructions": 838,
+      "candidate_instructions": 838,
+      "normalized_diff_sha256": "a9c578f1fb8e503b15e9d662c62a925f9ddfa3a24073c9e257abc7d8e491c46d",
+      "normalized_diff_lines": 278,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32::bus::SocBus>",
+      "same": false,
+      "base_instructions": 706,
+      "candidate_instructions": 706,
+      "normalized_diff_sha256": "1a3baa8b7f60933380289c410e42903cd3cb2c1237c1142641eeb73586f57285",
+      "normalized_diff_lines": 32,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    },
+    {
+      "name": "xtensa_lx7::block::step_extra::<esp32::bus::SocBus>",
+      "same": false,
+      "base_instructions": 143,
+      "candidate_instructions": 143,
+      "normalized_diff_sha256": "35bd846d3fc25c7cfbf36ab7aa68ffbeb254c8d146adad1e0318f1dae2c0f0e8",
+      "normalized_diff_lines": 24,
+      "diff_retention": "Full normalized diff retained in local raw receipt; compact counts/hash retained here."
+    }
+  ]
+}

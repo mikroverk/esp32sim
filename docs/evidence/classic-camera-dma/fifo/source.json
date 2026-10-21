@@ -1,0 +1,6 @@
+{
+  "repository": "espressif/esp32-camera",
+  "revision": "b817e9b81041980608d1a3d3e0b08d86e3666382",
+  "path": "target/esp32/ll_cam.c",
+  "sha256": "caec256ebf514250aca3ef0b5154fff875afb4949f9beda800ebace9b8c84512"
+}

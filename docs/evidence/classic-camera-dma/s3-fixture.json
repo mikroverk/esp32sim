@@ -1,0 +1,57 @@
+{
+  "base": {
+    "expect": "frames",
+    "passed": true,
+    "serial": [
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00"
+    ],
+    "stdout_sha256": "b0011b04b138834fd6d6697ed6a9cfd328065f5af87b1a68d7eb146f6ba01bd2",
+    "emulator_sha256": "e8847f02b40282ecb92d62d2673d52970fb99422edcd8f2ddcf3c19eb81de232",
+    "image_sha256": "8dee30e2caa26a23f15a2e903788b34b4bd247a15ccb4feed7ec8b3db1bc71ee",
+    "script_sha256": "cddffebec8750ae80f744863a3deecb9a78d6d356f6098c7281ab7bd46be7f35"
+  },
+  "candidate": {
+    "expect": "frames",
+    "passed": true,
+    "serial": [
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:FRAME:96:96:1:18432:8c2afdc5:4c:ff",
+      "CAMERA:READY:0:5640",
+      "CAMERA:FRAME:96:96:0:18432:7bf49dc5:f8:00"
+    ],
+    "stdout_sha256": "b0011b04b138834fd6d6697ed6a9cfd328065f5af87b1a68d7eb146f6ba01bd2",
+    "emulator_sha256": "5eee2cac687eba7525a6dc31023faadc1045af78e6091f5c362e388cf932d471",
+    "image_sha256": "8dee30e2caa26a23f15a2e903788b34b4bd247a15ccb4feed7ec8b3db1bc71ee",
+    "script_sha256": "cddffebec8750ae80f744863a3deecb9a78d6d356f6098c7281ab7bd46be7f35"
+  },
+  "firmware": [
+    {
+      "filename": "CameraFixture.ino.bootloader.bin",
+      "sha256": "6f232c4aafe7d21239a1c59404723ca2cfdca063ef73501a21126a8cef39f432",
+      "bytes": 19984
+    },
+    {"filename":"CameraFixture.ino.partitions.bin","sha256":"1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c","bytes":3072},
+    {"filename":"CameraFixture.ino.bin","sha256":"f577967ab70b72a0dae84da0ca7e325b05a761330169079fc61ed9a7d9cf233f","bytes":359840}
+  ],
+  "rom_sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+  "console_equal": true,
+  "stderr_normalized_equal": true,
+  "stderr_normalization": "image/ROM paths and wall time/throughput only; instruction/cycle/exception/interrupt counts preserved",
+  "stderr_normalized_sha256": "f34cbabb7982e8d789286075aef8d8cde67d08792fdc62a3795f056d1a522901",
+  "frame_lines_equal": true
+}

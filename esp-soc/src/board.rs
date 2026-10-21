@@ -65,8 +65,10 @@ pub trait BoardModel {
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> { Vec::new() }
     /// Give the board's camera a picture to look at (RGB888).
     fn set_camera_picture(&mut self, _p: crate::picture::Picture) -> Result<(), &'static str> { Err("no camera on this board") }
-    /// Next camera frame as the sensor would put it on the DVP bus (YUYV), with its size. None = no camera / nothing to show.
+    /// Next camera frame in the sensor's register-selected wire format, with its size.
+    /// Boards requiring an external clock use `camera_frame_with_clock` instead.
     fn camera_frame(&mut self) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> { None }
+
     /// Small RGB preview of what the camera is looking at (for the UI), if a picture is loaded.
     fn camera_preview(&self, _w: u32, _h: u32) -> Option<Vec<u8>> { None }
     /// A complete frame from the LCD_CAM RGB interface (RGB565 little-endian, `w`x`h`).
@@ -121,6 +123,20 @@ pub trait BoardModel {
     fn encoder(&self) -> Option<(u8, u8)> { None }
     /// Lines for the end-of-run report.
     fn report(&self) -> String { String::new() }
+    /// Lazy physical clock query; called by the capture adapter, never polled per tick.
+    /// The callback returns routed PWM frequency and duty (0..=65535) at a GPIO.
+    /// Appended to preserve the existing board vtable's hot-call offsets.
+    fn camera_frame_with_clock(&mut self, _clock: &dyn Fn(u8) -> Option<(f64, u32)>) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> { self.camera_frame() }
+    /// Advance scheduled inputs, querying a physical clock only on boards that need it.
+    /// This replaces the existing advance call, not an additional producer poll.
+    fn advance_inputs_with_clock(&mut self, cycle: VirtualCycle, _clock: &dyn Fn(u8) -> Option<(f64, u32)>) { self.advance_to(cycle); }
+    /// Parallel camera wiring: D0..D7, PCLK, HREF, VSYNC. None on camera-free boards.
+    fn camera_dvp_pins(&self) -> Option<[u8; 11]> { None }
+    /// Most recent unclaimed scheduled camera falling edge, never a forced-low edge.
+    /// Claiming prevents restart from replaying the same physical frame.
+    fn camera_frame_start(&mut self, _claim: bool) -> Option<VirtualCycle> { None }
+    /// Physical route changes invalidate the fresh-frame opportunity.
+    fn invalidate_camera_frame_start(&mut self) {}
 }
 
 pub type Board = Box<dyn BoardModel>;

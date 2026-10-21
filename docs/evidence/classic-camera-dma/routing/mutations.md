@@ -1,0 +1,39 @@
+# C6 executable assertion mutations
+
+| Mutation | Test that fails |
+|---|---|
+| vsync-pin | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| missing-deadline | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| vsync-stuck-low | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| vsync-stuck-high | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| first-edge-too-early | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| capture-start-gates-vsync | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| no-gpio-delivery | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| no-board-deadline-in-scheduler | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| dma-write-before-transport | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| vsync-power-ignored | `c6_power_clock_and_sensor_stop_cancel_and_restart_vsync` |
+| vsync-xclk-ignored | `c6_power_clock_and_sensor_stop_cancel_and_restart_vsync` |
+| vsync-stream-ignored | `c6_power_clock_and_sensor_stop_cancel_and_restart_vsync` |
+| stop-retains-high | `c6_power_clock_and_sensor_stop_cancel_and_restart_vsync` |
+| stop-retains-deadline | `c6_power_clock_and_sensor_stop_cancel_and_restart_vsync` |
+| edge-timestamps-lost | `c6_deadline_edges_preserve_timestamps_and_large_steps` |
+| skip-intermediate-edges | `c6_deadline_edges_preserve_timestamps_and_large_steps` |
+| clock-wire-unqualified | `c6_physical_routes_inversion_and_reconfiguration` |
+| href-wire-unqualified | `c6_physical_routes_inversion_and_reconfiguration` |
+| vsync-wire-unqualified | `c6_physical_routes_inversion_and_reconfiguration` |
+| ignore-data-inversion | `c6_physical_routes_inversion_and_reconfiguration` |
+| ignore-enable | `c6_physical_routes_inversion_and_reconfiguration` |
+| pad-input-disable-ignored | `c6_physical_routes_inversion_and_reconfiguration` |
+| pad-function-ignored | `c6_physical_routes_inversion_and_reconfiguration` |
+| rx-start-ignored | `c6_receiver_unarmed_reset_and_modes_withhold_routed_frames` |
+| rx-slave-ignored | `c6_receiver_unarmed_reset_and_modes_withhold_routed_frames` |
+| rx-descriptor-ignored | `c6_receiver_unarmed_reset_and_modes_withhold_routed_frames` |
+| rx-force-ignored | `c6_receiver_unarmed_reset_and_modes_withhold_routed_frames` |
+| rx-fifo-mode-ignored | `c6_receiver_unarmed_reset_and_modes_withhold_routed_frames` |
+| rx-clock-gate-ignored | `c6_receiver_unarmed_reset_and_modes_withhold_routed_frames` |
+| camera-free-input-poll | `c6_camera_free_has_no_producer_deadlines_or_steps` |
+| camera-free-deadline-poll | `c6_camera_free_has_no_producer_deadlines_or_steps` |
+| non-camera-clock-poll | `c6_active_non_camera_board_never_queries_camera_clock` |
+| pulse-shorter-than-isr | `c6_vsync_unarmed_stopped_irq_and_one_us_level_without_dma` |
+| data-wire-unqualified | `c6_physical_routes_inversion_and_reconfiguration` |
+| control-polarity-ignored | `c6_physical_routes_inversion_and_reconfiguration` |
