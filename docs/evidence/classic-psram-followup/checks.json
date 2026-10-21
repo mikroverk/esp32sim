@@ -238,7 +238,8 @@
     }
   ],
   "restored_control_passed": true,
-  "strict_hotpath_gate": "FAIL: non-layout successful-return Result packing changes remain",
+  "strict_hotpath_gate": "explained deltas, CPU table pending",
+  "literal_main_equivalent_codegen": false,
   "disassembly": {
     "binary_sha256": {
       "base": "e29a97c5c418e44b4dcaa92b08d45f8343ebfb0b42caebcf5918cb27ec2c29a3",

@@ -38,23 +38,35 @@ addresses are relative to each function; opcode bytes and source/debug metadata
 are omitted, while instruction operands and resolved targets are retained. The
 binary SHA-256s allow the complete raw listing to be regenerated.
 
-The strict codegen gate FAILS on this implementation. Tick has the same 2207
-mnemonics, with relocated operands/field offsets, but fetch is 122 -> 127
-instructions, read8 106 -> 104, read16 122 -> 117, read32 171 -> 178, and shared
-store 2722 -> 2739. These are whole-function static counts, not executed counts.
-The successful read32 return gains dynamic Result repacking; read8 adds a return
-mask, and fetch changes byte assembly. These cannot honestly be explained solely
-as layout/field offsets. The shared store also includes inherited active SPI-path
-changes, distinct from its ordinary mapped-store path. Removing the leading
-range checks is therefore only a partial result, not acceptance of idle-cost
-parity. No CPU clearance or ready-for-review claim is made.
+Codegen gate: **explained deltas, CPU table pending**. Literal main-equivalent
+codegen is not claimed. Whole-function static instruction counts are:
 
-The window guard is no longer at function entry or on the ordinary mapped-memory
-path. This alone is NOT proof that the strict main-equivalent codegen criterion
-passes: LLVM can merge slow-path result construction back into successful return
-blocks. The exact final differences and gate status are recorded in `checks.json`.
-Any result-packing or executed-instruction difference beyond relocation/field
-offsets is a failed strict gate, not relabelled as layout or CPU clearance.
+| Function | Main 77e43c20 | Head implementation 9823ed9a |
+| --- | ---: | ---: |
+| tick | 2207 | 2207 |
+| fetch | 122 | 127 |
+| read8 | 106 | 104 |
+| read16 | 122 | 117 |
+| read32 | 171 | 178 |
+| store | 2722 | 2739 |
+
+Tick retains its mnemonic sequence with relocated operands/field offsets. LLVM
+merges slow-path Result construction into successful return blocks: read32 gains
+dynamic Result repacking, read8 adds a discriminant mask, read16 changes packing,
+and fetch changes byte assembly. These are real instruction differences, not
+merely layout. The shared store also includes inherited active SPI-path changes;
+its successful writable-memory path retains the existing translation, bounds,
+copy and invalidation checks. Inspection of the linked pair finds no additional
+PSRAM-window conditional branch on successful ordinary-memory fetch/load/store
+hits. Store's ROM-write/fault path does contain the miss-path window guard; that
+is not a successful writable-memory hit. Some branch directions and placement
+change, so this is not a claim of identical executed instruction sequences.
+
+The explained-delta criterion permits these disclosed differences without a
+broader return/bus-boundary redesign. Static function totals are not executed
+counts or CPU clearance. The exact final pair and counts are recorded in
+`checks.json`; the pending alternating CPU comparison must establish whether
+these deltas cost time, and any flagged slowdown must be reported honestly.
 
 ## Evidence archive and compact receipts
 
@@ -99,8 +111,8 @@ with ROMs and 1006 without ROMs (60 ignored); virtual-quantum tests pass 43/43.
 The native AArch64 package passes 53 tests with one ignored. The full WASM JIT
 run passes 111126 differential cases with 99679 compiled modules released, then
 24 GPIO waveform cases with 738 modules released. All nine manifest demos pass.
-All 55 tracked golden files are byte-identical to the base. The strict linked
-hot-path gate above remains FAIL despite these functional checks.
+All 55 tracked golden files are byte-identical to the base. The linked hot-path
+gate is explained deltas, CPU table pending, as detailed above.
 
 `checks.json` gives fresh command exits, test totals, exact codegen gate status,
 fixture results and unchanged golden hashes. Native ROM-enabled and plain tests
@@ -149,5 +161,6 @@ cycle-accurate caches, full dual-core fidelity or silicon equivalence is claimed
 
 ## CPU comparison
 
-PENDING. No CPU timing was run. Static source/codegen evidence is not a CPU table,
-and a non-layout codegen difference is not waived by the timing deferral.
+PENDING. No CPU timing was run. The non-layout differences above are accepted as
+explained deltas, not evidence of timing parity. Static source/codegen evidence
+is not a CPU table; the measured comparison remains required.
