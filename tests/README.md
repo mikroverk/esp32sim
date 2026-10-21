@@ -72,7 +72,8 @@ module with `psram-tests` for production JIT settings, and separately with
 `jit-tests` for extra internal validation. Both matrices pass, including classic
 same-machine reboot and repeated construction; the earlier hot-region ownership
 assertion is resolved by the separately retained JIT fix/regression.
-See [the qualification and retained negative receipt](../docs/evidence/classic-psram-wasm/README.md).
+See [the current integrated qualification receipt](../docs/evidence/classic-psram-followup/README.md)
+and [the retained WASM negative and its resolution](../docs/evidence/classic-psram-wasm/README.md).
 
 The classic CLI PSRAM test (`classic_psram_option`) boots the committed IDF
 fixture through the executable with `--psram-mb 4`, explicit `0`, and the absent
