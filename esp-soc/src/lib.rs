@@ -9,6 +9,7 @@ mod console;
 pub mod debug;
 pub mod devices;
 pub mod elf;
+pub mod flash;
 pub mod gpio;
 pub mod host;
 pub mod image;

@@ -138,6 +138,11 @@ pub trait SocBus: Bus {
     fn misc(&mut self) -> &mut Misc;
     fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String>;
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String>;
+    /// `len` bytes of flash from `offset`, or `None` when that range is not inside the array.
+    /// Reads what the guest's erases and programs left there, not the image the run started with.
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]>;
+    /// The flash array's size in bytes (the `--flash-mb` capacity).
+    fn flash_len(&self) -> usize;
     /// Map and copy the app image at flash `app_off` as the bootloader would; returns the entry point.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String>;
     /// Chip reset: re-create the digital peripherals, keep what survives on silicon. Returns the cause.

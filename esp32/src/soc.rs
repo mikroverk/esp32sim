@@ -107,6 +107,10 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
         SocBus::write_flash(self, offset, data)
     }
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]> {
+        self.flash.get(offset..).and_then(|tail| tail.get(..len))
+    }
+    fn flash_len(&self) -> usize { self.flash.len() }
     fn boot_app(&mut self, _app_off: usize) -> Result<u32, String> {
         Err("boot from ROM on the classic ESP32".into())
     }

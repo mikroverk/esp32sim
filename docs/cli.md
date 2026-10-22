@@ -17,6 +17,8 @@ PSRAM and register presets.
 | `--boot rom\|app` | `rom`: start at the mask ROM reset vector (real boot chain). `app`: load the app image segments and jump to its entry |
 | `--bootloader F`, `--ptable F`, `--app F` | written to flash at 0x0 / 0x8000 / 0x10000 |
 | `--flash-image F` | whole flash dump written at 0 |
+| `--flash-file F` | the whole flash as a file that survives the run: loaded when it holds an image, written back at exit — and on a handled `SIGINT`/`SIGTERM` — atomically (a temporary file in the same directory, then a rename). Exactly `--flash-mb` bytes: a larger file is refused, a shorter one is padded with `0xff` (the erased state) and never with zeros. A file that already holds an image wins over `--flash-image`, which then only seeds a file that does not exist yet; `--bootloader`, `--ptable`, `--app` and `--flash-at` are written on top of either, and the source that won is printed |
+| `--flash-out F` | dump the flash as the run left it to F without changing what was loaded; one-shot — nothing is read back on the next start |
 | `--chip esp32\|s3\|c3\|c6` | which chip (default s3; `esp32` is the classic ESP32) |
 | `--rom F` | mask ROM ELF (default: the chip's in `ESP32SIM_ROM_DIR`, then `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |
@@ -38,6 +40,33 @@ PSRAM and register presets.
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default; `user` is an alias) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |
+
+### Persistent flash
+
+Everything a guest stores in flash — NVS (WiFi credentials, its own settings), `otadata`, calibration, a
+filesystem — lives in the same array the run boots from, so a one-shot `--flash-image` loses all of it at
+exit: the next run starts from the same image again. `--flash-file F` makes the array a file:
+
+- It is loaded at start when it already holds an image, so the run begins where the previous one ended.
+- It is written back at exit, after the report, and also when `SIGINT`/`SIGTERM` interrupts the run: the
+  loop is split into chunks of 16 M instructions — about 0.2 s of emulated work at native speed — so a
+  signal is noticed within that grain, and a second signal kills the process as it would without a
+  handler. The report then says `interrupted by a signal`, and the exit status is 130. A run without
+  `--flash-file` is killed by a signal exactly as before. With `--web` the write happens when `run`
+  returns instead, so closing the page and letting the server exit is the clean way out of a web run.
+- It is written atomically — a `.<name>.<pid>.tmp` file in the same directory, flushed and renamed over
+  the target — so a killed run leaves the previous image, never half of one.
+- The file is exactly the configured flash size (`--flash-mb`). A longer file is refused (exit status 2);
+  a shorter one is padded with `0xff`, what an unwritten cell reads as.
+- With `--flash-image` as well, the file wins as soon as it holds an image, because it is the state of the
+  previous run; `--flash-image` then only seeds a file that does not exist yet. The `[emu] flash:` line
+  says which source was used (`… (--flash-file)`, with `; --flash-image ignored` when both were given).
+  `--bootloader`, `--ptable`, `--app` and `--flash-at` are written on top of either, so a run can refresh
+  the firmware and keep the guest's settings.
+
+`--flash-out F` dumps the array as the run left it and changes nothing about the run: a harness that wants
+the final image of a one-shot run uses it, a harness that wants "configure once, then test" uses
+`--flash-file`.
 
 ## Running
 | Flag | Meaning |
@@ -70,6 +99,7 @@ separately lists the actual instruction count for each core.
 | `--wav F` | audio captured from I2S (whichever controller played) |
 | `--tft-png F`, `--gram-png F` | display frame (visible, scaled) / raw GRAM |
 | `--no-dump` | skip the register dump at exit |
+| `--flash-out F` | the whole flash as the run left it (see [Persistent flash](#persistent-flash)) |
 
 ### PWM observation
 
