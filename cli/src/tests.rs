@@ -155,6 +155,14 @@ fn pwm_pins_are_observation_options() {
 }
 
 #[test]
+fn hostfwd_is_repeatable_and_kept_with_wifi() {
+    let o = parse(&["esp32sim".into(), "--wifi".into(), "ssid=demo".into(),
+        "--hostfwd".into(), "tcp:127.0.0.1:0-:80".into(),
+        "--hostfwd".into(), "tcp::0-:443".into()], "s3");
+    assert_eq!(o.hostfwd, ["tcp:127.0.0.1:0-:80", "tcp::0-:443"]);
+}
+
+#[test]
 fn analog_scripts_validate_inputs_and_keep_panel_touch_separate() {
     use esp_soc::ScriptAction;
     let mut m = esp32::machine([0; 6], 4 << 20);

@@ -191,7 +191,8 @@ the WPA2-PSK four-way handshake. Behind it is a virtual network with DHCP, ARP, 
 off the host clock.
 
 `--net nat` (the default) relays the guest's TCP and UDP over ordinary host sockets, so firmware
-reaches the real network. `--net none` refuses it. No firmware changes, no root, no tun device.
+reaches the real network. `--net none` refuses it. `--hostfwd tcp:127.0.0.1:8080-:80` publishes a
+guest TCP server on the host. No firmware changes, no root, no tun device.
 
 ```sh
 ./target/release/esp32sim --board waveshare-lcd4b --boot rom --flash-mb 16 --psram-mb 8 \

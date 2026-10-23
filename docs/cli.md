@@ -34,8 +34,9 @@ PSRAM and register presets.
 | `--ble-scan` | enable a virtual active scanner in C3 full mode; sends SCAN_REQ and observes guest-configured SCAN_RSP |
 | `--ble-observe` | passive full-mode PDU log: half-microsecond timestamp, channel, type, AdvA, decoded AD and raw PDU |
 | `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
-| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md) |
+| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md). `--hostfwd` publishes a guest TCP port on the host |
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default; `user` is an alias) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
+| `--hostfwd tcp:HOST:HOSTPORT-GUEST:GUESTPORT` | (repeatable) listen on the host and deliver accepted TCP connections as SYNs to the station. Empty HOST binds 127.0.0.1; empty GUEST is 10.0.2.15. Example: `tcp:127.0.0.1:8080-:80`. Requires `--wifi` and `--net nat`. UDP is not forwarded |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |
 

@@ -4,9 +4,8 @@ Ordered by value; each item links to its plan where one exists.
 
 1. **WiFi (full, unmodified)** — done: open and WPA2-PSK both associate through the closed blob,
    and outbound TCP/UDP reaches the real network through a user-mode NAT, TLS included
-   ([wifi-plan.md](wifi-plan.md), [networking-plan.md](networking-plan.md)). Remaining: inbound
-   port forwarding (autopling's web UI from the Mac), multicast/mDNS, and a `--net tap` backend
-   for real LAN presence.
+   ([wifi-plan.md](wifi-plan.md), [networking-plan.md](networking-plan.md)). Remaining: UDP inbound,
+   multicast/mDNS, and a `--net tap` backend for real LAN presence. TCP inbound is `--hostfwd`.
 2. **Testing** — hermetic CPU/SoC/board suites, conformance firmware, CI tiers
    ([testing-plan.md](testing-plan.md)). Milestone 1 (no silent skips, shared CPU harness,
    parser robustness) first.
