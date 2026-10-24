@@ -62,6 +62,11 @@ its web UI. The virtual AP above has no counterpart for that, because it puts th
 as the station; `--wifi-join` swaps the roles instead: the emulated MAC becomes a station that
 joins whatever access point the guest brings up.
 
+It can run alongside `--wifi`: the firmware's provisioning AP remains reachable
+while its station scans and joins the virtual upstream AP. RX unicast metadata is
+selected by the addressed interface, and inbound forwards on the AP subnet use
+the client address actually leased by the firmware's DHCP server.
+
 ```sh
 esp32sim ... --wifi-join '' --hostfwd tcp:127.0.0.1:8080-192.168.4.1:80
 curl -sS http://127.0.0.1:8080/

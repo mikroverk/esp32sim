@@ -322,7 +322,7 @@ impl Supplicant {
     /// exactly as the access-point side of the model frames what it sends down.
     pub(crate) fn wrap_eth(&mut self, eth: &[u8]) -> Option<Vec<u8>> {
         if eth.len() < 14 { return None; }
-        let Some(bssid) = self.ap.as_ref().map(|a| a.bssid) else { return None };
+        let bssid = self.ap.as_ref().map(|a| a.bssid)?;
         let mut dst = [0u8; 6]; dst.copy_from_slice(&eth[0..6]);
         let mut fc = 0x0108u16;                                          // data, to the DS
         let protected = self.installed;

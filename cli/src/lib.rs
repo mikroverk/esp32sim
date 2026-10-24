@@ -275,7 +275,7 @@ pub fn run_cli(default_chip: &str) {
     if o.cam_stream.is_some() != o.cam_size.is_some() { usage_error("--cam-stream and --cam-size must be supplied together"); }
     validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
-    if !o.hostfwd.is_empty() && o.wifi.is_none() { usage_error("--hostfwd requires --wifi: a forward rides the emulated 802.11 link"); }
+    if !o.hostfwd.is_empty() && o.wifi.is_none() && o.wifi_join.is_none() { usage_error("--hostfwd requires --wifi or --wifi-join"); }
     if o.cooja { return run_cooja(&mut o); }
     match o.chip.as_str() {
         "esp32" => { let m = setup_esp32(&o); run(m, &o) }
@@ -339,6 +339,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
 
     let net_log = m.bus.debug.has("net");
     attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
+    attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     if let Some(p) = &o.cam_image { match esp_soc::picture::load(p) { Ok(pic) => { eprintln!("[emu] camera picture {} ({}x{})", p, pic.w, pic.h); m.bus.board.set_camera_picture(pic).unwrap_or_else(|e| usage_error(e)); } Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2); } } }
     m.bus.periph.lcd_cam.frame_cycles = (esp32s3::periph::CPU_HZ as f64 / o.cam_fps) as u64;
     let stopwatch = m.bus.board.name() == "stopwatch";
@@ -387,34 +388,12 @@ fn attach_nearby_networks(link: &mut esp_soc::wifi::StationLink, o: &Opts) {
     }
 }
 
-/// `--wifi SPEC` with `--net`: the virtual access point's configuration and, for `--net nat`,
-/// the NAT to the host, the same for every chip. `--hostfwd` adds inbound forwards, which need the
-/// access point and are bound here, before the guest boots.
-fn wifi_config(spec: &str, nat: bool, net_log: bool, forwards: &[String])
-               -> (esp_soc::wifi::ApConfig, Option<esp_soc::nat::Nat>, Option<esp_soc::hostfwd::HostFwd>) {
-    let cfg = esp_soc::wifi::ApConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-    eprintln!("[emu] virtual AP '{}' bssid {} channel {} ({})", cfg.ssid, esp_soc::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
-    let nat = nat.then(|| esp_soc::nat::Nat::new(net_log));
-    if let Some(nat) = &nat { eprintln!("[emu] NAT to the host network enabled (DNS via {}.{}.{}.{})", nat.resolver[0], nat.resolver[1], nat.resolver[2], nat.resolver[3]); }
-    let net = esp_soc::net::VirtualNet::new(false);   // its fixed addresses, for the line below
-    eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
-    let specs: Vec<esp_soc::hostfwd::Spec> = forwards.iter()
-        .map(|text| esp_soc::hostfwd::Spec::parse(text, net.sta_ip).unwrap_or_else(|e| usage_error(&e)))
-        .collect();
-    let fwd = (!specs.is_empty()).then(|| {
-        let fwd = esp_soc::hostfwd::HostFwd::new(&specs, net.sta_ip, net_log).unwrap_or_else(|e| usage_error(&e));
-        for spec in &specs {
-            eprintln!("[emu] hostfwd: tcp:{} -> {}.{}.{}.{}:{} as {}.{}.{}.{}",
-                      spec.bind, net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], spec.guest_port,
-                      esp_soc::hostfwd::PEER_IP[0], esp_soc::hostfwd::PEER_IP[1], esp_soc::hostfwd::PEER_IP[2], esp_soc::hostfwd::PEER_IP[3]);
-        }
-        fwd
-    });
-    (cfg, nat, fwd)
+/// The virtual access point and its outbound network, shared by all chips.
+fn wifi_config(spec: &str, nat: bool, net_log: bool) -> (esp_soc::wifi::ApConfig, Option<esp_soc::nat::Nat>) {
+    let cfg = esp_soc::wifi::ApConfig::parse(spec).unwrap_or_else(|e| usage_error(&format!("--wifi: {e}")));
+    eprintln!("[emu] virtual AP '{}' channel {}", cfg.ssid, cfg.channel);
+    (cfg, nat.then(|| esp_soc::nat::Nat::new(net_log)))
 }
-
-/// `--wifi-join SPEC`: this side of the air joins the access point the guest runs, and the
-/// network behind the link is a client of the guest's DHCP server rather than one of its own.
 fn join_config(spec: &str) -> esp_soc::wifi::JoinConfig {
     let cfg = esp_soc::wifi::JoinConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi-join: {e}"); std::process::exit(2) });
     eprintln!("[emu] joining the guest's access point ({})", cfg.describe());
@@ -442,6 +421,21 @@ fn attach_air<B: esp_soc::SocBus>(bus: &mut B, o: &Opts, nat: bool, net_log: boo
     if o.wifi.is_some() && o.wifi_join.is_some() {
         eprintln!("[emu] both radio roles are on the air: the guest can scan for the emulated access point and join it, while this side is a station of the guest's own access point");
     }
+    let default_ip = if o.wifi.is_some() { [10, 0, 2, 15] } else { [192, 168, 4, 1] };
+    let mut groups: Vec<([u8; 4], Vec<esp_soc::hostfwd::Spec>)> = Vec::new();
+    for text in &o.hostfwd {
+        let guest = text.split_once('-').and_then(|(_, g)| g.rsplit_once(':')).map(|(ip, _)| ip).unwrap_or("");
+        let ip = if guest.is_empty() { default_ip } else {
+            guest.parse::<std::net::Ipv4Addr>().unwrap_or_else(|_| usage_error("--hostfwd: invalid guest IPv4 address")).octets()
+        };
+        let spec = esp_soc::hostfwd::Spec::parse(text, ip).unwrap_or_else(|e| usage_error(&e));
+        if let Some((_, specs)) = groups.iter_mut().find(|(g, _)| *g == ip) { specs.push(spec); }
+        else { groups.push((ip, vec![spec])); }
+    }
+    for (ip, specs) in groups {
+        let fwd = esp_soc::hostfwd::HostFwd::new(&specs, ip, net_log).unwrap_or_else(|e| usage_error(&e));
+        bus.attach_hostfwd(fwd).unwrap_or_else(|e| usage_error(&e));
+    }
     attached
 }
 
@@ -455,6 +449,7 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
     }
     let net_log = m.bus.debug.has("net");
     attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
+    attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
     }
@@ -470,6 +465,7 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
     m.bus.attach_board_devices();
     let net_log = m.bus.debug.has("net");
     attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
+    attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the classic ESP32", flag); std::process::exit(2); }
     }
@@ -485,6 +481,7 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
     m.bus.attach_board_devices();
     let net_log = m.bus.debug.has("net");
     attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
+    attach_nearby_networks(&mut m.bus.periph.wifi_mac.link, o);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C6", flag); std::process::exit(2); }
     }

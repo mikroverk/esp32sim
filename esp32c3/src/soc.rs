@@ -52,7 +52,8 @@ impl esp_soc::SocBus for SocBus {
         Ok(())
     }
     fn attach_hostfwd(&mut self, fwd: esp_soc::hostfwd::HostFwd) -> Result<(), String> {
-        self.periph.wifi.link.net_mut().ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
+        let ip = fwd.guest_ip();
+        self.periph.wifi.link.net_for_guest(ip).ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
         Ok(())
     }
     fn attach_wifi_join(&mut self, cfg: esp_soc::wifi::JoinConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {

@@ -585,7 +585,9 @@ impl StationLink {
     /// how the receive header learns the guest changed roles: the guest is a station of the
     /// emulated access point now, not an access point itself.
     pub fn surviving_reboot(mut self) -> Self {
-        if let Some(fwd) = self.net.as_mut().and_then(|n| n.hostfwd.as_mut()) { fwd.reset_flows(); }
+        for net in [&mut self.ap_net, &mut self.join_net].into_iter().flatten() {
+            if let Some(fwd) = &mut net.hostfwd { fwd.reset_flows(); }
+        }
         if let Some(j) = self.join.as_mut() { j.restart(); }
         StationLink { ap: self.ap, ap_net: self.ap_net, join: self.join, join_net: self.join_net, relay: self.relay, ..Default::default() }
     }
@@ -633,6 +635,14 @@ impl StationLink {
     pub fn rx_match(&self, group: bool) -> u32 {
         if self.guest_runs_ap() { return 1 << 29; }
         if group { 1 << 28 } else { (1 << 28) | (1 << 29) }
+    }
+    /// APSTA has two local addresses: classify unicast by the addressed interface.
+    pub fn rx_match_frame(&self, frame: &[u8]) -> u32 {
+        let group = frame.get(4).is_some_and(|b| b & 1 != 0);
+        if !group && self.join.as_ref().and_then(|j| j.ap.as_ref()).is_some_and(|ap| frame.get(4..10) != Some(&ap.bssid)) {
+            return (1 << 28) | (1 << 29);
+        }
+        self.rx_match(group)
     }
     /// True while the guest's own access point is on the air. A run with only the join is always
     /// that case — the guest is the AP by construction. With the access point role up as well the
@@ -810,6 +820,14 @@ impl StationLink {
     /// `NET_POLL_US`. Nothing to do in relay mode: the host has the frames.
     pub fn net_step(&mut self, now_us: u64) {
         if self.relay { return; }
+        if let (Some(ap), Some(fwd)) = (&self.ap, self.ap_net.as_mut().and_then(|n| n.hostfwd.as_mut())) {
+            fwd.set_station_mac(ap.sta);
+        }
+        if let (Some(join), Some(fwd)) = (&self.join, self.join_net.as_mut().and_then(|n| n.hostfwd.as_mut())) {
+            if let (Some(ap), Some(lease)) = (&join.ap, join.lease) {
+                fwd.set_client_link(ap.bssid, lease.ip, join.sta_mac());
+            }
+        }
 
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
         if self.eth_tx.is_empty() && !due { return; }

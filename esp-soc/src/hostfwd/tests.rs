@@ -57,6 +57,30 @@ fn poll_ready(fwd: &mut HostFwd, now_us: u64) -> Vec<Vec<u8>> {
 }
 
 #[test]
+fn client_link_uses_the_guests_dhcp_lease_for_syn_and_refusal() {
+    let (mut fwd, port) = forward();
+    let guest = [192, 168, 4, 1];
+    let peer = [192, 168, 4, 2];
+    let peer_mac = [0x22; 6];
+    fwd.sta_ip = guest;
+    fwd.set_client_link(GUEST_MAC, peer, peer_mac);
+    let _client = client(port);
+    let syn = poll_ready(&mut fwd, 0).remove(0);
+    assert_eq!(&syn[6..12], &peer_mac);
+    assert_eq!(&syn[26..30], &peer);
+    assert_eq!(&syn[30..34], &guest);
+    assert_eq!(transport_checksum(&peer, &guest, 6, &syn[34..]), 0);
+    let unknown = segment(80, 60000, 42, 0, SYN, &[]);
+    let rst = fwd.tcp_in(&GUEST_MAC, &guest, &unknown, 1000).remove(0);
+    assert_eq!(&rst[6..12], &peer_mac);
+    assert_eq!(&rst[26..30], &peer);
+    assert_eq!(transport_checksum(&peer, &guest, 6, &rst[34..]), 0);
+    fwd.reset_flows();
+    assert_eq!(fwd.active(), 0);
+    assert!(fwd.sta_mac.is_none());
+}
+
+#[test]
 fn spec_parsing_takes_the_qemu_form_and_rejects_malformed_ones() {
     let sta = GUEST;
     let spec = Spec::parse("tcp:127.0.0.1:8080-:80", sta).unwrap();
@@ -89,7 +113,7 @@ fn listener_binds_at_construction_and_fails_loudly() {
 fn syn_carries_the_mss_option_and_is_retransmitted_unchanged() {
     let (mut fwd, port) = forward();
     let _client = client(port);
-    let frames = fwd.poll(0);
+    let frames = poll_ready(&mut fwd, 0);
     assert_eq!(frames.len(), 1);
     assert_eq!(&frames[0][6..12], &PEER_MAC, "the peer sources the frame");
     let (sport, dport, seq, ack, flags, payload, options) = fields(&frames[0]);
@@ -109,7 +133,7 @@ fn syn_carries_the_mss_option_and_is_retransmitted_unchanged() {
 fn handshake_data_and_half_close_reach_both_sides() {
     let (mut fwd, port) = forward();
     let mut host = client(port);
-    let syn = fwd.poll(0);
+    let syn = poll_ready(&mut fwd, 0);
     let (peer_port, _, isn, _, _, _, _) = fields(&syn[0]);
 
     let reply = fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1000, isn + 1, SYN | ACK, &[]), 1);
@@ -159,7 +183,7 @@ fn handshake_data_and_half_close_reach_both_sides() {
 fn guest_reset_closes_the_host_connection_and_is_counted() {
     let (mut fwd, port) = forward();
     let mut host = client(port);
-    let syn = fwd.poll(0);
+    let syn = poll_ready(&mut fwd, 0);
     let (peer_port, _, isn, _, _, _, _) = fields(&syn[0]);
     fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1000, isn + 1, SYN | ACK, &[]), 1);
     assert_eq!(fwd.tcp_in(&GUEST_MAC, &GUEST, &segment(80, peer_port, 1001, isn + 1, RST | ACK, &[]), 2), Vec::<Vec<u8>>::new());
@@ -197,7 +221,12 @@ fn a_host_connection_waits_for_the_station_then_opens() {
     let mut fwd = HostFwd::new(&[spec], GUEST, false).unwrap();
     fwd.set_station_mac([0; 6]);   // not associated yet: the zero MAC is ignored
     let _host = client(port);
-    assert!(fwd.poll(0).is_empty(), "no SYN before the station is known");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while fwd.accepted == 0 {
+        assert!(fwd.poll(0).is_empty(), "no SYN before the station is known");
+        assert!(Instant::now() < deadline, "listener did not accept the host");
+        std::thread::yield_now();
+    }
     assert_eq!((fwd.accepted, fwd.active()), (1, 1));
     fwd.set_station_mac([0x44; 6]);
     let frames = fwd.poll(WAIT_STATION_US / 2);
@@ -214,7 +243,12 @@ fn a_connection_that_never_finds_a_station_is_closed() {
     let spec = Spec { bind: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port), guest_port: 80 };
     let mut fwd = HostFwd::new(&[spec], GUEST, false).unwrap();
     let mut host = client(port);
-    assert!(fwd.poll(0).is_empty());
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while fwd.accepted == 0 {
+        assert!(fwd.poll(0).is_empty());
+        assert!(Instant::now() < deadline, "listener did not accept the host");
+        std::thread::yield_now();
+    }
     assert_eq!(fwd.active(), 1);
     assert!(fwd.poll(WAIT_STATION_US).is_empty());
     assert_eq!((fwd.active(), fwd.abandoned), (0, 1));
@@ -228,11 +262,21 @@ fn flows_are_capped_and_the_next_connection_is_refused_immediately() {
     let mut hosts: Vec<TcpStream> = Vec::new();
     for _ in 0..MAX_FLOWS { hosts.push(client(port)); }
     let mut frames = Vec::new();
-    for tick in 0..MAX_FLOWS as u64 { frames.extend(fwd.poll(tick)); }
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while fwd.accepted < MAX_FLOWS as u64 {
+        frames.extend(fwd.poll(0));
+        assert!(Instant::now() < deadline, "listener did not accept all hosts");
+        std::thread::yield_now();
+    }
     assert_eq!(fwd.flows.len(), MAX_FLOWS);
     assert_eq!(frames.len(), MAX_FLOWS, "one SYN per accepted connection");
     let extra = client(port);
-    fwd.poll(MAX_FLOWS as u64 + 1);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while fwd.capacity_refused == 0 {
+        fwd.poll(1);
+        assert!(Instant::now() < deadline, "listener did not refuse the extra host");
+        std::thread::yield_now();
+    }
     assert_eq!(fwd.capacity_refused, 1);
     assert_eq!(fwd.flows.len(), MAX_FLOWS);
     let mut buf = [0u8; 8];
@@ -247,7 +291,12 @@ fn a_guest_reset_drops_every_flow() {
     let mut hosts: Vec<TcpStream> = Vec::new();
     for _ in 0..3 { hosts.push(client(port)); }
     let mut frames = Vec::new();
-    for tick in 0..3 { frames.extend(fwd.poll(tick)); }
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while fwd.accepted < 3 {
+        frames.extend(fwd.poll(0));
+        assert!(Instant::now() < deadline, "listener did not accept all hosts");
+        std::thread::yield_now();
+    }
     assert_eq!(fwd.active(), 3);
     fwd.reset_flows();
     assert_eq!((fwd.active(), fwd.closed), (0, 3));

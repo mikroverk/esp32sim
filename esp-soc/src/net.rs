@@ -126,7 +126,7 @@ impl VirtualNet {
                 self.nat.as_mut().unwrap().udp_out(src, &sip, sport, &host_dst, &reply_src, dport, &body[8..], now);
                 Vec::new()
             }
-            6 if self.hostfwd.is_some() && dip == crate::hostfwd::PEER_IP => {
+            6 if self.hostfwd.as_ref().is_some_and(|f| f.peer_ip() == Some(dip)) => {
                 let now = self.now_us;
                 self.hostfwd.as_mut().unwrap().tcp_in(src, &sip, body, now)
             }
@@ -164,7 +164,10 @@ impl VirtualNet {
     /// A segment from the guest to one of this side's ports, on a link where the guest is the
     /// access point. The forward owns those ports; without one there is nothing to answer, which
     /// the caller counts as unhandled rather than dropping silently.
-    fn peer_tcp(&mut self, _src: &[u8; 6], _sip: &[u8; 4], _dip: &[u8; 4], _seg: &[u8]) -> Vec<Vec<u8>> {
+    fn peer_tcp(&mut self, src: &[u8; 6], sip: &[u8; 4], dip: &[u8; 4], seg: &[u8]) -> Vec<Vec<u8>> {
+        if let Some(fwd) = &mut self.hostfwd {
+            if fwd.peer_ip() == Some(*dip) { return fwd.tcp_in(src, sip, seg, self.now_us); }
+        }
         self.unhandled += 1;
         Vec::new()
     }

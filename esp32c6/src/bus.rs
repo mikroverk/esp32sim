@@ -297,10 +297,9 @@ impl SocBus {
         let total = RX_CTRL + frame.len() + 4;
         // hardware-owned, empty, and big enough (size is the low 14 bits)
         if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.link.drop_rx(); return; }
-        let group = frame.len() >= 5 && frame[4] & 1 == 1;
         let mut words = [0u32; RX_CTRL / 4];
         let rssi = self.periph.wifi_mac.link.ap().map_or(-40i8, |ap| ap.rx_meta(frame).1);
-        words[0] = (rssi as u8 as u32) | self.periph.wifi_mac.link.rx_match(group);   // rssi (-40 dBm for the access point), 1 Mbps legacy; match 0, and match 1 for our own address
+        words[0] = (rssi as u8 as u32) | self.periph.wifi_mac.link.rx_match_frame(frame);   // rssi (-40 dBm for the access point), 1 Mbps legacy; match 0, and match 1 for our own address
         words[3] = now_us as u32;                                       // timestamp
         words[5] = 0xa6;                                                // noise floor -90 dBm
         words[21] = (frame.len() as u32 + 4) & 0x3fff;                  // byte 84: the frame's length with its FCS

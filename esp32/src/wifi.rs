@@ -216,9 +216,8 @@ impl SocBus {
         if !d.owner_dma || d.eof || d.buf == 0 || d.size < total as u32 { return None; }
         let range = dma_range(d.buf, total)?;
         let (chan, rssi) = { let (c, r) = self.periph.wifi.link.ap().map_or((self.periph.wifi.link.channel().unwrap_or(1), -40), |ap| ap.rx_meta(frame)); (c as u32, i32::from(r)) };
-        let broadcast = frame.get(4).is_some_and(|v| v & 1 != 0);
         // wDev_ProcessRxSucData subtracts the classic 96 dB RSSI offset.
-        let w0 = ((rssi + 96) as u32 & 0xff) | self.periph.wifi.link.rx_match(broadcast);
+        let w0 = ((rssi + 96) as u32 & 0xff) | self.periph.wifi.link.rx_match_frame(frame);
         // Classic rx_ctrl is 28 bytes: noise at +8, channel at +10, sig_len/state at +24.
         let mut bytes = Vec::with_capacity(total);
         for w in [

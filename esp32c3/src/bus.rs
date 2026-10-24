@@ -316,10 +316,9 @@ impl SocBus {
         // A network around's frames carry its own channel and signal (`VirtualAp::rx_meta`)
         let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.ap().map_or((link.channel().unwrap_or(1), -40), |ap| ap.rx_meta(frame)); (c as u32, r, link.log()) };
         let mut b = Vec::with_capacity(total);
-        let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
         // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
         // requires in the C3 blob; inherited from the S3 model, not measured on C3 silicon.
-        let fm = self.periph.wifi.link.rx_match(bcast);
+        let fm = self.periph.wifi.link.rx_match_frame(frame);
         let w0: u32 = fm | (rssi as u8 as u32);   // rssi (−40 dBm for the access point), 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
         let w5: u32 = 0xa6;                                                                // noise floor -90

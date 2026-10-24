@@ -604,10 +604,9 @@ impl SocBus {
         // rx_ctrl word 0: the address filter's verdict (silicon: a broadcast beacon reads 0x111b20ad —
         // bit 28 set, signed rssi in the low byte), rssi -40 dBm, 1 Mbps legacy. Which bits the filter
         // reports depends on the role the guest's MAC is in; `rx_match` has the details.
-        let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
         // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
         // requires (silicon: a broadcast beacon reads 0x111b20ad); unicast frames add bit 29.
-        let fm = self.periph.wifi.link.rx_match(bcast);
+        let fm = self.periph.wifi.link.rx_match_frame(frame);
         let w0: u32 = fm | (rssi as u8 as u32);   // rssi (−40 dBm for the access point), 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
         let w5: u32 = 0xa6;                                                                // noise floor -90

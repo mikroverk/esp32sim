@@ -110,6 +110,8 @@ pub struct HostFwd {
     flows: Vec<Tcp>,
     sta_mac: Option<[u8; 6]>,
     sta_ip: [u8; 4],
+    peer_ip: [u8; 4],
+    peer_mac: [u8; 6],
     isn: u32,
     next_port: u16,
     pub log: bool,
@@ -137,14 +139,22 @@ impl HostFwd {
                 .map_err(|e| format!("--hostfwd tcp:{}:{}: {e}", spec.bind.ip(), spec.bind.port()))?;
             listeners.push(Listener { spec: *spec, sock });
         }
-        Ok(Self { listeners, waiting: Vec::new(), flows: Vec::new(), sta_mac: None, sta_ip,
+        Ok(Self { listeners, waiting: Vec::new(), flows: Vec::new(), sta_mac: None, sta_ip, peer_ip: PEER_IP, peer_mac: PEER_MAC,
                   isn: 0x2000_0000, next_port: PEER_PORT_FIRST, log,
                   accepted: 0, established: 0, closed: 0, refused: 0, capacity_refused: 0,
                   abandoned: 0, no_flow: 0, bytes_to_guest: 0, bytes_to_host: 0 })
     }
 
     /// The addresses whose frames this forward owns: one ARP responder and one TCP demux arm.
-    pub fn peer_ip(&self) -> Option<[u8; 4]> { (!self.listeners.is_empty()).then_some(PEER_IP) }
+    pub fn peer_ip(&self) -> Option<[u8; 4]> { (!self.listeners.is_empty()).then_some(self.peer_ip) }
+    pub fn guest_ip(&self) -> [u8; 4] { self.sta_ip }
+
+    /// A SoftAP client uses the address actually leased by the guest, and its own WiFi MAC.
+    pub fn set_client_link(&mut self, guest_mac: [u8; 6], peer_ip: [u8; 4], peer_mac: [u8; 6]) {
+        self.set_station_mac(guest_mac);
+        self.peer_ip = peer_ip;
+        self.peer_mac = peer_mac;
+    }
 
     /// The station's MAC, once it has associated; a flow cannot be framed before that.
     pub fn set_station_mac(&mut self, mac: [u8; 6]) {
@@ -163,6 +173,9 @@ impl HostFwd {
     pub fn reset_flows(&mut self) {
         let dropped = self.flows.len() as u64;
         self.flows.clear();
+        self.abandoned += self.waiting.len() as u64;
+        self.waiting.clear();
+        self.sta_mac = None;
         self.closed += dropped;
         if dropped != 0 && self.log { eprintln!("[hostfwd] {dropped} flow(s) dropped by a guest reset"); }
     }
@@ -183,7 +196,7 @@ impl HostFwd {
         self.isn = self.isn.wrapping_add(0x10000);
         let mut flow = Tcp {
             guest_mac: mac, guest_ip: self.sta_ip, guest_port: spec.guest_port,
-            dst_ip: PEER_IP, dst_port: port, src_mac: PEER_MAC,
+            dst_ip: self.peer_ip, dst_port: port, src_mac: self.peer_mac,
             transport: Transport::Connected(sock),
             guest_write: GuestWrite::Open, host_closed: false,
             our_seq: self.isn, guest_seq: 0, guest_window: 0,
@@ -216,7 +229,7 @@ impl HostFwd {
             // or a probe. Refuse it instead of letting the guest retransmit into the void.
             if flags & RST != 0 { return Vec::new(); }
             self.no_flow += 1;
-            return vec![reset(gmac, sip, sport, dport, seq, ack, flags, data.len())];
+            return vec![reset(gmac, sip, sport, dport, seq, ack, flags, data.len(), &self.peer_ip, &self.peer_mac)];
         };
         let log = self.log;
         let c = &mut self.flows[i];
@@ -327,7 +340,7 @@ fn ip(a: &[u8; 4]) -> Ipv4Addr { Ipv4Addr::from(*a) }
 /// A RST for a segment the peer has no flow for, built the way RFC 793 asks: answer an ACK with
 /// RST/seq = incoming ack, otherwise RST|ACK/ack = incoming seq plus what the segment occupied.
 #[allow(clippy::too_many_arguments, reason = "the segment's fields stay explicit at the protocol boundary")]
-fn reset(gmac: &[u8; 6], sip: &[u8; 4], sport: u16, dport: u16, seq: u32, ack: u32, flags: u8, data_len: usize) -> Vec<u8> {
+fn reset(gmac: &[u8; 6], sip: &[u8; 4], sport: u16, dport: u16, seq: u32, ack: u32, flags: u8, data_len: usize, peer_ip: &[u8; 4], peer_mac: &[u8; 6]) -> Vec<u8> {
     let occupied = data_len as u32 + u32::from(flags & SYN != 0) + u32::from(flags & FIN != 0);
     let (rst_seq, rst_ack, rst_flags) = if flags & ACK != 0 { (ack, 0, RST) } else { (0, seq.wrapping_add(occupied), RST | ACK) };
     let mut seg = Vec::with_capacity(20);
@@ -336,9 +349,9 @@ fn reset(gmac: &[u8; 6], sip: &[u8; 4], sport: u16, dport: u16, seq: u32, ack: u
     seg.extend_from_slice(&rst_seq.to_be_bytes());
     seg.extend_from_slice(&rst_ack.to_be_bytes());
     seg.extend_from_slice(&[0x50, rst_flags, 0, 0, 0, 0, 0, 0]);
-    let check = transport_checksum(&PEER_IP, sip, 6, &seg).to_be_bytes();
+    let check = transport_checksum(peer_ip, sip, 6, &seg).to_be_bytes();
     seg[16..18].copy_from_slice(&check);
-    ethernet(gmac, &PEER_MAC, 0x0800, &ip_packet(6, &PEER_IP, sip, &seg))
+    ethernet(gmac, peer_mac, 0x0800, &ip_packet(6, peer_ip, sip, &seg))
 }
 
 #[cfg(test)]

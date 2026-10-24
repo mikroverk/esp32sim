@@ -116,6 +116,25 @@ fn next_data(link: &mut StationLink, from_us: u64) -> Option<Vec<u8>> {
 }
 
 #[test]
+fn apsta_authentication_is_delivered_to_the_station_interface() {
+    let (mut link, mut guest) = both_roles();
+    for f in guest.step(200_000) { link.station_tx(&f.frame, 200_000); }
+    let sta = [0x30; 6];
+    link.station_tx(&auth_request(host_ap().bssid, sta), 300_000);
+    let mut auth = None;
+    for t in (302_000..=340_000).step_by(1_000) {
+        if let Some(frame) = link.next_rx(t, false) {
+            if frame[0] == 0xb0 && frame[4..10] == sta { auth = Some(frame); break; }
+        }
+    }
+    let auth = auth.expect("external access point answers station authentication");
+    assert_eq!(link.rx_match_frame(&auth), (1 << 28) | (1 << 29));
+    let mut ap_frame = auth;
+    ap_frame[4..10].copy_from_slice(&GUEST_MAC);
+    assert_eq!(link.rx_match_frame(&ap_frame), 1 << 29);
+}
+
+#[test]
 fn both_radio_roles_are_on_the_air_each_with_its_own_network() {
     let mut link = both_roles().0;
     assert!(link.ap().is_some() && link.join().is_some(), "both roles at once");

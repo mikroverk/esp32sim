@@ -15,6 +15,7 @@ mod web;
 
 #[derive(Clone, Debug)]
 pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32), TouchPad(u8, bool), Ble(String), Analog(u8, esp_periph::AnalogSource),
+    I2sPcm(usize, Vec<[i16; 2]>),
     /// `waituart0 <timeout_s> <text>`: hold the rest of the script until UART0 prints `text` (or the
     /// timeout passes), then shift every later action by the time actually waited. Fields: text,
     /// timeout in cycles, the cycle the script placed it at.
@@ -1042,10 +1043,21 @@ impl<S: Soc> Machine<S> {
                 continue;
             }
             let (t, a) = self.script.events[self.script.pos].clone(); self.script.pos += 1;
-            if self.script.log { eprintln!("[script] t={:.3}s {:?}", t as f64 / S::CPU_HZ as f64, a); }
+            if self.script.log {
+                if let ScriptAction::I2sPcm(port, samples) = &a {
+                    eprintln!("[script] t={:.3}s I2S{port} PCM {} frames", t as f64 / S::CPU_HZ as f64, samples.len());
+                } else { eprintln!("[script] t={:.3}s {:?}", t as f64 / S::CPU_HZ as f64, a); }
+            }
             match a {
                 ScriptAction::Gpio(pin, level) => { self.bus.gpio_set_input(pin, level); *self.bus.irq_dirty() = true; }
                 ScriptAction::Serial(text) => self.bus.serial_input(text.as_bytes()),
+                ScriptAction::I2sPcm(port, samples) => {
+                    let accepted = self.bus.i2s_input(port).map_or(0, |input| input.push(&samples));
+                    if accepted != samples.len() {
+                        eprintln!("[script] I2S{port} input overflow: accepted {accepted}/{}", samples.len());
+                        self.max_cycles = 0; stopped = true;
+                    }
+                }
                 ScriptAction::Uart(n, text) => self.bus.uart_input(n, text.as_bytes()),
                 ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::TouchPad(pin, touched) => self.bus.set_touch_input(pin, touched),
@@ -1151,6 +1163,21 @@ impl<S: Soc> Machine<S> {
                     ev.push((c, ScriptAction::TouchPad(pn, touched)));
                 }
                 "serial" => ev.push((c, ScriptAction::Serial(format!("{}\n", rest)))),
+                "i2spcm" => {
+                    let mut p = rest.split_whitespace();
+                    let port: usize = p.next().and_then(|v| v.parse().ok()).ok_or_else(|| format!("line {}: i2spcm <port> <file> <rate_hz>", ln + 1))?;
+                    if self.bus.i2s_input(port).is_none() { return Err(format!("line {}: I2S{port} is absent", ln + 1)); }
+                    let file = p.next().ok_or_else(|| format!("line {}: i2spcm needs a PCM file", ln + 1))?;
+                    let rate: u32 = p.next().and_then(|v| v.parse().ok()).filter(|r| (8000..=96000).contains(r)).ok_or_else(|| format!("line {}: PCM rate must be 8000..96000 Hz", ln + 1))?;
+                    if p.next().is_some() { return Err(format!("line {}: unexpected i2spcm argument", ln + 1)); }
+                    let bytes = std::fs::read(file).map_err(|e| format!("line {}: {file}: {e}", ln + 1))?;
+                    if bytes.is_empty() || bytes.len() % 2 != 0 { return Err(format!("line {}: PCM must contain complete mono s16le samples", ln + 1)); }
+                    for (index, chunk) in bytes.chunks(8192).enumerate() {
+                        let samples = chunk.as_chunks::<2>().0.iter().map(|s| [i16::from_le_bytes(*s); 2]).collect();
+                        let offset = index as u64 * 4096 * S::CPU_HZ / u64::from(rate);
+                        ev.push((c.saturating_add(offset), ScriptAction::I2sPcm(port, samples)));
+                    }
+                }
                 // adc <gpio> <volts>: constant voltage on an analog pad
                 "adc" => { let mut p = rest.split_whitespace(); let pn = pin(p.next().unwrap_or(""))?;
                            let v: f32 = p.next().and_then(|x| x.parse().ok()).ok_or_else(|| format!("line {}: adc <gpio> <volts>", ln + 1))?;

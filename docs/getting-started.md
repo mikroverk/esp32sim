@@ -178,8 +178,17 @@ The classic ESP32 boots its ECO3 mask ROM on dual LX6 cores, with GPIO, UART and
 2.2  knob cw 2                            # two quadrature detents on CLK5/DT4
 3.4  press btn2 120
 4.0  serial {"action":"set_note","value":"9"}   # into USB-CDC RX
+4.5  i2spcm 1 microphone.pcm 16000         # PCM16 mono into I2S1 RX, paced at 16 kHz
 5.0  stop
 ```
+
+`i2spcm <port> <file> <rate_hz>` accepts nonempty signed 16-bit little-endian mono
+audio, duplicates each sample into the stereo input lanes, and queues it in paced
+4096-frame chunks. Ports are 0 or 1; rates are 8000 through 96000 Hz. The path is
+relative to the emulator's working directory. The peripheral then packs samples
+using the guest's I2S slot configuration; a digital microphone codec may apply its
+own additional shift. Queue overflow stops the run instead of dropping audio.
+`waituart0 <timeout_s> <text>` can delay subsequent events until a firmware prompt.
 
 ## WiFi
 
