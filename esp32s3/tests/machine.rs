@@ -544,6 +544,28 @@ fn breakpoints_stop_at_first_fetch_and_at_a_sleeping_pc() {
 }
 
 #[test]
+fn web_microphone_packets_reach_i2s_and_reject_invalid_or_overflowing_input() {
+    use esp_soc::SocBus;
+    let mut m = machine();
+    let web = esp_soc::web::WebServer::queued(); m.web = Some(web.clone());
+    for packet in [vec![5], vec![5, 1, 0], vec![5, 2, 0, 0], vec![5; 8196]] {
+        web.push_incoming_bin(packet);
+        m.run(0);
+        assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 0);
+        assert!(web.take_outbox().iter().any(|(_, data)| String::from_utf8_lossy(data).contains("microphone-error")));
+    }
+    web.push_incoming_bin(vec![5, 1, 0, 1, 0, 255]); m.run(0);
+    assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 2);
+    assert_eq!(m.bus.i2s_input(0).unwrap().queued_frames(), 0);
+    assert!(web.take_outbox().is_empty());
+    let input = m.bus.i2s_input(1).unwrap(); input.clear();
+    assert_eq!(input.push(&vec![[0; 2]; 65536]), 65536);
+    web.push_incoming_bin(vec![5, 1, 0, 0]); m.run(0);
+    assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 65536);
+    assert!(web.take_outbox().iter().any(|(_, data)| String::from_utf8_lossy(data).contains("overflow")));
+}
+
+#[test]
 fn queued_web_input_is_ordered_and_does_not_advance_guest_time() {
     let mut m = machine();
     let board = esp32s3::board::WaveshareAmoled18V2::new();

@@ -115,6 +115,17 @@ impl<S: Soc> Machine<S> {
         let Some(w) = self.web.clone() else { return };
         use crate::json::{parse_json, Json};
         for b in w.poll_incoming_bin() {
+            // type 5: [5][I2S port][mono PCM16 LE at the PAO microphone's 16 kHz rate].
+            if b.first() == Some(&5) {
+                if b.len() < 4 || b.len() > 8194 || b.len() % 2 != 0 || b[1] > 1 {
+                    w.send_text(r#"{"t":"microphone-error","message":"Invalid PCM16 microphone packet"}"#);
+                    continue;
+                }
+                let samples: Vec<_> = b[2..].as_chunks::<2>().0.iter().map(|v| { let s = i16::from_le_bytes(*v); [s, s] }).collect();
+                let accepted = self.bus.i2s_input(b[1] as usize).map_or(0, |input| input.push(&samples));
+                if accepted != samples.len() { w.send_text(r#"{"t":"microphone-error","message":"Microphone input overflow or unavailable I2S port"}"#); }
+                continue;
+            }
             // type 3: camera picture from the browser — [3][w u16 le][h u16 le][RGBA...]
             if b.len() >= 5 && b[0] == 3 {
                 let wd = u16::from_le_bytes([b[1], b[2]]) as u32;

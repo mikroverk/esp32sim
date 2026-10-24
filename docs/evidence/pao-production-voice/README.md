@@ -45,6 +45,36 @@ and 228,495 nonzero audio samples after the conservative greeting boundary.
 Hermetic tests exercise addressing modes, serial continuation, visible pixels,
 panel orientation and GPIO48 indication.
 
+## Interactive host microphone and speaker
+
+After provisioning and activating a saved production flash, start the native emulator
+from this repository's root with its web assets:
+
+```sh
+esp32sim --board pao --boot rom --rom '<ESP32-S3 ROM ELF>' \
+  --elf '<production firmware ELF>' --flash-image '<saved 16 MB flash>' \
+  --mac '<the saved device MAC>' --flash-mb 16 --psram-mb 8 \
+  --wifi ssid=pao-sim-ap,psk=pao-sim-password --web 8080 --web-dir web \
+  --console uart0 --no-dump
+```
+
+Open `http://127.0.0.1:8080/`, click the microphone/speaker control and grant
+microphone access. The browser captures mono audio at 16 kHz; an AudioWorklet
+sends 1024 PCM16 samples per WebSocket packet to I2S1 RX. Packet type 5 contains
+the type byte, I2S port byte and little-endian mono samples. Invalid packets or
+input overflow report an error and stop microphone capture. The host samples are
+scaled by 1/16 to match the production codec's 32-bit slot conversion.
+
+The firmware runs its own WakeNet, Opus and network stack. I2S0 TX audio returns
+through the existing browser playback path at unity gain for PAO. The page also
+shows the OLED and status LED and provides a GPIO0 BOOT button. Use headphones
+to reduce speaker feedback; microphone access requires localhost or a secure
+browser context. No Python audio capture or prerecorded PCM input is needed.
+
+Browser microphone input has triggered the real wake word and cloud ASR/TTS with
+the production firmware. The packet boundary and AudioWorklet batching also have
+hermetic tests; neither those tests nor the functional model validate acoustics.
+
 ## CPU diagnosis
 
 `LSIP`, `SSIP`, `LSXP` and `SSXP` accessed the incremented address instead of the
