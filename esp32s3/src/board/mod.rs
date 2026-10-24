@@ -12,6 +12,7 @@
 pub use esp_soc::board::{Board, BoardEdge, BoardModel, NoBoard, VirtualCycle};
 
 pub mod atech14;
+pub mod pao;
 pub mod stopwatch;
 pub mod waveshare_amoled18;
 pub mod waveshare_cam;
@@ -27,6 +28,7 @@ pub use waveshare_lcd4b::*;
 pub fn make_board(name: &str) -> Option<Board> {
     match name {
         "atech14" | "atech" => Some(Box::new(Atech14::new())),
+        "pao" => Some(Box::new(pao::Pao::default())),
         "none" | "bare" => Some(Box::new(NoBoard)),
         "stopwatch" | "m5stack-stopwatch" => Some(Box::new(StopWatch::new())),
         "waveshare-cam" | "waveshare" => Some(Box::new(WaveshareCam::new())),

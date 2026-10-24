@@ -27,6 +27,24 @@ RAM dumps, cloud configuration and raw logs are private local inputs/artifacts.
 The reproducible entry point is `firmware/simulation/esp32sim-flow.py` in
 [pao-1024/pao](https://github.com/pao-1024/pao).
 
+### Production OLED board
+
+PAO main `41ea8db` adds the actual SSD1306 display. With those main changes merged,
+the production binary SHA-256 is
+`3e7c4a07d0366adb3395acc7f434afea2551bdda84b4ce790cfbea44fafad8d5`.
+`--board pao` attaches the display to I2C0 address 0x3c with SDA41/SCL42 and
+shows the status LED from GPIO48. It does not change firmware display callbacks.
+The model implements the serial control bytes, horizontal/vertical/page addressing,
+RAM writes, on/off, inverse, remap and scan direction. Analog brightness and
+controller scrolling are outside this functional display model.
+
+The merged production firmware initialized its real LVGL OLED display in both
+boots without its missing-display fallback. The full provisioning, cold boot,
+WakeNet and cloud question/answer flow passed again, with actual display PNGs
+and 228,495 nonzero audio samples after the conservative greeting boundary.
+Hermetic tests exercise addressing modes, serial continuation, visible pixels,
+panel orientation and GPIO48 indication.
+
 ## CPU diagnosis
 
 `LSIP`, `SSIP`, `LSXP` and `SSXP` accessed the incremented address instead of the

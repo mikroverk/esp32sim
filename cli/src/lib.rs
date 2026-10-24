@@ -328,7 +328,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
         if invalid { usage_error(message); }
     }
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
-    m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none)", o.board); std::process::exit(2) });
+    m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, pao, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none)", o.board); std::process::exit(2) });
     if o.measured_te {
         assert_eq!(m.bus.board.name(), "waveshare-amoled18-v2", "--measured-te requires the AMOLED V2 board");
         m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::with_measured_te());
