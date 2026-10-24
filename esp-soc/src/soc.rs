@@ -105,6 +105,12 @@ pub trait SocBus: Bus {
     /// survive a guest reboot. A second call replaces them and restarts the link's queues, pacing
     /// and counts; the relay mode stays.
     fn attach_wifi(&mut self, _cfg: crate::wifi::ApConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
+    /// Attach inbound port forwarding to the virtual network. Requires an attached access point.
+    fn attach_hostfwd(&mut self, _fwd: crate::hostfwd::HostFwd) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
+    /// The inverted air (`--wifi-join`): the guest runs the access point and this side joins it as
+    /// a station, taking its address from the guest's DHCP server. Replaces any virtual access
+    /// point; the link survives a guest reboot by joining again.
+    fn attach_wifi_join(&mut self, _cfg: crate::wifi::JoinConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
     /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
@@ -138,6 +144,11 @@ pub trait SocBus: Bus {
     fn misc(&mut self) -> &mut Misc;
     fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String>;
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String>;
+    /// `len` bytes of flash from `offset`, or `None` when that range is not inside the array.
+    /// Reads what the guest's erases and programs left there, not the image the run started with.
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]>;
+    /// The flash array's size in bytes (the `--flash-mb` capacity).
+    fn flash_len(&self) -> usize;
     /// Map and copy the app image at flash `app_off` as the bootloader would; returns the entry point.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String>;
     /// Chip reset: re-create the digital peripherals, keep what survives on silicon. Returns the cause.

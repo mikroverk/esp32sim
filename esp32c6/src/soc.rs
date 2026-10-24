@@ -43,6 +43,15 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi_mac.link.attach_new(cfg, nat, &self.debug);
         Ok(())
     }
+    fn attach_hostfwd(&mut self, fwd: esp_soc::hostfwd::HostFwd) -> Result<(), String> {
+        let ip = fwd.guest_ip();
+        self.periph.wifi_mac.link.net_for_guest(ip).ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
+        Ok(())
+    }
+    fn attach_wifi_join(&mut self, cfg: esp_soc::wifi::JoinConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi_mac.link.attach_join(cfg, nat, &self.debug);
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.periph.wifi_mac.link.set_relay(enabled);
         Ok(())
@@ -67,6 +76,10 @@ impl esp_soc::SocBus for SocBus {
     fn misc(&mut self) -> &mut Misc { &mut self.periph.misc }
     fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> { SocBus::load_bytes(self, addr, data) }
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> { SocBus::write_flash(self, offset, data) }
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]> {
+        self.flash.get(offset..).and_then(|tail| tail.get(..len))
+    }
+    fn flash_len(&self) -> usize { self.flash.len() }
     /// Copy the RAM segments and map the flash-resident ones through the MMU, as the 2nd-stage
     /// bootloader would. One flat window for code and data makes this straightforward here;
     /// the system registers the bootloader would have set up are not preset, so this is a

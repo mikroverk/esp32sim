@@ -17,6 +17,8 @@ PSRAM and register presets.
 | `--boot rom\|app` | `rom`: start at the mask ROM reset vector (real boot chain). `app`: load the app image segments and jump to its entry |
 | `--bootloader F`, `--ptable F`, `--app F` | written to flash at 0x0 / 0x8000 / 0x10000 |
 | `--flash-image F` | whole flash dump written at 0 |
+| `--flash-file F` | the whole flash as a file that survives the run: loaded when it holds an image, written back at exit — and on a handled `SIGINT`/`SIGTERM` — atomically (a temporary file in the same directory, then a rename). Exactly `--flash-mb` bytes: a larger file is refused, a shorter one is padded with `0xff` (the erased state) and never with zeros. A file that already holds an image wins over `--flash-image`, which then only seeds a file that does not exist yet; `--bootloader`, `--ptable`, `--app` and `--flash-at` are written on top of either, and the source that won is printed |
+| `--flash-out F` | dump the flash as the run left it to F without changing what was loaded; one-shot — nothing is read back on the next start |
 | `--chip esp32\|s3\|c3\|c6` | which chip (default s3; `esp32` is the classic ESP32) |
 | `--rom F` | mask ROM ELF (default: the chip's in `ESP32SIM_ROM_DIR`, then `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |
@@ -25,7 +27,7 @@ PSRAM and register presets.
 | `--elf F` (repeatable) | symbols for logs/profiles (app ELF, bootloader ELF) |
 | `--flash-mb N`, `--psram-mb N` | flash size (JEDEC follows it) and octal PSRAM size (default 8 / 2, or 16 / 8 for StopWatch; the octal PSRAM's MR2 density follows it for 4, 8, 16, 32 and 64) |
 | `--flash-octal` | octal SPI flash (ESP32-S3-WROOM-2): Macronix octal commands, JEDEC C2 80 xx, efuse FLASH_TYPE octal; S3 only. An `--efuse-regs` dump is loaded after it: a dump that includes RD_REPEAT_DATA3 (efuse +0x3c) replaces that word, FLASH_TYPE (bit 9) with it |
-| `--board atech14\|waveshare-cam\|waveshare-lcd4b\|waveshare-amoled18-v2\|stopwatch\|none` | board model (default atech14); on the C6: `waveshare-c6-lcd147` or `none`; on the classic ESP32: `ttgo-tdisplay` (alias `tdisplay`), `esp32dev-loopback` or `none`/`esp32dev` |
+| `--board atech14\|waveshare-cam\|waveshare-lcd4b\|waveshare-amoled18-v2\|stopwatch\|none` | board model (default atech14). On the C6: `waveshare-c6-lcd147` or `none`; on the classic ESP32: `ttgo-tdisplay` (alias `tdisplay`), `esp32dev-loopback` or `none`/`esp32dev` |
 | `--strap HEX`, `--reset-cause HEX`, `--efuse-regs F`, `--regs-init F` | reproduce a real chip's boot state (used by the differential tests) |
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
@@ -36,9 +38,36 @@ PSRAM and register presets.
 | `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
 | `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md) |
 | `--wifi-nearby SPEC` (repeatable) | a network around the station, heard but not joinable: a scan lists it with its channel, signal and security, joining it fails as out of reach — `ssid=Home,chan=1,rssi=-60,secure=1` (`chan` 1 through 14, default 1; `rssi` in dBm, default -60; `secure` 0 or 1, default 1; `bssid` optional, derived from the SSID otherwise); up to 32, each on a BSSID of its own, needs `--wifi`; one with the access point's SSID or BSSID is left out with a log line |
+| `--wifi-join SPEC` | join the guest firmware's SoftAP as an emulated station, including authentication, association, WPA2-PSK and DHCP. Filters: `ssid=NAME`, `psk=PASSPHRASE`, `bssid=AA:BB:CC:DD:EE:FF`; an empty specification joins the first open AP. `password` and `pass` alias `psk`; unknown keys, short passphrases and malformed BSSIDs are rejected. Combines with `--wifi` for APSTA provisioning. Forwards on this link name the firmware AP's own address; see `docs/networking-plan.md` |
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default; `user` is an alias) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
+| `--hostfwd SPEC` (repeatable) | carry inbound TCP connections into the guest's own stack: `tcp:[HOSTADDR:]HOSTPORT-[GUESTADDR:]GUESTPORT`, e.g. `tcp:127.0.0.1:8080-192.168.4.1:80`. Binding defaults to loopback; `0.0.0.0` must be explicit. Requires `--wifi` or `--wifi-join`; an omitted guest address selects `10.0.2.15` with `--wifi`, otherwise `192.168.4.1`. In APSTA mode an explicit guest address selects the corresponding network. The station link uses peer `10.0.2.4`; the SoftAP link uses the client address actually leased by the firmware. TCP only, one host port per specification; see `docs/networking-plan.md` |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |
+
+### Persistent flash
+
+Everything a guest stores in flash — NVS (WiFi credentials, its own settings), `otadata`, calibration, a
+filesystem — lives in the same array the run boots from, so a one-shot `--flash-image` loses all of it at
+exit: the next run starts from the same image again. `--flash-file F` makes the array a file:
+
+- It is loaded at start when it already holds an image, so the run begins where the previous one ended.
+- It is written back at exit, after the report, and also when `SIGINT`/`SIGTERM` interrupts the run: the
+  loop is split into chunks so a signal is noticed within a fraction of a second, the report then says
+  `interrupted by a signal`, and the exit status is 130. A run without `--flash-file` is killed by a
+  signal exactly as before.
+- It is written atomically — a `.<name>.<pid>.tmp` file in the same directory, flushed and renamed over
+  the target — so a killed run leaves the previous image, never half of one.
+- The file is exactly the configured flash size (`--flash-mb`). A longer file is refused (exit status 2);
+  a shorter one is padded with `0xff`, what an unwritten cell reads as.
+- With `--flash-image` as well, the file wins as soon as it holds an image, because it is the state of the
+  previous run; `--flash-image` then only seeds a file that does not exist yet. The `[emu] flash:` line
+  says which source was used (`… (--flash-file)`, with `; --flash-image ignored` when both were given).
+  `--bootloader`, `--ptable`, `--app` and `--flash-at` are written on top of either, so a run can refresh
+  the firmware and keep the guest's settings.
+
+`--flash-out F` dumps the array as the run left it and changes nothing about the run: a harness that wants
+the final image of a one-shot run uses it, a harness that wants "configure once, then test" uses
+`--flash-file`.
 
 ## Running
 | Flag | Meaning |
@@ -73,6 +102,7 @@ separately lists the actual instruction count for each core.
 | `--no-dump` | skip the register dump at exit |
 | `--adc PIN` | (repeatable) last completed ADC conversion on that GPIO: 12-bit raw count and generation |
 | `--adc-raw PIN=COUNT` | (repeatable) a post-attenuation 12-bit count (0..4095) on that pad, before the first instruction |
+| `--flash-out F` | the whole flash as the run left it (see [Persistent flash](#persistent-flash)) |
 
 ### PWM observation
 

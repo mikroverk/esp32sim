@@ -38,6 +38,10 @@ fn selectors_immediates_and_fp_registers_do_not_spill_integer_windows() {
             let (mut cpu, mut ram) = machine(word);
             let insn = decode(BASE, word.to_le_bytes());
             assert_eq!(insn.op, op);
+            if matches!(op, Lsxp | Ssxp) {
+                cpu.set_ar(2, BASE + 0x100);
+                cpu.set_ar(3, 0);
+            }
             cpu.blocks.jit_enabled = false;
             let trap = if block { run_block(&mut cpu, &mut ram, 1).1 } else { step(&mut cpu, &mut ram).err() };
             assert_eq!(trap, None, "{op:?}, block={block}");

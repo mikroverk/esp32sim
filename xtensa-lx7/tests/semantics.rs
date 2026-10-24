@@ -53,6 +53,53 @@ fn state(cpu: &Cpu) -> (Vec<u32>, u32, u32, u32, u32, u32, u64, u32, u32, u32) {
 }
 
 #[test]
+fn floating_postincrement_accesses_the_original_address() {
+    for mode in [Mode::Step, Mode::Blocks, Mode::Jit] {
+        let (mut cpu, mut ram) = machine(&asm("018213 01c313 182450 582650 ffff06"), "lsip f1, a2, 4");
+        cpu.cpenable = 1;
+        for (reg, offset) in [(2, 0x100), (3, 0x200), (4, 0x300), (6, 0x400)] { cpu.set_ar(reg, BASE + offset); }
+        cpu.set_ar(5, 8);
+        ram.mem[0x100..0x108].copy_from_slice(&[0x11; 8]);
+        ram.mem[0x104..0x108].copy_from_slice(&[0x22; 4]);
+        ram.mem[0x300..0x30c].copy_from_slice(&[0x33; 12]);
+        ram.mem[0x308..0x30c].copy_from_slice(&[0x44; 4]);
+        run(&mut cpu, &mut ram, mode, 4, false);
+        assert_eq!(cpu.fr[1], 0x11111111, "{mode:?}: LSIP reads before updating");
+        assert_eq!(cpu.fr[2], 0x33333333, "{mode:?}: LSXP reads before updating");
+        assert_eq!(&ram.mem[0x200..0x208], &[0x11, 0x11, 0x11, 0x11, 0, 0, 0, 0]);
+        assert_eq!(&ram.mem[0x400..0x40c], &[0x33, 0x33, 0x33, 0x33, 0, 0, 0, 0, 0, 0, 0, 0]);
+        for (reg, offset) in [(2, 0x104), (3, 0x204), (4, 0x308), (6, 0x408)] { assert_eq!(cpu.get_ar(reg), BASE + offset); }
+    }
+}
+
+#[test]
+fn standalone_wakenet_float_primitives_write_their_results() {
+    for mode in [Mode::Step, Mode::Blocks, Mode::Jit] {
+        let (mut cpu, mut ram) = machine(&asm("fa1080 fa20a0 6a3010 ffff06"), "recip0.s f1, f0");
+        cpu.cpenable = 1;
+        cpu.fr[0] = 4f32.to_bits();
+        cpu.fr[3] = 1f32.to_bits();
+        run(&mut cpu, &mut ram, mode, 3, false);
+        assert_eq!(cpu.fr[1], 0.25f32.to_bits(), "{mode:?}: reciprocal");
+        assert_eq!(cpu.fr[2], 0.5f32.to_bits(), "{mode:?}: reciprocal square root");
+        assert_eq!(cpu.fr[3], 2f32.to_bits(), "{mode:?}: nearest fused multiply-add");
+        for (input, reciprocal, root) in [
+            (-0.0f32, f32::NEG_INFINITY, Some(f32::NEG_INFINITY)),
+            (f32::INFINITY, 0.0, Some(0.0)),
+            (-4.0, -0.25, None),
+        ] {
+            let (mut cpu, mut ram) = machine(&asm("fa1080 fa20a0 6a3010 ffff06"), "recip0.s f1, f0");
+            cpu.cpenable = 1;
+            cpu.fr[0] = input.to_bits();
+            run(&mut cpu, &mut ram, mode, 2, false);
+            assert_eq!(cpu.fr[1], reciprocal.to_bits());
+            if let Some(root) = root { assert_eq!(cpu.fr[2], root.to_bits()); }
+            else { assert!(f32::from_bits(cpu.fr[2]).is_nan()); }
+        }
+    }
+}
+
+#[test]
 fn zero_overhead_loop_runs_its_count() {
     let (mut cpu, mut ram) = machine(&asm("030c 05a022 018276 331b ffff06"), "movi.n a3, 0");
     run(&mut cpu, &mut ram, Mode::Step, 40, false);

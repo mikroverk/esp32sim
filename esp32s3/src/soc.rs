@@ -68,6 +68,17 @@ impl esp_soc::SocBus for SocBus {
         self.refresh_tick_budget();
         Ok(())
     }
+    fn attach_hostfwd(&mut self, fwd: esp_soc::hostfwd::HostFwd) -> Result<(), String> {
+        self.flush_ticks();
+        let ip = fwd.guest_ip();
+        self.periph.wifi.link.net_for_guest(ip).ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
+        Ok(())
+    }
+    fn attach_wifi_join(&mut self, cfg: esp_soc::wifi::JoinConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi.link.attach_join(cfg, nat, &self.debug);
+        self.refresh_tick_budget();
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.flush_ticks();
         self.periph.wifi.link.set_relay(enabled);
@@ -110,6 +121,10 @@ impl esp_soc::SocBus for SocBus {
         self.note_written(SRC_FLASH, offset, data.len());
         Ok(())
     }
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]> {
+        self.flash.get(offset..).and_then(|tail| tail.get(..len))
+    }
+    fn flash_len(&self) -> usize { self.flash.len() }
     /// Copy IRAM/DRAM segments, map IROM/DROM through the MMU, as the 2nd-stage bootloader would.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
         let image = self.flash.get(app_off..).ok_or("app offset beyond flash")?;

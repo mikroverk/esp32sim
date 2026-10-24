@@ -47,6 +47,28 @@ fn apply_adc_raw<S: Soc>(m: &mut Machine<S>, specs: &[(u8, u16)]) {
     }
 }
 
+/// `SIGINT`/`SIGTERM` as a flag rather than a kill: a run that owns a persistent flash file
+/// (`--flash-file`) has to write it out before it leaves. The handler only sets the flag — nothing
+/// else is safe there — and the run loop polls it between chunks. A run without a flash file
+/// installs nothing and is killed exactly as before.
+#[cfg(unix)]
+mod interrupt {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    const SIGINT: i32 = 2;
+    const SIGTERM: i32 = 15;
+    static PENDING: AtomicBool = AtomicBool::new(false);
+    extern "C" { fn signal(signum: i32, handler: extern "C" fn(i32)) -> usize; }
+    extern "C" fn note(_signal: i32) { PENDING.store(true, Ordering::SeqCst) }
+    pub fn install() { unsafe { signal(SIGINT, note); signal(SIGTERM, note); } }
+    pub fn pending() -> bool { PENDING.load(Ordering::SeqCst) }
+}
+
+#[cfg(not(unix))]
+mod interrupt {
+    pub fn install() {}
+    pub fn pending() -> bool { false }
+}
+
 fn timing_cycles(value: &str, name: &str) -> Result<u32, String> {
     value.parse().map_err(|_| format!("{name}: expected a nonnegative u32 cycle count, got {value:?}"))
 }
@@ -97,11 +119,12 @@ pub struct Opts {
     pub approximate_cache: bool,
     pub chip: String,
     pub rom: Option<PathBuf>, pub bootloader: Option<String>, pub ptable: Option<String>, pub app: Option<String>, pub elfs: Vec<String>,
-    pub flash_image: Option<String>, pub flash_at: Vec<String>, pub boot: Option<String>, pub flash_mb: Option<usize>, pub psram_mb: Option<usize>,
+    pub flash_image: Option<String>, pub flash_at: Vec<String>, pub flash_file: Option<String>, pub flash_out: Option<String>,
     /// `--flash-octal`: an octal SPI flash (ESP32-S3-WROOM-2)
     pub flash_octal: bool,
+    pub boot: Option<String>, pub flash_mb: Option<usize>, pub psram_mb: Option<usize>,
     pub mac: Option<[u8; 6]>, pub strap: Option<u32>, pub reset_cause: Option<u32>, pub efuse_regs: Option<String>, pub regs_init: Option<String>,
-    pub board: String, pub wifi: Option<String>, pub wifi_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
+    pub board: String, pub wifi: Option<String>, pub wifi_join: Option<String>, pub wifi_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
@@ -133,6 +156,8 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--app" => o.app = Some(next()),
             "--elf" => o.elfs.push(next()),
             "--flash-image" => o.flash_image = Some(next()),
+            "--flash-file" => o.flash_file = Some(next()),
+            "--flash-out" => o.flash_out = Some(next()),
             "--flash-at" => o.flash_at.push(next()),
             "--boot" => o.boot = Some(next()),
             "--flash-mb" => o.flash_mb = Some(next().parse().expect("mb")),
@@ -148,6 +173,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--measured-te" => o.measured_te = true,
             "--wifi" => o.wifi = Some(next()),
             "--wifi-nearby" => o.wifi_nearby.push(next()),
+            "--wifi-join" => o.wifi_join = Some(next()),
             "--ble-scan" => o.ble_scan = true,
             "--ble-observe" => o.ble_observe = true,
             "--ble" => {
@@ -155,6 +181,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
                 if full { i += 1; o.ble_full = true; } else { o.ble = true; }
             },
             "--net" => o.net = next(),
+            "--hostfwd" => o.hostfwd.push(next()),
             "--cam-image" => o.cam_image = Some(next()),
             "--cam-stream" => o.cam_stream = Some(next()),
             "--cam-size" => o.cam_size = Some(next()),
@@ -248,6 +275,7 @@ pub fn run_cli(default_chip: &str) {
     if o.cam_stream.is_some() != o.cam_size.is_some() { usage_error("--cam-stream and --cam-size must be supplied together"); }
     validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
+    if !o.hostfwd.is_empty() && o.wifi.is_none() && o.wifi_join.is_none() { usage_error("--hostfwd requires --wifi or --wifi-join"); }
     if o.cooja { return run_cooja(&mut o); }
     match o.chip.as_str() {
         "esp32" => { let m = setup_esp32(&o); run(m, &o) }
@@ -287,10 +315,12 @@ fn run_cooja(o: &mut Opts) {
     let dt = t0.elapsed().as_secs_f64();
     eprintln!("[cooja] {} steps, {} early yields, {} tx, {} rx ({} dropped), {} log lines; {:.3} s simulated in {:.1} s wall ({} cycles, {:.1} Mcycle/s)",
               summary.steps, summary.yields, summary.tx, summary.rx, summary.rx_dropped, summary.logs, summary.sim_ns as f64 / 1e9, dt, m.bus.cycles(), m.bus.cycles() as f64 / dt / 1e6);
-    report(&mut m, o, match summary.stopped { Some(_) => Stop::Halted, None => Stop::MaxInsns }, dt);
+    report(&mut m, o, Some(match summary.stopped { Some(_) => Stop::Halted, None => Stop::MaxInsns }), dt);
+    save_flash(&m, o);
 }
 
-fn setup_s3(o: &Opts) -> esp32s3::Machine {
+/// Initialize an S3 for an embedding application; attach its board before calling `run`.
+pub fn setup_s3(o: &Opts) -> esp32s3::Machine {
     let size_error = o.cam_size.as_deref().and_then(|s| camera::size(s).err());
     for (message, invalid) in [
         ("--cam-stream requires --board waveshare-cam", o.cam_stream.is_some() && o.board != "waveshare-cam"),
@@ -307,10 +337,9 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     m.bus.spi2_timing = o.spi2_timing;
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-    }
+
+    let net_log = m.bus.debug.has("net");
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     if let Some(p) = &o.cam_image { match esp_soc::picture::load(p) { Ok(pic) => { eprintln!("[emu] camera picture {} ({}x{})", p, pic.w, pic.h); m.bus.board.set_camera_picture(pic).unwrap_or_else(|e| usage_error(e)); } Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2); } } }
     m.bus.periph.lcd_cam.frame_cycles = (esp32s3::periph::CPU_HZ as f64 / o.cam_fps) as u64;
@@ -360,16 +389,55 @@ fn attach_nearby_networks(link: &mut esp_soc::wifi::StationLink, o: &Opts) {
     }
 }
 
-/// `--wifi SPEC` with `--net`: the virtual access point's configuration and, for `--net nat`,
-/// the NAT to the host, the same for every chip.
+/// The virtual access point and its outbound network, shared by all chips.
 fn wifi_config(spec: &str, nat: bool, net_log: bool) -> (esp_soc::wifi::ApConfig, Option<esp_soc::nat::Nat>) {
-    let cfg = esp_soc::wifi::ApConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-    eprintln!("[emu] virtual AP '{}' bssid {} channel {} ({})", cfg.ssid, esp_soc::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
-    let nat = nat.then(|| esp_soc::nat::Nat::new(net_log));
-    if let Some(nat) = &nat { eprintln!("[emu] NAT to the host network enabled (DNS via {}.{}.{}.{})", nat.resolver[0], nat.resolver[1], nat.resolver[2], nat.resolver[3]); }
-    let net = esp_soc::net::VirtualNet::new(false);   // its fixed addresses, for the line below
-    eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
-    (cfg, nat)
+    let cfg = esp_soc::wifi::ApConfig::parse(spec).unwrap_or_else(|e| usage_error(&format!("--wifi: {e}")));
+    eprintln!("[emu] virtual AP '{}' channel {}", cfg.ssid, cfg.channel);
+    (cfg, nat.then(|| esp_soc::nat::Nat::new(net_log)))
+}
+fn join_config(spec: &str) -> esp_soc::wifi::JoinConfig {
+    let cfg = esp_soc::wifi::JoinConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi-join: {e}"); std::process::exit(2) });
+    eprintln!("[emu] joining the guest's access point ({})", cfg.describe());
+    cfg
+}
+
+/// Put the air `--wifi` and `--wifi-join` asked for on the wire: the access point the guest joins
+/// as a station, the join to the access point the guest runs, or both at once — a firmware in its
+/// setup-AP mode offers a scan, and the network the user picks from that list is the emulated access
+/// point, which the same run then has to lease to the guest as a station. False when neither flag
+/// was given. `nat` and `net_log` configure each link's network the same way.
+fn attach_air<B: esp_soc::SocBus>(bus: &mut B, o: &Opts, nat: bool, net_log: bool) -> bool {
+    let mut attached = false;
+    if let Some(spec) = &o.wifi {
+        let (cfg, nat) = wifi_config(spec, nat, net_log);
+        bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
+        attached = true;
+    }
+    if let Some(spec) = &o.wifi_join {
+        let cfg = join_config(spec);
+        bus.attach_wifi_join(cfg, nat.then(|| esp_soc::nat::Nat::new(net_log)))
+            .unwrap_or_else(|e| { eprintln!("--wifi-join: {e}"); std::process::exit(2) });
+        attached = true;
+    }
+    if o.wifi.is_some() && o.wifi_join.is_some() {
+        eprintln!("[emu] both radio roles are on the air: the guest can scan for the emulated access point and join it, while this side is a station of the guest's own access point");
+    }
+    let default_ip = if o.wifi.is_some() { [10, 0, 2, 15] } else { [192, 168, 4, 1] };
+    let mut groups: Vec<([u8; 4], Vec<esp_soc::hostfwd::Spec>)> = Vec::new();
+    for text in &o.hostfwd {
+        let guest = text.split_once('-').and_then(|(_, g)| g.rsplit_once(':')).map(|(ip, _)| ip).unwrap_or("");
+        let ip = if guest.is_empty() { default_ip } else {
+            guest.parse::<std::net::Ipv4Addr>().unwrap_or_else(|_| usage_error("--hostfwd: invalid guest IPv4 address")).octets()
+        };
+        let spec = esp_soc::hostfwd::Spec::parse(text, ip).unwrap_or_else(|e| usage_error(&e));
+        if let Some((_, specs)) = groups.iter_mut().find(|(g, _)| *g == ip) { specs.push(spec); }
+        else { groups.push((ip, vec![spec])); }
+    }
+    for (ip, specs) in groups {
+        let fwd = esp_soc::hostfwd::HostFwd::new(&specs, ip, net_log).unwrap_or_else(|e| usage_error(&e));
+        bus.attach_hostfwd(fwd).unwrap_or_else(|e| usage_error(&e));
+    }
+    attached
 }
 
 fn setup_c3(o: &Opts) -> esp32c3::Machine {
@@ -380,10 +448,8 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
         m.bus.enable_ble_full(o.ble_observe).unwrap_or_else(|e| usage_error(&e));
         m.bus.periph.ble_lc.scan(o.ble_scan);
     }
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-    }
+    let net_log = m.bus.debug.has("net");
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C3", flag); std::process::exit(2); }
@@ -398,10 +464,8 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
     let board = if o.board == "atech14" { "none" } else { &o.board };
     m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay)")));
     m.bus.attach_board_devices();
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-    }
+    let net_log = m.bus.debug.has("net");
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the classic ESP32", flag); std::process::exit(2); }
@@ -416,10 +480,8 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
     let name = if o.board == "atech14" { "none" } else { o.board.as_str() };   // the S3 default means "bare module" here
     match esp32c6::board::make_board(name) { Some(b) => m.bus.board = b, None => { eprintln!("--board {}: none or waveshare-c6-lcd147 on the C6", name); std::process::exit(2) } }
     m.bus.attach_board_devices();
-    if let Some(spec) = &o.wifi {
-        let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
-        m.bus.attach_wifi(cfg, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
-    }
+    let net_log = m.bus.debug.has("net");
+    attach_air(&mut m.bus, o, o.net == "nat" || o.net == "user", net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi_mac.link, o);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C6", flag); std::process::exit(2); }
@@ -428,7 +490,7 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
 }
 
 /// Everything after the chip is set up: images, boot, observers, the run, the reports.
-fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
+pub fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     let approximate = o.approximate_timing.then(|| {
         let mut config = esp32s3::ApproximateTimingConfig::default();
         if o.approximate_cache && o.approximate_memory.is_none() {
@@ -453,9 +515,15 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     let boot = prepare(&mut m, o);
     let t0 = std::time::Instant::now();
     m.web_restart = !o.no_reboot;
-    let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom", boot == "app");
+    // A run that saves its flash has to survive a signal long enough to save it.
+    let signal_poll = o.flash_file.is_some();
+    if signal_poll { interrupt::install(); }
+    let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom", boot == "app", signal_poll);
     let dt = t0.elapsed().as_secs_f64();
-    report(&mut m, o, stop, dt);
+    let interrupted = signal_poll && interrupt::pending();
+    if interrupted { eprintln!("[emu] signal: stopping to write the flash image"); }
+    report(&mut m, o, (!interrupted).then_some(stop), dt);
+    save_flash(&m, o);
     let pending = m.bus.ble_pending_commands();
     if pending != 0 { eprintln!("[ble] {pending} command(s) still pending at end of run"); }
     if let Some(model) = approximate { eprintln!("[emu] approximate timing totals: {:?}", model.stats()); }
@@ -463,31 +531,62 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
         eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);
         if let Some(cache) = &model.cache { eprintln!("[emu] approximate physical data cache: {:?}", cache.borrow().stats()); }
     }
+    if interrupted { std::process::exit(130); }
+}
+
+/// Instructions between polls for a handled signal. Only a run with a `--flash-file` polls at all:
+/// without one the run is a single `Machine::run` call, exactly as before.
+const SIGNAL_POLL_INSNS: u64 = 1 << 24;
+
+/// Write the flash where the command line asked: `--flash-file` (the persistent image, also what the
+/// next run reads) and `--flash-out` (a one-shot dump that changes nothing about the run). Both are
+/// the whole array, exactly the configured flash size.
+fn save_flash<S: Soc>(m: &Machine<S>, o: &Opts) {
+    if o.flash_file.is_none() && o.flash_out.is_none() { return; }
+    let size = m.flash_len();
+    let Some(image) = m.read_flash(0, size) else { eprintln!("[emu] flash: the model cannot report a complete image"); return };
+    for (path, flag) in [(o.flash_file.as_deref(), "--flash-file"), (o.flash_out.as_deref(), "--flash-out")] {
+        let Some(path) = path else { continue };
+        match esp_soc::flash::write(std::path::Path::new(path), image) {
+            Ok(()) => eprintln!("[emu] flash: wrote {} bytes to {} ({})", size, path, flag),
+            Err(e) => { eprintln!("{}: {}", flag, e); std::process::exit(1); }
+        }
+    }
 }
 
 /// Run, coming back up after a chip reset where that is possible: through the ROM when it booted
 /// the run (`reboot`), and for an app-mode run (`app`) when the reset was the page's Restart — the
 /// chip is reset and the app mapped and entered again, as at startup. A reset the firmware asked
 /// for still ends an app-mode run: there is no ROM to take it through.
-fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool, app: bool) -> Stop {
+///
+/// `signal_poll` splits the run into chunks so a handled signal (`--flash-file`) is noticed while the
+/// guest is running; the chunk boundary is not a stop, so a run that is not polled behaves as before.
+fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool, app: bool, signal_poll: bool) -> Stop {
     loop {
         let before = m.run_steps();
-        let stop = m.run(remaining);
+        let budget = if signal_poll { remaining.min(SIGNAL_POLL_INSNS) } else { remaining };
+        let stop = m.run(budget);
         remaining = remaining.saturating_sub(m.run_steps().saturating_sub(before));
-        if let Stop::SwReset = stop {
-            let cause = m.bus.reset_cause();
-            eprintln!("[emu] chip reset at t={:.3}s: cause {:#x} ({})", m.seconds(), cause, esp_periph::reset_cause_name(cause));
-            let button = m.take_button_reset();
-            if !reboot && !(button && app) { return stop; }
-            if remaining == 0 { return Stop::MaxInsns; }
-            m.reboot();
-            if !reboot {
-                match m.boot_app(0x10000) {
-                    Ok(entry) => eprintln!("[emu] restart: app entry {:#010x} {}", entry, m.sym(entry)),
-                    Err(e) => { eprintln!("[emu] restart: {}", e); return stop; }
+        if signal_poll && interrupt::pending() { return Stop::MaxInsns }
+        match stop {
+            Stop::SwReset => {
+                let cause = m.bus.reset_cause();
+                eprintln!("[emu] chip reset at t={:.3}s: cause {:#x} ({})", m.seconds(), cause, esp_periph::reset_cause_name(cause));
+                let button = m.take_button_reset();
+                if !reboot && !(button && app) { return stop; }
+                if remaining == 0 { return Stop::MaxInsns; }
+                m.reboot();
+                if !reboot {
+                    match m.boot_app(0x10000) {
+                        Ok(entry) => eprintln!("[emu] restart: app entry {:#010x} {}", entry, m.sym(entry)),
+                        Err(e) => { eprintln!("[emu] restart: {}", e); return stop; }
+                    }
                 }
             }
-        } else { return stop; }
+            // The poll budget ran out, not the run: keep going.
+            Stop::MaxInsns if signal_poll && remaining > 0 => continue,
+            other => return other,
+        }
     }
 }
 
@@ -505,7 +604,27 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
         None if boot == "rom" => { eprintln!("[emu] no {} mask ROM ELF found (pass --rom, or use --boot app)", S::NAME); std::process::exit(2) }
         None => {}
     }
-    if let Some(p) = &o.flash_image { m.write_flash(0, &std::fs::read(p).expect("flash image")).unwrap(); }
+    // The flash. `--flash-file` holds it across runs, so what the guest stores there — NVS, otadata,
+    // a filesystem — is still there when the next run starts. A file that already holds an image wins
+    // over `--flash-image`, which then only seeds a file that does not exist yet; the images below
+    // (`--bootloader`, `--ptable`, `--app`, `--flash-at`) are written on top of either.
+    let flash_size = m.flash_len();
+    let mut flash_loaded = false;
+    if let Some(path) = &o.flash_file {
+        let path = std::path::Path::new(path);
+        let existing = std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+        if existing > 0 {
+            let image = esp_soc::flash::read(path, flash_size).unwrap_or_else(|e| usage_error(&format!("--flash-file: {e}")));
+            m.write_flash(0, &image).unwrap_or_else(|e| usage_error(&format!("--flash-file: {e}")));
+            let padding = if existing == flash_size as u64 { String::new() } else { format!(", padded to {flash_size} with 0xff") };
+            eprintln!("[emu] flash: {} bytes from {} (--flash-file{padding}){}", existing, path.display(),
+                      if o.flash_image.is_some() { "; --flash-image ignored" } else { "" });
+            flash_loaded = true;
+        } else if o.flash_image.is_some() {
+            eprintln!("[emu] flash: {} has no image yet: seeded from --flash-image, written there at exit", path.display());
+        }
+    }
+    if let Some(p) = o.flash_image.as_ref().filter(|_| !flash_loaded) { m.write_flash(0, &std::fs::read(p).expect("flash image")).unwrap(); }
     if let Some(p) = &o.bootloader { m.write_flash(S::BOOTLOADER_OFFSET, &std::fs::read(p).expect("bootloader")).unwrap(); }
     if let Some(p) = &o.ptable { m.write_flash(0x8000, &std::fs::read(p).expect("ptable")).unwrap(); }
     if let Some(p) = &o.app { m.write_flash(0x10000, &std::fs::read(p).expect("app")).unwrap(); }
@@ -593,12 +712,14 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
 }
 
 /// The end-of-run report on stderr: counts, faults, peeks, observer reports, captures, registers.
-fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Stop, dt: f64) {
+/// `stop` is `None` when a handled signal ended the run.
+fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Option<Stop>, dt: f64) {
     let total = m.insns();
     let per: String = if S::CORES == 1 { format!("{}", total) } else { m.cores.iter().enumerate().map(|(i, c)| format!("core{} {}", i, c.insn_count())).collect::<Vec<_>>().join(" + ") };
-    eprintln!("\n[emu] stop: {:?} — {} insns in {:.1}s wall = {:.1} Minsn/s; emulated {:.3}s ({} cycles); {} exceptions, {} interrupts",
-              stop, per, dt, total as f64 / dt / 1e6, m.seconds(), m.bus.cycles(), m.exceptions, m.interrupts);
-    if let Stop::Unimplemented(pc, raw) = stop {
+    let reason = match &stop { Some(stop) => format!("{:?}", stop), None => "interrupted by a signal".to_string() };
+    eprintln!("\n[emu] stop: {} — {} insns in {:.1}s wall = {:.1} Minsn/s; emulated {:.3}s ({} cycles); {} exceptions, {} interrupts",
+              reason, per, dt, total as f64 / dt / 1e6, m.seconds(), m.bus.cycles(), m.exceptions, m.interrupts);
+    if let Some(Stop::Unimplemented(pc, raw)) = stop {
         if let Ok(b) = m.bus.fetch(pc) { eprintln!("[emu] unimplemented at {:08x} {}: {} (raw {:#x})", pc, m.sym(pc), m.cores[0].disasm(pc, b), raw); }
     }
     if let Some((a, w)) = m.bus.last_fault() { eprintln!("[emu] last bus fault: {} {:#010x}", if w { "write" } else { "read" }, a); }

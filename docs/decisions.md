@@ -53,6 +53,24 @@ Things that cost real time to find out, recorded so they do not have to be found
   regression WAV was re-baselined: same sample stream, five more samples over five seconds.
 - **WebSocket sends must not block the emulator thread** — a frozen browser tab stalled
   emulation until sends moved to per-client writer threads with bounded queues.
+- **Flash is state, not only an input.** A run that loads an image and keeps nothing loses everything
+  the guest stored — NVS (its own settings, WiFi credentials), `otadata`, calibration, filesystems — so
+  a "configure once, then test" flow could not exist: the second run always booted a factory-fresh chip.
+  `--flash-file` loads the array when the file holds an image and writes it back at exit; `--flash-out`
+  is the one-shot dump. Reading the model needed `SocBus::read_flash`/`flash_len`, because `write_flash`
+  alone can only put images in, never see what the guest programmed.
+- **An image file is exactly the flash size, padded with `0xFF`.** That is what an unwritten cell reads
+  as; padding with `0x00` would make the tail look like programmed data (NVS page state, partition
+  entries), so a short file must never be zero-filled, and a file longer than the array is refused rather
+  than truncated.
+- **A flash file is written by rename, not in place.** A run that is killed mid-write would otherwise
+  leave a half image that the next run boots from; the sequence is temporary file in the same directory →
+  `sync_all` → `rename`. The rename is what makes the new image appear atomically.
+- **A signal handler can only set a flag; the run loop has to poll it.** `SIGINT`/`SIGTERM` on a run that
+  owns a flash file must end at an instruction boundary, not inside a device update, so the handler stores
+  an `AtomicBool` (declare `signal(2)` directly — the workspace has no dependencies) and the run is split
+  into ~16 M-instruction chunks in which the flag is read. A run without `--flash-file` keeps a single
+  `Machine::run` call, so instruction counts and goldens are unchanged.
 
 ## Boards and firmware
 - **Atech's own Pocket Synth build drives the ST7735 over hardware SPI2 and reads the encoder
@@ -88,13 +106,46 @@ Things that cost real time to find out, recorded so they do not have to be found
   indicated (`wDev_ProcessRxSucData` `a3=0xa` rather than `0x1`).
 - **`rx_ctrl` word 0 must set filter-match bit 28**, plus bit 29 for unicast. With bit 29 alone the
   frame is dropped inside `wDev_ProcessRxSucData` before it is ever indicated — silicon shows
-  `0x111b20ad` for a broadcast beacon.
+  `0x111b20ad` for a broadcast beacon. **The rule is the role's, not the model's**: a station
+  reports group traffic as match 0 and its own unicast as both, but a guest in the *AP* role reports
+  a frame it accepted because addr1 is its own address as bit 29 *alone*, and drops anything that
+  also claims bit 28. A soft AP therefore answers no probe request, authentication or association
+  with the station convention — `StationLink::rx_match` decides by which side of the air is
+  modelled.
 - **The EAPOL MIC covers exactly the 802.1X frame**, not the whole 802.11 payload, which can carry
   trailing bytes; and **group-addressed downlink frames need CCMP key id 1** (the GTK) or the
   station drops them silently.
 - **Trim IP payloads to the header's total-length field.** An 802.11 frame carries a 4-byte FCS;
   without trimming, the NAT hands those bytes to the peer as TCP payload and the guest's real
   request then arrives at a sequence number the connection has already passed.
+- **Inbound is the same state machine inverted, not a second one.** `nat::Tcp` already keeps guest
+  bytes in `to_host` and host bytes in `unacked`, independent of who opened the connection, so a
+  forwarded connection differs only in where the socket comes from (the listener's `accept`
+  instead of a dial worker) and in the MAC frames are sourced from (a per-flow `src_mac`). One
+  consequence worth keeping: `--hostfwd` needs no thread at all, because `accept` on a
+  non-blocking listener is as cheap as a dial poll and the NAT already ticks the sockets.
+- **The forward is a separate node on the virtual subnet (10.0.2.4), not the gateway.** Reusing
+  10.0.2.2 would make the guest's ARP and demux ambiguous with DHCP and the resolver, and would
+  hide the client's identity from a server that logs it. A distinct address also means the guest
+  replies *directly* on-subnet, which is the path a real LAN client takes.
+- **A flow cannot be framed before the station's MAC is known.** The access point's association
+  state is the only honest source (the station's own frames arrive later); a host connection that
+  arrives early waits, and is closed after 30 s rather than given a guessed MAC.
+- **Refusing an unknown peer port needs a RST, not silence.** A stale segment or a port probe
+  otherwise leaves the guest retransmitting into a hole; the RFC 793 rule (RST/seq = incoming ack
+  when the segment has ACK, else RST|ACK/ack = seq + length) costs a dozen lines.
+- **A guest that runs its own soft AP needs the air inverted, not a shim.** `--wifi-join` makes the
+  emulated MAC the station: beacons and probe responses teach it the BSSID, SSID, channel and RSN
+  element, and it authenticates, associates, runs the four-way handshake in the *supplicant* role and
+  takes a lease from the guest's DHCP server. The crypto is not duplicated — the same
+  `esp_periph::crypto` PMK/PTK/MIC/key-wrap primitives serve both roles, and the supplicant's test
+  drives it against the model's own authenticator (`VirtualAp`), so a mismatch between the halves
+  fails a unit test instead of an integration run.
+- **On a join link the forward's addresses come from the lease, not from the model.** The guest is
+  the access point, so there is no 10.0.2.x subnet: the peer is the address the guest's DHCP server
+  handed out and the guest side is the AP itself (or the address a `--hostfwd` specification names).
+  Until the lease arrives there is nothing to frame toward, so a host connection that arrives early
+  waits instead of being given a guessed address.
 - **Debugging aid that paid for itself**: rebuild the specimen firmware with
   `CONFIG_WPA_DEBUG_PRINT=y` and `CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y` and read the supplicant's own
   verdicts instead of guessing from the emulator side.

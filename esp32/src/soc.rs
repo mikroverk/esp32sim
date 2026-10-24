@@ -70,6 +70,15 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         Ok(())
     }
+    fn attach_hostfwd(&mut self, fwd: esp_soc::hostfwd::HostFwd) -> Result<(), String> {
+        let ip = fwd.guest_ip();
+        self.periph.wifi.link.net_for_guest(ip).ok_or("--hostfwd requires --wifi")?.hostfwd = Some(fwd);
+        Ok(())
+    }
+    fn attach_wifi_join(&mut self, cfg: esp_soc::wifi::JoinConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+        self.periph.wifi.link.attach_join(cfg, nat, &self.debug);
+        Ok(())
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.periph.wifi.link.set_relay(enabled);
         Ok(())
@@ -107,6 +116,10 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
         SocBus::write_flash(self, offset, data)
     }
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]> {
+        self.flash.get(offset..).and_then(|tail| tail.get(..len))
+    }
+    fn flash_len(&self) -> usize { self.flash.len() }
     fn boot_app(&mut self, _app_off: usize) -> Result<u32, String> {
         Err("boot from ROM on the classic ESP32".into())
     }
