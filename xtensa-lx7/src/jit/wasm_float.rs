@@ -11,7 +11,15 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
         g.guard_coprocessor(1, bi, pc, next, last);
     }
     match i.op {
-        MaddnS | DivnS | Div0S | Nexp01S | Recip0S | Rsqrt0S | Sqrt0S | AddexpS => {}
+        DivnS | Div0S | Nexp01S | Sqrt0S | AddexpS => {}
+        Recip0S | Rsqrt0S => {
+            g.get(0);
+            g.c(1f32.to_bits()); g.op(0xbe);
+            g.float(s);
+            if i.op == Rsqrt0S { g.op(0x91); }
+            g.op(0x95); g.op(0xbc);
+            g.store(offset_of!(Cpu, fr) + 4 * r as usize);
+        }
         AddS | SubS | MulS | MkdadjS | MksadjS => {
             g.get(0);
             g.float(s);
@@ -28,7 +36,7 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             g.op(0xbc);
             g.store(offset_of!(Cpu, fr) + 4 * r as usize);
         }
-        MaddS | MsubS => {
+        MaddS | MsubS | MaddnS => {
             // EX170: the helper's own common case inline. libm's `fmaf` (fma_wide_round) computes
             // promote(s) * promote(t) + promote(r) in f64 and narrows it unless the low 29 result
             // bits are exactly the f32 halfway pattern; only that pattern still calls the helper.

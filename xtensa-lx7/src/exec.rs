@@ -374,11 +374,11 @@ fn fp_effects(i: &Insn) -> (u16, Option<u8>) {
     let (r, s, t) = (1u16 << (i.r & 15), 1u16 << (i.s & 15), 1u16 << (i.t & 15));
     match i.op {
         AddS | SubS | MulS => (s | t, Some(i.r)),
-        MaddS | MsubS => (r | s | t, Some(i.r)),
+        MaddS | MsubS | MaddnS => (r | s | t, Some(i.r)),
         MkdadjS => (r | s, None),
         UnS | OeqS | UeqS | OltS | UltS | OleS | UleS => (s | t, None),
         RoundS | TruncS | FloorS | CeilS | UtruncS | MovS | AbsS | NegS | Rfr | MksadjS | AddexpmS
-        | MoveqzS | MovnezS | MovltzS | MovgezS | MovfS | MovtS => (s, None),
+        | MoveqzS | MovnezS | MovltzS | MovgezS | MovfS | MovtS | Recip0S | Rsqrt0S => (s, None),
         Ssi | Ssip => (t, None),
         Ssx | Ssxp => (r, None),
         _ => (0, None),
@@ -389,7 +389,7 @@ fn fp_effects(i: &Insn) -> (u16, Option<u8>) {
 fn fp_fast_write(i: &Insn) -> Option<u8> {
     use Op::*;
     match i.op {
-        Wfr | ConstS | MovS | AbsS | NegS | FloatS | UfloatS | MkdadjS | MksadjS | AddexpmS | Lsx | Lsxp => Some(i.r),
+        Wfr | ConstS | MovS | AbsS | NegS | FloatS | UfloatS | MkdadjS | MksadjS | AddexpmS | Recip0S | Rsqrt0S | Lsx | Lsxp => Some(i.r),
         Lsi | Lsip => Some(i.t),
         _ => None,
     }
@@ -740,18 +740,17 @@ pub(crate) fn exec_insn<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<
         Iitlb | Idtlb | Witlb | Wdtlb => {}
 
         // ------------------------------------------------------------ FPU (coprocessor 0)
-        Lsi | Lsip => { cp0!(); let a = ar!(s).wrapping_add(immu); let v = ld!(cpu, bus, read32, a); cpu.fr[t as usize] = v; if i.op == Lsip { set!(s, a); } }
-        Ssi | Ssip => { cp0!(); let a = ar!(s).wrapping_add(immu); st!(cpu, bus, write32, a, cpu.fr[t as usize]); if i.op == Ssip { set!(s, a); } }
-        Lsx | Lsxp => { cp0!(); let a = ar!(s).wrapping_add(ar!(t)); let v = ld!(cpu, bus, read32, a); cpu.fr[r as usize] = v; if i.op == Lsxp { set!(s, a); } }
-        Ssx | Ssxp => { cp0!(); let a = ar!(s).wrapping_add(ar!(t)); st!(cpu, bus, write32, a, cpu.fr[r as usize]); if i.op == Ssxp { set!(s, a); } }
+        Lsi | Lsip => { cp0!(); let a = ar!(s).wrapping_add(immu); let addr = if i.op == Lsip { ar!(s) } else { a }; let v = ld!(cpu, bus, read32, addr); cpu.fr[t as usize] = v; if i.op == Lsip { set!(s, a); } }
+        Ssi | Ssip => { cp0!(); let a = ar!(s).wrapping_add(immu); let addr = if i.op == Ssip { ar!(s) } else { a }; st!(cpu, bus, write32, addr, cpu.fr[t as usize]); if i.op == Ssip { set!(s, a); } }
+        Lsx | Lsxp => { cp0!(); let a = ar!(s).wrapping_add(ar!(t)); let addr = if i.op == Lsxp { ar!(s) } else { a }; let v = ld!(cpu, bus, read32, addr); cpu.fr[r as usize] = v; if i.op == Lsxp { set!(s, a); } }
+        Ssx | Ssxp => { cp0!(); let a = ar!(s).wrapping_add(ar!(t)); let addr = if i.op == Ssxp { ar!(s) } else { a }; st!(cpu, bus, write32, addr, cpu.fr[r as usize]); if i.op == Ssxp { set!(s, a); } }
         AddS => { cp0!(); setf!(r, fr!(s) + fr!(t)); }
         SubS => { cp0!(); setf!(r, fr!(s) - fr!(t)); }
         MulS => { cp0!(); setf!(r, fr!(s) * fr!(t)); }
-        MaddS => { cp0!(); setf!(r, fr!(s).mul_add(fr!(t), fr!(r))); }
+        MaddS | MaddnS => { cp0!(); setf!(r, fr!(s).mul_add(fr!(t), fr!(r))); }
         MsubS => { cp0!(); setf!(r, (-fr!(s)).mul_add(fr!(t), fr!(r))); }
-        // FP divide/sqrt sequences: like QEMU, the seed/iteration steps are no-ops and the
-        // exact result is produced at MKDADJ.S (quotient) / MKSADJ.S (sqrt); ADDEXPM.S moves it.
-        MaddnS | DivnS => { cp0!(); }
+        // Divide/sqrt sequences finish at MKDADJ.S / MKSADJ.S; ADDEXPM.S moves the result.
+        DivnS => { cp0!(); }
         RoundS => { cp0!(); let v = fr!(s) * (1u64 << imm) as f32; set!(r, sat_i32(v.round_ties_even())); }
         TruncS => { cp0!(); let v = fr!(s) * (1u64 << imm) as f32; set!(r, sat_i32(v.trunc())); }
         FloorS => { cp0!(); let v = fr!(s) * (1u64 << imm) as f32; set!(r, sat_i32(v.floor())); }
@@ -765,7 +764,10 @@ pub(crate) fn exec_insn<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<
         Rfr => { cp0!(); set!(r, cpu.fr[s as usize]); }
         Wfr => { cp0!(); cpu.fr[r as usize] = ar!(s); }
         ConstS => { cp0!(); setf!(r, match imm { 0 => 0.0, 1 => 1.0, 2 => 2.0, 3 => 0.5, _ => 0.0 }); }
-        Div0S | Nexp01S | Recip0S | Rsqrt0S | Sqrt0S | AddexpS => { cp0!(); }
+        // shortcut: rounded seeds; replace for bit-exact silicon seed validation.
+        Recip0S => { cp0!(); setf!(r, 1.0 / fr!(s)); }
+        Rsqrt0S => { cp0!(); setf!(r, 1.0 / fr!(s).sqrt()); }
+        Div0S | Nexp01S | Sqrt0S | AddexpS => { cp0!(); }
         MkdadjS => { cp0!(); setf!(r, fr!(s) / fr!(r)); }
         MksadjS => { cp0!(); setf!(r, fr!(s).sqrt()); }
         AddexpmS => { cp0!(); cpu.fr[r as usize] = cpu.fr[s as usize]; }
