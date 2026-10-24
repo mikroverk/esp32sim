@@ -62,7 +62,6 @@ jobs:
       - name: Worker pacing, channel and experiment tests
         run: |
           node tools/worker-pacing-test.mjs
-          node tools/pao-microphone-test.mjs
           node tools/worker-channel-test.mjs
           node --test tools/touch-input-test.mjs
           node --test tools/stopwatch-ui-test.mjs

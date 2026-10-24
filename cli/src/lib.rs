@@ -319,7 +319,8 @@ fn run_cooja(o: &mut Opts) {
     save_flash(&m, o);
 }
 
-fn setup_s3(o: &Opts) -> esp32s3::Machine {
+/// Initialize an S3 for an embedding application; attach its board before calling `run`.
+pub fn setup_s3(o: &Opts) -> esp32s3::Machine {
     let size_error = o.cam_size.as_deref().and_then(|s| camera::size(s).err());
     for (message, invalid) in [
         ("--cam-stream requires --board waveshare-cam", o.cam_stream.is_some() && o.board != "waveshare-cam"),
@@ -328,7 +329,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
         if invalid { usage_error(message); }
     }
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
-    m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, pao, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none)", o.board); std::process::exit(2) });
+    m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none)", o.board); std::process::exit(2) });
     if o.measured_te {
         assert_eq!(m.bus.board.name(), "waveshare-amoled18-v2", "--measured-te requires the AMOLED V2 board");
         m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::with_measured_te());
@@ -489,7 +490,7 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
 }
 
 /// Everything after the chip is set up: images, boot, observers, the run, the reports.
-fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
+pub fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     let approximate = o.approximate_timing.then(|| {
         let mut config = esp32s3::ApproximateTimingConfig::default();
         if o.approximate_cache && o.approximate_memory.is_none() {

@@ -5,7 +5,6 @@
 pub mod co5300;
 pub mod dcs_panel;
 pub mod spi_bitbang;
-pub mod ssd1306;
 pub mod ws2812;
 
 pub use dcs_panel::DcsPanel;

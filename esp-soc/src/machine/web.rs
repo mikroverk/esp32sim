@@ -115,7 +115,7 @@ impl<S: Soc> Machine<S> {
         let Some(w) = self.web.clone() else { return };
         use crate::json::{parse_json, Json};
         for b in w.poll_incoming_bin() {
-            // type 5: [5][I2S port][mono PCM16 LE at the PAO microphone's 16 kHz rate].
+            // type 5: [5][I2S port][mono PCM16 LE]; consumed at the guest's I2S rate.
             if b.first() == Some(&5) {
                 if b.len() < 4 || b.len() > 8194 || b.len() % 2 != 0 || b[1] > 1 {
                     w.send_text(r#"{"t":"microphone-error","message":"Invalid PCM16 microphone packet"}"#);

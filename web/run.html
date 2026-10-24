@@ -110,7 +110,6 @@
       <div class="row" id="lcdextras" style="display:none;margin-top:8px"><span class="boardbtn" id="lcdboot" data-pin="9">BOOT</span><span class="st">press to switch all-channel / single-channel scan</span><span class="led" id="lcdled" title="WS2812"></span><span class="st">WS2812</span></div>
       <div class="row" id="tdbuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="0">left (GPIO 0)</span><span class="boardbtn" data-pin="35">right (GPIO 35)</span><span class="st">the board's two buttons</span></div>
       <div class="row" id="stopwatchbuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="2">A (GPIO 2)</span><span class="boardbtn" data-pin="1">B (GPIO 1)</span></div>
-      <div class="row" id="paocontrols" style="display:none;margin-top:8px"><button class="boardbtn" data-pin="0">BOOT</button><button id="paoMic">启用麦克风和扬声器</button><span id="paoMicStatus" class="st">授权后说「你好小智」</span></div>
     </div>
     <div class="card" id="netpanel" style="display:none">
       <div class="row"><strong>Network</strong><span class="st" id="netstat">two emulated ESP32-C6 motes on one 802.15.4 medium</span></div>
@@ -145,12 +144,6 @@
 const $ = s => document.querySelector(s);
 const con = $('#console'); let ws, view = 'usb', netInit = false, boardName = null; const lines = [];   // {src, text}
 let audioCtx = null, playHead = 0, audioLead = 0.06, underruns = 0, ctxRate = 44100, knobAngle = 0, ringLeds = new Array(12).fill([0,0,0]);
-let paoMic = null;
-async function stopPaoMicrophone() {
-  const mic = paoMic; paoMic = null;
-  if (mic) { mic.stream.getTracks().forEach(track => track.stop()); mic.source.disconnect(); mic.node.disconnect(); await mic.context.close(); }
-  $('#paoMic').textContent = '启用麦克风和扬声器';
-}
 const tft = $('#tft').getContext('2d'), tftbig = $('#tftbig').getContext('2d'), ringC = $('#ring').getContext('2d');
 // Light Grid V1.1 modules, one 3x3 of cells each, keyed by the port they sit in.
 const lgrids = {};
@@ -305,7 +298,7 @@ function playAudio(buf) {
   $('#vu').value = Math.min(1, peak / 4000); const vu2 = $('#vu2'); if (vu2) vu2.value = Math.min(1, peak / 4000);
   if (!audioCtx) return;
   const ab = audioCtx.createBuffer(1, n, rate); const ch = ab.getChannelData(0);
-  for (let i = 0; i < n; i++) ch[i] = i16[i] / 32768 * (boardName === 'pao' ? 1 : 8);
+  for (let i = 0; i < n; i++) ch[i] = i16[i] / 32768 * 8;   // firmware output is quiet (double volume scaling): boost 8x for monitoring
   const src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(audioCtx.destination);
   const now = audioCtx.currentTime;
   if (playHead < now + 0.01) {              // underrun: the emulator fell behind (busy firmware) — grow the buffer, up to 400 ms
@@ -327,13 +320,6 @@ function syncTitle() {
 function handleMessage(data) {
     if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); return; }
     const m = JSON.parse(data);
-    if (m.t === 'board' && m.name === 'pao') {
-      document.querySelector('h1').textContent = 'PAO · 语音交互';
-      $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'SSD1306 128×64 · GPIO48 状态灯';
-      $('#paocontrols').style.display = '';
-      document.querySelector('.tabs button[data-src="uart0"]').click();
-    }
-    if (m.t === 'microphone-error') { stopPaoMicrophone(); $('#paoMicStatus').textContent = m.message; }
     if (m.t === 'board') window.dispatchEvent(new CustomEvent('esp32sim-board', { detail: m.name }));
     if (m.t === 'serial') { if (m.src === terminal.src) terminal.write(m.data); addSerial(m.src, m.data); }
     else if (m.t === 'emu') addSerial('usb', m.msg + '\n');
@@ -371,7 +357,7 @@ function handleMessage(data) {
 }
 function setEmulatorStatus(status) {
   $('#status').textContent = status;
-  if (/^(stopped|boot failed|disconnected|error)/i.test(status)) { stopWebcam(); stopPaoMicrophone(); }
+  if (/^(stopped|boot failed|disconnected|error)/i.test(status)) stopWebcam();
 }
 function connect() {
   if (window.EmuLink) { link = window.EmuLink.connect(handleMessage, setEmulatorStatus); return; }
@@ -406,29 +392,6 @@ $('#send').onclick = () => { const l = $('#line').value.trim(); if (!l) return; 
 $('#line').onkeydown = e => { if (e.key === 'Enter') $('#send').click(); };
 $('#clear').onclick = () => { lines.length = 0; render(); };
 $('#audioBtn').onclick = async () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: ctxRate}); await audioCtx.resume(); $('#audioBtn').textContent = '🔊 audio on'; };
-$('#paoMic').onclick = async () => {
-  if (paoMic) { await stopPaoMicrophone(); $('#paoMicStatus').textContent = '麦克风已关闭'; return; }
-  const button = $('#paoMic'); button.disabled = true;
-  let stream, context;
-  try {
-    $('#audioBtn').click();
-    stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true}});
-    context = new AudioContext({sampleRate: 16000});
-    if (context.sampleRate !== 16000) throw Error('浏览器未提供 16 kHz 采样率');
-    await context.audioWorklet.addModule('pao-microphone.js');
-    const source = context.createMediaStreamSource(stream);
-    const node = new AudioWorkletNode(context, 'pao-microphone');
-    node.port.onmessage = event => linkSend(event.data);
-    source.connect(node); node.connect(context.destination); await context.resume();
-    paoMic = {stream, context, source, node};
-    button.textContent = '关闭麦克风'; $('#paoMicStatus').textContent = '正在收音，说「你好小智」';
-  } catch (error) {
-    stream?.getTracks().forEach(track => track.stop());
-    if (context) await context.close();
-    $('#paoMicStatus').textContent = error.message;
-  } finally { button.disabled = false; }
-};
-window.addEventListener('pagehide', () => stopPaoMicrophone());
 const presets = [['set_note C','{"action":"set_note","value":"0"}'],['set_note A','{"action":"set_note","value":"5"}'],['octave 5','{"action":"set_octave","value":"5"}'],['trigger_note','{"action":"trigger_note","value":""}'],['chord','{"action":"play_chord_voices","value":""}'],['play_note 880','{"action":"play_note","value":"{\\"frequency\\":880,\\"duration\\":300}"}'],['volume 1.0','{"action":"set_volume","value":"1.0"}'],['ring red','{"action":"set_ring_color","value":"{\\"r\\":255,\\"g\\":0,\\"b\\":40}"}']];
 presets.forEach(([n, l]) => { const b = document.createElement('button'); b.className = 'act'; b.textContent = n; b.onclick = () => { $('#line').value = l; $('#send').click(); }; $('#presets').appendChild(b); });
 drawRing(); connect();
