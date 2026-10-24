@@ -655,6 +655,24 @@ fn narrow_mmio_writes_are_rejected_without_device_or_time_side_effects() {
 }
 
 #[test]
+fn radio_analog_registers_take_byte_and_half_word_access() {
+    // NRXPD_CTRL (NRX +0xd4) is 8 bits wide in Espressif's SVD (esp32s3 PAC 0.36,
+    // nrx/nrxpd_ctrl.rs: `type Ux = u8`), and esp-hal 1.2.2's sleep setup clears its
+    // force-power-up bits with l8ui/s8i. FE, FE2 and BB are the radio's other analog blocks.
+    const NRXPD_CTRL: u32 = 0x6001_ccd4;
+    const BB: u32 = 0x6001_d000;
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.write32(NRXPD_CTRL, 0x2a).unwrap();
+    assert_eq!(bus.read8(NRXPD_CTRL), Ok(0x2a));
+    bus.write8(NRXPD_CTRL, 0x2a & 0xd5).unwrap();
+    assert_eq!(bus.read32(NRXPD_CTRL), Ok(0));
+    bus.write16(BB + 0x56, 0xbeef).unwrap();
+    assert_eq!(bus.read32(BB + 0x54), Ok(0xbeef_0000));
+    assert_eq!(bus.read16(BB + 0x56), Ok(0xbeef));
+    assert_eq!(bus.write8(0x6003_8000, 0), Err(Fault::Prohibited), "other blocks keep the rule");
+}
+
+#[test]
 fn unsupported_mmio_reads_do_not_pop_fifos_or_advance_time() {
     const USB: u32 = 0x6003_8000;
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
@@ -874,7 +892,7 @@ fn read_flush_reports_timer_and_rmt_threshold_sources() {
         let mut bus = SocBus::new(1024, 1024, [0; 6]);
         if timer < 3 {
             let st = &mut bus.periph.systimer;
-            st.conf = (1 << 30) | (1 << (24 + timer));
+            st.conf = (1 << 30) | (1 << (24 - timer));
             st.armed[timer] = true;
             st.target[timer] = 1;
             st.int_ena = 1 << timer;

@@ -32,15 +32,27 @@ impl Timer {
     pub fn step(&mut self, apb_ticks: u64, width_mask: u64, mut on_alarm: impl FnMut()) {
         let t = self;
         if t.config & (1 << 31) == 0 { return; }   // TIMG_T0_EN
-        let div = ((t.config >> 13) & 0xffff) as u64;
-        let div = if div == 0 { 65536 } else { div };
+        let div = Self::divisor(t.config);
         t.prescale_acc += apb_ticks;
         let mut steps = t.prescale_acc / div;
         t.prescale_acc %= div;
-        if steps == 0 { return; }
         let inc = t.config & (1 << 30) != 0;   // TIMG_T0_INCREASE
-        // Steps to the alarm from `c`, if counting reaches it (not already at or past it).
         let alarm = t.alarm;
+        // A one-shot alarm armed at or behind the counter fires at once ("If the current count
+        // value has exceeded the alarm value, the alarm event will be triggered immediately",
+        // IDF v5.5.1 docs/en/api-reference/peripherals/gptimer.rst). esp-rtos arms 0 ticks, on a
+        // counter it has just reset to 0, for a wakeup that is already due.
+        // One-shot only, on purpose: an auto-reload alarm armed at or behind the counter still
+        // waits for the wrap, because firing it at once would also mean modelling the reload that
+        // follows. Nothing arms one there: esp-hal 1.2.2's `PeriodicTimer::start` resets the
+        // counter to 0 and arms one period ahead, and IDF's gptimer arms ahead too.
+        let reached = if inc { t.count >= alarm } else { t.count <= alarm };
+        if t.config & (1 << 10) != 0 && t.config & (1 << 29) == 0 && reached {   // ALARM_EN, no autoreload
+            on_alarm();
+            t.config &= !(1 << 10);
+        }
+        if steps == 0 { return; }
+        // Steps to the alarm from `c`, if counting reaches it (not already at or past it).
         let gap = |c: u64| if inc { alarm.checked_sub(c) } else { c.checked_sub(alarm) }.filter(|&d| d > 0);
         if t.config & (1 << 10) != 0 {   // TIMG_T0_ALARM_EN
             if let Some(d) = gap(t.count).filter(|&d| d <= steps) {
@@ -60,12 +72,20 @@ impl Timer {
     #[inline(always)]
     pub fn alarm_gap(&self) -> Option<(u64, u64)> {
         if self.config & (1 << 31) == 0 || self.config & (1 << 10) == 0 { return None; }   // TIMG_T0_EN, ALARM_EN
-        let div = ((self.config >> 13) & 0xffff) as u64;
-        let div = if div == 0 { 65536 } else { div };
+        let div = Self::divisor(self.config);
+        let one_shot = self.config & (1 << 29) == 0;
         let steps = if self.config & (1 << 30) != 0 {
-            if self.count >= self.alarm { return None } else { self.alarm - self.count }
-        } else if self.count <= self.alarm { return None } else { self.count - self.alarm };
+            if self.count >= self.alarm { return one_shot.then_some((0, div)) } else { self.alarm - self.count }
+        } else if self.count <= self.alarm { return one_shot.then_some((0, div)) } else { self.count - self.alarm };
         Some((steps, div))
+    }
+    /// The prescaler's divisor from TnCONFIG.DIVIDER: "when TIMGn_Tx_DIVIDER is either 1 or 2, the
+    /// clock divisor is 2; when TIMGn_Tx_DIVIDER is 0, the clock divisor is 65536" (the ESP32 TRM,
+    /// 11.2.1, as esp-hal 1.2.2 `src/timer/timg.rs` quotes it and computes its ticks). IDF writes 0
+    /// for 65536 and never 1 (IDF v5.5.1 components/hal/esp32s3/include/hal/timer_ll.h).
+    #[inline(always)]
+    fn divisor(config: u32) -> u64 {
+        match (config >> 13) & 0xffff { 0 => 65536, 1 => 2, d => u64::from(d) }
     }
     /// APB ticks to the alarm, saturating: 64-bit counters (classic ESP32) can be further away
     /// than `u64::MAX` APB ticks.
@@ -74,7 +94,14 @@ impl Timer {
     }
 }
 impl TimerGroup {
-    pub fn new() -> Self { TimerGroup { ram: RegRam::new(), t: [Timer::default(); 2], int_raw: 0, int_ena: 0 } }
+    /// TnCONFIG resets to 0x6000_2000: counting up, auto-reload, divider 1 (IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/timer_group_reg.h; the C3's and C6's are the same).
+    /// esp-hal keeps the divider it finds, so a zero here (divisor 65536) made every alarm shorter
+    /// than 1.6 ms round to zero ticks and never fire.
+    pub fn new() -> Self {
+        let t = Timer { config: 0x6000_2000, ..Timer::default() };
+        TimerGroup { ram: RegRam::new(), t: [t; 2], int_raw: 0, int_ena: 0 }
+    }
     pub fn tick(&mut self, apb_ticks: u64) {
         for i in 0..2 {
             self.t[i].step(apb_ticks, (1 << 54) - 1, || self.int_raw |= 1 << i);

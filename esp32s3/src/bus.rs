@@ -657,14 +657,25 @@ impl CacheResource {
 }
 
 impl SocBus {
+    /// The radio's analog blocks, whose registers Espressif's SVD declares 8 bits wide: FE2, FE,
+    /// NRX and BB (IDF v5.5.4 components/soc/esp32s3/register/soc/reg_base.h, DR_REG_FE2_BASE
+    /// 0x6000_5000, DR_REG_FE_BASE 0x6000_6000, DR_REG_NRX_BASE 0x6001_CC00, DR_REG_BB_BASE
+    /// 0x6001_D000). esp-hal 1.2.2's sleep setup, run from `esp_hal::init`, clears bits of
+    /// NRXPD_CTRL (NRX + 0xd4, IDF v5.5.4 components/soc/esp32s3/include/soc/nrx_reg.h) with
+    /// l8ui/s8i. Sub-word accesses there are served from the containing word.
+    fn radio_narrow(addr: u32) -> bool {
+        matches!(addr & !0xfff, 0x6000_5000 | 0x6000_6000 | 0x6001_d000) || (0x6001_cc00..0x6001_d000).contains(&addr)
+    }
     // Const specialization keeps origin checks and CPU pricing out of DMA/host accessors.
     fn read8_access<const CPU: bool>(&mut self, addr: u32) -> Result<u8, Fault> {
+        if Self::radio_narrow(addr) { return Ok((self.periph_read(addr & !3) >> (8 * (addr & 3))) as u8); }
         if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         let Some(e) = self.lookup(addr) else { self.last_fault = Some((addr, false)); return Err(Fault::Unmapped) };
         if CPU { self.price_cached_data(e, addr, 1, false); }
         Ok(self.buf(e.src as u8)[e.off as usize + (addr - e.lo) as usize])
     }
     fn read16_access<const CPU: bool>(&mut self, addr: u32) -> Result<u16, Fault> {
+        if Self::radio_narrow(addr) && addr & 1 == 0 { return Ok((self.periph_read(addr & !3) >> (8 * (addr & 2))) as u16); }
         if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
             Some(e) if e.hi - addr >= 2 => { if CPU { self.price_cached_data(e, addr, 2, false); } let o = e.off as usize + (addr - e.lo) as usize; Ok(u16::from_le_bytes(self.buf(e.src as u8)[o..o + 2].try_into().unwrap())) }
@@ -686,7 +697,14 @@ impl SocBus {
     fn write8_access<const CPU: bool>(&mut self, addr: u32, v: u8) -> Result<(), Fault> {
         // S3 register writes are modelled only as aligned words (TRM §15.6.6).
         // Reject unsupported widths before reading a device or advancing its time.
-        // This is an explicit emulator policy, not a model of optional PMS IRQs.
+        // This is an explicit emulator policy, not a model of optional PMS IRQs. The radio's
+        // analog registers are 8 bits wide (`radio_narrow`).
+        if Self::radio_narrow(addr) {
+            let (word, shift) = (addr & !3, 8 * (addr & 3));
+            let old = self.periph_read(word);
+            self.periph_write(word, (old & !(0xff << shift)) | (u32::from(v) << shift));
+            return Ok(());
+        }
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
             Some(e) if e.writable != 0 => { if CPU { self.price_cached_data(e, addr, 1, true); } let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; if e.code != 0 { self.bump(e.vbase, rel, 1); } Ok(()) }
@@ -694,6 +712,12 @@ impl SocBus {
         }
     }
     fn write16_access<const CPU: bool>(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
+        if Self::radio_narrow(addr) && addr & 1 == 0 {
+            let (word, shift) = (addr & !3, 8 * (addr & 2));
+            let old = self.periph_read(word);
+            self.periph_write(word, (old & !(0xffff << shift)) | (u32::from(v) << shift));
+            return Ok(());
+        }
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
             Some(e) if e.writable != 0 && e.hi - addr >= 2 => { if CPU { self.price_cached_data(e, addr, 2, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); if e.code != 0 { self.bump(e.vbase, rel, 2); } Ok(()) }

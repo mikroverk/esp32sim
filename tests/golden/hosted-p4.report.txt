@@ -1,4 +1,4 @@
-0 exceptions, 1438 interrupts
+0 exceptions, 1439 interrupts
 [cosim] ESP32-C6 on SDIO slot 1 (CLK 18, CMD 19, D0-D3 14-17), EN on GPIO 54, slices of 10 µs
 [sdmmc] 120 commands (2 unanswered), 8304 bytes read, 6268 written
 [c6] stop: running — 638400000 insns; ran 3.990s of 4.000s (638400000 cycles); 0 exceptions, 4246 interrupts; 1 power-ups by EN, 0 chip resets

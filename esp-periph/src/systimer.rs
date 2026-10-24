@@ -14,13 +14,16 @@ pub struct Systimer {
     ticks_acc: u64,
 }
 impl Systimer {
-    pub fn new() -> Self { Systimer { conf: 0, unit: [0; 2], unit_latch: [0; 2], load: [0; 2], target: [0; 3], target_conf: [0; 3], period_start: [0; 3], int_ena: 0, int_raw: 0, ticks_acc: 0, armed: [false; 3] } }
+    /// CONF resets to 0x4600_0000: TIMER_UNIT0_WORK_EN and unit 1's two stall enables set (IDF
+    /// v5.5.4 components/soc/esp32s3/register/soc/systimer_reg.h; the C3's, C6's and P4's are the same).
+    /// esp-hal never writes it: `Instant::now` reads unit 0, counting from power-on.
+    pub fn new() -> Self { Systimer { conf: 0x4600_0000, unit: [0; 2], unit_latch: [0; 2], load: [0; 2], target: [0; 3], target_conf: [0; 3], period_start: [0; 3], int_ena: 0, int_raw: 0, ticks_acc: 0, armed: [false; 3] } }
     pub fn tick(&mut self, ticks: u64) {
         for u in 0..2 {
             if self.conf & (1 << (30 - u as u32)) != 0 { self.unit[u] = (self.unit[u] + ticks) & ((1u64 << 52) - 1); }
         }
         for t in 0..3 {
-            if self.conf & (1 << (24 + t as u32)) == 0 { continue; }
+            if self.conf & (1 << (24 - t as u32)) == 0 { continue; }   // TARGETt_WORK_EN: bits 24, 23, 22 (same header)
             let unit = ((self.target_conf[t] >> 31) & 1) as usize;
             let now = self.unit[unit];
             if self.target_conf[t] & (1 << 30) != 0 {
@@ -90,7 +93,7 @@ impl Device for Systimer {
     fn next_deadline(&self) -> Option<u64> {
         let mut best: Option<u64> = None;
         for t in 0..3 {
-            if self.conf & (1 << (24 + t as u32)) == 0 { continue; }
+            if self.conf & (1 << (24 - t as u32)) == 0 { continue; }
             let unit = ((self.target_conf[t] >> 31) & 1) as usize;
             if self.conf & (1 << (30 - unit as u32)) == 0 { continue; }              // unit stopped: never fires
             let now = self.unit[unit];

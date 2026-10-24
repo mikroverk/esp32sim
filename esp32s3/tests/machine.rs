@@ -373,7 +373,7 @@ fn reboot_keeps_what_silicon_keeps() {
     assert_eq!(p.rtc.ram.read(0x38), cause | (cause << 6));
     assert_eq!(p.i2s0.pcm, vec![1, 2, 3]);
     assert_eq!((p.spi0.jedec[2], p.spi1.jedec[2]), (0x18, 0x18), "the flash chip keeps its capacity, or IDF finds it smaller than the image header");
-    assert!(p.uart[0].tx_out.is_empty() && p.systimer.conf == 0, "digital peripherals are fresh");
+    assert!(p.uart[0].tx_out.is_empty() && p.systimer.conf == 0x4600_0000, "digital peripherals are fresh");
     assert_eq!(m.cores[0].pc(), RESET); assert_eq!(m.reboots, 1);
     assert!(!m.dump_regs().contains("core1:"), "core 1 is back in reset");
 }

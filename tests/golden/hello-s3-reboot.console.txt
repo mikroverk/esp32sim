@@ -101,11 +101,11 @@ I (24848) esp_image: segment 1: paddr=00017804 vaddr=3fc91e00 size=02cc0h ( 1145
 I (24849) esp_image: segment 2: paddr=0001a4cc vaddr=40374000 size=05b4ch ( 23372) load
 I (24851) esp_image: segment 3: paddr=00020020 vaddr=42000020 size=0f4d4h ( 62676) map
 I (24855) esp_image: segment 4: paddr=0002f4fc vaddr=40379b4c size=0825ch ( 33372) load
-I (24858) esp_image: segment 5: paddr=00037760 vaddr=50000000 size=00020h (    32) load
+I (24859) esp_image: segment 5: paddr=00037760 vaddr=50000000 size=00020h (    32) load
 I (24861) boot: Loaded app from partition at offset 0x10000
 I (24861) boot: Disabling RNG early entropy source...
 I (24861) cpu_start: Multicore app
-I (24869) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (24870) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
 I (24870) cpu_start: Pro cpu start user code
 I (24870) cpu_start: cpu freq: 160000000 Hz
 I (24870) app_init: Application information:

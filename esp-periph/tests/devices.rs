@@ -26,9 +26,23 @@ fn systimer_one_shot_fires_on_its_tick_and_says_when() {
 }
 
 #[test]
+fn systimer_unit0_counts_from_reset() {
+    // SYSTIMER_CONF resets to 0x4600_0000, TIMER_UNIT0_WORK_EN set (esp32s3 PAC 0.36,
+    // systimer/conf.rs RESET_VALUE; the C3's and C6's are the same). esp-hal never writes it:
+    // `Instant::now` reads unit 0 from power-on.
+    let mut s = Systimer::new();
+    assert_eq!(Device::read(&mut s, 0x0), 0x4600_0000);
+    Device::tick(&mut s, 16);
+    Device::write(&mut s, 0x4, 1 << 30);                     // UNIT0_OP.UPDATE
+    assert_eq!(Device::read(&mut s, 0x44), 16, "unit 0 counts");
+    Device::write(&mut s, 0x8, 1 << 30);
+    assert_eq!(Device::read(&mut s, 0x4c), 0, "unit 1 does not");
+}
+
+#[test]
 fn systimer_periodic_repeats() {
     let mut s = Systimer::new();
-    Device::write(&mut s, 0x0, (1 << 30) | (1 << 25));      // unit 0, comparator 1
+    Device::write(&mut s, 0x0, (1 << 30) | (1 << 23));      // unit 0, comparator 1 (TARGET1_WORK_EN is bit 23)
     Device::write(&mut s, 0x38, (1 << 30) | 50);             // periodic, 50 ticks
     Device::write(&mut s, 0x54, 1);                          // COMP1_LOAD
     Device::write(&mut s, 0x64, 2);
@@ -60,6 +74,33 @@ fn timer_group_alarm_autoreload_and_deadline() {
     Device::tick(&mut g, 20);
     assert_eq!(Device::irq_sources(&g), 1);
     assert_eq!(Device::read(&mut g, 0x0) & (1 << 10), 1 << 10, "autoreload keeps the alarm");
+}
+
+#[test]
+fn timer_group_resets_to_divider_one_which_divides_by_two() {
+    let mut g = TimerGroup::new();
+    assert_eq!(Device::read(&mut g, 0x0), 0x6000_2000, "T0CONFIG: up, autoreload, divider 1");
+    Device::write(&mut g, 0x0, (1 << 31) | (1 << 30) | (1 << 10) | (1 << 13));   // enabled, up, alarm, divider 1
+    Device::write(&mut g, 0x10, 10);                         // alarm = 10 -> 20 APB ticks
+    Device::write(&mut g, 0x70, 1);
+    Device::tick(&mut g, 19);
+    assert_eq!(Device::irq_sources(&g), 0);
+    Device::tick(&mut g, 1);
+    assert_eq!(Device::irq_sources(&g), 1, "divider 1 divides by 2, as divider 2 does");
+}
+
+#[test]
+fn timer_group_one_shot_alarm_at_the_counter_fires_at_once() {
+    // esp-rtos arms 0 ticks, on a counter it has just reset to 0, for a wakeup already due.
+    let mut g = TimerGroup::new();
+    Device::write(&mut g, 0x70, 1);
+    Device::write(&mut g, 0x18, 0); Device::write(&mut g, 0x1c, 0); Device::write(&mut g, 0x20, 1);   // load 0
+    Device::write(&mut g, 0x10, 0); Device::write(&mut g, 0x14, 0);   // alarm 0
+    Device::write(&mut g, 0x0, (1 << 31) | (1 << 30) | (1 << 10) | (2 << 13));   // enabled, up, one-shot alarm
+    assert_eq!(Device::next_deadline(&g), Some(0), "due now");
+    Device::tick(&mut g, 1);
+    assert_eq!(Device::irq_sources(&g), 1);
+    assert_eq!(Device::read(&mut g, 0x0) & (1 << 10), 0, "a one-shot alarm disarms itself");
 }
 
 // ------------------------------------------------------------------ GPIO
