@@ -41,6 +41,13 @@ impl PcmSource {
         self.queue.push(frames[..n].iter().copied());
         n
     }
+    /// Live input: drops the oldest queued frames so at most `backlog` remain after the push,
+    /// bounding latency when the guest reads slower than the host produces.
+    pub fn push_latest(&mut self, frames: &[[i16; 2]], backlog: usize) -> usize {
+        let excess = (self.queue.frames.len() + frames.len()).saturating_sub(backlog);
+        self.queue.frames.drain(..excess.min(self.queue.frames.len()));
+        self.push(frames)
+    }
     /// Per-controller input only: a routed source samples its queue by absolute time.
     pub fn tone(&mut self, hz: f64, amplitude: f64) -> Result<(), &'static str> {
         if self.pins.is_some() { return Err("tone is only available on per-controller input; push frames to a routed source"); }
@@ -151,6 +158,16 @@ mod tests {
         let source = sources.inputs[0].as_ref().unwrap();
         assert_eq!(source.queued_frames(), 0);
         assert_eq!(source.queue.current, [0; 2]);
+    }
+
+    #[test]
+    fn push_latest_drops_the_oldest_frames_beyond_the_backlog() {
+        let mut source = PcmSource::default();
+        source.push(&[[1; 2], [2; 2], [3; 2]]);
+        assert_eq!(source.push_latest(&[[4; 2], [5; 2]], 4), 2);
+        assert!(source.queue.frames.iter().map(|f| f[0]).eq([2, 3, 4, 5]));
+        assert_eq!(source.push_latest(&[[6; 2]; 5], 4), 5);
+        assert_eq!(source.queued_frames(), 5);
     }
 
     #[test]

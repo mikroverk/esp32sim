@@ -544,7 +544,7 @@ fn breakpoints_stop_at_first_fetch_and_at_a_sleeping_pc() {
 }
 
 #[test]
-fn web_microphone_packets_reach_i2s_and_reject_invalid_or_overflowing_input() {
+fn web_microphone_packets_reach_i2s_reject_invalid_input_and_drop_stale_backlog() {
     use esp_soc::SocBus;
     let mut m = machine();
     let web = esp_soc::web::WebServer::queued(); m.web = Some(web.clone());
@@ -558,11 +558,16 @@ fn web_microphone_packets_reach_i2s_and_reject_invalid_or_overflowing_input() {
     assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 2);
     assert_eq!(m.bus.i2s_input(0).unwrap().queued_frames(), 0);
     assert!(web.take_outbox().is_empty());
+    // A full backlog is trimmed to the newest 8192 frames instead of rejecting the packet.
     let input = m.bus.i2s_input(1).unwrap(); input.clear();
     assert_eq!(input.push(&vec![[0; 2]; 65536]), 65536);
     web.push_incoming_bin(vec![5, 1, 0, 0]); m.run(0);
-    assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 65536);
-    assert!(web.take_outbox().iter().any(|(_, data)| String::from_utf8_lossy(data).contains("overflow")));
+    assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 8192);
+    assert!(web.take_outbox().is_empty());
+    // While the emulator lags real time the backlog is kept for the guest to catch up on.
+    m.rt.behind = 1.0;
+    web.push_incoming_bin(vec![5, 1, 0, 0]); m.run(0);
+    assert_eq!(m.bus.i2s_input(1).unwrap().queued_frames(), 8193);
 }
 
 #[test]

@@ -48,6 +48,8 @@ pub struct Realtime {
     last_check: u64,
     pub behind: f64,
     pub resyncs: u64,
+    /// Lag caught up by running faster before a resynchronisation skips it (`--max-lag`).
+    pub max_lag: std::time::Duration,
     /// Emulated seconds per wall second over the last second or more; `None` until measured.
     /// Unlike `behind`, a resynchronisation does not reset it, so it shows a run that cannot keep up.
     pub speed: Option<f64>,
@@ -157,7 +159,7 @@ impl<S: Soc> Machine<S> {
             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0, uart0_seen: Vec::new(), wait_mark: None }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
             camera_input: None, web: None, ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
-            rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
+            rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, max_lag: std::time::Duration::from_millis(500), speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_accesses: Vec::new(), approximate_jit_timing: None, approximate_jit_frontiers: false, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
     }
@@ -1119,8 +1121,8 @@ impl<S: Soc> Machine<S> {
             if emulated > wall + std::time::Duration::from_millis(2) { std::thread::sleep(emulated - wall); self.rt.behind = 0.0; }
             else if wall > emulated + std::time::Duration::from_millis(50) {
                 self.rt.behind = (wall - emulated).as_secs_f64();
-                // more than half a second behind: resynchronise (skip the lag) rather than flood the client while catching up
-                if wall > emulated + std::time::Duration::from_millis(500) { self.rt.resyncs += 1; self.rt.wall_start = Some(std::time::Instant::now() - emulated); }
+                // more than max_lag behind: resynchronise (skip the lag) rather than flood the client while catching up
+                if wall > emulated + self.rt.max_lag { self.rt.resyncs += 1; self.rt.wall_start = Some(std::time::Instant::now() - emulated); }
             } else { self.rt.behind = 0.0; }
         }
     }

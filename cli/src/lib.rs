@@ -29,6 +29,7 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --script F            host actions at emulated times (button presses, touches, serial input, stop)");
     eprintln!("  --tft-png F, --wav F  save the display / the audio at the end of the run");
     eprintln!("  --web PORT            serve the board UI at http://127.0.0.1:PORT/ in real time");
+    eprintln!("  --max-lag SECONDS     real-time lag caught up before skipping it (default 0.5)");
     eprintln!("  --elf F               symbols for logs, traces and profiles (repeatable)");
     eprintln!("  --trace-fn PREFIX, --break PC, --watch ADDR, --peek ADDR,N, --profile, --vcd F, --debug AREAS, --no-jit");
     eprintln!("                        debugging; --no-jit is the oracle when a result looks wrong");
@@ -127,7 +128,7 @@ pub struct Opts {
     pub board: String, pub wifi: Option<String>, pub wifi_join: Option<String>, pub wifi_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
-    pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
+    pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub max_lag: Option<f64>, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
     pub i2s_tone: Vec<String>,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
     pub trace: bool, pub trace_from: u64, pub breaks: Vec<u32>, pub watch: Option<u32>, pub peeks: Vec<(u32, usize)>, pub pwm_pins: Vec<u8>, pub adc_pins: Vec<u8>, pub adc_raw: Vec<(u8, u16)>, pub disasms: Vec<(u32, usize)>,
@@ -193,6 +194,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--console" => o.console = Some(next()),
             "--console-prefix" => o.console_prefix = true,
             "--realtime" => o.realtime = true,
+            "--max-lag" => o.max_lag = Some(next().parse().ok().filter(|s: &f64| s.is_finite() && *s >= 0.0).expect("--max-lag needs seconds >= 0")),
             "--web" => o.web_port = Some(next().parse().expect("port")),
             "--web-dir" => o.web_dir = Some(next()),
             "--no-reboot" => o.no_reboot = true,
@@ -689,6 +691,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
         m.rt.enabled = true;
     }
     if o.realtime { m.rt.enabled = true; }
+    if let Some(seconds) = o.max_lag { m.rt.max_lag = std::time::Duration::from_secs_f64(seconds); }
     if o.profile { m.add_observer(Box::new(PcHist::new(12))); }
     if let Some(wa) = o.watch { let v = m.bus.read32_unpriced(wa).unwrap_or(0); m.add_observer(Box::new(Watch { addr: wa, value: v })); }
     if o.profile_blocks { m.add_observer(Box::new(BlockProfile::new(20))); }

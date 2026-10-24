@@ -81,6 +81,7 @@ the final image of a one-shot run uses it, a harness that wants "configure once,
 | `--console usb\|uart0\|both\|all\|none`, `--console-prefix` | which consoles to print |
 | `--realtime` | pace to wall time without the UI |
 | `--web PORT [--web-dir DIR]` | browser UI (implies real time) |
+| `--max-lag SECONDS` | in real time, lag the emulator catches up by running faster; beyond it the lag is skipped (default 0.5) |
 | `--cam-image F`, `--cam-fps N` | camera source for boards with a camera |
 | `--cooja` (C6) | run as a Cooja-NG external mote: the lock-step NDJSON protocol on stdin/stdout, the guest console as `log` events, the 802.15.4 frames as `tx`/`rx`. Honors `--no-reboot` and `--max-seconds` (see [esp32c6.md](esp32c6.md), "Cooja-NG lock-step") |
 | `--cooja-slice-us N` | how long a busy guest runs before asking csim to step it again (default 100; `hello.args.slice_us` overrides). A transmission reaches csim's medium at the end of the slice it started in, so this bounds how late it is |
@@ -315,6 +316,12 @@ Rust hosts use `SocBus::i2s_input(port)` to access `PcmInput`. `push(&[[left, ri
 queues signed 16-bit stereo frames at the firmware's programmed sample rate.
 For mono input, duplicate each sample into both lanes. `push` returns the number
 accepted, up to a queue limit of 65,536 frames; retry the remaining frames later.
+`push_latest(frames, backlog)` is for live input: it first drops the oldest queued
+frames so at most `backlog` remain. While the emulator keeps up with real time, browser
+microphone packets use it with 8,192 frames (0.5 s at 16 kHz), so a guest that is booting
+or has RX stopped loses stale audio rather than new audio. While it lags, packets queue
+up to the 65,536-frame limit and the guest reads them as it catches up; raise `--max-lag`
+for workloads that fall behind for seconds at a time, such as speech recognition.
 `clear()` removes queued data and disables the tone. Empty queues read as zero.
 Queued input pauses while RX or its DMA channel is stopped, including during reboot.
 Each 16-bit input sample is the top 16 bits of the guest's sample, low bits zero.
