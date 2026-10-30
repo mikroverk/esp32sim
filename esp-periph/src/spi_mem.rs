@@ -265,6 +265,15 @@ impl SpiMem {
             let erase_addr = if has_mosi && addr_bits < 24 {
                 self.w_bytes(((24 - addr_bits) / 8) as usize).iter().fold(addr, |a, &b| (a << 8) | u32::from(b))
             } else { addr };
+            // No command phase, an address and data in: a read with the flash already in
+            // continuous (XIP) read mode, which takes the address straight away. The ROM's
+            // `esp_rom_spiflash_read` reads this way on the C3 (USER 0x700000c0: no USR_COMMAND;
+            // USER2 holds the DIO read 0xbb that put the chip in that mode).
+            if user & (1 << 31) == 0 && has_addr && has_miso {
+                let d = rd(addr, miso_bytes);
+                self.set_w_bytes(&d);
+                return;
+            }
             match c {
                 0x03 | 0x0b | 0x3b | 0x6b | 0xbb | 0xeb => { let d = rd(addr, miso_bytes); self.set_w_bytes(&d); }
                 0x9f => { let j = self.jedec; self.set_w_bytes(&j); }
@@ -438,6 +447,30 @@ mod tests {
         // Right-aligned decoding reads 0x200000ff, past a 4 MiB array.
         let mut spi = SpiMem::new(true);
         assert_eq!(user_read(&mut spi, &mut flash, 24, 0x03), 0xffffffff);
+    }
+
+    /// The C3 mask ROM's `esp_rom_spiflash_read` sends USER = 0x700000c0 (IDF v5.5.4
+    /// components/soc/esp32c3/register/soc/spi_mem_reg.h: USR_ADDR bit 30, USR_DUMMY 29, USR_MISO 28,
+    /// CS_SETUP 7, CS_HOLD 6; no USR_COMMAND bit 31). The flash is in continuous read mode, so the
+    /// address alone starts the read.
+    #[test]
+    fn user_read_without_a_command_phase_reads_the_flash() {
+        let mut flash = vec![0xffu8; 0x400000];
+        flash[0x1000..0x1004].copy_from_slice(&[0x11, 0x22, 0x33, 0x44]);
+        let mut spi = SpiMem::new(true);
+        spi.write(0x34, 2);                                       // CS0: the flash
+        spi.write(0x18, 0x7000_00c0);                             // USER as the ROM leaves it
+        spi.write(0x1c, 23 << 26);                                // USER1: 24-bit address
+        spi.write(0x04, 0x1000);
+        spi.write(0x28, 31);                                      // MISO_DLEN: 32 bits
+        spi.write(0, 1 << 18);
+        spi.execute(&mut flash, &mut []);
+        assert_eq!(spi.w[0], 0x44332211);
+        // Without an address phase there is nothing to read.
+        spi.write(0x18, 0x7000_00c0 & !(1 << 30));
+        spi.write(0, 1 << 18);
+        spi.execute(&mut flash, &mut []);
+        assert_eq!(spi.w[0], 0, "no address phase");
     }
 
     #[test]
