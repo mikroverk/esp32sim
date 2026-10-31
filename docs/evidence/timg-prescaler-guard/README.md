@@ -3,7 +3,7 @@
 Branch `classic-speed-lever-9`: `ca18773a` (the code, `esp-periph/src/timg.rs`) and two docs commits
 on top. Written on main `f1b5c5d5`, rebased onto `ddf753a5`, code diff identical. Row:
 [EX239](../../experiments.md#ex239).
-Rebased onto `66eb9704`; code range-diff is `=`.
+Rebased onto `66eb9704`; code diff identical.
 
 ## Change
 
@@ -112,22 +112,31 @@ normalising it. Scoped, not whole-binary identity.
 
 ## CPU comparison
 
-PENDING: the table below is filled by a quiet-machine run (user CPU, 1 warm-up and 7 alternating
-pairs against main `ddf753a5`, both trees built with `cargo build --release --bins`, identical
-instruction counts and console hashes required in every pair; slower in 6 or more of 7 pairs is a
-flag).
+The maintainer ran `docs/evidence/p4-cpu/cpu_pairs.py` from base `66eb9704` against new
+`e657bbf2`, on 2026-10-31. Both trees were extracted with `git archive` to sibling paths of the
+same length and built with `cargo build --release --bins`, rustc 1.99.1 (58cf8f9c3 2026-10-13),
+aarch64-apple-darwin. Apple M5 Max (18 cores), macOS 27.0.1, no concurrent builds; ROMs
+esp-rom-elfs 20260528 via `tools/fetch-rom-elfs.sh`. User CPU, one warmup pair and seven
+alternating pairs per workload, from the base tree root. The [posted JSON](290-e657bbf2-66eb9704.json)
+contains commands, individual results, instruction counts, console hashes and loads; the maintainer
+redacted the ROM directory as `$ESP32SIM_ROM_DIR` (four places), preserving the raw SHA-256 prefix
+`bf713d94…ed85` and sanitized prefix `3c562fdd…1933`. No other edits were reported.
 
-| Workload | main median (range) | branch median (range) | Change | Branch slower | Instructions | Console SHA-256 | 1-min load before / after |
-| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| classic hello, 30 s | | | | | 16,672,061 + 4,515,255 | `13aadb96ac2d…` | |
-| `tdisplay-prices`, 15 s | | | | | 39,313,704 + 109,051,650 | `a831e4615eba…` | |
-| S3 hello, 20 s | | | | | 7,984,148 + 4,531,031 | `02fd43728071…` | |
-| c3-hello, 30 s | | | | | 4,800,000,000 | `3b9d8d3eb053…` | |
-| c6-hello, 20 s | | | | | 3,200,000,000 | `9535b19b279d…` | |
+| Workload | Base median (range) | New median (range) | Change | New slower | Instructions; console SHA-256 | 1-min load before → after |
+| --- | --- | --- | --- | --- | --- | --- |
+| s3-hello, 30 s | 0.260 s (0.250–0.270) | 0.260 s (0.250–0.260) | 0.0% | 1/7 | 11,990,305 + 6,798,164; `04d4912461cb…` | 2.77 → 2.79 |
+| c3-hello, 30 s | 2.490 s (2.460–2.580) | 2.470 s (2.430–2.670) | −0.8% | 3/7 | 4,800,000,000; `3b9d8d3eb053…` | 2.79 → 3.73 |
+| c6-hello, 30 s | 1.630 s (1.590–1.700) | 1.670 s (1.630–1.690) | +2.5% | 4/7 | 4,800,000,000; `bd69fbb9ac5c…` | 3.73 → 3.93 |
+| pocket-tank, 8 s | 7.150 s (7.100–7.190) | 7.180 s (7.110–7.190) | +0.4% | 4/7 | 1,115,772,031 + 946,151,715; `1d1d57f7c150…` | 3.93 → 3.85 |
+
+Instructions and console hashes were identical in all 16 runs per workload. The maintainer's
+verdict: nothing is flagged (new slower in at least 6/7 pairs, or non-overlapping ranges). C6's
++2.5% is 4/7 with overlapping ranges, noise at the 10 ms user-CPU resolution. S3 hello mostly
+idles, so says little about the timer path. This run did not include classic workloads.
 
 ### Review cross-check (October 26, 2026)
 
-From the review of `cf7e9df3`: user CPU, 1 warm-up and 7 alternating pairs, `cargo build --release
+From the review of `cf7e9df3` (rustc version not reported): user CPU, 1 warm-up and 7 alternating pairs, `cargo build --release
 --bins`, 18 cores, 1-minute load about 3, identical instruction counts and consoles in every pair:
 
 | Workload | main | branch | Change | Branch slower |
@@ -146,10 +155,10 @@ Where the C3's +1.7% to +2.1% can and cannot come from ([c3-attribution.json](c3
 1. **c3-hello never enables a TIMG timer.** The census counts 300,023,984 `Timer::step` calls in
    30 s and 0 enabled ones, so every call returns at the `TIMG_T0_EN` test. In
    `TimerGroup::tick` that path is the same five instructions on both builds (`ldr`, `tbz` to the
-   second timer, `ldr`, `tbnz`, `ret`); the entry address is the same, and the shared exit moves
+   second timer, `ldr`, `tbnz`, `ret`); on rustc 1.99.0 against `ddf753a5` the entry address is the same, and the shared exit moves
    from +0xc4 to +0xb8.
 2. **Nothing else the C3 runs changes.** In `esp32sim-c3` (built with `--bins` as for the timing),
-   2812 of 2813 text symbols sit at the same address on both builds and 3171 of 2,373,120 `__text`
+   on rustc 1.99.0 against `ddf753a5`, 2812 of 2813 text symbols sit at the same address on both builds and 3171 of 2,373,120 `__text`
    bytes differ: 667 in `TimerGroup::tick`, and the rest in the classic `ClassicTimer::tick`,
    `ClassicRmt::advance` (which follows it and moved), one call site in `ClassicRmt::tick` and one
    byte in a classic `mmio::write32` instance, none of which a C3 run executes. `__const` and
@@ -164,10 +173,12 @@ Where the C3's +1.7% to +2.1% can and cannot come from ([c3-attribution.json](c3
    (0/3); a main-against-main control in the same session gave +8.2% (2/3). These are not CPU
    results.
 
-So no instruction the C3 executes changes with this branch, and the C3's code layout is the same
-apart from the exit of the disabled-timer path. If the quiet-machine table shows the C3 slower in 6
-or more of 7 pairs, it is reported in the row as a flag not attributed to executed code, in the way
-of EX243 and EX245, together with the C3's 1–2% movement between builds of unchanged C3 code.
+The checked C3 instructions are unchanged, but layout depends on toolchain and base. The maintainer
+rechecked rustc 1.99.1 against `66eb9704`: 2,726 of 2,919 text symbols moved by −0x40, including
+`TimerGroup::tick` and `SocBus::refresh_irq`. Thus the same-layout observation above is specific to
+rustc 1.99.0 and its base, not a general claim. The maintainer's 1.99.1 CPU run above has no C3 flag
+(3/7 slower). His earlier cross-check flagged one C3 run; layout is a plausible explanation, not a
+proven cause.
 
 ## Limits
 
