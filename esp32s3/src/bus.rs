@@ -613,11 +613,7 @@ impl SocBus {
         // the pending base as the new head and try once more. Frames that still find nothing are lost, as
         // they are when a radio's RX FIFO is full.
         let mut armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total);
-        if armed.is_none() && self.periph.wifi.rx_handover {
-            self.periph.wifi.rx_next = self.periph.wifi.rx_base;
-            self.periph.wifi.rx_handover = false;
-            armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total);
-        }
+        if armed.is_none() && self.periph.wifi.rx_restart_at_base() { armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total); }
         // Neither a head nor a pending base: the driver has not handed the radio a receive ring yet, which
         // is not a lost frame. Counted apart, and only after the hand-over above has had its chance (#276).
         if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.drop_rx_unarmed(); return; }
@@ -649,8 +645,7 @@ impl SocBus {
         while i < b.len() { let _ = self.write8_unpriced(buf + i as u32, b[i]); i += 1; }
         let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (verified on silicon 2026-08-25: dw0=0xc0..)
         let _ = self.write32_unpriced(desc, ndw0);
-        let w = &mut self.periph.wifi;
-        w.rx_last = (desc & 0xf_ffff) | (1 << 24); w.rx_next = next & 0xf_ffff; w.rx_handover = false; w.link.rx_delivered(desc); w.events |= (1 << 14) | (1 << 24);   // RX data (wDev_ProcessFiq tests 0x1004000)   // registers hold masked descriptor addrs; rx_last has a 0x01 prefix (silicon)
+        self.periph.wifi.rx_filled(desc, next);
         if log { let d = crate::wifi::describe(frame); if d.contains("auth")||d.contains("assoc") { eprintln!("[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}", desc, buf, d); } else { eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d); } }
         self.irq_dirty = true;
     }

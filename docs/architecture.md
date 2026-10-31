@@ -245,8 +245,9 @@ Six layers turn those into packets on the host's network:
 
 ```
 esp_wifi + libpp/libnet80211        unmodified blob, drives the MAC registers
-  WifiMac (each chip)               TX queues, RX descriptor ring, interrupt events, TSF (S3, C3,
-                                    classic); the S3's in periph.rs, the others' in their wifi.rs
+  WifiMac (esp-soc wifi/mac.rs)     TX queues, RX descriptor ring and hand-over, interrupt events,
+                                    TSF (S3, C3, classic); one model for the S3 and C3, the C6's and
+                                    classic's in their wifi.rs
   StationLink (esp-soc wifi.rs)     shared by the chips: RX pacing, network step, Ethernet relay
   VirtualAp (esp-soc wifi.rs)       beacons, probe/auth/assoc responses, WPA2 four-way handshake,
                                     802.11 <-> Ethernet conversion, CCMP framing

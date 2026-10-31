@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod tests;
+mod mac;
+pub use mac::{WifiMac, TXQ_COUNT};
 
 pub fn mac_str(m: &[u8]) -> String { m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":") }
 

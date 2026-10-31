@@ -335,14 +335,30 @@ impl SocBus {
         if let Some(frame) = self.periph.wifi.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }
     }
 
+    /// The receive descriptor at `desc` (a masked pointer from `rx_next`) as the DMA would use it for a
+    /// `total`-byte frame, if software armed it: owned and not yet filled, with a buffer, and with room
+    /// for the frame. `None` means the receive DMA is stopped there. Stricter than the S3, which also
+    /// takes a descriptor whose `has_data` is still set. With the EX238 hand-over that difference also
+    /// decides the restart: a still-filled descriptor plus a base write since the last frame sends the
+    /// C3 to `rx_base`, where the S3 overwrites the descriptor in place. A driver that processes frames
+    /// in order never gets there.
+    fn wifi_rx_armed(&self, desc: u32, total: usize) -> Option<(u32, u32, u32, u32)> {
+        if desc == 0 { return None; }
+        let d = desc | esp_periph::DMA_ADDR_BASE;
+        let dw0 = self.sram32(d); let buf = self.sram32(d.wrapping_add(4)); let next = self.sram32(d.wrapping_add(8));
+        (dw0 & (3 << 30) == 1 << 31 && buf != 0 && (dw0 & 0xfff) as usize >= total).then_some((d, dw0, buf, next))
+    }
+
     /// Write one received frame into the next RX descriptor (rx_ctrl header + frame + FCS) and raise the RX event.
     fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64) {
-        if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.drop_rx_unarmed(); return; }
-        let desc = self.periph.wifi.rx_next | esp_periph::DMA_ADDR_BASE;
-        let dw0 = self.sram32(desc); let buf = self.sram32(desc.wrapping_add(4)); let next = self.sram32(desc.wrapping_add(8));
-        let size = (dw0 & 0xfff) as usize;
         let total = 48 + frame.len() + 4;
-        if dw0 & (3 << 30) != 1 << 31 || buf == 0 || size < total { self.periph.wifi.link.drop_rx(); return; }
+        // As on the S3 (EX238): a descriptor that is not usable means the receive DMA has stopped; a
+        // `BASE_RX_DSCR` write since the last frame is the hand-over of a fresh list, so try once more there.
+        let mut armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total);
+        if armed.is_none() && self.periph.wifi.rx_restart_at_base() { armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total); }
+        // Neither a head nor a pending base: no receive ring yet, counted apart from lost frames (#276).
+        if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.drop_rx_unarmed(); return; }
+        let Some((desc, dw0, buf, next)) = armed else { self.periph.wifi.link.drop_rx(); return; };
         // A network around's frames carry its own channel and signal (`VirtualAp::rx_meta`)
         let (chan, rssi, log) = { let ap = self.periph.wifi.link.ap().unwrap(); let (c, r) = ap.rx_meta(frame); (c as u32, r, ap.log) };
         let mut b = Vec::with_capacity(total);
@@ -359,8 +375,7 @@ impl SocBus {
         if !self.sram_store(buf, &b) { self.periph.wifi.link.drop_rx(); return; }
         let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (S3-derived, checked with C3 firmware only)
         self.sram_store(desc, &ndw0.to_le_bytes());
-        let w = &mut self.periph.wifi;
-        w.rx_last = (desc & 0xf_ffff) | (1 << 24); w.rx_next = next & 0xf_ffff; w.link.rx_delivered(desc); w.events |= (1 << 14) | (1 << 24);   // RX data (wDev_ProcessFiq tests 0x1004000)   // registers hold masked descriptor addrs; rx_last uses the S3-derived 0x01 prefix
+        self.periph.wifi.rx_filled(desc, next);   // rx_last's 0x01 prefix is S3-derived
         if log { let d = esp_soc::wifi::describe(frame); if d.contains("auth")||d.contains("assoc") { eprintln!("[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}", desc, buf, d); } else { eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d); } }
         self.irq_dirty = true;
     }
@@ -577,5 +592,81 @@ mod tests {
             assert_eq!(bus.read32(BUF).unwrap() & 0xff, u32::from(rssi as u8), "RSSI of {from:02x?}");
             assert_eq!(bus.read32(BUF + 8).unwrap(), (chan << 16) | (chan << 20), "channel of {from:02x?}");
         }
+    }
+
+    /// A WiFi bus with one open virtual access point and `frames` of 24 bytes queued on the air, the
+    /// first byte of each a marker so the test can tell them apart in the receive buffer.
+    fn wifi_bus_with_air_frames(frames: &[u8]) -> SocBus {
+        use esp_soc::wifi::{AirFrame, ApConfig, VirtualAp};
+        let mut bus = SocBus::new(4 << 20, [0; 6]);
+        bus.periph.wifi.link.attach(Some(VirtualAp::new(ApConfig {
+            ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None, epoch_s: None,
+        }, false)), None);
+        for &marker in frames {
+            bus.periph.wifi.link.ap_mut().unwrap().queue.push(AirFrame { at_us: 0, frame: vec![marker; 24] });
+        }
+        bus.periph.refresh_work();
+        bus
+    }
+
+    /// One RX descriptor: `512` bytes of buffer at `buf`, owned by the DMA, pointing at `next`.
+    fn arm_rx_desc(bus: &mut SocBus, at: u32, buf: u32, next: u32) {
+        bus.write32(at, 512 | (1 << 31)).unwrap();
+        bus.write32(at + 4, buf).unwrap();
+        bus.write32(at + 8, next).unwrap();
+    }
+
+    /// One scheduling round of one emulated millisecond: the air delivers at most one frame in a round.
+    fn wifi_air_round(bus: &mut SocBus) { assert_eq!(bus.tick((crate::periph::CPU_HZ / 1000) as u32), 1); }
+
+    const RX_DESC: u32 = 0x3fc9_0100;
+
+    /// EX238 on the C3 (the S3's `air_rx_restarts_at_the_base_when_the_list_runs_dry`): a driver
+    /// that arms one short list at a time restarts the stopped receive DMA with a `BASE_RX_DSCR` write.
+    #[test]
+    fn air_rx_restarts_at_the_base_when_the_list_runs_dry() {
+        let mut bus = wifi_bus_with_air_frames(&[0x11, 0x22, 0x33]);
+        let (first, dead, second) = (RX_DESC, RX_DESC + 0x40, RX_DESC + 0x80);
+        let dead_base = dead & 0xf_ffff;
+        arm_rx_desc(&mut bus, first, first + 0x200, dead);          // the armed list: one descriptor, then a null word
+        bus.write32(dead, 0).unwrap();
+        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();        // BASE_RX_DSCR
+        wifi_air_round(&mut bus);
+        assert_eq!((bus.periph.wifi.link.tx_frames(), bus.periph.wifi.link.rx_frames()), (0, 1));
+        assert_eq!(bus.read8(first + 0x200 + 48).unwrap(), 0x11, "frame after the 48-byte rx_ctrl header");
+        assert_eq!(bus.periph.wifi.rx_next, dead_base);
+
+        // Software recycled the frame and left the next descriptor alone: the DMA stops there.
+        arm_rx_desc(&mut bus, first, first + 0x200, dead);
+        wifi_air_round(&mut bus);
+        assert_eq!(bus.periph.wifi.link.rx_dropped(), 1, "a frame that finds the DMA stopped is lost");
+
+        // The driver hands over the next list, base first and the base write on its own.
+        arm_rx_desc(&mut bus, second, second + 0x200, 0);
+        bus.write32(0x6003_3088, second & 0xf_ffff).unwrap();
+        wifi_air_round(&mut bus);
+        assert_eq!(bus.periph.wifi.link.rx_frames(), 2, "the base write restarts the stopped DMA");
+        assert_eq!(bus.periph.wifi.rx_next, 0, "the new list ends after one descriptor");
+        assert_eq!(bus.read8(second + 0x200 + 48).unwrap(), 0x33);
+    }
+
+    /// The other half of the rule (the S3's `air_rx_base_write_does_not_rewind_a_running_list`):
+    /// software rewrites `BASE_RX_DSCR` on every recycle, and a running DMA keeps its pointer.
+    #[test]
+    fn air_rx_base_write_does_not_rewind_a_running_list() {
+        let mut bus = wifi_bus_with_air_frames(&[0x11, 0x22]);
+        let (first, second) = (RX_DESC, RX_DESC + 0x40);
+        arm_rx_desc(&mut bus, first, first + 0x200, second);
+        arm_rx_desc(&mut bus, second, second + 0x200, 0);
+        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();
+        wifi_air_round(&mut bus);
+        assert_eq!((bus.periph.wifi.link.rx_frames(), bus.periph.wifi.rx_next), (1, (second & 0xf_ffff)));
+
+        arm_rx_desc(&mut bus, first, first + 0x200, second);        // recycle descriptor 0
+        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();        // and rewrite the base, as software does
+        wifi_air_round(&mut bus);
+        assert_eq!(bus.periph.wifi.link.rx_frames(), 2);
+        assert_eq!(bus.read8(second + 0x200 + 48).unwrap(), 0x22, "landed in the next descriptor, not back at the base");
+        assert_eq!(bus.read32(first).unwrap() >> 30 & 1, 0, "descriptor 0 was not filled a second time");
     }
 }

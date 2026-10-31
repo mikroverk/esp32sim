@@ -269,7 +269,7 @@ impl Peripherals {
             ble_lc: Default::default(),
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
-            wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
+            wifi: Box::new(crate::wifi::WifiMac::new(CPU_HZ)), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g.input_select = esp_soc::pins::ChipPins::C3.input_select; g }, rtc: RtcCntl::new_c3(), ledc: Ledc::new(LedcLayout::C3),
             efuse: efuse_c3(mac, 0, 4, 3), system: {
