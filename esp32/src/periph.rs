@@ -194,6 +194,11 @@ const IOMUX_OFFSETS: [u32; 40] = [
     0x1c, 0x20, 0x14, 0x18, 0x04, 0x08, 0x0c, 0x10,
 ];
 
+/// Pads whose IO_MUX function 0 is GPIO as function 2 is: `FUNC_GPIO18_GPIO18_0` and its kin in
+/// IDF v5.3.3 and v5.5.4 components/soc/esp32/include/soc/io_mux_reg.h. Reset leaves them at 0, and
+/// esp-idf-hal's `PinDriver::output` only calls `gpio_set_direction`, so firmware drives them there.
+const GPIO_AT_FUNCTION_0: u64 = 1 | 1 << 2 | 0b11 << 4 | 0xfff << 16 | 0xff << 32;
+
 #[cfg(test)]
 #[path = "gpio_irq_tests.rs"]
 mod gpio_irq_tests;
@@ -221,10 +226,12 @@ impl ClassicGpio {
         esp_soc::pins::ChipPins::ESP32.routes(&self.gpio, &self.route_mux)
     }
     fn new() -> Self {
+        let mut route_mux = RegRam::new();
+        for pin in (0..40).filter(|pin| GPIO_AT_FUNCTION_0 & (1 << pin) != 0) { route_mux.write(4 + 4 * pin as u32, Self::route_value(pin, 0)); }
         Self {
             gpio: Gpio::new(),
             io_mux: RegRam::new(),
-            route_mux: RegRam::new(),
+            route_mux,
             external: 0,
             signal_out: [false; 256],
             signal_oe: [false; 256],
@@ -251,12 +258,16 @@ impl ClassicGpio {
             .filter(|&&off| off != u32::MAX)
             .map_or(0, |&off| self.io_mux.read(off))
     }
-    fn route_value(v: u32) -> u32 {
-        let function = match (v >> 12) & 7 { 1 => 2, 2 => 1, f => f };
+    /// The IO_MUX function, with function 0 on a `GPIO_AT_FUNCTION_0` pad read as the GPIO it is.
+    fn function(pin: usize, v: u32) -> u32 {
+        match (v >> 12) & 7 { 0 if GPIO_AT_FUNCTION_0 & (1 << pin) != 0 => 2, f => f }
+    }
+    fn route_value(pin: usize, v: u32) -> u32 {
+        let function = match Self::function(pin, v) { 1 => 2, 2 => 1, f => f };
         (v & !(7 << 12)) | (function << 12)
     }
     fn matrix_pad(&self, pin: usize) -> bool {
-        (self.mux(pin) >> 12) & 7 == 2
+        Self::function(pin, self.mux(pin)) == 2
     }
     fn direct_signal(pin: usize) -> Option<usize> {
         Some(match pin {
@@ -489,7 +500,7 @@ impl Device for ClassicGpio {
             let off = off - IOMUX;
             self.io_mux.write(off, v);
             if let Some(pin) = IOMUX_OFFSETS.iter().position(|&candidate| candidate == off) {
-                self.route_mux.write(4 + 4 * pin as u32, Self::route_value(v));
+                self.route_mux.write(4 + 4 * pin as u32, Self::route_value(pin, v));
                 self.sync_pull(pin);
                 self.refresh_level_status();
             }
@@ -1276,7 +1287,7 @@ mod tests {
             (1 << 7) | (1 << 6) | pin as u32,
         );
         assert_eq!(p.gpio.signal_input(signal), Some(true));
-        p.write32(0x3ff4_9048, 1 << 9);
+        p.write32(0x3ff4_9048, (1 << 12) | (1 << 9)); // FUNC_GPIO4_HSPIHD; function 0 is GPIO here
         assert_eq!(
             p.gpio.signal_input(signal),
             None,
