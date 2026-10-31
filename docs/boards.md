@@ -252,7 +252,8 @@ Selected with `--chip esp32 --board ulanzi-tc001` (alias `tc001`). Pins from the
 pin block moves between versions). A 256-LED frame is 6144 RMT symbols sent
 through the refilled 64-word block; the classic RMT hands transmissions up to 4096 pixels to the
 board. Stock AWTRIX 3 runs on it: [examples/ulanzi-tc001](../examples/ulanzi-tc001/README.md).
-CLI only for now: the web page (`web/emu.js`) does not offer the board yet.
+The web page offers it too: pick `ulanzi-tc001` in the firmware panel; the matrix is drawn 16× and the
+three buttons are under it.
 
 ## `ai-thinker-cam` — AI-Thinker ESP32-CAM (classic ESP32)
 
