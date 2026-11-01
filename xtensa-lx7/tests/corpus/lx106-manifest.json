@@ -1,0 +1,19 @@
+{
+  "versions": {
+    "lx106": "GNU assembler (GNU Binutils) 2.32",
+    "s3": "GNU assembler (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223",
+    "lx106_gcc": "10.3.0"
+  },
+  "sha256": {
+    "build-lx106.py": "af08273eb58851c52d63ddf0d8fb1d34f06720e5773be5db3f526571926412cb",
+    "lx106.S": "88abf3bc3787a6c96734e41249f19c0d855d28d4a74a4a312f90d7d895d972fc",
+    "lx106-forbidden.S": "ec962ba62785bc15af0fc27dc399406bc1b0f0e87baa73234ab2e8464feaa364",
+    "lx106-sr-forbidden.S": "ee503b352316d28d111657b28b824ed0a126f2c103932bf3c942cf3e5378116b",
+    "lx106.dis": "142a022cd67ea624ebdb03af06a7de13a6b16e6a00808db42e2af8201a91e975",
+    "lx106-forbidden.dis": "92bef7ae72bcdb3e832d277e54802228609e971fd526bbfe2f531de17375fb06",
+    "lx106-generated.rs": "b93ee46e3100b3e414297b74229a294fc6064a19d49fb9731953f67cce7e728f"
+  },
+  "program_bytes": 152,
+  "forbidden_instructions": 42,
+  "sr_forbidden_instructions": 11
+}

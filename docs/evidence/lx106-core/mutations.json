@@ -1,0 +1,266 @@
+[
+  {
+    "mutation": "window",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "entry\ta1, 32",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "window-return",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "retw",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "float",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "add.s\tf0, f1, f2",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "boolean",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "andb\tb0, b1, b2",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "loop",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "loop\ta2, 0x80",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "divide",
+    "test": "jit_requests_cannot_bypass_profile",
+    "assertion": "assert_eq!(c.run(&mut b, 100), (1, Some(Trap::Exception(exc::ILLEGAL))));",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "remainder",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "remu\ta4, a2, a3",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "multiply-high",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "muluh\ta4, a2, a3",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "minmax",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "min\ta4, a2, a3",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "sign-extension",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "sext\ta2, a3, 7",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "clamp",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "clamps\ta2, a3, 7",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "atomic",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "s32c1i\ta2, a3, 0",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "release-sync",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "l32ai\ta2, a3, 0",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "user-register",
+    "test": "forbidden_options_raise_illegal_before_any_effect",
+    "assertion": "assert!(!supports(&decode(BASE, bytes)), \"{name}\");",
+    "failure": "rur.threadptr\ta2",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "wsr-direction-gate",
+    "test": "sr_direction_matrix_and_read_only_reads",
+    "assertion": "assert_eq!(supports(&i), expected, \"SR {n} {op:?}\");",
+    "failure": "assertion `left == right` failed: SR 176 Wsr",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "xsr-direction-gate",
+    "test": "raw_sr_direction_rejections_preserve_registers_before_exception",
+    "assertion": "assert_eq!(c.step(&mut b).trap(), Some(Trap::Exception(exc::ILLEGAL)), \"{name}\");",
+    "failure": "assertion `left == right` failed: xsr.intset a2",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "readonly-directions",
+    "test": "raw_sr_direction_rejections_preserve_registers_before_exception",
+    "assertion": "assert_eq!(c.step(&mut b).trap(), Some(Trap::Exception(exc::ILLEGAL)), \"{name}\");",
+    "failure": "assertion `left == right` failed: wsr.configid0 a2",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "interrupt-exchange",
+    "test": "raw_sr_direction_rejections_preserve_registers_before_exception",
+    "assertion": "assert_eq!(c.step(&mut b).trap(), Some(Trap::Exception(exc::ILLEGAL)), \"{name}\");",
+    "failure": "assertion `left == right` failed: xsr.intset a2",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "undefined-read-direction",
+    "test": "sr_direction_matrix_and_read_only_reads",
+    "assertion": "assert_eq!(supports(&i), expected, \"SR {n} {op:?}\");",
+    "failure": "assertion `left == right` failed: SR 227 Rsr",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "bypass-execution-gate",
+    "test": "jit_requests_cannot_bypass_profile",
+    "assertion": "assert_eq!(c.run(&mut b, 100), (1, Some(Trap::Exception(exc::ILLEGAL))));",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "extra-comparators",
+    "test": "register_options_and_reset_are_not_s3",
+    "assertion": "assert_eq!(c.read_sr(n), None, \"SR {n}\");",
+    "failure": "assertion `left == right` failed: SR 241",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "window-register",
+    "test": "register_options_and_reset_are_not_s3",
+    "assertion": "assert_eq!(c.read_sr(n), None, \"SR {n}\");",
+    "failure": "assertion `left == right` failed: SR 72",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "ps-window-bits",
+    "test": "register_options_and_reset_are_not_s3",
+    "assertion": "assert_eq!(c.state().ps, 0x3f);",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "eps-window-bits",
+    "test": "register_options_and_reset_are_not_s3",
+    "assertion": "assert_eq!(c.read_sr(n), Some(0x3f));",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "absolute-literals",
+    "test": "pc_relative_and_absolute_literals",
+    "assertion": "assert_eq!(c.get_ar(2), 0xaabbccdd);",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "s3-kernel-vector",
+    "test": "compare_wrap_equal_clear_and_waiti_wake",
+    "assertion": "assert_eq!(c.pc(), 0x40000030); assert!(!c.waiting());",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "s3-nmi-level",
+    "test": "interrupt_types_excm_nmi_and_return",
+    "assertion": "assert_eq!((c.state().epc[3], c.state().eps[3]), (BASE, 0x1f));",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "s3-debug-vector",
+    "test": "debug_uses_level_two_and_never_s3_level_six",
+    "assertion": "assert_eq!((c.pc(), c.state().epc[2], c.state().eps[2]),",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "nmi-masked",
+    "test": "edge_latches_rearm_and_masked_waiti_takes_nmi",
+    "assertion": "c.set_irq(1 << 14); assert!(c.irq_pending());",
+    "failure": "assertion failed: c.irq_pending()",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "timer-match-disabled",
+    "test": "compare_wrap_equal_clear_and_waiti_wake",
+    "assertion": "c.advance_cycles(1); assert!(c.irq_pending());",
+    "failure": "assertion failed: c.irq_pending()",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "intclear-levels",
+    "test": "interrupt_types_excm_nmi_and_return",
+    "assertion": "c.write_sr(sr::INTCLEAR, 1).unwrap(); assert!(c.irq_pending());",
+    "failure": "assertion failed: c.irq_pending()",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "level-input-mask",
+    "test": "edge_latches_rearm_and_masked_waiti_takes_nmi",
+    "assertion": "c.set_irq(1 << 8); c.set_irq(0); assert!(c.irq_pending());",
+    "failure": "assertion failed: c.irq_pending()",
+    "compiled": true,
+    "killed": true
+  },
+  {
+    "mutation": "alignment",
+    "test": "unaligned_word_access_has_lx106_alignment_exception",
+    "assertion": "assert_eq!(c.step(&mut b).trap(), Some(Trap::Exception(exc::LOAD_STORE_ALIGNMENT)));",
+    "failure": "assertion `left == right` failed",
+    "compiled": true,
+    "killed": true
+  }
+]

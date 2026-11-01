@@ -1,0 +1,48 @@
+{
+  "arduino": {
+    "repository": "https://github.com/esp8266/Arduino",
+    "revision": "210897ef83305496947c4e73c937bab52a33cb48",
+    "version": "3.1.2",
+    "path": "libraries/GDBStub/src/xtensa/config/core-isa.h",
+    "sha256": "fc16b089bf9f873976680571fc3bd467e6ff4fecd29efac8369ca067a8e2018e"
+  },
+  "compiler": {
+    "package": "PlatformIO toolchain-xtensa 2.100300.220621",
+    "gcc": "10.3.0",
+    "as": "2.32",
+    "path": "xtensa-lx106-elf/include/xtensa/config/core-isa.h",
+    "sha256": "b5c38aa21a5bbcd7620df3ac29b030496dfb1d675f79f1e5a70b685364d86474"
+  },
+  "equal_macros_checked": {
+    "XCHAL_HAVE_WINDOWED": 0,
+    "XCHAL_NUM_AREGS": 16,
+    "XCHAL_HAVE_MUL16": 1,
+    "XCHAL_HAVE_MUL32": 1,
+    "XCHAL_HAVE_MUL32_HIGH": 0,
+    "XCHAL_HAVE_DIV32": 0,
+    "XCHAL_HAVE_FP": 0,
+    "XCHAL_HAVE_BOOLEANS": 0,
+    "XCHAL_HAVE_LOOPS": 0,
+    "XCHAL_HAVE_MINMAX": 0,
+    "XCHAL_HAVE_SEXT": 0,
+    "XCHAL_HAVE_CLAMPS": 0,
+    "XCHAL_HAVE_S32C1I": 0,
+    "XCHAL_HAVE_ABSOLUTE_LITERALS": 1,
+    "XCHAL_NUM_INTERRUPTS": 15,
+    "XCHAL_NUM_TIMERS": 1,
+    "XCHAL_EXCM_LEVEL": 1,
+    "XCHAL_NMILEVEL": 3,
+    "XCHAL_DEBUGLEVEL": 2
+  },
+  "access_directions": {
+    "qemu": "https://raw.githubusercontent.com/qemu/qemu/v10.1.0/target/xtensa/translate.c",
+    "qemu_sha256": "38163c10b0311c42061ef6d892596223b959ae68b291f83783b9a3c80185cae6",
+    "manual": "https://0x04.net/~mwk/doc/xtensa.pdf",
+    "manual_sha256": "52c28fa26c5287825953c12bb69e4cd7683f46f2f0efa0994d1a78e6318dbd46",
+    "manual_tables": ["5-159", "5-169", "5-170", "5-171", "5-181"],
+    "audit": "sr-direction-audit.md",
+    "limits": "Source audit, not hardware validation; RSR INTCLEAR is undefined and deliberately rejected by this profile."
+  },
+  "hardware_checked": false,
+  "third_party_runtime_linked": false
+}
