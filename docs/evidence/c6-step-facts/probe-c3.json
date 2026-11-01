@@ -1,0 +1,18 @@
+[
+  {
+    "variant": "base",
+    "selected": 128,
+    "identical": 128,
+    "changed": [],
+    "normal_sha256": "96d9a8d74f92f39b50c142775c7e3e6a2d9bf7e35eb48a6b7382ab07a8f3489f",
+    "probe_sha256": "fe1a1cedae7da7d88b01022260eb5420b37d8b8023cffb11e6f917f11d5acfc6"
+  },
+  {
+    "variant": "candidate",
+    "selected": 130,
+    "identical": 130,
+    "changed": [],
+    "normal_sha256": "8371232faa6955387aa6b27d800ac43cf9ac9303ceab69b474723d427a11dc0f",
+    "probe_sha256": "fe56f88c11800be54015208da6180c3586f53ee81dbac1df17371091f34a1931"
+  }
+]

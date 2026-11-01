@@ -1,0 +1,816 @@
+{
+  "method": "EX230 normalized native AArch64 code; static body sizes are not dynamic instruction counts",
+  "binary_sha256": {
+    "base": "8f1b0ea5887027f1c833572a3906f0240ab66215398827bed3b52480fcd60ebd",
+    "candidate": "31be8e0dde66b75d8f0cc929306c70f923f9e214ee0619d9ab7ea8b01f899c2d"
+  },
+  "gate": true,
+  "selected": 134,
+  "identical": 113,
+  "rows": [
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_ops": 127,
+      "candidate_ops": 127,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_ops": 178,
+      "candidate_ops": 178,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_ops": 2263,
+      "candidate_ops": 2263,
+      "same": true
+    },
+    {
+      "name": "<esp32::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_ops": 957,
+      "candidate_ops": 957,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_ops": 103,
+      "candidate_ops": 103,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_ops": 114,
+      "candidate_ops": 114,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_ops": 279,
+      "candidate_ops": 279,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_ops": 56,
+      "candidate_ops": 56,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_ops": 200,
+      "candidate_ops": 200,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+      "base_ops": 349,
+      "candidate_ops": 349,
+      "same": true
+    },
+    {
+      "name": "<esp32c3::bus::SocBus>::tick_with_pins",
+      "base_ops": 481,
+      "candidate_ops": 481,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_ops": 96,
+      "candidate_ops": 96,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_ops": 2094,
+      "candidate_ops": 2094,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_ops": 48,
+      "candidate_ops": 48,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_ops": 304,
+      "candidate_ops": 304,
+      "same": true
+    },
+    {
+      "name": "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+      "base_ops": 457,
+      "candidate_ops": 457,
+      "same": true
+    },
+    {
+      "name": "<esp32p4::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_ops": 126,
+      "candidate_ops": 126,
+      "same": true
+    },
+    {
+      "name": "<esp32p4::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_ops": 186,
+      "candidate_ops": 186,
+      "same": true
+    },
+    {
+      "name": "<esp32p4::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_ops": 2508,
+      "candidate_ops": 2508,
+      "same": true
+    },
+    {
+      "name": "<esp32p4::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_ops": 108,
+      "candidate_ops": 108,
+      "same": true
+    },
+    {
+      "name": "<esp32p4::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+      "base_ops": 199,
+      "candidate_ops": 199,
+      "same": true
+    },
+    {
+      "name": "<esp32p4::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+      "base_ops": 178,
+      "candidate_ops": 178,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::fetch",
+      "base_ops": 102,
+      "candidate_ops": 102,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::read32",
+      "base_ops": 235,
+      "candidate_ops": 235,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::tick",
+      "base_ops": 26,
+      "candidate_ops": 26,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as emu_core::bus::Bus>::write32",
+      "base_ops": 315,
+      "candidate_ops": 315,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+      "base_ops": 29,
+      "candidate_ops": 29,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::read32_access::<false>",
+      "base_ops": 128,
+      "candidate_ops": 128,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::tick_impl",
+      "base_ops": 3882,
+      "candidate_ops": 3882,
+      "same": true
+    },
+    {
+      "name": "<esp32s3::bus::SocBus>::write32_access::<false>",
+      "base_ops": 199,
+      "candidate_ops": 199,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::after_round",
+      "base_ops": 134,
+      "candidate_ops": 134,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::present_irqs",
+      "base_ops": 234,
+      "candidate_ops": 234,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_modeled",
+      "base_ops": 3454,
+      "candidate_ops": 3454,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::run_unmodeled::<false>",
+      "base_ops": 1747,
+      "candidate_ops": 1747,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32::soc::Esp32>>::step_core",
+      "base_ops": 894,
+      "candidate_ops": 894,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::after_round",
+      "base_ops": 84,
+      "candidate_ops": 84,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::present_irqs",
+      "base_ops": 119,
+      "candidate_ops": 119,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::run_modeled",
+      "base_ops": 3232,
+      "candidate_ops": 3144,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::run_unmodeled::<false>",
+      "base_ops": 1060,
+      "candidate_ops": 1040,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::step_core",
+      "base_ops": 463,
+      "candidate_ops": 2069,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::after_round",
+      "base_ops": 168,
+      "candidate_ops": 168,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::present_irqs",
+      "base_ops": 120,
+      "candidate_ops": 120,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run",
+      "base_ops": 5363,
+      "candidate_ops": 0,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_modeled",
+      "base_ops": 0,
+      "candidate_ops": 3215,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_unmodeled::<false>",
+      "base_ops": 1065,
+      "candidate_ops": 1058,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_until_cycle",
+      "base_ops": 0,
+      "candidate_ops": 4615,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::step_core",
+      "base_ops": 465,
+      "candidate_ops": 4350,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::after_round",
+      "base_ops": 84,
+      "candidate_ops": 84,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::present_irqs",
+      "base_ops": 235,
+      "candidate_ops": 235,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::run",
+      "base_ops": 3526,
+      "candidate_ops": 3460,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::run_unmodeled::<false>",
+      "base_ops": 1206,
+      "candidate_ops": 1189,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::step_core",
+      "base_ops": 485,
+      "candidate_ops": 485,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevLt3>>>::after_round",
+      "base_ops": 84,
+      "candidate_ops": 84,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevLt3>>>::run",
+      "base_ops": 3526,
+      "candidate_ops": 3460,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevLt3>>>::run_unmodeled::<false>",
+      "base_ops": 1206,
+      "candidate_ops": 1189,
+      "same": false
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::after_round",
+      "base_ops": 114,
+      "candidate_ops": 114,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::present_irqs",
+      "base_ops": 247,
+      "candidate_ops": 247,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::run_modeled",
+      "base_ops": 3380,
+      "candidate_ops": 3380,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::run_unmodeled::<false>",
+      "base_ops": 3492,
+      "candidate_ops": 3492,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::Machine<esp32s3::soc::S3>>::step_core",
+      "base_ops": 990,
+      "candidate_ops": 990,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_ops": 37,
+      "candidate_ops": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_ops": 40,
+      "candidate_ops": 40,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c3::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_ops": 37,
+      "candidate_ops": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c3::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_ops": 90,
+      "candidate_ops": 90,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c6::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_ops": 37,
+      "candidate_ops": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32c6::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_ops": 87,
+      "candidate_ops": 87,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32p4::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_ops": 37,
+      "candidate_ops": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32p4::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_ops": 35,
+      "candidate_ops": 35,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus> as emu_core::bus::Bus>::read32",
+      "base_ops": 37,
+      "candidate_ops": 37,
+      "same": true
+    },
+    {
+      "name": "<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus> as emu_core::bus::Bus>::write32",
+      "base_ops": 35,
+      "candidate_ops": 35,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::decode::Op as core::fmt::Debug>::fmt",
+      "base_ops": 11,
+      "candidate_ops": 11,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::decode::Op as core::fmt::Debug>::fmt (.122)",
+      "base_ops": 11,
+      "candidate_ops": 11,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::disasm",
+      "base_ops": 799,
+      "candidate_ops": 799,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::insn_len",
+      "base_ops": 6,
+      "candidate_ops": 6,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::regtrace_line",
+      "base_ops": 125,
+      "candidate_ops": 125,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32c3::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1977,
+      "same": false
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32c6::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 2049,
+      "same": false
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32p4::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1913,
+      "same": false
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::step::<esp32p4::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1679,
+      "same": false
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::step::<esp_soc::machine::modeled::RecordingBus<esp32p4::bus::SocBus>>",
+      "base_ops": 1856,
+      "candidate_ops": 1740,
+      "same": false
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu>::mret (.105)",
+      "base_ops": 18,
+      "candidate_ops": 18,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu>::read_csr",
+      "base_ops": 289,
+      "candidate_ops": 289,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu>::reset",
+      "base_ops": 94,
+      "candidate_ops": 94,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu>::trap (.104)",
+      "base_ops": 33,
+      "candidate_ops": 33,
+      "same": true
+    },
+    {
+      "name": "<riscv_rv32::state::Cpu>::write_csr",
+      "base_ops": 335,
+      "candidate_ops": 335,
+      "same": true
+    },
+    {
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32::bus::SocBus>",
+      "base_ops": 706,
+      "candidate_ops": 706,
+      "same": true
+    },
+    {
+      "name": "<xtensa_lx7::state::Cpu as emu_core::core::Core>::run::<esp32s3::bus::SocBus>",
+      "base_ops": 948,
+      "candidate_ops": 948,
+      "same": true
+    },
+    {
+      "name": "core::ptr::drop_glue::<alloc::vec::Vec<riscv_rv32::state::Cpu>>",
+      "base_ops": 34,
+      "candidate_ops": 34,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::decode::decode_f",
+      "base_ops": 168,
+      "candidate_ops": 168,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::disasm::format_compressed",
+      "base_ops": 387,
+      "candidate_ops": 387,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::disasm::format_for",
+      "base_ops": 2043,
+      "candidate_ops": 2043,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::disasm::rm",
+      "base_ops": 40,
+      "candidate_ops": 40,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::clic_take::<esp32c3::bus::SocBus>",
+      "base_ops": 87,
+      "candidate_ops": 87,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::clic_take::<esp32c6::bus::SocBus>",
+      "base_ops": 87,
+      "candidate_ops": 87,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::clic_take::<esp32p4::bus::SocBus>",
+      "base_ops": 87,
+      "candidate_ops": 87,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::clic_take::<esp_soc::machine::modeled::RecordingBus<esp32c3::bus::SocBus>>",
+      "base_ops": 114,
+      "candidate_ops": 114,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::clic_take::<esp_soc::machine::modeled::RecordingBus<esp32c6::bus::SocBus>>",
+      "base_ops": 114,
+      "candidate_ops": 114,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::clic_take::<esp_soc::machine::modeled::RecordingBus<esp32p4::bus::SocBus>>",
+      "base_ops": 114,
+      "candidate_ops": 114,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::exec::step_outcome::<esp32c3::bus::SocBus>",
+      "base_ops": 1731,
+      "candidate_ops": 0,
+      "same": false
+    },
+    {
+      "name": "riscv_rv32::exec::step_outcome::<esp32c6::bus::SocBus>",
+      "base_ops": 1853,
+      "candidate_ops": 0,
+      "same": false
+    },
+    {
+      "name": "riscv_rv32::exec::step_outcome::<esp32p4::bus::SocBus>",
+      "base_ops": 1771,
+      "candidate_ops": 0,
+      "same": false
+    },
+    {
+      "name": "riscv_rv32::fpu::exec::<esp32c3::bus::SocBus>",
+      "base_ops": 680,
+      "candidate_ops": 680,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::fpu::exec::<esp32c6::bus::SocBus>",
+      "base_ops": 674,
+      "candidate_ops": 674,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::fpu::exec::<esp32p4::bus::SocBus>",
+      "base_ops": 645,
+      "candidate_ops": 645,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::fpu::exec::<esp_soc::machine::modeled::RecordingBus<esp32c3::bus::SocBus>>",
+      "base_ops": 743,
+      "candidate_ops": 743,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::fpu::exec::<esp_soc::machine::modeled::RecordingBus<esp32c6::bus::SocBus>>",
+      "base_ops": 737,
+      "candidate_ops": 737,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::fpu::exec::<esp_soc::machine::modeled::RecordingBus<esp32p4::bus::SocBus>>",
+      "base_ops": 694,
+      "candidate_ops": 694,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::add",
+      "base_ops": 89,
+      "candidate_ops": 89,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::div",
+      "base_ops": 111,
+      "candidate_ops": 111,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::fma",
+      "base_ops": 131,
+      "candidate_ops": 131,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::mul",
+      "base_ops": 71,
+      "candidate_ops": 71,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::round",
+      "base_ops": 256,
+      "candidate_ops": 256,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::sqrt",
+      "base_ops": 78,
+      "candidate_ops": 78,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::sum",
+      "base_ops": 106,
+      "candidate_ops": 106,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::to_i32",
+      "base_ops": 121,
+      "candidate_ops": 121,
+      "same": true
+    },
+    {
+      "name": "riscv_rv32::softfloat::to_u32",
+      "base_ops": 108,
+      "candidate_ops": 108,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::block::step_extra::<esp32::bus::SocBus>",
+      "base_ops": 143,
+      "candidate_ops": 143,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::block::step_extra::<esp32s3::bus::SocBus>",
+      "base_ops": 143,
+      "candidate_ops": 143,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp32::bus::SocBus>",
+      "base_ops": 2566,
+      "candidate_ops": 2566,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp32s3::bus::SocBus>",
+      "base_ops": 2562,
+      "candidate_ops": 2562,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_ops": 2562,
+      "candidate_ops": 2562,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_insn::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_ops": 2562,
+      "candidate_ops": 2562,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp32::bus::SocBus>",
+      "base_ops": 208,
+      "candidate_ops": 208,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp32s3::bus::SocBus>",
+      "base_ops": 208,
+      "candidate_ops": 208,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_ops": 261,
+      "candidate_ops": 261,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::exec::exec_mac16::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_ops": 261,
+      "candidate_ops": 261,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp32::bus::SocBus>",
+      "base_ops": 468,
+      "candidate_ops": 468,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp32s3::bus::SocBus>",
+      "base_ops": 467,
+      "candidate_ops": 467,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_ops": 776,
+      "candidate_ops": 776,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_ops": 768,
+      "candidate_ops": 768,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp32::bus::SocBus>",
+      "base_ops": 4774,
+      "candidate_ops": 4774,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp32s3::bus::SocBus>",
+      "base_ops": 4741,
+      "candidate_ops": 4741,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp_soc::machine::modeled::RecordingBus<esp32::bus::SocBus>>",
+      "base_ops": 5721,
+      "candidate_ops": 5721,
+      "same": true
+    },
+    {
+      "name": "xtensa_lx7::pie::exec_table::<esp_soc::machine::modeled::RecordingBus<esp32s3::bus::SocBus>>",
+      "base_ops": 5723,
+      "candidate_ops": 5723,
+      "same": true
+    }
+  ]
+}
