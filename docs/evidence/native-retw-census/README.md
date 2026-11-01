@@ -18,4 +18,22 @@ esp32sim --chip s3 --board none --boot rom --rom "$ROM" --flash-image "$FACTORY"
 | emulated cycles | 720,000,000 | 720,000,000 |
 | console SHA-256 | `0b06c16529e781f46bbdf92be4880ebe51f9d9210691f26ce871019404e959f7` | same |
 
-All remaining RETW.N helper calls in this sample trapped. Equal totals and console output do not prove full machine-state equivalence. The native-JIT differential tests cover both encodings, all three eligibility failures and underflow for increments 1–3; the opt-in priced path already uses the interpreter on native. Removing any one guard makes those tests fail. A clean release build comparison found the 68 selected normalized hot symbols identical; emitted return code is deliberately different. Formal CPU comparison is pending.
+All remaining RETW.N helper calls in this sample trapped. Equal totals and console output do not prove full machine-state equivalence. The native-JIT differential tests cover both encodings, all three eligibility failures and underflow for increments 1–3; the opt-in priced path already uses the interpreter on native. Removing any one guard makes those tests fail. A clean release build comparison found the 68 selected normalized hot symbols identical; emitted return code is deliberately different.
+
+## CPU comparison
+
+Base `04f07602dba76eb6704b8901c989c9c9c1f8b42a`; candidate `63a7fe9fe074a6b368d8d3ac80b15161887b4360`. The run used rustc 1.99.0 on macOS AArch64 and measured `wait4` user CPU. The start load was 3.22; the run used one warmup pair followed by seven alternating pairs on the 30 emulated seconds S3 serial starter. All accepted runs matched core 0 / core 1 instruction counts of 54,872,125 / 98,195,791 and console SHA-256 `0b06c16529e781f46bbdf92be4880ebe51f9d9210691f26ce871019404e959f7`.
+
+| Pair | Base user CPU s | Candidate user CPU s | Delta |
+|---:|---:|---:|---:|
+| 1 | 1.018971 | 0.973587 | -4.45% |
+| 2 | 0.991808 | 0.963707 | -2.83% |
+| 3 | 0.989567 | 0.970015 | -1.98% |
+| 4 | 0.992497 | 0.967608 | -2.51% |
+| 5 | 0.995071 | 0.944880 | -5.04% |
+| 6 | 0.994653 | 0.952342 | -4.25% |
+| 7 | 0.989987 | 0.961682 | -2.86% |
+
+Median paired delta -2.86%; candidate slower 0/7; not flagged (threshold ≥6/7).
+
+This is one idle-heavy fixture, approximately one CPU second per run; it is not a production-wide speedup.
