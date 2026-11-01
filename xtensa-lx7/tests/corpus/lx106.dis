@@ -1,0 +1,100 @@
+
+lx106.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .text:
+
+40100000 <indirect_address>:
+40100000:	3c                      	.byte 0x3c
+40100001:	00                      	.byte 00
+40100002:	10                      	.byte 0x10
+40100003:	40                      	.byte 0x40
+
+40100004 <_start>:
+40100004:	e0c112               	addi	a1, a1, -32
+40100007:	076102               	s32i	a0, a1, 28
+4010000a:	720c                	movi.n	a2, 7
+4010000c:	930c                	movi.n	a3, 9
+4010000e:	0ba042               	movi	a4, 11
+40100011:	006142               	s32i	a4, a1, 0
+40100014:	000185               	call0	40100030 <leaf>
+40100017:	016122               	s32i	a2, a1, 4
+4010001a:	fff941               	l32r	a4, 40100000 <indirect_address>
+4010001d:	0004c0               	callx0	a4
+40100020:	012152               	l32i	a5, a1, 4
+40100023:	802250               	add	a2, a2, a5
+40100026:	072102               	l32i	a0, a1, 28
+40100029:	20c112               	addi	a1, a1, 32
+
+4010002c <done>:
+4010002c:	ffff06               	j	4010002c <done>
+	...
+
+40100030 <leaf>:
+40100030:	002142               	l32i	a4, a1, 0
+40100033:	802230               	add	a2, a2, a3
+40100036:	802240               	add	a2, a2, a4
+40100039:	000080               	ret
+
+4010003c <indirect>:
+4010003c:	520c                	movi.n	a2, 5
+4010003e:	f00d                	ret.n
+
+40100040 <arithmetic>:
+40100040:	824230               	mull	a4, a2, a3
+40100043:	d15230               	mul16s	a5, a2, a3
+40100046:	c16230               	mul16u	a6, a2, a3
+40100049:	000080               	ret
+
+4010004c <literal>:
+4010004c:	78                      	.byte 0x78
+4010004d:	56                      	.byte 0x56
+4010004e:	34                      	.byte 0x34
+4010004f:	12                      	.byte 0x12
+
+40100050 <literal_insn>:
+40100050:	ffff21               	l32r	a2, 4010004c <literal>
+40100053:	000080               	ret
+
+40100056 <software_divide>:
+40100056:	f0c112               	addi	a1, a1, -16
+40100059:	036102               	s32i	a0, a1, 12
+4010005c:	000085               	call0	40100068 <divide_unsigned>
+4010005f:	032102               	l32i	a0, a1, 12
+40100062:	10c112               	addi	a1, a1, 16
+
+40100065 <divide_done>:
+40100065:	ffff06               	j	40100065 <divide_done>
+
+40100068 <divide_unsigned>:
+40100068:	040c                	movi.n	a4, 0
+
+4010006a <divide_again>:
+4010006a:	073237               	bltu	a2, a3, 40100075 <divide_end>
+4010006d:	c02230               	sub	a2, a2, a3
+40100070:	441b                	addi.n	a4, a4, 1
+40100072:	fffd06               	j	4010006a <divide_again>
+
+40100075 <divide_end>:
+40100075:	042d                	mov.n	a2, a4
+40100077:	000080               	ret
+
+4010007a <wait>:
+4010007a:	007000               	waiti	0
+
+4010007d <return_nmi>:
+4010007d:	003310               	rfi	3
+
+40100080 <return_exception>:
+40100080:	003000               	rfe
+
+40100083 <debug_break>:
+40100083:	004000               	break	0, 0
+
+40100086 <special_registers>:
+40100086:	130520               	wsr.litbase	a2
+40100089:	030530               	rsr.litbase	a3
+4010008c:	610540               	xsr.litbase	a4
+4010008f:	13f050               	wsr.ccompare0	a5
+40100092:	03f060               	rsr.ccompare0	a6
+40100095:	000080               	ret
