@@ -1,0 +1,178 @@
+[
+  {
+    "case": "c3-hello",
+    "arm": "base",
+    "typ": "normal",
+    "exit": 0,
+    "binary_sha256": "96d9a8d74f92f39b50c142775c7e3e6a2d9bf7e35eb48a6b7382ab07a8f3489f",
+    "console_sha256": "6dd87f0ce7e0bbefdf2ddbf2347caf26066d82fa03f942985413a1156320458a",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+    "irqs": [
+      "core0 int3         11  sources [50]",
+      "core0 int4        998  sources [37]"
+    ],
+    "retired": null
+  },
+  {
+    "case": "c3-hello",
+    "arm": "base",
+    "typ": "probe",
+    "exit": 0,
+    "binary_sha256": "fe1a1cedae7da7d88b01022260eb5420b37d8b8023cffb11e6f917f11d5acfc6",
+    "console_sha256": "6dd87f0ce7e0bbefdf2ddbf2347caf26066d82fa03f942985413a1156320458a",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+    "irqs": [
+      "core0 int3         11  sources [50]",
+      "core0 int4        998  sources [37]"
+    ],
+    "retired": 3181874
+  },
+  {
+    "case": "c3-hello",
+    "arm": "cand",
+    "typ": "normal",
+    "exit": 0,
+    "binary_sha256": "8371232faa6955387aa6b27d800ac43cf9ac9303ceab69b474723d427a11dc0f",
+    "console_sha256": "6dd87f0ce7e0bbefdf2ddbf2347caf26066d82fa03f942985413a1156320458a",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+    "irqs": [
+      "core0 int3         11  sources [50]",
+      "core0 int4        998  sources [37]"
+    ],
+    "retired": null
+  },
+  {
+    "case": "c3-hello",
+    "arm": "cand",
+    "typ": "probe",
+    "exit": 0,
+    "binary_sha256": "fe56f88c11800be54015208da6180c3586f53ee81dbac1df17371091f34a1931",
+    "console_sha256": "6dd87f0ce7e0bbefdf2ddbf2347caf26066d82fa03f942985413a1156320458a",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+    "irqs": [
+      "core0 int3         11  sources [50]",
+      "core0 int4        998  sources [37]"
+    ],
+    "retired": 3181874
+  },
+  {
+    "case": "c6-hello",
+    "arm": "base",
+    "typ": "normal",
+    "exit": 0,
+    "binary_sha256": "8f1b0ea5887027f1c833572a3906f0240ab66215398827bed3b52480fcd60ebd",
+    "console_sha256": "d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+    "irqs": [
+      "core0 int5         11  sources [22]",
+      "core0 int8        999  sources [57]"
+    ],
+    "retired": null
+  },
+  {
+    "case": "c6-hello",
+    "arm": "base",
+    "typ": "probe",
+    "exit": 0,
+    "binary_sha256": "4b2ad55d2324e583ec420db0c2e0df58da896dac8a560f1c5da27b41c1e04780",
+    "console_sha256": "d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+    "irqs": [
+      "core0 int5         11  sources [22]",
+      "core0 int8        999  sources [57]"
+    ],
+    "retired": 3657500
+  },
+  {
+    "case": "c6-hello",
+    "arm": "cand",
+    "typ": "normal",
+    "exit": 0,
+    "binary_sha256": "31be8e0dde66b75d8f0cc929306c70f923f9e214ee0619d9ab7ea8b01f899c2d",
+    "console_sha256": "d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+    "irqs": [
+      "core0 int5         11  sources [22]",
+      "core0 int8        999  sources [57]"
+    ],
+    "retired": null
+  },
+  {
+    "case": "c6-hello",
+    "arm": "cand",
+    "typ": "probe",
+    "exit": 0,
+    "binary_sha256": "d5e22345a8d1f7a78c11401fae333df4e02b3d20d684285ee3ff65c0a34d1d19",
+    "console_sha256": "d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+    "irqs": [
+      "core0 int5         11  sources [22]",
+      "core0 int8        999  sources [57]"
+    ],
+    "retired": 3657500
+  },
+  {
+    "case": "c6-starter",
+    "arm": "base",
+    "typ": "normal",
+    "exit": 0,
+    "binary_sha256": "8f1b0ea5887027f1c833572a3906f0240ab66215398827bed3b52480fcd60ebd",
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 10346 interrupts",
+    "irqs": [
+      "core0 int8        306  sources [22]",
+      "core0 int9       9946  sources [57]",
+      "core0 int11        93  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "retired": null
+  },
+  {
+    "case": "c6-starter",
+    "arm": "base",
+    "typ": "probe",
+    "exit": 0,
+    "binary_sha256": "4b2ad55d2324e583ec420db0c2e0df58da896dac8a560f1c5da27b41c1e04780",
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 10346 interrupts",
+    "irqs": [
+      "core0 int8        306  sources [22]",
+      "core0 int9       9946  sources [57]",
+      "core0 int11        93  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "retired": 373050392
+  },
+  {
+    "case": "c6-starter",
+    "arm": "cand",
+    "typ": "normal",
+    "exit": 0,
+    "binary_sha256": "31be8e0dde66b75d8f0cc929306c70f923f9e214ee0619d9ab7ea8b01f899c2d",
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 10346 interrupts",
+    "irqs": [
+      "core0 int8        306  sources [22]",
+      "core0 int9       9946  sources [57]",
+      "core0 int11        93  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "retired": null
+  },
+  {
+    "case": "c6-starter",
+    "arm": "cand",
+    "typ": "probe",
+    "exit": 0,
+    "binary_sha256": "d5e22345a8d1f7a78c11401fae333df4e02b3d20d684285ee3ff65c0a34d1d19",
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 10346 interrupts",
+    "irqs": [
+      "core0 int8        306  sources [22]",
+      "core0 int9       9946  sources [57]",
+      "core0 int11        93  sources [48]",
+      "core0 int12         1  sources [50]"
+    ],
+    "retired": 373050392
+  }
+]
