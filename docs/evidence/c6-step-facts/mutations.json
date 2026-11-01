@@ -1,0 +1,32 @@
+[
+  {
+    "mutation": "outline-step-facts",
+    "oracle": "codegen",
+    "killed": true,
+    "exit": 1
+  },
+  {
+    "mutation": "outline-execution",
+    "oracle": "codegen",
+    "killed": true,
+    "exit": 1
+  },
+  {
+    "mutation": "drop-retirement",
+    "oracle": "runtime",
+    "killed": true,
+    "exit": 101
+  },
+  {
+    "mutation": "double-cycles",
+    "oracle": "runtime",
+    "killed": true,
+    "exit": 101
+  },
+  {
+    "mutation": "drop-observer-fetch",
+    "oracle": "runtime",
+    "killed": true,
+    "exit": 101
+  }
+]
