@@ -109,5 +109,34 @@ with other builds in the same worktree.
 
 ## CPU comparison
 
-PENDING. No timing run against this base was performed; code size and layout
-may affect timing, including workloads outside the three exact-work fixtures.
+Base `04f07602dba76eb6704b8901c989c9c9c1f8b42a`; candidate `dd72abaa7b30bc92ec5c0d2ce16c306b42503616`. On 2026-11-01 03:02–03:03 CET, unprobed rustc 1.99.0 release binaries ran on macOS AArch64, measuring user CPU with `/usr/bin/time -l` at 0.01 s resolution: one warmup and seven alternating pairs per workload, with sampled load 1.65–2.33. Each run stopped at scheduler count 1,600,000,000 and had identical console SHA-256 within its workload: hello `d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0`, display starter `1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b`. Retirement equality comes from the separate post-run reporting build described above, not from the timed binaries.
+
+C6 hello:
+
+| Pair | Base user CPU s | Candidate user CPU s | Delta |
+|---:|---:|---:|---:|
+| 1 | 0.48 | 0.47 | -2.08% |
+| 2 | 0.46 | 0.47 | +2.17% |
+| 3 | 0.47 | 0.46 | -2.13% |
+| 4 | 0.48 | 0.47 | -2.08% |
+| 5 | 0.46 | 0.49 | +6.52% |
+| 6 | 0.47 | 0.48 | +2.13% |
+| 7 | 0.47 | 0.46 | -2.13% |
+
+Median paired delta -2.08%; candidate slower 3/7; not flagged (threshold ≥6/7).
+
+C6 display starter (Waveshare C6 LCD 1.47, 10 emulated seconds):
+
+| Pair | Base user CPU s | Candidate user CPU s | Delta |
+|---:|---:|---:|---:|
+| 1 | 3.12 | 2.83 | -9.29% |
+| 2 | 3.12 | 2.91 | -6.73% |
+| 3 | 3.12 | 2.82 | -9.62% |
+| 4 | 3.31 | 2.98 | -9.97% |
+| 5 | 3.29 | 3.03 | -7.90% |
+| 6 | 3.24 | 2.81 | -13.27% |
+| 7 | 3.17 | 2.88 | -9.15% |
+
+Median paired delta -9.29%; candidate slower 0/7; not flagged (threshold ≥6/7).
+
+The 0.01 s resolution puts hello (~0.47 s/run) near the noise floor; C3, P4 and WASM were not timed.
