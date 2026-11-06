@@ -1,0 +1,50 @@
+
+negative.o:     file format elf32-xtensa-le
+
+
+Disassembly of section .text:
+
+00000000 <.text>:
+   0:	004136        	entry	a1, 32
+   3:	000090        	retw
+   6:	f01d      	retw.n
+   8:	000755        	call4	0x80
+   b:	000765        	call8	0x80
+   e:	000735        	call12	0x80
+  11:	0002d0        	callx4	a2
+  14:	0002e0        	callx8	a2
+  17:	0002f0        	callx12	a2
+  1a:	001320        	movsp	a2, a3
+  1d:	408010        	rotw	1
+  20:	09f320        	l32e	a2, a3, -4
+  23:	49f320        	s32e	a2, a3, -4
+  26:	003400        	rfwo
+  29:	003500        	rfwu
+  2c:	0a0120        	add.s	f0, f1, f2
+  2f:	000203        	lsi	f0, a2, 0
+  32:	fa2040        	rfr	a2, f0
+  35:	fa0250        	wfr	f0, a2
+  38:	d24230        	quos	a4, a2, a3
+  3b:	c24230        	quou	a4, a2, a3
+  3e:	f24230        	rems	a4, a2, a3
+  41:	e24230        	remu	a4, a2, a3
+  44:	b24230        	mulsh	a4, a2, a3
+  47:	a24230        	muluh	a4, a2, a3
+  4a:	328276        	loop	a2, 0x80
+  4d:	232300        	sext	a2, a3, 7
+  50:	332300        	clamps	a2, a3, 7
+  53:	434230        	min	a4, a2, a3
+  56:	534230        	max	a4, a2, a3
+  59:	634230        	minu	a4, a2, a3
+  5c:	734230        	maxu	a4, a2, a3
+  5f:	020120        	andb	b0, b1, b2
+  62:	ff0076        	bf	b0, 0x65
+  65:	c32300        	movf	a2, a3, b0
+  68:	00e322        	s32c1i	a2, a3, 0
+  6b:	00b322        	l32ai	a2, a3, 0
+  6e:	00f322        	s32ri	a2, a3, 0
+  71:	e32e70        	rur.threadptr	a2
+  74:	13e020        	wsr.cpenable	a2
+  77:	03f120        	rsr.ccompare1	a2
+  7a:	03f220        	rsr.ccompare2	a2
+  7d:	000000        	ill
