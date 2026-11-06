@@ -1,0 +1,133 @@
+{
+ "seconds": "10",
+ "pairs": 3,
+ "base": "base/esp32sim-c6",
+ "cand": "cand/esp32sim-c6",
+ "fixtures": {
+  "c6-contiki": {
+   "runs": [
+    {
+     "base": {
+      "user_s": 2.62,
+      "host_insns": 40578091546,
+      "host_cycles": 6040716930,
+      "rc": 0,
+      "load1": 23.11474609375,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "cand": {
+      "user_s": 2.35,
+      "host_insns": 38659896499,
+      "host_cycles": 5736712917,
+      "rc": 0,
+      "load1": 21.984375,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "warmup": true,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 2.33,
+      "host_insns": 38662343177,
+      "host_cycles": 5724855771,
+      "rc": 0,
+      "load1": 21.984375,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "base": {
+      "user_s": 2.58,
+      "host_insns": 40605312052,
+      "host_cycles": 6490267208,
+      "rc": 0,
+      "load1": 21.1845703125,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 2.71,
+      "host_insns": 40590180352,
+      "host_cycles": 6341293226,
+      "rc": 0,
+      "load1": 21.1845703125,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "cand": {
+      "user_s": 2.59,
+      "host_insns": 38673585213,
+      "host_cycles": 6181134807,
+      "rc": 0,
+      "load1": 20.44873046875,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 2.6,
+      "host_insns": 38667483227,
+      "host_cycles": 6189982986,
+      "rc": 0,
+      "load1": 20.44873046875,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "base": {
+      "user_s": 2.72,
+      "host_insns": 40589759195,
+      "host_cycles": 6431424046,
+      "rc": 0,
+      "load1": 19.93212890625,
+      "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    }
+   ],
+   "metrics": {
+    "user_s": {
+     "base_median": 2.71,
+     "cand_median": 2.59,
+     "median_change_pct": -4.428044280442811,
+     "cand_higher_pairs": 0,
+     "pairs": 3
+    },
+    "host_insns": {
+     "base_median": 40590180352,
+     "cand_median": 38667483227,
+     "median_change_pct": -4.736852875070463,
+     "cand_higher_pairs": 0,
+     "pairs": 3
+    },
+    "host_cycles": {
+     "base_median": 6431424046,
+     "cand_median": 6181134807,
+     "median_change_pct": -3.891661274545666,
+     "cand_higher_pairs": 0,
+     "pairs": 3
+    }
+   },
+   "console_identical": true,
+   "all_rc0": true,
+   "load1_range": [
+    19.93212890625,
+    23.11474609375
+   ]
+  }
+ }
+}

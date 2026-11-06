@@ -1,0 +1,158 @@
+[
+ {
+  "mutant": "control-unmutated",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": false,
+  "failing_tests": []
+ },
+ {
+  "mutant": "active-inverted",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::idle_clock_and_large_batches_match_exact_phase",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider"
+  ]
+ },
+ {
+  "mutant": "active-timer0-bit",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel"
+  ]
+ },
+ {
+  "mutant": "active-next-bit",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider",
+   "esp-periph::ledc::tests::idle_clock_and_large_batches_match_exact_phase"
+  ]
+ },
+ {
+  "mutant": "active-break",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel"
+  ]
+ },
+ {
+  "mutant": "active-check-removed",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": false,
+  "failing_tests": []
+ },
+ {
+  "mutant": "fast-le",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel"
+  ]
+ },
+ {
+  "mutant": "fast-no-store",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider",
+   "esp-periph::ledc::tests::idle_clock_and_large_batches_match_exact_phase"
+  ]
+ },
+ {
+  "mutant": "fast-never",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider"
+  ]
+ },
+ {
+  "mutant": "wrap-subtract",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow"
+  ]
+ },
+ {
+  "mutant": "wrap-overflow-zero",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::idle_clock_and_large_batches_match_exact_phase"
+  ]
+ },
+ {
+  "mutant": "wrap-no-raw",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel"
+  ]
+ },
+ {
+  "mutant": "wrap-channel-timer-ne",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider"
+  ]
+ },
+ {
+  "mutant": "active-never-cleared",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::idle_clock_and_large_batches_match_exact_phase"
+  ]
+ },
+ {
+  "mutant": "active-never-set",
+  "file": "esp-periph/src/ledc.rs",
+  "compiled": true,
+  "killed": true,
+  "failing_tests": [
+   "esp-periph::ledc::tests::c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow",
+   "esp-periph::ledc::tests::static_duty_latches_at_wrap_and_preserves_fractional_divider",
+   "esp-periph::ledc::tests::idle_clock_and_large_batches_match_exact_phase",
+   "esp-periph::ledc::tests::each_timer_alone_counts_wraps_and_latches_its_channel",
+   "esp-periph::ledc::tests::a_tick_that_ends_exactly_on_the_period_wraps"
+  ]
+ }
+]

@@ -1,0 +1,122 @@
+[
+ {
+  "fixture": "c6-hello",
+  "bin": "base/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 17962663445,
+  "host_cycles": 2868389284,
+  "user": 1.13,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+  "console": "d5d1f41f315b",
+  "insn_pct": 0.0,
+  "same_work": true
+ },
+ {
+  "fixture": "c6-hello",
+  "bin": "cand/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 17967339495,
+  "host_cycles": 2915104539,
+  "user": 1.12,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+  "console": "d5d1f41f315b",
+  "insn_pct": 0.03,
+  "same_work": true
+ },
+ {
+  "fixture": "c6-contiki",
+  "bin": "base/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 40626424966,
+  "host_cycles": 6876519730,
+  "user": 2.66,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+  "console": "101f1060911f",
+  "insn_pct": 0.0,
+  "same_work": true
+ },
+ {
+  "fixture": "c6-contiki",
+  "bin": "cand/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 38700218178,
+  "host_cycles": 6568634984,
+  "user": 2.56,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+  "console": "101f1060911f",
+  "insn_pct": -4.74,
+  "same_work": true
+ },
+ {
+  "fixture": "c6-energy-scan",
+  "bin": "base/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 232687481951,
+  "host_cycles": 44226271265,
+  "user": 17.72,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+  "console": "720c0e65fa18",
+  "insn_pct": 0.0,
+  "same_work": true
+ },
+ {
+  "fixture": "c6-energy-scan",
+  "bin": "cand/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 230625533933,
+  "host_cycles": 39241341728,
+  "user": 16.06,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+  "console": "720c0e65fa18",
+  "insn_pct": -0.89,
+  "same_work": true
+ },
+ {
+  "fixture": "public-display-starter",
+  "bin": "base/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 114011878042,
+  "host_cycles": 17645111913,
+  "user": 7.39,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 10346 interrupts",
+  "console": "1e6395a895a9",
+  "insn_pct": 0.0,
+  "same_work": true
+ },
+ {
+  "fixture": "public-display-starter",
+  "bin": "cand/esp32sim-c6",
+  "rc": 0,
+  "host_insns": 114016114097,
+  "host_cycles": 17925108579,
+  "user": 7.61,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 10346 interrupts",
+  "console": "1e6395a895a9",
+  "insn_pct": 0.0,
+  "same_work": true
+ },
+ {
+  "fixture": "c3-hello",
+  "bin": "base/esp32sim-c3",
+  "rc": 0,
+  "host_insns": 24753723202,
+  "host_cycles": 4256155209,
+  "user": 1.74,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+  "console": "6dd87f0ce7e0",
+  "insn_pct": 0.0,
+  "same_work": true
+ },
+ {
+  "fixture": "c3-hello",
+  "bin": "cand/esp32sim-c3",
+  "rc": 0,
+  "host_insns": 24754290262,
+  "host_cycles": 4268033354,
+  "user": 1.67,
+  "stop": "[emu] stop: Halted \u2014 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+  "console": "6dd87f0ce7e0",
+  "insn_pct": 0.0,
+  "same_work": true
+ }
+]
