@@ -228,3 +228,35 @@ fn ble_nearby_takes_the_options_specs_once_the_virtual_controller_is_on() {
     assert_eq!(nearby(&s3, many.as_bytes()), 1, "more than 32");
     assert_eq!(nearby(&s3, many.lines().skip(1).collect::<Vec<_>>().join("\n").as_bytes()), 0, "32");
 }
+
+/// The station's NAT through the page: a network to carry first, then records and events; nothing
+/// without the relay.
+#[test]
+fn nat_relay_needs_the_access_point_and_answers_unknown_flows_with_zero() {
+    let e = Emu::new("none", 4, 0);
+    // SAFETY: the emulator is live and used by this thread alone; the buffers are readable for the call.
+    let relay = |flags| unsafe { esp32sim_nat_relay(e.0, flags) };
+    // SAFETY: as above.
+    let take = || unsafe { esp32sim_nat_take(e.0) };
+    // SAFETY: as above.
+    let event = |kind, id, arg, d: &[u8]| unsafe { esp32sim_nat_event(e.0, kind, id, arg, d.as_ptr(), d.len()) };
+    assert_eq!(relay(1), 1, "no access point yet");
+    assert_eq!(take(), 0);
+    let spec = "ssid=esp32sim";
+    // SAFETY: as above.
+    assert_eq!(unsafe { esp32sim_wifi(e.0, spec.as_ptr(), spec.len()) }, 0);
+    assert_eq!(event(1, 1, 65536, &[]), 0, "no relay yet");
+    assert_eq!(relay(1 | 2 | 4), 0);
+    assert_eq!(take(), 0, "nothing queued before the guest runs");
+    assert_eq!(event(1, 1, 65536, &[]), 0, "no such flow");
+    assert_eq!(event(3, 1, 0, b"late"), 4, "data for a forgotten flow is taken and dropped");
+    assert_eq!(event(8, 7, 60, &[1, 2, 3, 4]), 0, "no such lookup");
+    assert_eq!(event(10, 1, 0, &[]), 0, "an unknown kind");
+    // SAFETY: as above.
+    assert_eq!(unsafe { esp32sim_wifi(e.0, spec.as_ptr(), spec.len()) }, 0);
+    assert_eq!(event(3, 1, 0, b"late"), 0, "a new access point drops the relay with its network");
+    assert_eq!(relay(1), 0);
+    assert_eq!(event(3, 1, 0, b"late"), 4);
+    assert_eq!(relay(0), 0, "off again");
+    assert_eq!(event(3, 1, 0, b"late"), 0, "no relay");
+}

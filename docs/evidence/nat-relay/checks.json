@@ -1,0 +1,75 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.100.0 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.100.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "workspace-ci",
+    "command": "cargo +1.100.0 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "environment": "ESP32SIM_ROM_DIR=roms (tools/fetch-rom-elfs.sh, with the P4 and S31 ROMs); tools/fetch-p4-firmware.sh; Rust 1.100.0 (0ef1bc386 2026-11-09); Windows 11",
+    "exit_code": 0,
+    "tests": {
+      "passed": 1759,
+      "failed": 0,
+      "ignored": 0
+    },
+    "note": "every golden passed byte-identical; none regenerated"
+  },
+  {
+    "check": "virtual",
+    "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.100.0 test --release -p esp32s3 --test machine --test virtual_stops",
+    "exit_code": 0,
+    "tests": {
+      "passed": 43,
+      "failed": 0
+    }
+  },
+  {
+    "check": "esp-soc",
+    "command": "cargo +1.100.0 test --release -p esp-soc",
+    "exit_code": 0,
+    "tests": {
+      "passed": 226,
+      "failed": 0
+    },
+    "notes": "187 lib tests (the 11 queue tests and the two set_nat tests among them), 18 + 7 + 13 + 1 integration tests"
+  },
+  {
+    "check": "wasm",
+    "command": "tools/wasm-build.sh && node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0,
+    "notes": "esp32sim.wasm 3928489 bytes, dwarfAbsent, nameRetained; all eight demos ok"
+  },
+  {
+    "check": "wasm-abi",
+    "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm; node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf; node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf; cargo +1.100.0 test --release -p esp32sim-wasm --test abi",
+    "exit_code": 0
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0
+  },
+  {
+    "check": "mutations",
+    "command": "each mutation, then cargo +1.100.0 test --release -p esp-soc --lib set_nat, -p esp32sim-wasm --test abi nat_relay or -p esp32sim-wasm --lib nat::tests; each restored file touched so the next build is not the mutant's",
+    "result": "each fails a test: set_nat ignoring local_ntp, set_nat accepting a link without a network, set_nat without abort_all, esp32sim_nat_relay answering 0 without a network, an unknown event answered 1, a new esp32sim_wifi keeping the relay, esp32sim_nat_relay or esp32sim_wifi forgetting the old queue's records, the take skipping them; and for the bound on the left-over records: no bound, a bound one byte short, a record kept after an earlier one of its queue was dropped, the closes dropped past the bound, UDP closes dropped, TCP closes dropped. Not killed, and equivalent: switching off assigning the new handle only when there is one, since keep_left already takes the old one"
+  },
+  {
+    "check": "firmware",
+    "command": "see inputs.json runs: page (nat-relay-run.mjs with the production module) and CLI (--net nat)",
+    "result": "both: ip=10.0.2.15, example.org resolved, SNTP time, http GET http://example.org/ -> 200, 577 bytes. Page: 1 TCP flow, 1 UDP flow, 2 RESOLVE records, 189 bytes out / 1014 in. CLI: 1 TCP connection, 3 UDP flows, 278 / 1263 = the same plus 89 / 249 bytes of DNS datagrams. Logs in runs/",
+    "note": "run on 41532e80; not repeated after the merges of main (the last, 5466222a, brings the several access points of --wifi; the page puts up one) and the bound on the left-over records, which the run does not reach (the relay is switched on once)"
+  },
+  {
+    "check": "not-run",
+    "command": "tools/wasm-jit-test.sh; the profiling-features build; the Linux x5 receipt contracts; native-aarch64 job; the CPU comparison",
+    "notes": "Linux/macOS-only steps of ci.yml, left to CI. No CPU comparison: no bus, device_set!, interrupt routing or per-tick code."
+  }
+]

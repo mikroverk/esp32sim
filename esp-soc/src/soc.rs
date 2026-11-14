@@ -132,6 +132,10 @@ pub trait SocBus: Bus {
     /// survive a guest reboot. A second call replaces them and restarts the link's queues, pacing
     /// and counts; the relay mode stays.
     fn attach_wifi(&mut self, _cfg: crate::wifi::ApConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
+    /// The networks around the access point `attach_wifi` put up (the CLI's `--wifi-nearby`),
+    /// replacing the ones there were (`StationLink::set_beacons`); the ones left out come back with
+    /// the reason. An error without the access point.
+    fn wifi_nearby(&mut self, _list: Vec<crate::wifi::BeaconAp>) -> Result<Vec<(crate::wifi::BeaconAp, &'static str)>, String> { Err("this chip has no WiFi".into()) }
     /// One more joinable access point (a further `--wifi`) beside the one `attach_wifi` put on the
     /// air, behind the same network (`StationLink::add_ap`).
     fn add_wifi_ap(&mut self, _cfg: crate::wifi::ApConfig) -> Result<(), String> { Err("this chip has no WiFi".into()) }
@@ -141,6 +145,9 @@ pub trait SocBus: Bus {
     /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
+    /// Replace the NAT of the network `attach_wifi` put up (`StationLink::set_nat`), keeping the
+    /// access point and the lease: the browser build hands it a `QueueTransport`.
+    fn attach_nat(&mut self, _nat: Option<crate::nat::Nat>, _local_ntp: bool) -> Result<(), String> { Err("this chip has no WiFi".into()) }
     /// Drain complete Ethernet frames without FCS, in transmit order. Empty outside relay mode.
     fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> { Vec::new() }
     /// Queue a 14..=1518-byte Ethernet frame without FCS. Requires relay mode and an AP.

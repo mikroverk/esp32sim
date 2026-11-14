@@ -1,0 +1,30 @@
+{
+  "base": "upstream main 5466222a (Merge pull request #360)",
+  "toolchain": "Rust 1.100.0 (0ef1bc386 2026-11-09); Node 24.22.1; Windows 11 (10.0.26200), x86_64",
+  "mask_roms": {
+    "source": "tools/fetch-rom-elfs.sh roms (espressif/esp-rom-elfs, pinned by SHA-256 in the script)",
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  "firmware": {
+    "sketch": "docs/evidence/nat-transport/wifi-net-probe.ino (EX258), the same build as EX258's inputs.json",
+    "images": {
+      "wifi-net.bin": {
+        "bytes": 997840,
+        "sha256": "6d78df2df8be9cde964da488e6565a485eff7a91657c1fa1d483a372e844d46d"
+      },
+      "bootloader.bin": {
+        "bytes": 19968,
+        "sha256": "66cf6c060fc857c8ea6d6812aab8e9b27448431846426218b6fb81526b31e564"
+      },
+      "partitions.bin": {
+        "bytes": 3072,
+        "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+      }
+    },
+    "not_committed": "A plain Arduino build of the sketch; not added to the repository."
+  },
+  "runs": {
+    "page": "node docs/evidence/nat-relay/nat-relay-run.mjs web/wasm/esp32sim.wasm roms/esp32s3_rev0_rom.elf bootloader.bin partitions.bin wifi-net.bin 40, with the module from tools/wasm-build.sh, on a desktop with internet access; runs/page.txt is its output (UART0 and the relay's counts)",
+    "cli": "esp32sim --rom roms/esp32s3_rev0_rom.elf --boot rom --board none --flash-mb 4 --bootloader bootloader.bin --ptable partitions.bin --app wifi-net.bin --wifi ssid=esp32sim --net nat --console uart0 --max-seconds 40 --no-dump, built from this branch, with etc/resolv.conf (nameserver 8.8.8.8) under the run's current drive; runs/cli.txt is UART0 and the net / nat report lines"
+  }
+}

@@ -393,6 +393,44 @@ fn a_nearby_network_answers_only_probes_addressed_to_it() {
     }
 }
 
+/// The browser build gives the network a NAT after the access point is up; without a network
+/// there is none to give one to.
+#[test]
+fn set_nat_needs_the_network_and_keeps_the_access_point() {
+    let mut link = StationLink::default();
+    assert!(link.set_nat(None, true).is_err());
+    link.attach_new(ApConfig::parse("ssid=esp32sim").unwrap(), None, &crate::DebugFlags::default());
+    let (transport, _handle) = crate::nat::QueueTransport::new();
+    link.set_nat(Some(crate::nat::Nat::with_transport(false, Box::new(transport))), true).unwrap();
+    let net = link.net().unwrap();
+    assert!(net.nat.is_some() && net.local_ntp);
+    assert_eq!(net.nat.as_ref().unwrap().resolver, [10, 0, 2, 3], "the queue's resolver is the subnet's");
+    link.set_nat(None, false).unwrap();
+    assert!(link.net().unwrap().nat.is_none() && !link.net().unwrap().local_ntp);
+    assert_eq!(link.ap().unwrap().cfg.ssid, "esp32sim");
+}
+
+/// A new NAT (or none) aborts the old one's flows, so a queue's page hears of each.
+#[test]
+fn set_nat_aborts_the_old_nats_flows() {
+    let mut link = StationLink::default();
+    link.attach_new(ApConfig::parse("ssid=esp32sim").unwrap(), None, &crate::DebugFlags::default());
+    let (transport, handle) = crate::nat::QueueTransport::new();
+    link.set_nat(Some(crate::nat::Nat::with_transport(false, Box::new(transport))), false).unwrap();
+    let mut syn = vec![0u8; 20];
+    syn[..2].copy_from_slice(&1234u16.to_be_bytes());
+    syn[2..4].copy_from_slice(&80u16.to_be_bytes());
+    syn[12] = 0x50; syn[13] = 0x02;
+    let nat = link.net_mut().unwrap().nat.as_mut().unwrap();
+    assert!(nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[93, 184, 215, 14], &syn, 0).is_empty());
+    let mut ops = Vec::new();
+    assert_eq!(handle.take_ops(&mut ops), 1, "TCP_CONNECT");
+    let id = u32::from_le_bytes(ops[4..8].try_into().unwrap());
+    link.set_nat(None, false).unwrap();
+    assert_eq!(handle.take_ops(&mut ops), 1);
+    assert_eq!((ops[0], ops[1], u32::from_le_bytes(ops[4..8].try_into().unwrap())), (crate::nat::queue::op::TCP_CLOSE, 1, id), "aborted");
+}
+
 // ------------------------------------------------------------------ several joinable access points
 
 const STA: [u8; 6] = [2, 3, 4, 5, 6, 7];

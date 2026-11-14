@@ -19,6 +19,9 @@ mod transport;
 #[cfg(not(target_arch = "wasm32"))]
 pub use std_transport::StdTransport;
 pub use transport::{Connect, FlowId, NatTransport, Resolve};
+// A transport driven through a queue, for a host without sockets.
+pub mod queue;
+pub use queue::{HostEvent, QueueHandle, QueueTransport};
 
 const MSS: usize = 1400;
 const WINDOW: u16 = 5840;
