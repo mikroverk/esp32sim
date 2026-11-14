@@ -15,7 +15,7 @@
     "environment": "ESP32SIM_ROM_DIR=roms (tools/fetch-rom-elfs.sh, with the P4 and S31 ROMs); tools/fetch-p4-firmware.sh; Rust 1.100.0 (0ef1bc386 2026-11-09); Windows 11",
     "exit_code": 0,
     "tests": {
-      "passed": 1744,
+      "passed": 1760,
       "failed": 0,
       "ignored": 0
     },
@@ -34,7 +34,7 @@
     "check": "wasm",
     "command": "tools/wasm-build.sh && node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
     "exit_code": 0,
-    "notes": "esp32sim.wasm 3897130 bytes, dwarfAbsent, nameRetained; all eight demos ok"
+    "notes": "esp32sim.wasm 3943764 bytes, dwarfAbsent, nameRetained; all eight demos ok"
   },
   {
     "check": "wasm-abi",

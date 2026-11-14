@@ -1,6 +1,6 @@
 # EX267: the networks around the station from the page (#303)
 
-Base: upstream/main `5466222a`. The final source is the commit containing this receipt.
+Base: upstream/main `66d33d0d`. The final source is the commit containing this receipt.
 Inputs, hashes and the exact commands are in [inputs.json](inputs.json); the checks that ran
 and their results in [checks.json](checks.json).
 

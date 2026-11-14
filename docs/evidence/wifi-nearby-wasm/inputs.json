@@ -1,5 +1,5 @@
 {
-  "base": "upstream main 5466222a (Merge pull request #360)",
+  "base": "upstream main 66d33d0d (Merge pull request #350)",
   "toolchain": "Rust 1.100.0 (0ef1bc386 2026-11-09); Node 24.22.1; Windows 11 (10.0.26200), x86_64",
   "mask_roms": {
     "source": "tools/fetch-rom-elfs.sh roms (espressif/esp-rom-elfs, pinned by SHA-256 in the script)",

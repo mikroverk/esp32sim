@@ -17,5 +17,5 @@ scan: 4 network(s)
 connecting to Jumperly....
 ip=10.0.2.15 gw=10.0.2.2 dns=10.0.2.3
 dns: example.com -> 10.0.2.3
-time: 2026-11-14 16:51:37 UTC
+time: 2026-11-14 21:18:52 UTC
 http GET http://example.com/ -> -1 (connection refused)
