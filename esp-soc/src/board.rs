@@ -107,6 +107,10 @@ pub trait BoardModel {
     fn touch_irq(&self) -> Option<(u8, bool)> { None }
     /// Current board-driven GPIO input levels, used to reconnect a persistent board after reset.
     fn input_levels(&self) -> Vec<(u8, bool)> { Vec::new() }
+    /// GPIO pins the board pulls low (bit n = GPIO n), so an undriven pad reads low there rather
+    /// than high: a motor or LED driver whose gate has a pull-down. Chips that resolve undriven
+    /// pads for the board (the S31) use it.
+    fn pull_downs(&self) -> u64 { 0 }
     /// Whether GPIO edge polling is needed. Cached by `attach_board_devices`.
     fn uses_gpio_edges(&self) -> bool { true }
     /// Use instruction-sized, unmodeled quanta for GPIO pulse decoding, overriding timing models.

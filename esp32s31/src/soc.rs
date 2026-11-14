@@ -37,6 +37,8 @@ pub fn machine(mac: [u8; 6], flash_size: usize) -> Machine {
 const TIME_HZ: u64 = crate::periph::CPU_HZ;
 /// Modem TSF timer latch request (bits 0-3); the latched value follows at +0xC/+0x10.
 const TSF_LATCH: u32 = 0x2010_d814;
+/// LEDC0 and LEDC1 (soc/esp32s31 reg_base.h DR_REG_LEDC0_BASE, DR_REG_LEDC1_BASE).
+const LEDC_BASE: [u32; 2] = [0x2039_2000, 0x2039_c000];
 
 impl Soc for S31 {
     type Core = Cpu;
@@ -332,6 +334,7 @@ impl SocBus {
         if address >> 24 != 0x20 { return; }
         if address & !3 == TSF_LATCH { self.latch_tsf(); }
         if crate::pads::Pads::is_mmio(address) { self.deliver_pin_levels(); self.irq_dirty = true; }
+        else if Self::is_ledc(address) { self.deliver_pin_levels(); }
         self.deliver_spi();
     }
 
@@ -371,6 +374,20 @@ impl SocBus {
         self.irq_dirty = true;
     }
 
+    /// The level an LEDC channel puts on its GPIO-matrix output (LEDCn_LS_SIG_OUT_PAD_OUTm_IDX,
+    /// 126-133 and 230-237), from the registers IDF writes (soc/esp32s31 ledc_reg.h, kept as
+    /// plain storage): with SIG_OUT_EN (CONF0 bit 2) high while the duty (DUTY bits 24:4, the
+    /// integer part) is above zero, and the idle level (CONF0 bit 3) otherwise. The waveform
+    /// itself is not modelled: a board sees PWM as on or off. None for other signals.
+    fn ledc_output(&self, signal: u32) -> Option<bool> {
+        let (group, channel) = match signal { 126..=133 => (0, signal - 126), 230..=237 => (1, signal - 230), _ => return None };
+        let base = LEDC_BASE[group] + channel * 0x14;
+        let reg = |a: u32| self.inner.unmodelled.get(&a).copied().unwrap_or(0);
+        let conf0 = reg(base);
+        Some(if conf0 & 1 << 2 != 0 { reg(base + 8) >> 4 & 0x1f_ffff != 0 } else { conf0 & 1 << 3 != 0 })
+    }
+    fn is_ledc(address: u32) -> bool { LEDC_BASE.contains(&(address & !0xfff)) }
+
     /// The modem's TSF timers (802.11 timing synchronization, microseconds). The Wi-Fi library
     /// reads timer n (0-3) by setting bit n of 0x2010D814, reading the latched value from
     /// 0x2010D820 (low) and 0x2010D824 (high), then clearing the bit (`hal_get_tsf_time`). With the block as plain storage the latch never moved, so every
@@ -386,7 +403,11 @@ impl SocBus {
     }
 
     fn deliver_pin_levels(&mut self) {
-        let levels = self.inner.pads.board_levels();
+        let mut levels = self.inner.pads.board_levels(self.board.pull_downs());
+        for pin in 0..62u8 {
+            let Some(level) = self.inner.pads.routed_signal(usize::from(pin)).and_then(|s| self.ledc_output(s)) else { continue };
+            if level { levels |= 1 << pin; } else { levels &= !(1u64 << pin); }
+        }
         let diff = levels ^ self.pin_levels;
         if diff == 0 { return; }
         self.pin_levels = levels;
