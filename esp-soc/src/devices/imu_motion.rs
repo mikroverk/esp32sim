@@ -20,18 +20,35 @@ pub fn sin(x: f64) -> f64 {
 }
 fn smoothstep(a: f64, b: f64, t: f64) -> f64 { let x = ((t - a) / (b - a)).clamp(0.0, 1.0); x * x * (3.0 - 2.0 * x) }
 
+/// The handling script's attitude at `t` seconds, in radians: roll about the screen normal (z)
+/// and lean about the screen's x axis, both 0 upright at rest.
+pub fn motion_attitude_screen(t: f64) -> (f64, f64) {
+    use std::f64::consts::{PI, TAU};
+    let on = smoothstep(3.0, 5.0, t);
+    let flip = PI * (smoothstep(13.0, 15.0, t) - smoothstep(20.0, 22.0, t));
+    let roll = on * (1.1 * sin(TAU * (t - 3.0) / 8.0) + 0.35 * sin(TAU * (t - 3.0) / 2.9)) + flip;
+    let lean = on * 0.45 * sin(TAU * (t - 3.0) / 11.0);
+    (roll, lean)
+}
+
+/// A vector fixed in the world (the geomagnetic field), as the board sees it at `t` seconds of
+/// the handling script, given what it reads upright at rest: the same rotation that turns the
+/// script's gravity, so a magnetometer and an accelerometer on the board agree.
+pub fn rotate_screen(v: [f64; 3], t: f64) -> [f64; 3] {
+    let (roll, lean) = motion_attitude_screen(t);
+    let cos = |x: f64| sin(x + std::f64::consts::FRAC_PI_2);
+    let (sr, cr, sl, cl) = (sin(roll), cos(roll), sin(lean), cos(lean));
+    // lean about x, then roll about z: (0, 1, 0) goes to the script's "down" vector.
+    let (x, y, z) = (v[0], v[1] * cl - v[2] * sl, v[1] * sl + v[2] * cl);
+    [x * cr + y * sr, -x * sr + y * cr, z]
+}
+
 /// The 30 s handling script in the board's screen frame (x right, y down the screen, z into the
 /// case): settle upright, then swing and lean, turn upside down and back, with three shakes.
 /// Returns (accelerometer g, gyro dps); each sensor model maps them onto its own axes.
 pub fn motion_script_screen(t: f64) -> ([f64; 3], [f64; 3]) {
     use std::f64::consts::{PI, TAU};
-    let angles = |t: f64| {
-        let on = smoothstep(3.0, 5.0, t);
-        let flip = PI * (smoothstep(13.0, 15.0, t) - smoothstep(20.0, 22.0, t));
-        let roll = on * (1.1 * sin(TAU * (t - 3.0) / 8.0) + 0.35 * sin(TAU * (t - 3.0) / 2.9)) + flip;
-        let lean = on * 0.45 * sin(TAU * (t - 3.0) / 11.0);
-        (roll, lean)
-    };
+    let angles = motion_attitude_screen;
     let (roll, lean) = angles(t);
     let cos = |x: f64| sin(x + PI / 2.0);
     // The accelerometer reports the reaction to gravity: minus the unit "down" vector.

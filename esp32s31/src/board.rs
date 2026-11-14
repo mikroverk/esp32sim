@@ -84,7 +84,7 @@ pub struct Mosaico {
     touch_int_low: bool,
     touch_release_at: Option<u64>,
     te_edges: Vec<esp_soc::board::BoardEdge>,
-    /// Scripted motion for the BMI270 (clock: emulated nanoseconds, stored by `advance_to`)
+    /// Scripted motion for the BMI270 and the BMM150s (clock: emulated nanoseconds, stored by `advance_to`)
     pub imu: std::sync::Arc<esp_soc::devices::imu_motion::ImuMotion>,
     /// The vibration motor: running, how often it started, how long it ran (emulated ns, up to
     /// the last start when running), and its one-LED indicator for `leds()`.
@@ -169,8 +169,8 @@ impl BoardModel for Mosaico {
              (0, crate::bq27220::ADDRESS, Box::new(crate::bq27220::Bq27220::new())),
              (0, ES8311_ADDRESS, Box::new(esp_periph::i2c::Reg8Device::new("es8311", &[(0xfd, 0x83), (0xfe, 0x11)]))),
              (0, BMI270_ADDRESS, Box::new(esp_soc::devices::Bmi270::new(self.imu.clone(), 1_000_000_000))),
-             (0, BMM150_ADDRESSES[0], Box::new(esp_soc::devices::Bmm150::new(Default::default()))),
-             (0, BMM150_ADDRESSES[1], Box::new(esp_soc::devices::Bmm150::new(Default::default())))]
+             (0, BMM150_ADDRESSES[0], Box::new(esp_soc::devices::Bmm150::with_motion(Default::default(), self.imu.clone(), 1_000_000_000))),
+             (0, BMM150_ADDRESSES[1], Box::new(esp_soc::devices::Bmm150::with_motion(Default::default(), self.imu.clone(), 1_000_000_000)))]
     }
     fn set_imu_motion(&mut self, mode: u32) -> bool { self.imu.mode.store(mode, std::sync::atomic::Ordering::Relaxed); true }
     fn imu_motion(&self) -> u32 { self.imu.mode.load(std::sync::atomic::Ordering::Relaxed) }
