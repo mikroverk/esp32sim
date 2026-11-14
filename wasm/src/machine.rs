@@ -25,6 +25,8 @@ pub(super) trait MachineApi {
     fn approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> u32;
     /// The virtual access point, on the chip with the radio.
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> { self.bus().attach_wifi(cfg, None) }
+    /// The networks around that access point.
+    fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.bus().wifi_nearby(list) }
     /// The NAT of that access point's network, on the same chip.
     fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.bus().attach_nat(nat, local_ntp) }
 }
@@ -144,6 +146,7 @@ impl<R: esp32p4::Revision> MachineApi for esp32p4::coproc::CoSim<R> {
     fn set_jit(&mut self, enabled: bool) { MachineApi::set_jit(&mut self.p4, enabled); MachineApi::set_jit(&mut self.c6.borrow_mut().m, enabled); }
     fn approximate_jit_timing(&mut self, _cpi: u32, _quantum: u32) -> u32 { log("[emu] approximate timing: not with a co-processor"); 1 }
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> { self.c6.borrow_mut().m.bus.attach_wifi(cfg, None) }
+    fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.c6.borrow_mut().m.bus.wifi_nearby(list) }
     fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.c6.borrow_mut().m.bus.attach_nat(nat, local_ntp) }
 }
 

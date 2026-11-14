@@ -31,6 +31,41 @@ pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize)
     0
 }
 
+/// Set the networks around the station (the CLI's `--wifi-nearby`), replacing the ones there
+/// were: one spec per line, as the option takes it (`ssid=`, `chan=`, `rssi=`, `secure=`,
+/// `bssid=`), at most 32; no lines for none. A scan lists them and nothing can join them. Needs
+/// the access point of `esp32sim_wifi`, which a new `esp32sim_wifi` replaces with none around;
+/// before or after boot. A network with the access point's SSID or BSSID is left out, with the
+/// reason on `host_log`, as the option leaves it out. Returns 0, or 1 for text that is not UTF-8,
+/// a spec or list the option refuses, or no access point, with the reason on `host_log` and the
+/// networks unchanged.
+///
+/// # Safety
+/// `e` must point to a live emulator to which the caller has exclusive access. For nonzero `len`,
+/// `specs` must be non-null and readable for `len` bytes throughout this call.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_wifi_nearby(e: *mut Emu, specs: *const u8, len: usize) -> u32 {
+    // SAFETY: The caller provides exclusive access to a live emulator.
+    let e = unsafe { &mut *e };
+    // SAFETY: The caller provides a readable spec buffer for this call.
+    let Ok(specs) = std::str::from_utf8(unsafe { bytes(specs, len) }) else {
+        log("[emu] wifi nearby: the specs are not UTF-8");
+        return 1;
+    };
+    let specs: Vec<String> = specs.lines().map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect();
+    let list = match esp_soc::wifi::BeaconAp::parse_all(&specs) {
+        Ok(list) => list,
+        Err(reason) => { log(&format!("[emu] wifi nearby: {reason}")); return 1; }
+    };
+    match e.m.wifi_nearby(list) {
+        Ok(left_out) => {
+            for (b, why) in left_out { log(&format!("[emu] wifi nearby: '{}' left out: it has {why}", b.ssid)); }
+            0
+        }
+        Err(reason) => { log(&format!("[emu] wifi nearby: {reason}")); 1 }
+    }
+}
+
 /// Enable provisional per-instruction timing before ROM boot. Returns 1 on rejection.
 /// This selects the modeled interpreter, not the production browser JIT.
 /// # Safety
@@ -363,6 +398,70 @@ mod imu_motion_tests {
                 assert_eq!(status0(e), 3, "motion first: {motion_first}");
                 esp32sim_delete(e);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod wifi_nearby_tests {
+    use super::*;
+    use crate::machine::MachineKind;
+    use crate::{esp32sim_delete, esp32sim_new};
+
+    /// The SSIDs around the access point of the chip with the radio (the C6 beside a P4).
+    fn around(e: *mut Emu) -> Vec<String> {
+        // SAFETY: the test owns the live emulator.
+        let e = unsafe { &mut *e };
+        let ssids = |link: &esp_soc::wifi::StationLink| link.ap().map(|ap| ap.beacons.iter().map(|b| b.ssid.clone()).collect()).unwrap_or_default();
+        match &mut e.m {
+            MachineKind::S3(m) => ssids(&m.bus.periph.wifi.link),
+            MachineKind::C3(m) => ssids(&m.bus.periph.wifi.link),
+            MachineKind::Esp32(m) => ssids(&m.bus.periph.wifi.link),
+            MachineKind::C6(m) => ssids(&m.bus.periph.wifi_mac.link),
+            MachineKind::P4C6(m) => ssids(&m.c6.borrow().m.bus.periph.wifi_mac.link),
+            _ => panic!("no radio"),
+        }
+    }
+
+    /// `esp32sim_wifi_nearby` on every chip with a radio: the option's specs, one per line, reach
+    /// that chip's access point; its own SSID is left out; a refused list leaves the networks; a
+    /// new `esp32sim_wifi` starts with none; the P4 alone has no access point.
+    #[test]
+    fn wifi_nearby_reaches_the_access_point_of_every_chip_with_a_radio() {
+        for board in ["none", "c3", "esp32c6", "esp32", "esp32p4+c6", "esp32p4"] {
+            // SAFETY: the board name is readable for the call; the emulator is deleted below.
+            let e = unsafe { esp32sim_new(board.as_ptr(), board.len(), 4, 0) };
+            assert!(!e.is_null(), "{board}");
+            // SAFETY: the test owns the live emulator; the text is readable for the call.
+            let nearby = |s: &[u8]| unsafe { esp32sim_wifi_nearby(e, s.as_ptr(), s.len()) };
+            // SAFETY: as above.
+            let wifi = |s: &str| unsafe { esp32sim_wifi(e, s.as_ptr(), s.len()) };
+            assert_eq!(nearby(b"ssid=Home"), 1, "{board}: no access point yet");
+            if board == "esp32p4" {
+                assert_eq!(wifi("ssid=Jumperly"), 1, "the P4 has no radio");
+                assert_eq!(nearby(b"ssid=Home"), 1);
+                // SAFETY: the emulator is not used again.
+                unsafe { esp32sim_delete(e) };
+                continue;
+            }
+            assert_eq!(wifi("ssid=Jumperly"), 0);
+            assert_eq!(nearby(b"ssid=Home,chan=1,rssi=-60\r\nssid=Jumperly\n\n  ssid=Cafe,chan=11,rssi=-75,secure=0\n"), 0);
+            assert_eq!(around(e), ["Home", "Cafe"], "{board}: the access point's own SSID is left out");
+            assert_eq!(nearby(b"ssid=Home\nssid=Home,chan=6"), 1, "{board}: one BSSID twice");
+            assert_eq!(nearby(b"colour=red"), 1, "{board}: an unknown key");
+            assert_eq!(nearby(b"ssid=Office\n\xff"), 1, "{board}: not UTF-8");
+            let many: String = (0..33).map(|i| format!("ssid=n{i}\n")).collect();
+            assert_eq!(nearby(many.as_bytes()), 1, "{board}: more than 32");
+            assert_eq!(around(e), ["Home", "Cafe"], "{board}: a refused list leaves the networks");
+            assert_eq!(nearby(many.lines().skip(1).collect::<Vec<_>>().join("\n").as_bytes()), 0, "{board}: 32");
+            assert_eq!(around(e).len(), 32);
+            assert_eq!(nearby(b""), 0);
+            assert!(around(e).is_empty(), "{board}: no lines, none");
+            assert_eq!(nearby(b"ssid=Home"), 0);
+            assert_eq!(wifi("ssid=Jumperly"), 0);
+            assert!(around(e).is_empty(), "{board}: a new access point has none around");
+            // SAFETY: the emulator is not used again.
+            unsafe { esp32sim_delete(e) };
         }
     }
 }

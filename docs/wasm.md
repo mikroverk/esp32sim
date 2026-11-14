@@ -233,6 +233,19 @@ which requests Binaryen `wasm-opt -O3` and requires that tool to be installed.
 The measured configuration used no Binaryen postprocessing. `CARGO_ENCODED_RUSTFLAGS`,
 when set, takes precedence over `RUSTFLAGS` under Cargo's usual rules.
 
+## Networks around the station
+
+`esp32sim_wifi_nearby(e, ptr, len)` sets the networks around the station, the CLI's
+`--wifi-nearby`, replacing the ones there were: UTF-8 text with one of the option's specs per
+line (`ssid=`, `chan=`, `rssi=`, `secure=`, `bssid=`; blank lines are skipped, no lines means
+none), at most 32. A scan lists them with their channel, signal and security, and joining one
+fails as out of reach ([EX237](evidence/wifi-nearby/README.md)). Call it after `esp32sim_wifi`,
+before or after boot; a new `esp32sim_wifi` starts with none around. The P4 with its C6 gives
+them to the C6's access point. A network with the access point's own SSID or BSSID is left out,
+as the option leaves it out, and `host_log` says why. 0, or 1 without the access point or for
+text the option would refuse (an unknown key, two networks on one BSSID, more than 32), with the
+reason on `host_log` and the networks unchanged ([EX267](evidence/wifi-nearby-wasm/README.md)).
+
 ## Host Ethernet relay
 
 S3, C3 and C6 provide an optional Ethernet transport behind their virtual AP.

@@ -1,0 +1,21 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+configspi:0x00000008
+SPIWP:0x00
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x10cc
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x30b0
+entry 0x403c88b8
+Ready
+scan: 4 network(s)
+  Jumperly rssi=-40 ch=6 open
+  Home rssi=-60 ch=1 secured
+  Cafe rssi=-75 ch=11 open
+  Office rssi=-82 ch=6 secured
+connecting to Jumperly....
+ip=10.0.2.15 gw=10.0.2.2 dns=10.0.2.3
+dns: example.com -> 10.0.2.3
+time: 2026-11-14 21:18:52 UTC
+http GET http://example.com/ -> -1 (connection refused)
