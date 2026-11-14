@@ -1,6 +1,6 @@
 {
-  "base": "upstream main 088308a5 (Merge pull request #351)",
-  "toolchain": "Rust 1.99.1 (58cf8f9c3 2026-10-13); Node 24.22.1; Windows 11 (10.0.26200), x86_64",
+  "base": "upstream main 5466222a (Merge pull request #360)",
+  "toolchain": "Rust 1.100.0 (0ef1bc386 2026-11-09); Node 24.22.1; Windows 11 (10.0.26200), x86_64",
   "mask_roms": {
     "source": "tools/fetch-rom-elfs.sh roms (espressif/esp-rom-elfs, pinned by SHA-256 in the script)",
     "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
