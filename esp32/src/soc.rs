@@ -98,6 +98,7 @@ impl esp_soc::SocBus for SocBus {
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         Ok(())
     }
+    fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.periph.wifi.link.set_nat(nat, local_ntp) }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.periph.wifi.link.set_relay(enabled);
         Ok(())
