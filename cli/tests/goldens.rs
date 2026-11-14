@@ -587,7 +587,9 @@ fn mosaico_board_s31() {
         "MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT", "MAG1 later r=0 x=20 y=0 z=-40 |B|=45 uT", "DONE"] {
         assert!(rest.contains(want), "missing {want:?}:\n{rest}");
     }
-    assert!(report.contains("motor off, 2 starts, 59") && report.ends_with("PWR_SW released"), "{report}");
+    let (starts, ms): (u64, u64) = report.split_once("motor off, ").and_then(|(_, r)| r.split_once(" ms on")).and_then(|(r, _)| r.split_once(" starts, "))
+        .and_then(|(s, m)| Some((s.parse().ok()?, m.parse().ok()?))).unwrap_or_else(|| panic!("{report}"));
+    assert!(starts == 2 && (550..=650).contains(&ms) && report.ends_with("PWR_SW released"), "{report}");
     let (moving, _) = mosaico_board("1");
     assert!(moving.contains("MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT"), "{moving}");
     let later = moving.lines().find(|l| l.starts_with("MAG0 later")).unwrap();

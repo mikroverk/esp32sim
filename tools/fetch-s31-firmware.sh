@@ -21,10 +21,18 @@ s31-hello_world.bin 6b965db02941e8db4895d27c2ad8eea1733e22ddf9a82ccd4d6f77ae62c6
 WIFI="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf65157ae14d99211b66 bootloader/bootloader.bin
 s31-wifi-ptable.bin 5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a partition_table/partition-table.bin
 s31-wifi_station.bin e0e0fcfa27528765915a337f1da904c99cf7fe2b63a88042d48e3d839c8fb0c3 c6_wifi_station.bin"
-# Its bootloader and partition table come out byte for byte the WiFi build's and hello's.
+# Its bootloader and partition table come out byte for byte the WiFi build's and hello's, so the
+# board set reuses those files. Its build checks its own outputs against the same pins (build
+# below), so a board build whose bootloader or ptable differ fails instead of using them.
 BOARD="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf65157ae14d99211b66 bootloader/bootloader.bin
 s31-hello-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
 s31-mosaico-board.bin 542246f60b5b6f13dd1c18072ea158f496ebbf925edd33c1e757e1e0d1f11b20 mosaico_board.bin"
+
+# The reused files must carry the same pin in every set that names them.
+for n in $(echo "$BOARD" | awk '{print $1":"$2}'); do
+  other=$(printf '%s\n%s\n' "$HELLO" "$WIFI" | awk -v f="${n%%:*}" '$1 == f {print $2}')
+  [ -z "$other" ] || [ "$other" = "${n#*:}" ] || { echo "${n%%:*}: the board set pins ${n#*:}, the image it reuses is $other" >&2; exit 1; }
+done
 
 sha256_ok() {
   if command -v shasum >/dev/null 2>&1; then echo "$2  $1" | shasum -a 256 -c >/dev/null 2>&1
@@ -47,7 +55,7 @@ build() {
   (cd "$B" && idf.py --preview set-target esp32s31 >/dev/null && idf.py build >/dev/null)
   mkdir -p "$DIR"
   echo "$5" | while read -r name hash out; do
-    sha256_ok "$B/build/$out" "$hash" || { echo "$name: SHA-256 mismatch ($(shasum -a 256 "$B/build/$out" | cut -d' ' -f1))" >&2; exit 1; }
+    sha256_ok "$B/build/$out" "$hash" || { echo "$name: SHA-256 mismatch in the $1 build ($(shasum -a 256 "$B/build/$out" | cut -d' ' -f1))" >&2; exit 1; }
     cp "$B/build/$out" "$DIR/$name"; echo "built $name"
   done
 }

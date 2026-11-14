@@ -109,12 +109,13 @@ impl Pads {
         }).fold(!0u64, |m, p| m & !(1u64 << p))
     }
     /// The GPIO-matrix output signal driving `pin` (OUT_SEL, gpio_sig_map.h), when a peripheral
-    /// rather than the GPIO output register drives it: the drive is then the peripheral's.
-    pub fn routed_signal(&self, pin: usize) -> Option<u32> {
+    /// rather than the GPIO output register drives it: the drive is then the peripheral's. With
+    /// whether the matrix inverts it (OUT_INV_SEL, FUNC_OUT_SEL_CFG bit 9, soc/esp32s31 gpio_reg.h).
+    pub fn routed_signal(&self, pin: usize) -> Option<(u32, bool)> {
         if !Self::valid(pin) || self.held[pin].is_some() { return None; }
         let (mux, sel) = (self.iomux[pin], self.out_sel[pin]);
         let enable = (self.enable & (1 << pin) != 0) ^ (sel & (1 << 11) != 0);
-        (Self::gpio_function(pin, (mux >> 12) & 7) && sel & 0x1ff != 256 && (enable || sel & (1 << 10) == 0)).then_some(sel & 0x1ff)
+        (Self::gpio_function(pin, (mux >> 12) & 7) && sel & 0x1ff != 256 && (enable || sel & (1 << 10) == 0)).then_some((sel & 0x1ff, sel & 1 << 9 != 0))
     }
     pub fn drive(&self, pin: usize) -> Result<Drive, Fault> {
         if !Self::valid(pin) { return Err(Fault::Unmapped); }
@@ -273,10 +274,12 @@ mod tests {
         assert_eq!(p.drive(8), Ok(Drive::Low)); assert_eq!(p.board_levels(0) >> 8 & 1, 0);
         assert_eq!(p.routed_signal(8), None, "the GPIO output register drives it");
         p.write(GPIO_BASE + 0xaf4 + 8 * 4, 126).unwrap(); // LEDC0 channel 0 through the matrix
-        assert_eq!(p.routed_signal(8), Some(126));
+        assert_eq!(p.routed_signal(8), Some((126, false)));
         assert_eq!(p.board_levels(1 << 8) >> 8 & 1, 1, "the peripheral's drive is not the pad's to resolve");
         p.write(GPIO_BASE + 0xaf4 + 8 * 4, 126 | 1 << 10).unwrap(); // OEN from the GPIO enable: still on
-        assert_eq!(p.routed_signal(8), Some(126));
+        assert_eq!(p.routed_signal(8), Some((126, false)));
+        p.write(GPIO_BASE + 0xaf4 + 8 * 4, 126 | 1 << 9).unwrap();  // OUT_INV_SEL
+        assert_eq!(p.routed_signal(8), Some((126, true)));
         p.write(IO_MUX_BASE + 8 * 4, 0x3200).unwrap();               // another IO_MUX function
         assert_eq!(p.routed_signal(8), None);
     }
