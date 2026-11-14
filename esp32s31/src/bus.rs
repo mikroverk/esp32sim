@@ -375,6 +375,29 @@ impl S31Bus {
         self.periph.aes.int_raw |= 1;
     }
 
+    /// SHA DMA mode (IDF v6.1 mbedtls port sha/core/esp_sha_gdma_impl.c:12,
+    /// esp_crypto_shared_gdma_start_axi_ahb with CRYPTO_DMA_USER_SHA): the AXI-GDMA OUT channel on
+    /// trigger 5 (esp_hal_dma esp32s31 gdma_channel.h:32 SOC_GDMA_TRIG_PERIPH_SHA0) gathers
+    /// SHA_DMA_BLOCK_NUM blocks, hashed in one step; no IN channel. Waits for the next SHA or
+    /// AXI-GDMA write until the channel runs; a DMA_START whose OUT link never starts leaves BUSY at
+    /// 1 for good, as IDF would hang on silicon. The model never reports a fabricated transfer: a
+    /// short or broken chain hashes nothing, raises OUT_DSCR_ERR on the channel and leaves BUSY set
+    /// with the done interrupt low (`ShaEngine::dma_complete`). BLOCK_NUM 0 completes at once with
+    /// nothing hashed and H_MEM unchanged, without touching the GDMA (no transfer, no OUT_TOTAL_EOF).
+    fn sha_dma_step(&mut self) {
+        const TRIGGER: u32 = 5;
+        if self.sha.dma_bytes() == 0 { self.sha.dma_complete(Some(&[])); return; }
+        let Some(out_ch) = self.axi_dma.gdma.out_channel_for(TRIGGER) else { return };
+        let want = self.sha.dma_bytes();
+        let mut input = Vec::with_capacity(want);
+        let mut memory = AxiOut { mem: Dma2dMem { mem: UsbDma { sram: &mut self.sram, lp: &mut self.lp, ver: &mut self.code_ver }, cache: &mut self.cache }, channel: &mut self.axi_dma.gdma.out[out_ch] };
+        let result = esp_periph::gdma::gather_out(&mut memory, want, &mut input);
+        let c = &mut self.axi_dma.gdma.out[out_ch];
+        c.running = false; c.buf_pos = 0;
+        let ok = match result { Ok(next) if input.len() == want => { c.desc = next; c.int_raw |= 1 << 3; true } _ => { c.int_raw |= 1 << 2; false } };
+        self.sha.dma_complete(ok.then_some(&input[..]));
+    }
+
     /// I2Sn's transmit DMA through the AHB-GDMA, paced by the frame rate, as the P4 runs its
     /// I2S1 (esp32p4 bus.rs `i2s1_tx`): the frames due since the last call are taken from the OUT
     /// channel bound to one of the controller's four triggers (I2S0 1-4, I2S1 5-8; IDF's driver
@@ -525,7 +548,7 @@ impl S31Bus {
         let mut dma = UsbDma { sram: &mut self.sram, lp: &mut self.lp, ver: &mut self.code_ver };
         self.usb_otg.run(&mut dma);
     }
-    pub(crate) fn peripheral_irqs(&self) -> crate::interrupts::Irqs { crate::interrupts::Irqs { uart: self.uart_irq(), wdt: self.rtc_wdt.irq(), efuse: self.periph.efuse.irq(), usb: self.periph.usb.irq(), monitor: self.bus_monitor.irq(), cache: self.cache.irq(), mwdt: [self.periph.timg[0].irq_wdt(), self.periph.timg[1].irq_wdt()], systimer: self.periph.systimer.irqs(), psram: self.psram_controller.irq(), brownout: self.power.mode0.irq(), from_cpu: self.cores.from_cpu_irqs(), usb_otg: self.usb_otg.irq(), spi2: self.spi2.irq(), spi3: self.spi3.irq(), i2c: [self.i2c[0].irq(), self.i2c[1].irq()], gpio: self.pads.irq_lines(), axi_dma: esp_periph::Device::irq_sources(&self.axi_dma), aes: self.periph.aes.irq(), dma2d: self.dma2d.irq_bits() as u8, ppa: self.ppa.irq(), wifi_mac: self.wifi_mac.irq(), ahb_dma: esp_periph::Device::irq_sources(&self.ahb_dma), i2s: [self.i2s[0].irq(), self.i2s[1].irq()] } }
+    pub(crate) fn peripheral_irqs(&self) -> crate::interrupts::Irqs { crate::interrupts::Irqs { uart: self.uart_irq(), wdt: self.rtc_wdt.irq(), efuse: self.periph.efuse.irq(), usb: self.periph.usb.irq(), monitor: self.bus_monitor.irq(), cache: self.cache.irq(), mwdt: [self.periph.timg[0].irq_wdt(), self.periph.timg[1].irq_wdt()], systimer: self.periph.systimer.irqs(), psram: self.psram_controller.irq(), brownout: self.power.mode0.irq(), from_cpu: self.cores.from_cpu_irqs(), usb_otg: self.usb_otg.irq(), spi2: self.spi2.irq(), spi3: self.spi3.irq(), i2c: [self.i2c[0].irq(), self.i2c[1].irq()], gpio: self.pads.irq_lines(), axi_dma: esp_periph::Device::irq_sources(&self.axi_dma), aes: self.periph.aes.irq(), sha: self.sha.irq(), dma2d: self.dma2d.irq_bits() as u8, ppa: self.ppa.irq(), wifi_mac: self.wifi_mac.irq(), ahb_dma: esp_periph::Device::irq_sources(&self.ahb_dma), i2s: [self.i2s[0].irq(), self.i2s[1].irq()] } }
     pub(crate) fn set_hart(&mut self, hart: usize) { self.hart = hart; }
     pub(crate) fn reset_hart(&mut self, hart: usize) { self.reservations[hart] = None; self.interrupts.clic[hart] = Default::default(); }
     pub fn refresh_irq(&mut self, threshold: u32) -> Option<u32> {
@@ -932,6 +955,7 @@ impl S31Bus {
             if bytes != 4 || off & 3 != 0 { return self.fault(address, bytes, true, false, Fault::Misaligned); }
             esp_periph::Device::write(&mut self.axi_dma, off as u32, value);
             if self.periph.aes.dma_pending { self.aes_dma_step(); }
+            if self.sha.dma_pending() { self.sha_dma_step(); }
             return Ok(());
         }
         if let Some(off) = offset(address, DMA2D, bytes, 0x1000) {
@@ -1032,7 +1056,9 @@ impl S31Bus {
         if let Some(off) = offset(address, crate::sha::BASE, bytes, 0x300) {
             if bytes != 4 || off & 3 != 0 { return self.fault(address, bytes, true, false, Fault::Misaligned); }
             if self.crypto_clock_hz().is_none() { return self.fault(address, bytes, true, false, Fault::Prohibited); }
-            return match self.sha.write(off as u32, value) { Ok(()) => Ok(()), Err(e) => self.fault(address, bytes, true, false, e) };
+            let result = self.sha.write(off as u32, value);
+            if self.sha.dma_pending() { self.sha_dma_step(); }
+            return match result { Ok(()) => Ok(()), Err(e) => self.fault(address, bytes, true, false, e) };
         }
         if let Some(off) = offset(address, AES_BASE, bytes, 0x100) {
             if bytes != 4 || off & 3 != 0 { return self.fault(address, bytes, true, false, Fault::Misaligned); }
@@ -1390,6 +1416,302 @@ mod tests {
         assert_eq!(enc[..64], cipher[..]);
         assert_eq!(run(&mut b, true, &enc, &iv), long);
         assert_eq!(b.periph.aes.blocks, 48);
+    }
+
+    /// FIPS 180-4 padding: 0x80, zeros, and the bit length (64-bit, or 128-bit for 128-byte blocks).
+    fn sha_pad(msg: &[u8], block: usize) -> Vec<u8> {
+        let len = if block == 128 { 16 } else { 8 };
+        let mut v = msg.to_vec(); v.push(0x80);
+        while !(v.len() + len).is_multiple_of(block) { v.push(0); }
+        v.extend_from_slice(&((msg.len() as u128 * 8).to_be_bytes()[16 - len..]));
+        v
+    }
+    fn sha_hex(s: &str) -> Vec<u8> { (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect() }
+    fn sha_digest(b: &mut super::S31Bus, bytes: usize) -> Vec<u8> {
+        use emu_core::Bus;
+        (0..bytes as u32 / 4).flat_map(|i| b.read32(crate::sha::BASE + 0x40 + 4 * i).unwrap().to_le_bytes()).collect()
+    }
+
+    #[test]
+    fn sha_block_mode_fips_180_vectors() {
+        // FIPS 180-4 examples: "abc" in all five S31 modes (SHA_MODE 0-4), and the 448-bit two-block
+        // SHA-256 message through START then CONTINUE, with the digest read in between.
+        use emu_core::Bus;
+        let sha = crate::sha::BASE;
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        let run = |b: &mut super::S31Bus, mode: u32, msg: &[u8], block: usize, digest: usize| -> Vec<u8> {
+            b.write32(sha, mode).unwrap();
+            for (k, chunk) in sha_pad(msg, block).chunks(block).enumerate() {
+                for (i, w) in chunk.chunks(4).enumerate() { b.write32(sha + 0x80 + 4 * i as u32, u32::from_le_bytes(w.try_into().unwrap())).unwrap(); }
+                b.write32(sha + if k == 0 { 0x10 } else { 0x14 }, 1).unwrap();
+                assert_eq!(b.read32(sha + 0x18), Ok(0));
+                assert!(sha_digest(b, digest).iter().any(|x| *x != 0), "sha_hal_read_digest's all-zero check");
+            }
+            sha_digest(b, digest)
+        };
+        for (mode, block, len, hex) in [
+            (0, 64, 20, "a9993e364706816aba3e25717850c26c9cd0d89d"),
+            (1, 64, 28, "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7"),
+            (2, 64, 32, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+            (3, 128, 48, "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"),
+            (4, 128, 64, "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"),
+        ] { assert_eq!(run(&mut b, mode, b"abc", block, len), sha_hex(hex), "mode {mode}"); }
+        let two = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
+        assert_eq!(run(&mut b, 2, two, 64, 32), sha_hex("248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"));
+    }
+
+    #[test]
+    fn sha_dma_mode_through_the_axi_gdma() {
+        // A 1670-byte message (byte i = 7i+3), padded to 27 SHA-256 blocks, gathered from three OUT
+        // descriptors on PERI_SEL 5; digest from Python hashlib. Then the same message split in two
+        // requests as IDF resumes one: DMA_START, digest read, H_MEM written back, DMA_CONTINUE.
+        use emu_core::Bus;
+        use super::{AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let msg: Vec<u8> = (0..1670u32).map(|i| (i * 7 + 3) as u8).collect();
+        let padded = sha_pad(&msg, 64);
+        assert_eq!(padded.len(), 27 * 64);
+        let expect = sha_hex("7877c0db11578baaf55047853b08b5e903a575446f1d65db77896369b1bad513");
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        let (src, desc) = (SRAM_BASE + 0x1000, SRAM_BASE + 0x3000);
+        for (i, x) in padded.iter().enumerate() { b.write8(src + i as u32, *x).unwrap(); }
+        let outb = AXI_DMA + 0x138;
+        b.write32(outb + 0x44, 5).unwrap();
+        // Hash `blocks` blocks from `first_block` on, in up-to-three descriptors (IDF links two).
+        let run = |b: &mut super::S31Bus, first_block: u32, blocks: u32, start: bool| {
+            let (base, n) = (src + 64 * first_block, 64 * blocks);
+            let parts = [(base, 100), (base + 100, 900.min(n - 100)), (base + 1000, n.saturating_sub(1000))];
+            let parts: Vec<_> = parts.into_iter().filter(|p| p.1 != 0).collect();
+            for (k, (buf, len)) in parts.iter().enumerate() {
+                let d = desc + 12 * k as u32; let last = k + 1 == parts.len();
+                b.write32(d, 1 << 31 | (last as u32) << 30 | len << 12 | len).unwrap();
+                b.write32(d + 4, *buf).unwrap(); b.write32(d + 8, if last { 0 } else { d + 12 }).unwrap();
+            }
+            b.write32(sha, 2).unwrap(); b.write32(sha + 0xc, blocks).unwrap(); b.write32(sha + 0x28, 1).unwrap();
+            // As IDF: the OUT link starts first, then DMA_START / DMA_CONTINUE.
+            b.write32(outb + 0x24, desc).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+            b.write32(sha + if start { 0x1c } else { 0x20 }, 1).unwrap();
+            assert_eq!(b.read32(sha + 0x18), Ok(0), "idle");
+            assert_ne!(b.read32(outb).unwrap() & 8, 0, "OUT_TOTAL_EOF");
+            assert!(b.peripheral_irqs().sources().contains(&(crate::interrupts::SHA_SOURCE, true)));
+            b.write32(sha + 0x24, 1).unwrap();
+            assert!(!b.peripheral_irqs().sources().contains(&(crate::interrupts::SHA_SOURCE, true)));
+            b.write32(outb + 0x0c, u32::MAX).unwrap();   // OUT INT_CLR
+        };
+        run(&mut b, 0, 27, true);
+        assert_eq!(sha_digest(&mut b, 32), expect);
+        run(&mut b, 0, 11, true);
+        let mid: Vec<u32> = (0..8).map(|i| b.read32(sha + 0x40 + 4 * i).unwrap()).collect();
+        b.write32(sha, 2).unwrap(); b.write32(sha + 0x10, 1).unwrap();     // clobber H with another block
+        for (i, w) in mid.iter().enumerate() { b.write32(sha + 0x40 + 4 * i as u32, *w).unwrap(); }
+        run(&mut b, 11, 16, false);
+        assert_eq!(sha_digest(&mut b, 32), expect);
+        // DMA started before the OUT link: the request waits (BUSY) until the channel runs.
+        for (k, (buf, len)) in [(src, 64 * 27u32)].into_iter().enumerate() {
+            let d = desc + 12 * k as u32;
+            b.write32(d, 1 << 31 | 1 << 30 | len << 12 | len).unwrap(); b.write32(d + 4, buf).unwrap(); b.write32(d + 8, 0).unwrap();
+        }
+        b.write32(sha + 0xc, 27).unwrap(); b.write32(sha + 0x1c, 1).unwrap();
+        assert_eq!(b.read32(sha + 0x18), Ok(1), "busy, waiting for the GDMA");
+        b.write32(outb + 0x24, desc).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+        assert_eq!(b.read32(sha + 0x18), Ok(0));
+        assert_eq!(sha_digest(&mut b, 32), expect);
+    }
+
+    #[test]
+    fn sha_dma_back_to_back_hashes_write_only_what_idf_expects() {
+        // A firmware user's report (IDF 6.1, mosaico): two psa_hash_compute(SHA-256) jobs over
+        // malloc'd 1670- and 1760-byte buffers, then a TLSF assert in the next malloc. Replays
+        // the driver's sequence for both jobs (psa_crypto_driver_esp_sha256.c esp_sha256_update /
+        // _finish, sha.c esp_sha_dma_process, esp_crypto_shared_gdma.c): the static DRAM
+        // descriptor zeroed and rebuilt each time (length = size = whole blocks, owner, suc_eof,
+        // next 0), the TX channel reset and connected to SHA (5), the RX channel on AES (4)
+        // started with a NULL link, OUT_CONF0 0x420 as IDF 6.1 leaves it (no AUTO_WRBACK; read
+        // from the channel in an IDF 6.1 build on this model), OUT link start, BLOCK_NUM,
+        // DMA_START, BUSY poll, digest read; the tail block by block mode after H_MEM written
+        // back. All of SRAM and LP RAM is compared before and after each job: the engine and
+        // the GDMA may not write a byte. With AUTO_WRBACK set, only the descriptor's owner bit
+        // may clear. Digests from Python hashlib.
+        use emu_core::Bus;
+        use super::{AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let (outb, inb) = (AXI_DMA + 0x138, AXI_DMA);   // OUT / IN channel 0 blocks
+        let desc = SRAM_BASE + 0x1_5228;                  // s_dma_descr_input in the reporter's image
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        let job = |b: &mut super::S31Bus, buf: u32, n: usize, seed: u32, conf0: u32| -> Vec<u8> {
+            let msg: Vec<u8> = (0..n as u32).map(|i| (i * 7 + seed) as u8).collect();
+            for (i, x) in msg.iter().enumerate() { b.write8(buf + i as u32, *x).unwrap(); }
+            let len = (n & !63) as u32;
+            // esp_sha_dma_process: memset, then the input descriptor.
+            for k in 0..3 { b.write32(desc + 4 * k, 0).unwrap(); }
+            b.write32(desc, 1 << 31 | 1 << 30 | len << 12 | len).unwrap(); b.write32(desc + 4, buf).unwrap();
+            let (sram, lp) = (b.sram.clone(), b.lp.clone());
+            b.write32(sha, 2).unwrap();                                        // esp_sha_set_mode
+            // gdma_disconnect / gdma_connect (resets TX) / RX reset / both links started.
+            b.write32(outb + 0x44, 0x3f).unwrap(); b.write32(outb + 0x10, 1).unwrap(); b.write32(outb + 0x10, conf0).unwrap();
+            b.write32(outb + 0x44, 5).unwrap();
+            b.write32(inb + 0x44, 4).unwrap(); b.write32(inb + 0x10, 1).unwrap(); b.write32(inb + 0x10, 0).unwrap();
+            b.write32(outb + 0x24, desc).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+            b.write32(inb + 0x24, 0).unwrap(); b.write32(inb + 0x20, 1 << 2).unwrap();
+            b.write32(sha + 0xc, len / 64).unwrap(); b.write32(sha + 0x1c, 1).unwrap();
+            assert_eq!(b.read32(sha + 0x18), Ok(0), "sha_hal_wait_idle");
+            let state: Vec<u32> = (0..8).map(|i| b.read32(sha + 0x40 + 4 * i).unwrap()).collect();
+            // esp_sha256_finish: the buffered tail plus padding is one block in both jobs.
+            let tail = sha_pad(&msg, 64)[len as usize..].to_vec();
+            assert_eq!(tail.len(), 64);
+            b.write32(sha, 2).unwrap();
+            for (i, w) in state.iter().enumerate() { b.write32(sha + 0x40 + 4 * i as u32, *w).unwrap(); }
+            for (i, w) in tail.chunks(4).enumerate() { b.write32(sha + 0x80 + 4 * i as u32, u32::from_le_bytes(w.try_into().unwrap())).unwrap(); }
+            b.write32(sha + 0x14, 1).unwrap();
+            let mut expect_sram = sram;
+            if conf0 & 4 != 0 {
+                let o = (desc - SRAM_BASE) as usize;
+                expect_sram[o + 3] &= 0x7f;                                     // owner -> CPU
+            }
+            let changed: Vec<usize> = (0..expect_sram.len()).filter(|&i| expect_sram[i] != b.sram[i]).collect();
+            assert!(changed.is_empty(), "SRAM bytes changed at offsets {:x?}", &changed[..changed.len().min(16)]);
+            assert!(lp == b.lp, "LP RAM changed");
+            sha_digest(b, 32)
+        };
+        for conf0 in [0x420, 0x424] {
+            assert_eq!(job(&mut b, SRAM_BASE + 0x3_029c, 1670, 3, conf0), sha_hex("7877c0db11578baaf55047853b08b5e903a575446f1d65db77896369b1bad513"));
+            assert_eq!(job(&mut b, SRAM_BASE + 0x3_0b20, 1760, 5, conf0), sha_hex("0e20995d937f92b231756c707a3491cadc307afb188cc63cfb76f0f583d21975"));
+        }
+    }
+
+    #[test]
+    fn sha_dma_failed_chain_reports_no_completion() {
+        // A short chain (one 64-byte descriptor, BLOCK_NUM 2) and a descriptor fault (link at an
+        // unmapped address): nothing is hashed, BUSY stays 1 so sha_hal_wait_idle spins visibly,
+        // the done interrupt stays low, and the channel shows OUT_DSCR_ERR without OUT_TOTAL_EOF.
+        use emu_core::Bus;
+        use super::{AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let outb = AXI_DMA + 0x138;
+        let (src, desc) = (SRAM_BASE + 0x1000, SRAM_BASE + 0x3000);
+        for link in [desc, 0x1000] {
+            let mut b = super::S31Bus::new();
+            b.write32(crate::sha::CLOCK, 0x45).unwrap();
+            b.write32(sha, 2).unwrap(); b.write32(sha + 0x10, 1).unwrap();   // a known H_MEM
+            let before = sha_digest(&mut b, 32);
+            b.write32(desc, 1 << 31 | 1 << 30 | 64 << 12 | 64).unwrap(); b.write32(desc + 4, src).unwrap(); b.write32(desc + 8, 0).unwrap();
+            b.write32(sha + 0xc, 2).unwrap(); b.write32(sha + 0x28, 1).unwrap();
+            b.write32(outb + 0x44, 5).unwrap(); b.write32(outb + 0x24, link).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+            b.write32(sha + 0x20, 1).unwrap();                                  // DMA_CONTINUE
+            assert_eq!(b.read32(sha + 0x18), Ok(1), "BUSY stays set ({link:#x})");
+            assert!(!b.peripheral_irqs().sources().contains(&(crate::interrupts::SHA_SOURCE, true)));
+            let raw = b.read32(outb).unwrap();
+            assert_ne!(raw & 4, 0, "OUT_DSCR_ERR"); assert_eq!(raw & 8, 0, "no OUT_TOTAL_EOF");
+            assert_eq!(sha_digest(&mut b, 32), before, "nothing hashed");
+            assert_eq!(b.sha.blocks(), 1);
+            // Further GDMA writes do not complete it either.
+            b.write32(outb + 0x44, 5).unwrap();
+            assert_eq!(b.read32(sha + 0x18), Ok(1));
+            assert_ne!(b.read32(outb).unwrap() & 4, 0, "OUT_DSCR_ERR kept");
+        }
+    }
+
+    #[test]
+    fn sha_dma_block_num_zero_completes_without_a_transfer() {
+        // BLOCK_NUM 0 (IDF never issues it): DMA_START completes at once with nothing hashed and
+        // H_MEM unchanged; a running OUT channel on trigger 5 is neither consumed nor flagged.
+        use emu_core::Bus;
+        use super::{AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let outb = AXI_DMA + 0x138;
+        let (src, desc) = (SRAM_BASE + 0x1000, SRAM_BASE + 0x3000);
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        b.write32(sha, 2).unwrap(); b.write32(sha + 0x10, 1).unwrap();
+        let before = sha_digest(&mut b, 32);
+        b.write32(desc, 1 << 31 | 1 << 30 | 64 << 12 | 64).unwrap(); b.write32(desc + 4, src).unwrap(); b.write32(desc + 8, 0).unwrap();
+        b.write32(outb + 0x44, 5).unwrap(); b.write32(outb + 0x24, desc).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+        b.write32(sha + 0xc, 0).unwrap(); b.write32(sha + 0x28, 1).unwrap(); b.write32(sha + 0x1c, 1).unwrap();
+        assert_eq!(b.read32(sha + 0x18), Ok(0));
+        assert!(b.peripheral_irqs().sources().contains(&(crate::interrupts::SHA_SOURCE, true)));
+        assert_eq!(sha_digest(&mut b, 32), before);
+        assert_eq!(b.sha.blocks(), 1);
+        assert_eq!(b.read32(outb).unwrap() & 0xf, 0, "no channel interrupt");
+        assert_eq!(b.axi_dma.gdma.out_channel_for(5), Some(0), "channel still running");
+    }
+
+    #[test]
+    fn sha512_dma_mode_128_byte_blocks() {
+        // 300 bytes (byte i = 11i+1) padded to three 128-byte SHA-512 blocks in two descriptors;
+        // digest from Python hashlib.
+        use emu_core::Bus;
+        use super::{AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let outb = AXI_DMA + 0x138;
+        let msg: Vec<u8> = (0..300u32).map(|i| (i * 11 + 1) as u8).collect();
+        let padded = sha_pad(&msg, 128);
+        assert_eq!(padded.len(), 3 * 128);
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        let (src, desc) = (SRAM_BASE + 0x1000, SRAM_BASE + 0x3000);
+        for (i, x) in padded.iter().enumerate() { b.write8(src + i as u32, *x).unwrap(); }
+        b.write32(desc, 1 << 31 | 200 << 12 | 200).unwrap(); b.write32(desc + 4, src).unwrap(); b.write32(desc + 8, desc + 12).unwrap();
+        b.write32(desc + 12, 1 << 31 | 1 << 30 | 184 << 12 | 184).unwrap(); b.write32(desc + 16, src + 200).unwrap(); b.write32(desc + 20, 0).unwrap();
+        b.write32(sha, 4).unwrap(); b.write32(sha + 0xc, 3).unwrap();
+        b.write32(outb + 0x44, 5).unwrap(); b.write32(outb + 0x24, desc).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+        b.write32(sha + 0x1c, 1).unwrap();
+        assert_eq!(b.read32(sha + 0x18), Ok(0));
+        assert_ne!(b.read32(outb).unwrap() & 8, 0, "OUT_TOTAL_EOF");
+        assert_eq!(sha_digest(&mut b, 64), sha_hex("cc0e506cc4fefc9a070b5127c4b23a946bfca0801572c0257e239e91070666fc245add4d322e11c728fbd9dd83fecc8049439170ac4685ab0789a7bb50ab5d51"));
+    }
+
+    #[test]
+    fn aes_and_sha_dma_share_the_axi_gdma() {
+        // AES-128-CBC (NIST SP 800-38A F.2.1) on trigger 4 (OUT ch0 running, IN ch0 not yet) and
+        // SHA-256 on trigger 5 (OUT ch1) are both pending at once; SHA's link starting completes
+        // only SHA, AES's IN link starting completes only AES. Both results checked.
+        use emu_core::Bus;
+        use super::{AES_BASE, AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let key = sha_hex("2b7e151628aed2a6abf7158809cf4f3c");
+        let iv = sha_hex("000102030405060708090a0b0c0d0e0f");
+        let plain = sha_hex("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710");
+        let cipher = sha_hex("7649abac8119b246cee98e9b12e9197d5086cb9b507219ee95db113a917678b273bed6b8e3c1743b7116e69e222295163ff1caa1681fac09120eca307586e1a7");
+        let msg: Vec<u8> = (0..1670u32).map(|i| (i * 7 + 3) as u8).collect();
+        let padded = sha_pad(&msg, 64);
+        let word = |v: &[u8], i: usize| u32::from_le_bytes(v[4 * i..4 * i + 4].try_into().unwrap());
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        let (aes_src, aes_dst, sha_src, desc) = (SRAM_BASE + 0x1000, SRAM_BASE + 0x2000, SRAM_BASE + 0x4000, SRAM_BASE + 0x3000);
+        for (i, x) in plain.iter().enumerate() { b.write8(aes_src + i as u32, *x).unwrap(); }
+        for (i, x) in padded.iter().enumerate() { b.write8(sha_src + i as u32, *x).unwrap(); }
+        let (aes_out, aes_in, sha_out) = (desc, desc + 0x10, desc + 0x20);
+        b.write32(aes_out, 1 << 31 | 1 << 30 | 64 << 12 | 64).unwrap(); b.write32(aes_out + 4, aes_src).unwrap(); b.write32(aes_out + 8, 0).unwrap();
+        b.write32(aes_in, 1 << 31 | 64).unwrap(); b.write32(aes_in + 4, aes_dst).unwrap(); b.write32(aes_in + 8, 0).unwrap();
+        let n = padded.len() as u32;
+        b.write32(sha_out, 1 << 31 | 1 << 30 | n << 12 | n).unwrap(); b.write32(sha_out + 4, sha_src).unwrap(); b.write32(sha_out + 8, 0).unwrap();
+        let (inb0, outb0, outb1) = (AXI_DMA, AXI_DMA + 0x138, AXI_DMA + 0x138 + 0x68);
+        // AES: OUT ch0 running on trigger 4, then TRIGGER; it waits for its IN channel.
+        for i in 0..4 { b.write32(AES_BASE + 4 * i as u32, word(&key, i)).unwrap(); b.write32(AES_BASE + 0x50 + 4 * i as u32, word(&iv, i)).unwrap(); }
+        b.write32(AES_BASE + 0x40, 0).unwrap();
+        b.write32(AES_BASE + 0x90, 1).unwrap(); b.write32(AES_BASE + 0x94, 1).unwrap();
+        b.write32(AES_BASE + 0x98, 4).unwrap(); b.write32(AES_BASE + 0xb0, 1).unwrap();
+        b.write32(outb0 + 0x44, 4).unwrap(); b.write32(inb0 + 0x44, 4).unwrap();
+        b.write32(outb0 + 0x24, aes_out).unwrap(); b.write32(outb0 + 0x20, 1 << 1).unwrap();
+        b.write32(AES_BASE + 0x48, 1).unwrap();
+        assert_ne!(b.read32(AES_BASE + 0x4c), Ok(2), "AES waits for its IN channel");
+        // SHA: DMA_START before its link; pending alongside AES.
+        b.write32(sha, 2).unwrap(); b.write32(sha + 0xc, n / 64).unwrap(); b.write32(sha + 0x1c, 1).unwrap();
+        assert_eq!(b.read32(sha + 0x18), Ok(1));
+        b.write32(outb1 + 0x44, 5).unwrap(); b.write32(outb1 + 0x24, sha_out).unwrap(); b.write32(outb1 + 0x20, 1 << 1).unwrap();
+        assert_eq!(b.read32(sha + 0x18), Ok(0), "SHA done");
+        assert_eq!(sha_digest(&mut b, 32), sha_hex("7877c0db11578baaf55047853b08b5e903a575446f1d65db77896369b1bad513"));
+        assert_ne!(b.read32(AES_BASE + 0x4c), Ok(2), "AES still waiting");
+        assert_eq!(b.read32(outb0).unwrap() & 0xc, 0, "AES OUT channel untouched by SHA");
+        b.write32(inb0 + 0x24, aes_in).unwrap(); b.write32(inb0 + 0x20, 1 << 2).unwrap();
+        assert_eq!(b.read32(AES_BASE + 0x4c), Ok(2), "AES done");
+        assert_ne!(b.read32(inb0).unwrap() & 2, 0, "IN_SUC_EOF");
+        let out: Vec<u8> = (0..64).map(|i| b.read8(aes_dst + i).unwrap()).collect();
+        assert_eq!(out, cipher);
+        assert_eq!(b.periph.aes.blocks, 4);
     }
 
     #[test]
