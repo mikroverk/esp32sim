@@ -5,7 +5,8 @@ use super::{Emu, log, bytes};
 const MAX_TIMING_PRICE: u32 = 1_000_000;
 
 /// Attach the virtual access point and subnet: `ssid=NAME,psk=PASS,chan=N`. No NAT — the browser
-/// has no sockets — so DHCP, DNS, SNTP and ICMP answer, and connections past the gateway are refused.
+/// has no sockets — so DHCP, DNS, SNTP and ICMP answer, and connections past the gateway are refused,
+/// until `esp32sim_nat_relay` hands them to the page.
 ///
 /// # Safety
 /// `e` must point to a live emulator to which the caller has exclusive access. For nonzero `len`,
@@ -25,6 +26,7 @@ pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize)
     };
     log(&format!("[emu] virtual AP '{}' ({}), subnet 10.0.2.0/24, no NAT in the browser", cfg.ssid, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" }));
     // the same access point and network behind every chip's MAC; no NAT in the browser
+    super::nat::end_relay(e);   // a new network has no relay until esp32sim_nat_relay
     if let Err(reason) = e.m.attach_wifi(cfg) { log(&format!("[emu] wifi: {reason}")); return 1; }
     0
 }

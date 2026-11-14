@@ -280,6 +280,39 @@ batch remains readable until the next `ethernet_take` or emulator deletion.
 The [Arduino relay check](evidence/ethernet-c3-2026-10-02/relay.mjs) shows the ABI
 with a host DHCP responder.
 
+## NAT through the page
+
+The other way to give the guest the real network keeps `VirtualNet` and its NAT in the emulator
+and hands the page only socket operations, one level above the Ethernet relay: the page relays
+connects, bytes and closes per flow (a WebSocket per flow, say), not frames, and DHCP, ARP and the
+guest's TCP stay here. Configure the AP with `esp32sim_wifi`, then call `esp32sim_nat_relay(e,
+flags)`, before or after boot (S3, C3, C6, the classic ESP32, and the P4's C6). The NAT runs over
+`esp_soc::nat::QueueTransport`; after each run slice take the records and answer with events
+before the next one.
+
+| Export | Contract |
+| --- | --- |
+| `esp32sim_nat_relay(e, flags)` | bit 0: on (off: no NAT, as before); bit 1: the page resolves A / AAAA (`RESOLVE`), else DNS goes out as UDP to 10.0.2.3:53; bit 2: SNTP answered here from the network clock. 0, or 1 without an access point. |
+| `esp32sim_nat_take(e)` | The records queued since the last take: their byte length, the bytes at `esp32sim_nat_ptr(e)`. |
+| `esp32sim_nat_event(e, kind, id, arg, ptr, len)` | One event; 1 applied (or the bytes taken), 0 for a flow or lookup not waiting for it. |
+
+Records are `u8 op, u8 flags, u16 port, u32 id, u32 len` and `len` bytes, little-endian, each
+padded to a multiple of 4: 1 TCP_CONNECT (port, IPv4[4]), 2 TCP_DATA, 3 TCP_SHUTDOWN, 4 TCP_CLOSE
+(flags bit 0 abort), 5 UDP_OPEN (port, IPv4[4]), 6 UDP_DATA, 7 UDP_CLOSE, 8 RESOLVE (id = query,
+port = qtype, the name). Events are 1 CONNECTED (`arg` = bytes the page takes before its first
+TX_CREDIT), 2 FAILED (`arg` 1 refused, 2 unreachable, 3 policy, 4 offline), 3 TCP_DATA (returns
+the bytes taken; offer the rest again after the next run), 4 TCP_EOF, 5 TCP_RESET, 6 TX_CREDIT
+(`arg` bytes written), 7 UDP_DATA, 8 RESOLVED (`id` = query, `arg` = TTL, n × IPv4[4]),
+9 UNRESOLVED (`arg` = rcode 2 or 3). Bounds per emulator: 16 TCP flows (a 17th SYN waits for its
+retransmission), 64 KiB waiting for the guest per flow, 256 KiB of untaken data, 16 datagrams per
+UDP flow. A chip reset aborts the open flows (TCP_CLOSE with abort), and so does switching the
+relay off or on again, or a new `esp32sim_wifi`, which also drops the relay: the next take hands
+over the old queue's records, those closes last, before any new ones. Take between switches: from
+the first of a replaced queue's records that would bring the waiting ones past 256 KiB, only its
+closes (TCP_CLOSE, UDP_CLOSE) are kept, so a close can name a flow whose earlier records the page
+never got. [EX268](evidence/nat-relay/README.md) runs an Arduino station through it with Node's
+sockets in place of a page.
+
 Camera frames use `esp32sim_in_bin` type 3: `[3, width u16le, height u16le, RGBA...]`.
 The entire message must fit 8 MiB, with nonzero dimensions and exact pixel length.
 The receiver copies the message before returning and applies it at the next run

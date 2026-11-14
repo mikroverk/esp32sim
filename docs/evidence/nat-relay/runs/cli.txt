@@ -1,0 +1,26 @@
+uart: ESP-ROM:esp32s3-20210327
+uart: Build:Mar 27 2021
+uart: rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+uart: configspi:0x00000008
+uart: SPIWP:0x00
+uart: mode:DIO, clock div:1
+uart: load:0x3fce2820,len:0x10cc
+uart: load:0x403c8700,len:0xc2c
+uart: load:0x403cb700,len:0x30b0
+uart: entry 0x403c88b8
+uart: Ready
+uart: scan: 1 network(s)
+uart:   esp32sim rssi=-40 ch=6 open
+uart: connecting to esp32sim....
+uart: ip=10.0.2.15 gw=10.0.2.2 dns=10.0.2.3
+uart: dns: example.org -> 104.20.26.136
+uart: time: 2026-11-09 09:05:41 UTC
+uart: http GET http://example.org/ -> 200, 577 bytes
+uart: time: 2026-11-09 09:05:47 UTC
+uart: time: 2026-11-09 09:05:52 UTC
+uart: time: 2026-11-09 09:05:57 UTC
+uart: time: 2026-11-09 09:06:02 UTC
+uart: time: 2026-11-09 09:06:07 UTC
+uart: time: 2026-11-09 09:06:12 UTC
+[emu] net: 1 DHCP leases, 2 ARP replies, 0 DNS answers, 0 NTP answers, 0 TCP refused, 0 pings, 1 frames ignored
+[emu] nat: 1 TCP connections (0 failed), 3 UDP flows (0 evicted, 0 send errors), 278 bytes out, 1263 bytes in
