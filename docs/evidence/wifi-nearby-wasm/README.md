@@ -1,6 +1,6 @@
 # EX267: the networks around the station from the page (#303)
 
-Base: upstream/main `088308a5`. The final source is the commit containing this receipt.
+Base: upstream/main `5466222a`. The final source is the commit containing this receipt.
 Inputs, hashes and the exact commands are in [inputs.json](inputs.json); the checks that ran
 and their results in [checks.json](checks.json).
 
@@ -87,4 +87,9 @@ the CLI option calls.
   joinable.
 - Firmware ran on the S3 only, as in EX237; the C3, C6, classic and the P4's C6 share
   `StationLink::set_beacons`, and the test checks the list reaches each of their access points.
+- The S31 keeps the default (an error): it is not in the browser build, and the CLI's
+  `--wifi-nearby` does not reach it either.
+- With several access points (a further `--wifi`, CLI only; the page's `esp32sim_wifi` puts up
+  one) the networks around are the first one's, and one with any access point's SSID or BSSID is
+  left out, as `StationLink::set_beacons` has it.
 - The firmware images are not committed; their hashes are in inputs.json.

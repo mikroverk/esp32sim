@@ -18,5 +18,5 @@ uart 2.843:   Cafe rssi=-75 ch=11 open
 uart 4.852: connecting to Jumperly....
 uart 4.852: ip=10.0.2.15 gw=10.0.2.2 dns=10.0.2.3
 uart 4.852: dns: example.com -> 10.0.2.3
-uart 8.002: time: 2026-11-13 07:48:42 UTC
+uart 8.002: time: 2026-11-14 16:51:58 UTC
 uart 8.002: http GET http://example.com/ -> -1 (connection refused)

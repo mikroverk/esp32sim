@@ -18,5 +18,5 @@ uart:   Office rssi=-82 ch=6 secured
 uart: connecting to Jumperly....
 uart: ip=10.0.2.15 gw=10.0.2.2 dns=10.0.2.3
 uart: dns: example.com -> 10.0.2.3
-uart: time: 2026-11-13 07:48:17 UTC
+uart: time: 2026-11-14 16:51:46 UTC
 uart: http GET http://example.com/ -> -1 (connection refused)
