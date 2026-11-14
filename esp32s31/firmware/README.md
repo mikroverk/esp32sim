@@ -9,3 +9,6 @@ build them; the script verifies them, and rebuilds them when a hash does not mat
 - `s31-wifi-*`: `examples/c6-wifi-station` with `tools/s31-wifi/` (no display, console on USB
   Serial/JTAG, the emulator's virtual access point `esp32sim` / `esp32sim-pass` and no other
   credentials). Booted by `wifi_station_s31_mosaico` in `cli/tests/goldens.rs`.
+- `s31-mosaico-board.bin`: `examples/mosaico-board` (its bootloader and partition table are
+  `s31-wifi-bootloader.bin` and `s31-hello-ptable.bin`, byte for byte). Booted by
+  `mosaico_board_s31` in `cli/tests/goldens.rs`.

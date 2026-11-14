@@ -559,6 +559,42 @@ fn wifi_station_s31_mosaico() {
     expect_text("wifi-station-s31.station.txt", &station);
 }
 
+/// The ESP-Mosaico's keys, motor and magnetometers as the esp-mosaico-bsp drives them
+/// (`examples/mosaico-board`, IDF v6.1, `esp32s31/firmware/s31-mosaico-board.bin`): a script
+/// presses the AI button (GPIO 7) and the Boot key (GPIO 61) and the firmware sees both edges;
+/// the vibration motor (GPIO 8) runs from LEDC PWM (60 %, then 100 %) and then as a plain GPIO,
+/// and the board report counts the two runs; espressif/bmm150 1.1.0 finds both BMM150s (0x11,
+/// 0x12), initialises them and reads the Earth-like field at rest. With `--imu-motion 1` the
+/// field read later has turned with the board and kept its magnitude; without it, it has not.
+fn mosaico_board(motion: &str) -> (String, String) {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let script = tmp(&format!("mosaico-keys-{motion}.txt"));
+    std::fs::write(&script, "3.0 press ai 150\n3.5 press boot 150\n").unwrap();
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-wifi-bootloader.bin"), "--ptable", &format!("{fw}/s31-hello-ptable.bin"), "--app", &format!("{fw}/s31-mosaico-board.bin"),
+        "--script", script.to_str().unwrap(), "--imu-motion", motion, "--max-seconds", "11"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    let board: String = r.stdout.lines().filter_map(|l| l.split_once("board: ").map(|(_, rest)| format!("{rest}\n"))).collect();
+    let report = r.stderr.lines().find(|l| l.starts_with("[emu] mosaico: motor")).unwrap_or_else(|| panic!("no motor report:\n{}", r.stderr)).to_string();
+    (board, report)
+}
+
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn mosaico_board_s31() {
+    let (rest, report) = mosaico_board("0");
+    for want in ["KEYS ai=1 boot=1", "KEY ai pressed", "KEY ai released", "KEY boot pressed", "KEY boot released", "MOTOR pwm init ESP_OK",
+        "MAG0 addr=0x11 chip_id=0x32 init=0 drdy=1", "MAG1 addr=0x12 chip_id=0x32 init=0 drdy=1",
+        "MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT", "MAG1 later r=0 x=20 y=0 z=-40 |B|=45 uT", "DONE"] {
+        assert!(rest.contains(want), "missing {want:?}:\n{rest}");
+    }
+    assert!(report.contains("motor off, 2 starts, 59") && report.ends_with("PWR_SW released"), "{report}");
+    let (moving, _) = mosaico_board("1");
+    assert!(moving.contains("MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT"), "{moving}");
+    let later = moving.lines().find(|l| l.starts_with("MAG0 later")).unwrap();
+    assert!(!later.contains("x=20 y=0 z=-40") && later.ends_with("|B|=45 uT"), "{later}");
+    expect_text("mosaico-board-s31.board.txt", &moving);
+}
+
 /// The P4 with an ESP32-C6 co-processor on SDIO (`examples/esp-hosted-p4`): IDF's WiFi station
 /// example on the P4, its WiFi through esp_wifi_remote and ESP-Hosted 2.12.13 to the unmodified
 /// ESP-Hosted slave on the C6, whose radio joins the virtual access point. The P4 resets the C6

@@ -17,6 +17,10 @@ examples/hello_world-c3/managed_components/
 examples/hello_world-c6/build/
 examples/hello_world-c6/sdkconfig*
 examples/hello_world-c6/managed_components/
+examples/mosaico-board/build/
+examples/mosaico-board/sdkconfig
+examples/mosaico-board/sdkconfig.old
+examples/mosaico-board/managed_components/
 examples/hello_world-p4/build/
 examples/hello_world-p4/sdkconfig
 examples/hello_world-p4/sdkconfig.old
@@ -57,3 +61,5 @@ esp32s31/firmware/*.bin
 # and the WiFi station the S31 WiFi test boots (examples/c6-wifi-station, IDF v6.1)
 !esp32s31/firmware/s31-wifi-*.bin
 !esp32s31/firmware/s31-wifi_station.bin
+# and the ESP-Mosaico board test (examples/mosaico-board, IDF v6.1)
+!esp32s31/firmware/s31-mosaico-board.bin
