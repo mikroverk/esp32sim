@@ -30,7 +30,8 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
     eprintln!("  --imu-motion N        scripted IMU motion: 0 at rest, 1 the 30 s tilt/flip/shake script (amoled18-v2, mosaico)");
     eprintln!("  --wifi ssid=…,psk=…   a virtual access point with DHCP, DNS, NTP and NAT to the host network");
-    eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi)");
+    eprintln!("  --wifi-sta ssid=…,psk=…   a virtual station that joins the guest's own access point (classic ESP32)");
+    eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi or --wifi-sta)");
     eprintln!("  --hostfwd tcp:H:HP-G:GP  publish a guest TCP port on the host (repeatable; needs --wifi)");
     eprintln!("  --script F            host actions at emulated times (button presses, touches, serial input, stop)");
     eprintln!("  --tft-png F, --wav F  save the display / the audio at the end of the run");
@@ -119,6 +120,8 @@ pub struct Opts {
     pub usb_host: Option<String>,
     /// `--pcap FILE`: every Ethernet frame the WiFi station sends and receives, as a pcap
     pub pcap: Option<String>,
+    /// `--wifi-sta SPEC`: a virtual station that joins the guest's own access point
+    pub wifi_sta: Option<String>,
     pub board: String, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     /// `--imu-motion N`: scripted IMU motion mode for boards with an IMU model (0 at rest, 1 the 30 s handling script)
@@ -179,6 +182,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--wifi" => o.wifi.push(next()),
             "--hostfwd" => o.hostfwd.push(next()),
             "--wifi-nearby" => o.wifi_nearby.push(next()),
+            "--wifi-sta" => o.wifi_sta = Some(next()),
             "--ble-nearby" => o.ble_nearby.push(next()),
             "--ble-scan" => o.ble_scan = true,
             "--ble-observe" => o.ble_observe = true,
@@ -252,7 +256,12 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
         i += 1;
     }
     if !o.hostfwd.is_empty() && o.wifi.is_empty() { usage_error("--hostfwd requires --wifi"); }
-    if o.pcap.is_some() && o.wifi.is_empty() { usage_error("--pcap requires --wifi"); }
+    if o.pcap.is_some() && o.wifi.is_empty() && o.wifi_sta.is_none() { usage_error("--pcap requires --wifi or --wifi-sta"); }
+    if let Some(spec) = &o.wifi_sta {
+        if let Err(e) = esp_soc::wifi::sta::StaConfig::parse(spec) { usage_error(&format!("--wifi-sta: {e}")); }
+        if !o.wifi.is_empty() { usage_error("--wifi-sta and --wifi together (a virtual access point and a virtual station at once) are not modelled yet"); }
+        if o.chip != "esp32" { usage_error("--wifi-sta: only the classic ESP32 so far (--chip esp32)"); }
+    }
     if !o.hostfwd.is_empty() && !matches!(o.net.split(',').next(), Some("nat" | "user")) { usage_error("--hostfwd requires --net nat"); }
     for spec in &o.hostfwd {
         if let Err(e) = esp_soc::nat::HostFwdSpec::parse(spec) { usage_error(&format!("--hostfwd: {e}")); }
@@ -607,6 +616,12 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
         let net_log = m.bus.debug.has("net");
         attach_wifi(&mut m.bus, o, net_log);
     }
+    if let Some(spec) = &o.wifi_sta {
+        let cfg = esp_soc::wifi::sta::StaConfig::parse(spec).unwrap_or_else(|e| usage_error(&format!("--wifi-sta: {e}")));
+        let line = format!("[emu] virtual station {} for '{}' ({}): it joins the guest's own access point", esp_soc::wifi::mac_str(&cfg.mac), cfg.ssid, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
+        m.bus.attach_wifi_station(cfg).unwrap_or_else(|e| usage_error(&format!("--wifi-sta: {e}")));
+        eprintln!("{line}");
+    }
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     if let Some(mb) = o.psram_mb {
         if !matches!(mb, 0 | 4) { usage_error("--psram-mb: classic ESP32 supports only 0 or 4 MiB"); }
@@ -847,7 +862,7 @@ fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool
 /// `--wifi` and `--web` to the board page's Network panel. On a P4 run the co-processor's C6 has
 /// the station (`setup_coproc`), and only `--pcap` applies to it.
 fn attach_net_tap<S: Soc>(m: &mut Machine<S>, o: &Opts) {
-    if o.wifi.is_empty() || (o.pcap.is_none() && m.web.is_none()) { return; }
+    if (o.wifi.is_empty() && o.wifi_sta.is_none()) || (o.pcap.is_none() && m.web.is_none()) { return; }
     let mut cap = esp_soc::netcap::NetCapture::default();
     if let Some(path) = &o.pcap {
         let file = std::fs::File::create(path).unwrap_or_else(|e| usage_error(&format!("--pcap {path}: {e}")));

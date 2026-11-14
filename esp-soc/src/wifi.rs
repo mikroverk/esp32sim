@@ -5,6 +5,7 @@
 #[cfg(test)]
 mod tests;
 mod mac;
+pub mod sta;
 pub use mac::{WifiMac, TXQ_COUNT};
 
 pub fn mac_str(m: &[u8]) -> String { m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":") }
@@ -556,6 +557,9 @@ pub struct StationLink {
     /// the network monitor (`--pcap`, the board page's Network panel): every Ethernet frame the
     /// station sends and receives; it survives `attach` and a guest reboot
     tap: Option<crate::netcap::NetTap>,
+    /// the virtual station that joins the guest's own access point (`attach_station`), instead
+    /// of the access points: the guest is then the access point and the station its client
+    sta: Option<sta::VirtualSta>,
 }
 
 /// A receive descriptor's `has_data` bit (word 0 bit 30), the same on the S3, C3 and C6 MACs: the
@@ -574,8 +578,8 @@ const RX_STALL_US: u64 = 50_000;
 const NET_POLL_US: u64 = 500;
 
 impl StationLink {
-    /// Put an access point and the network behind it on the air, replacing any there were. The
-    /// queues, pacing and counts start again; the relay mode stays.
+    /// Put an access point and the network behind it on the air, replacing any there were, and
+    /// any station. The queues, pacing and counts start again; the relay mode stays.
     pub fn attach(&mut self, ap: Option<VirtualAp>, net: Option<crate::net::VirtualNet>) {
         *self = StationLink { aps: ap.into_iter().collect(), net, relay: self.relay, tap: self.tap.take(), ..Default::default() };
     }
@@ -583,6 +587,7 @@ impl StationLink {
     /// It needs an access point attached first and shares no SSID or BSSID with one there. Its
     /// beacons go out a little after the others', not at the same instant.
     pub fn add_ap(&mut self, cfg: ApConfig, debug: &crate::DebugFlags) -> Result<(), String> {
+        if self.sta.is_some() { return Err("an access point beside a virtual station: not modelled yet".into()); }
         if self.aps.is_empty() { return Err("a further access point needs the first one attached".into()); }
         if self.aps.len() >= APS_MAX { return Err(format!("more than {APS_MAX} access points")); }
         check_new_ap(&self.aps.iter().map(|a| a.cfg.clone()).collect::<Vec<_>>(), &cfg)?;
@@ -615,7 +620,8 @@ impl StationLink {
     pub fn surviving_reboot(self) -> Self {
         let mut net = self.net;
         if let Some(nat) = net.as_mut().and_then(|net| net.nat.as_mut()) { nat.abort_all(); }
-        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, ..Default::default() }
+        let sta = self.sta.map(|mut s| { s.restart(); s });
+        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, sta, ..Default::default() }
     }
 
     /// Record every Ethernet frame the station sends and receives into `tap`.
@@ -623,10 +629,28 @@ impl StationLink {
     /// A frame the station sends still ends in the 4 bytes of the 802.11 FCS slot; the capture
     /// leaves them out, so it holds the Ethernet frame as it went on the wire.
     fn capture(&self, dir: crate::netcap::Dir, now_us: u64, eth: &[u8]) {
-        let Some(t) = &self.tap else { return };
         let eth = if dir == crate::netcap::Dir::FromStation && eth.len() >= 18 { &eth[..eth.len() - 4] } else { eth };
+        self.capture_whole(dir, now_us, eth);
+    }
+    /// `capture` for an Ethernet frame without the FCS slot: what the virtual station takes from
+    /// the guest's access point, which `VirtualSta::on_ap_tx` has already cut it from.
+    fn capture_whole(&self, dir: crate::netcap::Dir, now_us: u64, eth: &[u8]) {
+        let Some(t) = &self.tap else { return };
         t.lock().unwrap().record(dir, now_us, eth);
     }
+
+    /// Put a virtual station on the air (`--wifi-sta`) that joins the guest's own access point.
+    /// It takes the place of access points: the guest with both an access point and a station of
+    /// its own (AP+STA) is not modelled yet. The queues, pacing and counts start again; the relay
+    /// mode stays, and with it on the station's frames go to the host instead of its own DHCP.
+    pub fn attach_station(&mut self, mut station: sta::VirtualSta) -> Result<(), String> {
+        if !self.aps.is_empty() { return Err("a virtual station needs no access point attached: AP+STA is not modelled yet".into()); }
+        station.host = !self.relay;
+        *self = StationLink { relay: self.relay, tap: self.tap.take(), sta: Some(station), ..Default::default() };
+        Ok(())
+    }
+    /// The virtual station of `attach_station`, if there is one.
+    pub fn station(&self) -> Option<&sta::VirtualSta> { self.sta.as_ref() }
 
     /// The first access point, the one `--wifi` named first.
     pub fn ap(&self) -> Option<&VirtualAp> { self.aps.first() }
@@ -638,6 +662,7 @@ impl StationLink {
     /// The channel and signal a frame from the air arrives with (`VirtualAp::rx_meta`): a further
     /// access point's channel for a frame from its BSSID, otherwise as the first one says.
     pub fn rx_meta(&self, frame: &[u8]) -> (u8, i8) {
+        if let Some(s) = &self.sta { return (s.channel(), -40); }
         if frame.len() >= 16 {
             if let Some(a) = self.aps.iter().skip(1).find(|a| frame[10..16] == a.cfg.bssid) { return (a.cfg.channel, -40); }
         }
@@ -674,6 +699,18 @@ impl StationLink {
     /// data goes to the network or the relay.
     pub fn station_tx(&mut self, frame: &[u8], now_us: u64) {
         self.tx_frames += 1;
+        if self.sta.is_some() {
+            let Some(eth) = self.sta.as_mut().and_then(|s| s.on_ap_tx(frame, now_us)) else { return };
+            if !self.relay {
+                self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
+                let sent = self.sta.as_mut().map_or(Vec::new(), |s| { s.host_rx(&eth, now_us); s.take_sent() });
+                for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
+            } else if eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE {
+                self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
+                self.eth_tx.push(eth);
+            } else { self.tx_dropped += 1; }
+            return;
+        }
         let Some(eth) = self.route_station_tx(frame, now_us).and_then(|data| data_to_eth(&data)) else { return };
         if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) {
             self.capture(crate::netcap::Dir::FromStation, now_us, &eth);
@@ -723,6 +760,7 @@ impl StationLink {
     /// every scheduling round while WiFi is on, before it reads the ring.
     #[inline]
     pub fn nothing_due(&self, now_us: u64) -> bool {
+        if let Some(s) = &self.sta { return self.in_rx_gap(now_us) || (s.idle_at(now_us) && self.eth_rx.is_empty()); }
         self.in_rx_gap(now_us) || self.aps.is_empty() || (self.aps.iter().all(|ap| ap.idle_at(now_us)) && self.eth_rx.is_empty())
     }
 
@@ -740,6 +778,25 @@ impl StationLink {
     pub fn next_rx(&mut self, now_us: u64, ring_busy: bool) -> Option<Vec<u8>> {
         if self.in_rx_gap(now_us) { return None; }
         if ring_busy && now_us.wrapping_sub(self.last_rx_us) < RX_STALL_US { return None; }
+        if self.sta.is_some() {
+            let mut due = self.sta.as_mut().map_or(Vec::new(), |s| s.step(now_us));
+            let sent = self.sta.as_mut().map_or(Vec::new(), |s| s.take_sent());
+            for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
+            if due.is_empty() && !self.eth_rx.is_empty() {
+                let e = self.eth_rx.remove(0);
+                if self.sta.as_mut().is_some_and(|s| s.data_to_ds(&e, now_us)) {
+                    self.capture(crate::netcap::Dir::ToStation, now_us, &e);
+                    due = self.sta.as_mut().map_or(Vec::new(), |s| s.step(now_us));
+                }
+            }
+            let s = self.sta.as_mut()?;
+            if due.is_empty() { return None; }
+            due.sort_by_key(|a| a.at_us);
+            let first = due.remove(0);
+            s.queue.extend(due);
+            self.last_rx_us = now_us;
+            return Some(first.frame);
+        }
         if self.aps.is_empty() { return None; }
         // each frame with the access point it came from, so what is not delivered goes back there
         let mut due: Vec<(usize, AirFrame)> = Vec::new();
@@ -789,6 +846,7 @@ impl StationLink {
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
     pub fn set_relay(&mut self, enabled: bool) {
         if self.relay != enabled { self.eth_tx.clear(); self.eth_rx.clear(); self.relay = enabled; }
+        if let Some(s) = &mut self.sta { s.host = !enabled; }
     }
 
     /// The frames the station sent since the last call, in relay mode.
@@ -798,7 +856,8 @@ impl StationLink {
 
     /// A frame from the host for the station, in relay mode.
     pub fn receive_relay_frame(&mut self, frame: &[u8]) -> Result<(), String> {
-        if !self.relay || self.aps.is_empty() { return Err("Ethernet relay requires relay mode and a virtual AP".into()); }
+        if !self.relay || (self.aps.is_empty() && self.sta.is_none()) { return Err("Ethernet relay requires relay mode and a virtual AP or station".into()); }
+        if self.sta.as_ref().is_some_and(|s| s.state != sta::StaLink::Joined) { return Err("the virtual station has not joined the guest's access point yet".into()); }
         if !(14..=RELAY_FRAME_MAX).contains(&frame.len()) { return Err(format!("Ethernet frame must be 14..={RELAY_FRAME_MAX} bytes without FCS")); }
         if self.eth_rx.len() >= RELAY_QUEUE { return Err("Ethernet receive queue full".into()); }
         self.eth_rx.push(frame.to_vec());
@@ -812,11 +871,13 @@ impl StationLink {
         let mut lines = Vec::new();
         if self.tx_frames + self.rx_frames + self.rx_dropped + self.rx_unarmed > 0 {
             let unarmed = if self.rx_unarmed > 0 { format!(", {} before the receive ring was set up", self.rx_unarmed) } else { String::new() };
-            lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor{unarmed}){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.aps.iter().map(|ap| {
+            let guest = if self.sta.is_some() { "the guest's access point" } else { "the station" };
+            lines.push(format!("[emu] wifi: {} frames sent by {guest}, {} received ({} dropped: no descriptor{unarmed}){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.aps.iter().map(|ap| {
                 let name = if self.aps.len() > 1 { format!(" '{}'", ap.cfg.ssid) } else { String::new() };
                 format!("; AP{name}: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)
             }).collect::<String>()));
         }
+        if let Some(s) = &self.sta { lines.push(s.report()); }
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
             if let Some(t) = &n.nat {
                 let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };

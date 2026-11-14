@@ -670,3 +670,282 @@ fn epoch_belongs_in_the_first_wifi_spec_only() {
     let e = ApConfig::parse_all(&["ssid=a".into(), "ssid=b,epoch=1000".into()]).unwrap_err();
     assert!(e.contains("epoch"), "{e}");
 }
+
+fn station(spec: &str) -> sta::VirtualSta { sta::VirtualSta::new(sta::StaConfig::parse(spec).unwrap(), false) }
+
+/// What the guest's MAC hands the air from its TX queue: the frame and the 4 bytes of its FCS slot.
+fn with_fcs_slot(mut frame: Vec<u8>) -> Vec<u8> { frame.extend_from_slice(&[0; 4]); frame }
+
+#[test]
+fn station_options_parse_and_refuse() {
+    let cfg = sta::StaConfig::parse("ssid=lab,psk=lab-pass,mac=02:00:00:00:00:09").unwrap();
+    assert_eq!((cfg.ssid.as_str(), cfg.psk.as_deref(), cfg.mac), ("lab", Some("lab-pass"), [2, 0, 0, 0, 0, 9]));
+    assert_eq!(sta::StaConfig::parse("ssid=lab,password=lab-pass").unwrap().psk.as_deref(), Some("lab-pass"));
+    for (spec, why) in [("", "needs ssid"), ("psk=lab-pass", "needs ssid"), ("ssid=lab,psk=short", "8 to 63"),
+                        ("ssid=lab,chan=6", "unknown station option 'chan'"), ("ssid=lab,mac=02:00", "expected six hexadecimal octets")] {
+        let e = sta::StaConfig::parse(spec).unwrap_err();
+        assert!(e.contains(why), "{spec}: {e}");
+    }
+}
+
+/// The station against `VirtualAp` standing in for the guest's access point, with `VirtualNet`'s
+/// DHCP server behind it: each side checks the other's half of the handshake.
+fn station_joins(ap_psk: Option<&str>, sta_spec: &str, until_us: u64) -> (sta::VirtualSta, VirtualAp) {
+    station_joins_with(ap_psk, sta_spec, until_us, |_| {})
+}
+
+/// `station_joins`, with `edit` applied to each beacon the station hears.
+fn station_joins_with(ap_psk: Option<&str>, sta_spec: &str, until_us: u64, edit: impl Fn(&mut Vec<u8>)) -> (sta::VirtualSta, VirtualAp) {
+    let mut ap = VirtualAp::new(ApConfig { psk: ap_psk.map(Into::into), ..config() }, false);
+    let mut sta = station(sta_spec);
+    let mut net = crate::net::VirtualNet::new(false);
+    for now in (0..until_us).step_by(100) {
+        for a in ap.step(now) {
+            let mut f = a.frame;
+            if is_beacon(&f) { edit(&mut f); }
+            if let Some(eth) = sta.on_ap_tx(&with_fcs_slot(f), now) { sta.host_rx(&eth, now); }
+        }
+        for a in sta.step(now) {
+            let Some(data) = ap.on_station_tx(&with_fcs_slot(a.frame), now) else { continue };
+            let Some(eth) = data_to_eth(&data) else { continue };
+            net.sta_mac = sta.cfg.mac;
+            for reply in net.handle(&eth, now) {
+                if let Some(f) = ap.data_from_ds(&reply) { ap.queue.push(AirFrame { at_us: now, frame: f }); }
+            }
+        }
+        if sta.lease.is_some() { break; }
+    }
+    (sta, ap)
+}
+
+#[test]
+fn station_joins_an_open_access_point_and_takes_a_lease() {
+    let (sta, ap) = station_joins(None, "ssid=esp32sim", 2_000_000);
+    assert_eq!((sta.state, ap.state), (sta::StaLink::Joined, StaState::Associated));
+    assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    assert_eq!(sta.channel(), 6);
+}
+
+#[test]
+fn station_completes_the_four_way_handshake_with_the_authenticator() {
+    let (sta, ap) = station_joins(Some("esp32sim-pass"), "ssid=esp32sim,psk=esp32sim-pass", 2_000_000);
+    assert_eq!(ap.wpa.state, WpaState::Installed);
+    assert_eq!((sta.state, sta.lease), (sta::StaLink::Joined, Some([10, 0, 2, 15])));
+}
+
+#[test]
+fn station_with_the_wrong_passphrase_never_joins_and_starts_again() {
+    let (sta, ap) = station_joins(Some("esp32sim-pass"), "ssid=esp32sim,psk=not-the-pass", 3_500_000);
+    assert_ne!(ap.wpa.state, WpaState::Installed);
+    assert_ne!(sta.state, sta::StaLink::Joined);
+    assert_eq!((sta.stats.0, sta.lease), (0, None));
+    // message 3 fails its MIC, the handshake times out, and the next beacon starts another attempt
+    assert!(sta.attempts >= 2, "{} attempts", sta.attempts);
+}
+
+#[test]
+fn station_does_not_join_an_open_network_with_a_passphrase() {
+    let (sta, _) = station_joins(None, "ssid=esp32sim,psk=esp32sim-pass", 1_000_000);
+    assert_eq!(sta.state, sta::StaLink::Listening);
+}
+
+#[test]
+fn station_listens_again_after_a_deauthentication() {
+    let (mut sta, mut ap) = station_joins(None, "ssid=esp32sim", 2_000_000);
+    assert!(sta.lease.is_some());
+    let mut deauth = ap.beacon_like(12, &sta.cfg.mac, 0)[..24].to_vec();
+    deauth.extend_from_slice(&3u16.to_le_bytes());                              // leaving
+    assert!(sta.on_ap_tx(&with_fcs_slot(deauth), 2_000_000).is_none());
+    assert_eq!((sta.state, sta.lease), (sta::StaLink::Listening, None));
+}
+
+/// Through `StationLink` as the bus uses it, with the relay on: the station joins, takes no lease
+/// of its own, and carries the host's Ethernet frames both ways.
+#[test]
+fn station_link_carries_the_relay_once_joined() {
+    let mut link = StationLink::default();
+    link.set_relay(true);
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    let mut ap = VirtualAp::new(config(), false);
+    // the host is the station: without four-address frames it sends and takes the station's MAC
+    let host = sta::StaConfig::parse("ssid=esp32sim").unwrap().mac;
+    let mut to_host = Vec::new();
+    let mut from_host = 0;
+    for now in (0..1_000_000).step_by(100) {
+        for a in ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+        if link.station().is_some_and(|s| s.state == sta::StaLink::Joined) && from_host == 0 {
+            let mut eth = vec![0xff; 6];
+            eth.extend_from_slice(&host); eth.extend_from_slice(&[0x08, 0x06]); eth.extend_from_slice(&[0; 28]);
+            link.receive_relay_frame(&eth).unwrap();
+            let mut down = host.to_vec();
+            down.extend_from_slice(&config().bssid); down.extend_from_slice(&[0x08, 0x06]); down.extend_from_slice(&[0; 28]);
+            let f = ap.data_from_ds(&down).unwrap();
+            ap.queue.push(AirFrame { at_us: now, frame: f });
+            from_host = 1;
+        }
+        if let Some(f) = link.next_rx(now, false) {
+            if let Some(data) = ap.on_station_tx(&with_fcs_slot(f), now) {
+                if data_to_eth(&data).is_some_and(|e| e[..6] == [0xff; 6] && e[12..14] == [0x08, 0x06]) { from_host = 2; }
+            }
+        }
+        to_host.extend(link.take_relay_frames());
+    }
+    assert_eq!(from_host, 2, "the host's frame did not reach the access point");
+    assert_eq!(to_host.len(), 1, "the access point's frame did not reach the host");
+    assert_eq!(&to_host[0][..6], &host[..]);
+    assert_eq!(link.station().unwrap().lease, None);
+}
+
+/// A beacon of `config()`'s access point with `edit` applied to it, through `VirtualAp`.
+fn beacon(psk: bool, tsf_us: u64, edit: impl Fn(&mut Vec<u8>)) -> Vec<u8> {
+    let mut ap = VirtualAp::new(ApConfig { psk: psk.then(|| "esp32sim-pass".into()), ..config() }, false);
+    let mut f = ap.beacon_like(8, &[0xff; 6], tsf_us);
+    edit(&mut f);
+    with_fcs_slot(f)
+}
+
+/// The offset of the RSN element in `config()`'s secured beacon.
+fn rsn_at(f: &[u8]) -> usize { (36..f.len()).find(|&i| f[i..].starts_with(RSN_IE)).unwrap() }
+
+#[test]
+fn station_leaves_networks_it_cannot_join_alone_and_says_why() {
+    for (psk, edit, why) in [
+        (true, (|f: &mut Vec<u8>| { let i = rsn_at(f); f[i + 19] = 8; }) as fn(&mut Vec<u8>), "WPA3-SAE only"),
+        (true, |f| { let i = rsn_at(f); f[i + 20] |= 0x40; }, "requires protected management frames"),
+        (true, |f| { let i = rsn_at(f); f.drain(i..i + RSN_IE.len()); }, "is WEP or WPA"),
+        (false, |_| {}, "is open and the station has a passphrase"),
+    ] {
+        let mut sta = station("ssid=esp32sim,psk=esp32sim-pass");
+        assert!(sta.on_ap_tx(&beacon(psk, 0, edit), 100).is_none());
+        assert_eq!((sta.state, sta.attempts), (sta::StaLink::Listening, 0), "{why}");
+        assert!(sta.report().contains(why), "{why}: {}", sta.report());
+        assert!(sta.step(200).is_empty(), "{why}");
+    }
+    let mut open = station("ssid=esp32sim");
+    open.on_ap_tx(&beacon(true, 0, |_| {}), 100);
+    assert!(open.report().contains("is secured and the station has no passphrase"), "{}", open.report());
+}
+
+#[test]
+fn station_drops_its_own_broadcasts_repeated_by_the_access_point() {
+    let (mut sta, mut ap) = station_joins(None, "ssid=esp32sim", 2_000_000);
+    let mine = sta.cfg.mac;
+    let broadcast = |src: [u8; 6]| { let mut e = vec![0xff; 6]; e.extend_from_slice(&src); e.extend_from_slice(&[0x08, 0x06]); e.extend_from_slice(&[0; 28]); e };
+    let repeated = ap.data_from_ds(&broadcast(mine)).unwrap();
+    assert!(sta.on_ap_tx(&with_fcs_slot(repeated), 2_000_000).is_none());
+    let other = ap.data_from_ds(&broadcast([2, 0, 0, 0, 0, 7])).unwrap();
+    assert!(sta.on_ap_tx(&with_fcs_slot(other), 2_000_000).is_some());
+}
+
+#[test]
+fn station_listens_again_when_the_access_point_stops_or_starts_again() {
+    // a deauthentication to every station
+    let (mut sta, mut ap) = station_joins(None, "ssid=esp32sim", 2_000_000);
+    let mut deauth = ap.beacon_like(12, &[0xff; 6], 0)[..24].to_vec();
+    deauth.extend_from_slice(&3u16.to_le_bytes());
+    sta.on_ap_tx(&with_fcs_slot(deauth), 2_000_000);
+    assert_eq!(sta.state, sta::StaLink::Listening);
+    // no beacon for 3 s
+    let (mut sta, _) = station_joins(None, "ssid=esp32sim", 2_000_000);
+    sta.step(4_000_000);
+    assert!(sta.step(5_500_000).is_empty());
+    assert_eq!(sta.state, sta::StaLink::Listening);
+    assert!(sta.report().contains("no beacon from the access point"), "{}", sta.report());
+    // a beacon whose timestamp went back
+    let (mut sta, _) = station_joins(None, "ssid=esp32sim", 2_000_000);
+    sta.on_ap_tx(&beacon(false, 1_900_000, |_| {}), 1_950_000);
+    assert_eq!(sta.state, sta::StaLink::Joined);
+    sta.on_ap_tx(&beacon(false, 1_000, |_| {}), 1_960_000);
+    assert_eq!(sta.state, sta::StaLink::Listening);
+    assert!(sta.report().contains("started again"), "{}", sta.report());
+}
+
+#[test]
+fn station_link_refuses_what_it_cannot_carry_and_captures_both_ways() {
+    let mut link = StationLink::default();
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    assert!(link.add_ap(config(), &crate::DebugFlags::default()).is_err(), "an access point beside the station");
+    let tap: crate::netcap::NetTap = std::sync::Arc::new(std::sync::Mutex::new(crate::netcap::NetCapture::default()));
+    tap.lock().unwrap().enable_live();
+    link.set_tap(tap.clone());
+    let mut ap = VirtualAp::new(config(), false);
+    let mut net = crate::net::VirtualNet::new(false);
+    for now in (0..1_000_000).step_by(100) {
+        for a in ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+        let Some(f) = link.next_rx(now, false) else { continue };
+        let Some(eth) = ap.on_station_tx(&with_fcs_slot(f), now).and_then(|d| data_to_eth(&d)) else { continue };
+        net.sta_mac = link.station().unwrap().cfg.mac;
+        for reply in net.handle(&eth, now) { if let Some(f) = ap.data_from_ds(&reply) { ap.queue.push(AirFrame { at_us: now, frame: f }); } }
+    }
+    assert_eq!(link.station().unwrap().lease, Some([10, 0, 2, 15]));
+    let frames = tap.lock().unwrap().take_live();
+    let (to_guest, from_guest) = (frames.iter().filter(|m| m[1] == 1).count(), frames.iter().filter(|m| m[1] == 0).count());
+    assert!(to_guest >= 2 && from_guest >= 2, "DISCOVER/REQUEST out, OFFER/ACK in: {to_guest} out, {from_guest} in");
+    // each IPv4 frame whole, both ways: its Ethernet header and the datagram's total length
+    for m in &frames {
+        let eth = &m[10..];
+        if eth[12..14] != [0x08, 0x00] { continue; }
+        assert_eq!(eth.len(), 14 + u16::from_be_bytes([eth[16], eth[17]]) as usize, "direction {}", m[1]);
+    }
+    // the relay takes no frame before the station has joined
+    let mut relay = StationLink::default();
+    relay.set_relay(true);
+    relay.attach_station(station("ssid=esp32sim")).unwrap();
+    let eth = [vec![0xff; 6], vec![2, 0, 0, 0, 0, 1], vec![0x08, 0x06], vec![0; 28]].concat();
+    assert!(relay.receive_relay_frame(&eth).unwrap_err().contains("has not joined"));
+}
+
+#[test]
+fn station_takes_the_access_points_group_cipher_and_needs_ccmp_pairwise() {
+    // WPA/WPA2 mixed mode as ESP-IDF announces it: a TKIP group cipher, CCMP among the pairwise
+    let tkip_group = |f: &mut Vec<u8>| { let i = rsn_at(f); f[i + 7] = 2; };
+    let mut sta = station("ssid=esp32sim,psk=esp32sim-pass");
+    sta.on_ap_tx(&beacon(true, 0, tkip_group), 100);
+    assert_eq!((sta.state, sta.attempts), (sta::StaLink::Authenticating, 1), "{}", sta.report());
+    let mut auth = beacon(true, 0, |_| {})[..24].to_vec();
+    auth[0] = 0xb0; auth[4..10].copy_from_slice(&sta.cfg.mac);
+    auth.extend_from_slice(&[0, 0, 2, 0, 0, 0]);
+    sta.on_ap_tx(&with_fcs_slot(auth), 200);
+    let assoc = sta.step(1_000).into_iter().map(|a| a.frame).find(|f| f[0] == 0x00).expect("an association request");
+    let i = assoc.windows(2).position(|w| w == [48, 20]).expect("an RSN element");
+    assert_eq!(&assoc[i + 4..i + 8], &[0x00, 0x0f, 0xac, 2], "the access point's TKIP group cipher");
+    assert_eq!(&assoc[i + 10..i + 14], &[0x00, 0x0f, 0xac, 4], "CCMP pairwise");
+    // TKIP alone among the pairwise ciphers
+    let mut sta = station("ssid=esp32sim,psk=esp32sim-pass");
+    sta.on_ap_tx(&beacon(true, 0, |f| { let i = rsn_at(f); f[i + 13] = 2; }), 100);
+    assert_eq!(sta.attempts, 0);
+    assert!(sta.report().contains("offers no CCMP pairwise cipher"), "{}", sta.report());
+}
+
+#[test]
+fn station_stops_after_three_refusals_with_the_same_status() {
+    let mut sta = station("ssid=esp32sim");
+    let mut now = 0;
+    for _ in 0..5 {
+        now += 2_000_000;
+        sta.on_ap_tx(&beacon(false, now, |_| {}), now);
+        let mut auth = beacon(false, 0, |_| {})[..24].to_vec();
+        auth[0] = 0xb0; auth[4..10].copy_from_slice(&sta.cfg.mac);
+        auth.extend_from_slice(&[0, 0, 2, 0, 17, 0]);                       // status 17: AP is full
+        sta.on_ap_tx(&with_fcs_slot(auth), now + 100);
+    }
+    assert_eq!(sta.attempts, 3);
+    assert!(sta.report().contains("authentication refused 3 times with status 17: not trying again"), "{}", sta.report());
+}
+
+#[test]
+fn station_takes_tkip_group_frames_without_their_longer_trailer() {
+    // WPA/WPA2 mixed mode: a TKIP group cipher, so a group frame ends in 12 bytes, not 8
+    let tkip_group = |f: &mut Vec<u8>| { let i = rsn_at(f); f[i + 7] = 2; };
+    let (mut sta, mut ap) = station_joins_with(Some("esp32sim-pass"), "ssid=esp32sim,psk=esp32sim-pass", 2_000_000, tkip_group);
+    assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    let eth = [vec![0xff; 6], vec![2, 0, 0, 0, 0, 7], vec![0x08, 0x06], vec![0x11; 28]].concat();
+    let mut f = ap.data_from_ds(&eth).unwrap();          // CCMP-framed: header, payload, 8 bytes of MIC
+    f.extend_from_slice(&[0; 4]);                        // TKIP's 4 more: Michael MIC and ICV are 12
+    assert_eq!(sta.on_ap_tx(&with_fcs_slot(f), 2_000_000), Some(eth.clone()));
+    // a unicast frame keeps CCMP's 8
+    let mut to_sta = eth.clone();
+    to_sta[..6].copy_from_slice(&sta.cfg.mac);
+    let f = ap.data_from_ds(&to_sta).unwrap();
+    assert_eq!(sta.on_ap_tx(&with_fcs_slot(f), 2_000_000), Some(to_sta));
+}

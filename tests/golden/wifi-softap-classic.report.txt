@@ -1,0 +1,3 @@
+27733 exceptions, 1854 interrupts
+[emu] wifi: 63 frames sent by the guest's access point, 6 received (0 dropped: no descriptor)
+[emu] wifi-sta: 'esp32sim-ap' Joined, 1 joins in 1 attempts, lease 192.168.4.2, 6 frames to the access point, 2 data frames from it
