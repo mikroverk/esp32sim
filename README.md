@@ -25,8 +25,8 @@ CameraWebServer path is unsupported. See the [camera scope and example](docs/esp
 | ESP32-C3 | RISC-V RV32IMC | draft | console only |
 | ESP32-C6 | RISC-V RV32IMAC | draft | Waveshare ESP32-C6-LCD-1.47 (with the 802.15.4 radio), Seeed XIAO ESP32-C6 |
 | ESP32 (classic) | 2 x Xtensa LX6 | early | LilyGO TTGO T-Display, ESP32-2432S028 "Cheap Yellow Display", AI-Thinker ESP32-CAM (raw capture), Ulanzi TC001 |
-| ESP32-P4 (rev < 3; rev ≥ 3: hello_world, ESP-Hosted) | 2 x RISC-V RV32IMAFC | draft | console only; the C6 co-processor over SDIO |
-| ESP32-S31 | 2 x RISC-V RV32IMAFC | draft | console / Machine CLI (`--chip s31`); IDF hello_world |
+| ESP32-P4 (rev < 3 and rev ≥ 3) | 2 x RISC-V RV32IMAFC | draft | Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (rev ≥ 3); WiFi through an emulated ESP32-C6 co-processor on SDIO (ESP-Hosted) |
+| ESP32-S31 | 2 x RISC-V RV32IMAFC | draft | Espressif ESP-Mosaico (display, touch, WiFi, audio, IMU, keys); IDF v6.1 |
 
 ## Features
 
@@ -49,6 +49,7 @@ These run on the [demo site](https://mikroverk.github.io/esp32sim/):
 - An LVGL touch panel at 480x480 with a SID player.
 - [pocket-tank](https://github.com/mediacutlet/pocket-tank), where a small transformer model steers the fish.
 - An 802.15.4 energy scanner, and two Contiki-NG motes running RPL/IPv6, on the ESP32-C6.
+- The Scintilla synth on the ESP32-P4 Touch-LCD-3.5, and the P4 reaching WiFi through an ESP32-C6 co-processor.
 - MicroPython on a classic ESP32 T-Display.
 
 You can also load your own firmware for any of the chips.
