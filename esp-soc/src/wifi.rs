@@ -554,6 +554,9 @@ pub struct StationLink {
     rx_unarmed: u64,
     /// relayed frames that were too long or found the relay queue full
     tx_dropped: u64,
+    /// frames from the relay that the virtual station could not carry: taken while it was joined,
+    /// they came up after it had left the access point
+    relay_lost: u64,
     /// the network monitor (`--pcap`, the board page's Network panel): every Ethernet frame the
     /// station sends and receives; it survives `attach` and a guest reboot
     tap: Option<crate::netcap::NetTap>,
@@ -680,6 +683,8 @@ impl StationLink {
     pub fn rx_dropped(&self) -> u64 { self.rx_dropped }
     pub fn rx_unarmed(&self) -> u64 { self.rx_unarmed }
     pub fn tx_dropped(&self) -> u64 { self.tx_dropped }
+    /// Frames from the relay the virtual station could not carry, as it had left the access point.
+    pub fn relay_lost(&self) -> u64 { self.relay_lost }
     /// The networks around (beacon-only, not joinable), replacing the ones there were; `None`
     /// without an access point. A network with the access point's own SSID or BSSID would be that
     /// access point, so it is left out: the ones left out come back with the reason.
@@ -787,6 +792,9 @@ impl StationLink {
                 if self.sta.as_mut().is_some_and(|s| s.data_to_ds(&e, now_us)) {
                     self.capture(crate::netcap::Dir::ToStation, now_us, &e);
                     due = self.sta.as_mut().map_or(Vec::new(), |s| s.step(now_us));
+                } else {
+                    // taken while the station was joined, which it has left since
+                    self.relay_lost += 1;
                 }
             }
             let s = self.sta.as_mut()?;
@@ -877,7 +885,12 @@ impl StationLink {
                 format!("; AP{name}: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)
             }).collect::<String>()));
         }
-        if let Some(s) = &self.sta { lines.push(s.report()); }
+        if let Some(s) = &self.sta {
+            let mut relay = String::new();
+            if self.tx_dropped > 0 { relay += &format!(", {} frames from the access point the relay could not take", self.tx_dropped); }
+            if self.relay_lost > 0 { relay += &format!(", {} relayed frames lost as the station had left", self.relay_lost); }
+            lines.push(format!("{}{relay}", s.report()));
+        }
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
             if let Some(t) = &n.nat {
                 let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };

@@ -105,18 +105,26 @@ deauthentication or disassociation addressed to it or to every station, 3 s with
 beacon whose timestamp is lower than the last one's. ESP-IDF v5.5.4's `esp_wifi_stop` sends each
 station a disassociation (reason 2) and a deauthentication, so a guest that stops and starts its
 access point is joined again from its next beacon. It stops trying after three refusals in a row
-with the same status, until the guest reboots. It takes the access point's group cipher (CCMP or
-TKIP, as WPA/WPA2 mixed mode announces) and needs CCMP among its pairwise ciphers. It drops the
-broadcasts the access point repeats to the BSS that it sent itself, as a station does.
+with the same authentication or association status, until the guest reboots. A wrong passphrase is
+not one of them: message 3 of the handshake never comes, the station gives up after 1 s and tries
+again a second later, every 2 s or so (`examples/wifi-softap`: 5 attempts in 10 s, a join in the
+guest's log each time). It takes the access point's group cipher (CCMP or TKIP, as WPA/WPA2 mixed
+mode announces) and needs CCMP among its pairwise ciphers. It drops the broadcasts the access point
+repeats to the BSS that it sent itself, as a station does.
 
 A guest in `WIFI_MODE_APSTA` whose station scans is joined too: its access point leaves the
 channel for the scans (21 beacons in 12 s against about 117), with gaps under the 3 s the station
 waits.
 
 Not yet: probe requests, so an access point with a hidden SSID is not found; renewing the lease
-(ESP-IDF's DHCP server leases for 120 minutes); a second station. In relay mode the host program is
-the station: without four-address frames it sends from and receives at the station's MAC, and a
-frame it relays before the station has joined is refused.
+(ESP-IDF's DHCP server leases for 120 minutes); keep-alive frames; a second station. The station
+sends nothing once it holds a lease, so a guest idles it out: `examples/wifi-softap` (ESP-IDF
+v5.5.4, a 300 s inactivity time by default) disassociated it with reason 4 at 302 s, and it joined
+again and took the lease again a second later. In relay mode the host program is the station:
+without four-address frames it sends from and receives at the station's MAC, and a frame it relays
+before the station has joined is refused; one the station takes and cannot carry, because it left
+the access point in between, is counted in the end-of-run line. The CLI's `--wifi-sta` and
+`SocBus::attach_wifi_station` attach a station; the board page and the wasm crate do not yet.
 
 The received frame's flags in `rx_ctrl` word 0 select the interface. In ESP-IDF v5.3.6's classic
 libpp, `wDev_ProcessRxSucData` keeps a frame when interface 1 is enabled and bit 29 is set, or

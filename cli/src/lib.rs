@@ -122,6 +122,8 @@ pub struct Opts {
     pub pcap: Option<String>,
     /// `--wifi-sta SPEC`: a virtual station that joins the guest's own access point
     pub wifi_sta: Option<String>,
+    /// whether `--net` was given, which `--wifi-sta` refuses: it configures `--wifi`'s network
+    pub net_given: bool,
     pub board: String, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     /// `--imu-motion N`: scripted IMU motion mode for boards with an IMU model (0 at rest, 1 the 30 s handling script)
@@ -182,7 +184,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--wifi" => o.wifi.push(next()),
             "--hostfwd" => o.hostfwd.push(next()),
             "--wifi-nearby" => o.wifi_nearby.push(next()),
-            "--wifi-sta" => o.wifi_sta = Some(next()),
+            "--wifi-sta" => if o.wifi_sta.replace(next()).is_some() { usage_error("--wifi-sta: one for now, a second station is not modelled") },
             "--ble-nearby" => o.ble_nearby.push(next()),
             "--ble-scan" => o.ble_scan = true,
             "--ble-observe" => o.ble_observe = true,
@@ -190,7 +192,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
                 let full = args.get(i + 1).is_some_and(|s| s == "full");
                 if full { i += 1; o.ble_full = true; } else { o.ble = true; }
             },
-            "--net" => o.net = next(),
+            "--net" => { o.net = next(); o.net_given = true; }
             "--cam-image" => o.cam_image = Some(next()),
             "--cam-stream" => o.cam_stream = Some(next()),
             "--cam-size" => o.cam_size = Some(next()),
@@ -260,6 +262,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if let Some(spec) = &o.wifi_sta {
         if let Err(e) = esp_soc::wifi::sta::StaConfig::parse(spec) { usage_error(&format!("--wifi-sta: {e}")); }
         if !o.wifi.is_empty() { usage_error("--wifi-sta and --wifi together (a virtual access point and a virtual station at once) are not modelled yet"); }
+        if o.net_given { usage_error("--net configures the network behind --wifi's access point; with --wifi-sta the network is the guest's own"); }
         if o.chip != "esp32" { usage_error("--wifi-sta: only the classic ESP32 so far (--chip esp32)"); }
     }
     if !o.hostfwd.is_empty() && !matches!(o.net.split(',').next(), Some("nat" | "user")) { usage_error("--hostfwd requires --net nat"); }

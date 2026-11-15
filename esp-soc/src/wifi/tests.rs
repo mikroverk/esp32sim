@@ -949,3 +949,30 @@ fn station_takes_tkip_group_frames_without_their_longer_trailer() {
     let f = ap.data_from_ds(&to_sta).unwrap();
     assert_eq!(sta.on_ap_tx(&with_fcs_slot(f), 2_000_000), Some(to_sta));
 }
+
+/// A frame the relay took while the station was joined, and that the station can no longer carry
+/// because it has left the access point since, is counted, not lost without a word.
+#[test]
+fn station_link_counts_relayed_frames_a_leaving_station_drops() {
+    let mut link = StationLink::default();
+    link.set_relay(true);
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    let mut ap = VirtualAp::new(config(), false);
+    let mut now = 0;
+    while !link.station().is_some_and(|s| s.state == sta::StaLink::Joined) {
+        assert!(now < 1_000_000, "the station did not join");
+        for a in ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+        if let Some(f) = link.next_rx(now, false) { ap.on_station_tx(&with_fcs_slot(f), now); }
+        now += 100;
+    }
+    let mac = link.station().unwrap().cfg.mac;
+    let eth = [vec![0xff; 6], mac.to_vec(), vec![0x08, 0x06], vec![0; 28]].concat();
+    link.receive_relay_frame(&eth).unwrap();
+    let mut deauth = ap.beacon_like(12, &mac, 0)[..24].to_vec();
+    deauth.extend_from_slice(&3u16.to_le_bytes());
+    link.station_tx(&with_fcs_slot(deauth), now);
+    assert_eq!(link.station().unwrap().state, sta::StaLink::Listening);
+    for t in (now..now + 2_000).step_by(100) { assert!(link.next_rx(t, false).is_none(), "nothing to carry it"); }
+    assert_eq!((link.relay_lost(), link.tx_dropped()), (1, 0));
+    assert!(link.report().contains("1 relayed frames lost as the station had left"), "{}", link.report());
+}

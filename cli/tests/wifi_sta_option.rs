@@ -13,6 +13,8 @@ fn wifi_sta_is_refused_where_it_does_not_work_yet() {
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--wifi", "ssid=demo"][..], "are not modelled yet"),
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab,psk=short"][..], "8 to 63 ASCII characters"),
         (&["--chip", "esp32", "--wifi-sta", "psk=lab-pass"][..], "needs ssid=NAME"),
+        (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--wifi-sta", "ssid=lab2"][..], "one for now"),
+        (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--net", "none,epoch=1767225600"][..], "--net configures the network behind --wifi's access point"),
     ] {
         let (code, stderr) = esp32sim(args);
         assert_eq!(code, Some(2), "{args:?}: {stderr}");
