@@ -1,0 +1,16 @@
+{
+ "board": "mosaico",
+ "flash_mb": 16,
+ "psram_mb": 16,
+ "imu_motion": 1,
+ "seconds": 6,
+ "expect": "demo: ui up",
+ "min_frames": 1,
+ "files": {
+  "rom": "esp32s31_rev0_rom.elf",
+  "bootloader": "public/s31-mosaico-demo-bootloader.bin",
+  "ptable": "public/s31-mosaico-demo-ptable.bin",
+  "app": "public/s31-mosaico-demo.bin"
+ },
+ "_note": "examples/mosaico-demo (our code, MIT) built with ESP-IDF v6.1 by tools/fetch-s31-firmware.sh: esp-mosaico-bsp at 841f6245 (Apache-2.0) with LVGL 9.5 on the CO5300 480x480 over GP-SPI2 in QSPI mode, the CST9220's touch, the AI button and the Boot key, the vibration motor, the BMI270 and both BMM150; licences in public/s31-mosaico-demo-NOTICE.txt. imu_motion 1 runs the board's 30 s handling script, so the needle and the ball move."
+}

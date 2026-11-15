@@ -169,6 +169,7 @@ async function runManifest(name) {
     if (withBytes(enc.encode(name + (val === undefined ? '' : '=' + val)), (p, n) => w.esp32sim_stub_spec(emu, p, n)) !== 0) throw new Error('invalid stub: ' + s); }
   if (m.wifi && withBytes(enc.encode(m.wifi), (p, n) => w.esp32sim_wifi(emu, p, n)) !== 0) throw new Error('invalid WiFi configuration');
   w.esp32sim_set_jit(emu, process.env.ESP32SIM_NO_WASM_JIT ? 0 : 1);
+  if (m.imu_motion && w.esp32sim_set_imu_motion(emu, m.imu_motion) !== 0) throw new Error(`imu_motion ${m.imu_motion} refused: ${logs.join(' | ')}`);
   if (w.esp32sim_boot(emu, 0) !== 0) throw new Error(`boot failed: ${logs.join(' | ')}`);
 
   const hz = w.esp32sim_cpu_hz(emu);

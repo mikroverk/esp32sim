@@ -75,6 +75,11 @@
   "note": "the Elka Synthex in integer C on the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: LVGL on the ST7796 over SPI and DMA, FT5x06 touch, the ES8311's audio — enable audio and play the keys; tap the red display for the 80 presets, INSTRUMENT edits the sound live. Slower than real time in the browser"
  },
  {
+  "fw": "s31-mosaico",
+  "title": "ESP32-S31 · ESP-Mosaico compass (LVGL)",
+  "note": "the newest chip, two RISC-V cores at 320 MHz, on Espressif's ESP-Mosaico: our demo (examples/mosaico-demo) through Espressif's esp-mosaico-bsp, LVGL 9 on the round 480×480 CO5300 AMOLED over QSPI, the CST9220's touch, the BMM150 magnetometer as a compass needle and the BMI270 accelerometer as a rolling ball while the board's scripted handling turns it. Click or drag on the panel; the AI button changes the colour and pulses the vibration motor, the Boot key shows the sensor readings"
+ },
+ {
   "fw": "tdisplay-schematik",
   "title": "Schematik T-Display · classic ESP32 (Arduino)",
   "note": "a restyled Schematik Arduino sketch on the classic ESP32: a lowercase wordmark, four fun lines and verified emulator specs on the ST7789. GPIO35 advances; GPIO0 powers off into deep sleep and wakes back to the wordmark. No physical-board verification"

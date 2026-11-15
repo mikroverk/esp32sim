@@ -65,7 +65,11 @@ uses and fails on a panic or a missing console line; CI runs it after the golden
 
 Every chip is in the one module: `esp32sim_new` takes a board name, and `esp32c3` or `esp32c6`
 builds the RISC-V machine instead of the Xtensa one; `esp32` or a classic board name such as
-`ttgo-tdisplay` builds the classic ESP32. The C3 has no `WebServer` of its own — it is
+`ttgo-tdisplay` builds the classic ESP32; `esp32s31` (a bare module) or `mosaico` builds the
+ESP32-S31, the Mosaico with its flash, PSRAM and eFuse as the CLI's `--board mosaico` sets them.
+`esp32sim_set_imu_motion(emu, mode)` before the first instruction selects a board's scripted IMU
+motion (`waveshare-amoled18-v2`, `mosaico`), as `--imu-motion` does; a manifest asks for it with
+`imu_motion`. The C3 has no `WebServer` of its own — it is
 console-only — so the wasm layer turns its console into the same `{"t":"serial"}` messages the
 S3 sends, and `esp32sim_cpu_hz` tells the worker which clock to pace against (240 MHz vs 160).
 
@@ -97,6 +101,7 @@ the tab falls half a second behind. `Date.now()` is passed in for the emulated S
 | LilyGO TTGO T-Display spot prices (MicroPython) | real time, ~3× under Node | the classic ESP32: stock MicroPython v1.29.0 booted by the ROM from the combined image, the app from a LittleFS image in the vfs partition, the ST7789 135×240 over VSPI; demo data, no Wi-Fi — board `ttgo-tdisplay` |
 | ESP32-C6 802.15.4 energy scanner | real time | the Waveshare ESP32-C6-LCD-1.47: LVGL spectrum on the ST7789 over SPI2+GDMA, WS2812, energy detect from the MAC model's moving 2.4 GHz picture; BOOT on the page — board `waveshare-c6-lcd147` |
 | ESP32-P4 Scintilla synth (`p4-lcd35-synth`) | about a quarter of real time (one uncontrolled measurement: Chrome on an M-series Mac, 180–190 Minsn/s counted, 24–26 %) | the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: LVGL on the ST7796 over SPI2 and the AXI-GDMA, FT5x06 touch, the ES8311's audio from I2S1; no C6, so BLE MIDI is off — board `waveshare-p4-lcd35` |
+| ESP32-S31 ESP-Mosaico compass (`s31-mosaico`) | about four fifths of real time (one uncontrolled measurement, 2026-11-15: headless Chrome 157 on an M-series Mac, two runs: 460–540 Minsn/s counted, 71–91 % once the UI is up; under Node 0.88×) | Espressif's ESP-Mosaico: `examples/mosaico-demo` through esp-mosaico-bsp, LVGL 9 on the round CO5300 480×480 over GP-SPI2 in QSPI mode with the BSP's TE-synchronised full frames, CST9220 touch, the AI button and the Boot key, the motor through LEDC, the BMI270 and both BMM150 turned by the board's scripted handling (`imu_motion` in the manifest) — board `mosaico` |
 | ESP32-C6 Contiki-NG | real time | Contiki-NG as an unmodified IDF app: its own scheduler and 802.15.4 stack over the emulated MAC |
 | …two of them on one medium | real time | a manifest with a `nodes` array boots a network through `esp32sim_net_*` instead of `esp32sim_new`: several motes, one medium, no simulator behind them |
 | …an RPL/IPv6 network | real time | rpl-udp server (the DAG root) and client: the client joins, then UDP request and reply every 10 s over 6LoWPAN, RPL Lite, CSMA and hardware ACKs |

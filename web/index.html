@@ -291,6 +291,13 @@ Password:
         <div class="go"><a href="run.html?wasm&amp;fw=c6-energy-scan">Run →</a><a class="src" href="https://github.com/joakimeriksson/esp32">source ↗</a></div></div>
     </article>
     <article class="card">
+      <a class="shot" href="run.html?wasm&amp;fw=s31-mosaico"><img src="assets/demo-s31-mosaico.webp" width="480" height="480" alt="" style="border-radius:50%;aspect-ratio:1;width:auto;height:100%"></a>
+      <div class="body"><div class="meta"><span>ESP32-S31</span><span>LVGL · touch · IMU</span></div>
+        <h3>ESP-Mosaico compass</h3>
+        <p>Espressif's newest chip on its ESP-Mosaico board: LVGL through the board's own BSP on the round 480×480 AMOLED, a compass needle from the magnetometer and a rolling ball from the accelerometer while the board is turned. Tap it; the AI button recolours it and buzzes the motor.</p>
+        <div class="go"><a href="run.html?wasm&amp;fw=s31-mosaico">Run →</a><a class="src" href="https://github.com/mikroverk/esp32sim/tree/main/examples/mosaico-demo">source · MIT ↗</a></div></div>
+    </article>
+    <article class="card">
       <a class="shot" href="run.html?wasm&amp;fw=c6-rpl-net"><div style="width:100%"><div class="net"><div class="mote"><i></i>node 1</div><div class="air"><span>UDP over 6LoWPAN · RPL</span></div><div class="mote"><i></i>node 2</div></div>
         <pre style="height:auto;margin-top:16px">[I] RPL: created DAG with instance ID 0, DAG ID fd00::ff:fe00:1, rank 128
 [I] RPL: sending a multicast-DIO with rank 128 to ff02::1a
@@ -428,10 +435,10 @@ function toggleTheme() {
 }
 // The complete demo list, from the same catalogue the emulator page uses, grouped by chip.
 fetch('wasm/fw/demos.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(demos => {
-  const groups = { esp32: ['ESP32', []], s3: ['ESP32-S3', []], c3: ['ESP32-C3', []], c6: ['ESP32-C6', []] };
+  const groups = { esp32: ['ESP32', []], s3: ['ESP32-S3', []], c3: ['ESP32-C3', []], c6: ['ESP32-C6', []], p4: ['ESP32-P4', []], s31: ['ESP32-S31', []] };
   let parent = null;
   for (const d of demos) {
-    const chip = /^c3-/.test(d.fw) ? 'c3' : /^c6-/.test(d.fw) ? 'c6' : /^(tdisplay|classic)-/.test(d.fw) ? 'esp32' : 's3';
+    const chip = /^c3-/.test(d.fw) ? 'c3' : /^c6-/.test(d.fw) ? 'c6' : /^p4-/.test(d.fw) ? 'p4' : /^s31-/.test(d.fw) ? 's31' : /^(tdisplay|classic)-/.test(d.fw) ? 'esp32' : 's3';
     const cont = d.title.startsWith('…');
     const li = document.createElement('li');
     const a = document.createElement('a'); a.href = 'run.html?wasm&fw=' + encodeURIComponent(d.fw); a.title = d.note || '';
