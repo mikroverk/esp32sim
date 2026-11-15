@@ -186,11 +186,15 @@ impl BoardInputs {
     /// Winbond W25Q16 (0xef4015) — 2 MiB, matching the IDF hello_world image header
     /// (`flash_size = 2MB`). Prefer this for BoardInputs + Machine flash sizing so the
     /// image-header / modelled-flash mismatch warning does not fire.
-    pub fn hello_w25q16() -> Self {
-        let mut sfdp = vec![0x53, 0x46, 0x44, 0x50, 0x05, 0x01, 0x00, 0xff, 0x00, 0x05, 0x01, 0x10, 0x80, 0x00, 0x00, 0xff];
-        sfdp.extend([0xff; 0x70]);
-        Self { flash_id: [0xef, 0x40, 0x15], sfdp, bias: [0; 2], perif_glitch: 0, dig_reg: [0; 4], bod: 0,
-            bbpll_hz: 480_000_000, idle_level: Some(false), inputs: vec![(36, true)], psram_bytes: 0, flash_status: 0, efuse: Vec::new() }
+    pub fn hello_w25q16() -> Self { Self::devkit_sized(2 << 20).expect("2 MiB is a W25Q part") }
+
+    /// The devkit's inputs with the Winbond W25Q part of `bytes` capacity: W25Q80 (1 MiB) to
+    /// W25Q128 (16 MiB), JEDEC 0xef40nn where nn = log2(bytes). `None` for any other size.
+    pub fn devkit_sized(bytes: usize) -> Option<Self> {
+        if !bytes.is_power_of_two() || !(1 << 20..=16 << 20).contains(&bytes) { return None; }
+        let mut inputs = Self::devkit_w25q128();
+        inputs.flash_id[2] = bytes.trailing_zeros() as u8;
+        Some(inputs)
     }
     /// ESP-Mosaico CoreBoard: GigaDevice GD25Q128E (JEDEC 0xc84018, read from the board with
     /// esptool 5.6.0 `flash-id`), 16 MiB, and the ESP32-S31NRV16's 16 MiB in-package PSRAM. The
@@ -1051,6 +1055,17 @@ impl Bus for SocBus {
 mod tests {
     use super::*;
     use esp_soc::SocBus as _;
+
+    /// The devkit part's JEDEC capacity byte follows the size (W25Q80 .. W25Q128); other sizes
+    /// have no W25Q part.
+    #[test]
+    fn devkit_flash_id_follows_the_size() {
+        for (mb, id) in [(1, 0x14), (2, 0x15), (4, 0x16), (8, 0x17), (16, 0x18)] {
+            assert_eq!(BoardInputs::devkit_sized(mb << 20).unwrap().flash_id, [0xef, 0x40, id], "{mb} MiB");
+        }
+        assert_eq!(BoardInputs::hello_w25q16().flash_id, [0xef, 0x40, 0x15]);
+        for bytes in [0, 3 << 20, 32 << 20, 512 << 10] { assert!(BoardInputs::devkit_sized(bytes).is_none(), "{bytes}"); }
+    }
 
     /// EX265: a store to plain memory no longer ends the dispatch when the interrupt refresh it
     /// would have caused cannot change anything; after a device access it refreshes on the spot.

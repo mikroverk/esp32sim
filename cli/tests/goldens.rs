@@ -559,6 +559,21 @@ fn wifi_station_s31_mosaico() {
     expect_text("wifi-station-s31.station.txt", &station);
 }
 
+/// The S31 without a board and with a flash size other than the hello image's 2 MiB: the
+/// devkit W25Q part follows `--flash-mb` (JEDEC 0xef4018 at 16 MiB), so IDF finds a flash clock
+/// source and hello_world prints. Before, any size but 2 left the flash part unset and IDF
+/// aborted with "Target frequency 80MHz higher than src 6MHz".
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn hello_s31_flash_16mb() {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "16", "--console", "uart0", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-hello-bootloader.bin"), "--ptable", &format!("{fw}/s31-hello-ptable.bin"), "--app", &format!("{fw}/s31-hello_world.bin"),
+        "--max-seconds", "2"]);
+    assert!(r.stdout.contains("Hello world!") && !r.stdout.contains("abort()"), "{}\n{}", r.stdout, r.stderr);
+    // IDF reads the 16 MiB part and, as on hardware, keeps the image header's 2 MB.
+    assert!(r.stdout.contains("Detected size(16384k)"), "the app did not detect 16 MiB of flash:\n{}", r.stdout);
+}
+
 /// The ESP-Mosaico's keys, motor and magnetometers as the esp-mosaico-bsp drives them
 /// (`examples/mosaico-board`, IDF v6.1, `esp32s31/firmware/s31-mosaico-board.bin`): a script
 /// presses the AI button (GPIO 7) and the Boot key (GPIO 61) and the firmware sees both edges;
