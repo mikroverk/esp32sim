@@ -83,7 +83,8 @@ with tracking issues where available that list items and what "done" means:
 14. **ESP32-S31 (RISC-V, dual core)** — in (#354, #358, #359, #360, #363; started in #320): IDF
    v6.1 firmware from the mask ROM, Zb*/Zc*/hardware loops/PIE subset, decoded RV32 blocks
    (#356), and the Espressif ESP-Mosaico (`--board mosaico`): display, touch, WiFi with WPA2,
-   audio, IMU, keys, motor. Left: the browser build, a recorded comparison with the board, the
-   motor pin's pull and the magnetometer axes checked on hardware.
+   audio, IMU, keys, motor, in the CLI and in the browser (the `s31-mosaico` compass demo). Left:
+   LEDC fades, a recorded comparison with the board, the motor pin's pull and the IMU and
+   magnetometer axes checked on hardware.
 
 Not planned: blob-level WiFi/BLE emulation, cache-timing accuracy, Wokwi/cloud integration.

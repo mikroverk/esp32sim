@@ -191,16 +191,15 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
             (true, true) => MachineKind::P4Rev3C6(Box::new(esp32p4::coproc::CoSim::new(p4_machine(flash_bytes, psram_bytes, p4_board), coproc_c6(), coproc_config()))),
         }
     } else if s31 {
-        // As the CLI's setup_s31: the board's NOR identity, PSRAM and eFuse (the Mosaico's, or the
-        // hello image's 2 MiB W25Q16 on a bare 2 MiB module), SPI_FAST_FLASH_BOOT. The PSRAM is the
+        // As the CLI's setup_s31: the board's NOR identity, PSRAM and eFuse (the Mosaico's, or a
+        // devkit W25Q of the flash size on a bare module), SPI_FAST_FLASH_BOOT. The PSRAM is the
         // board's: the Mosaico's 16 MiB in package, none on a bare module.
         let mut m = esp32s31::machine([0x10, 0x20, 0x30, 0x40, 0x50, 0x60], flash_bytes);
         m.bus.set_flash_size(flash_bytes);
         let inputs = if s31_board.is_some() { Some(esp32s31::soc::BoardInputs::mosaico_gd25q128()) }
-            else if flash_bytes == 2 << 20 { Some(esp32s31::soc::BoardInputs::hello_w25q16()) } else { None };
-        if let Some(inputs) = inputs {
-            if let Err(reason) = m.bus.set_board_inputs(inputs) { log(&format!("[emu] {}", reason)); return std::ptr::null_mut(); }
-        }
+            else { esp32s31::soc::BoardInputs::devkit_sized(flash_bytes) };
+        let Some(inputs) = inputs else { log(&format!("[emu] S31 flash of {} bytes: 1, 2, 4, 8 or 16 MiB", flash_bytes)); return std::ptr::null_mut(); };
+        if let Err(reason) = m.bus.set_board_inputs(inputs) { log(&format!("[emu] {}", reason)); return std::ptr::null_mut(); }
         if let Some(b) = s31_board { m.bus.board = b; }
         m.bus.attach_board_devices();
         m.bus.set_strap(0x10);

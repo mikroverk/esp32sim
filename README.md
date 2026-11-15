@@ -50,6 +50,7 @@ These run on the [demo site](https://mikroverk.github.io/esp32sim/):
 - [pocket-tank](https://github.com/mediacutlet/pocket-tank), where a small transformer model steers the fish.
 - An 802.15.4 energy scanner, and two Contiki-NG motes running RPL/IPv6, on the ESP32-C6.
 - The Scintilla synth on the ESP32-P4 Touch-LCD-3.5, and the P4 reaching WiFi through an ESP32-C6 co-processor.
+- A compass on the ESP32-S31 ESP-Mosaico's round AMOLED, with touch, the keys and the motor.
 - MicroPython on a classic ESP32 T-Display.
 
 You can also load your own firmware for any of the chips.

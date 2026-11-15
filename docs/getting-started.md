@@ -203,9 +203,10 @@ F=esp32s31/firmware
     --ptable $F/s31-hello-ptable.bin --app $F/s31-hello_world.bin --max-seconds 5
 ```
 
-- `--board mosaico` adds the Espressif ESP-Mosaico: the CO5300 466x466 AMOLED, CST9220 touch, the
+- `--board mosaico` adds the Espressif ESP-Mosaico: the CO5300 480x480 AMOLED, CST9220 touch, the
   ES8311 codec and microphone, BMI270 and two BMM150, the AI and Boot keys and the vibration motor.
-  `--imu-motion 1` moves the board; `--web PORT` shows the display.
+  `--imu-motion 1` moves the board; `--web PORT` shows the display. The page runs it too: the
+  `s31-mosaico` demo, a compass built from `examples/mosaico-demo`.
 - `--wifi` attaches the same virtual access point as on the other chips (WPA2, DHCP, NAT).
 
 See [esp32s31.md](esp32s31.md) and the `mosaico` section of [boards.md](boards.md).
