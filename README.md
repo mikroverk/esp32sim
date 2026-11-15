@@ -21,7 +21,7 @@ CameraWebServer path is unsupported. See the [camera scope and example](docs/esp
 
 | Chip | CPU | Status | Boards |
 | --- | --- | --- | --- |
-| ESP32-S3 | 2 x Xtensa LX7 | mature | Atech 14-port kit, Waveshare Touch-LCD-4B, Touch-AMOLED-1.8, ESP32-S3-CAM |
+| ESP32-S3 | 2 x Xtensa LX7 | mature | Atech 14-port kit, Waveshare Touch-LCD-4B, Touch-AMOLED-1.8, ESP32-S3-CAM, M5Stack StopWatch |
 | ESP32-C3 | RISC-V RV32IMC | draft | console only |
 | ESP32-C6 | RISC-V RV32IMAC | draft | Waveshare ESP32-C6-LCD-1.47 (with the 802.15.4 radio), Seeed XIAO ESP32-C6 |
 | ESP32 (classic) | 2 x Xtensa LX6 | early | LilyGO TTGO T-Display, ESP32-2432S028 "Cheap Yellow Display", AI-Thinker ESP32-CAM (raw capture), Ulanzi TC001 |
@@ -31,8 +31,9 @@ CameraWebServer path is unsupported. See the [camera scope and example](docs/esp
 ## Features
 
 - The full boot chain: mask ROM, bootloader, FreeRTOS, then your app. No patched firmware.
-- WiFi with the unmodified Espressif WiFi library. Firmware joins a virtual access point, gets
-  DHCP, DNS and NTP, and can reach the real network, HTTPS included.
+- WiFi with the unmodified Espressif WiFi library. Firmware scans one or more virtual access points
+  and the networks around them, joins one, gets DHCP, DNS and NTP, and can reach the real network,
+  HTTPS included. The station's frames go to a pcap file or the page's live Network panel.
 - Board models, so firmware can draw on a display, read touch, light LEDs and play sound.
 - Speed: the S3 has a block cache and a JIT, and runs hello_world about 30 times faster than real
   time.
@@ -49,9 +50,12 @@ These run on the [demo site](https://mikroverk.github.io/esp32sim/):
 - An LVGL touch panel at 480x480 with a SID player.
 - [pocket-tank](https://github.com/mediacutlet/pocket-tank), where a small transformer model steers the fish.
 - An 802.15.4 energy scanner, and two Contiki-NG motes running RPL/IPv6, on the ESP32-C6.
+- A WiFi station on the ESP32-C6 with two access points and networks around it, its frames live
+  in the page's Network panel.
+- The Seeed Studio XIAO ESP32-C6's user LED and BOOT button.
 - The Scintilla synth on the ESP32-P4 Touch-LCD-3.5, and the P4 reaching WiFi through an ESP32-C6 co-processor.
 - A compass on the ESP32-S31 ESP-Mosaico's round AMOLED, with touch, the keys and the motor.
-- MicroPython on a classic ESP32 T-Display.
+- MicroPython, and a Schematik Arduino sketch, on a classic ESP32 T-Display.
 
 You can also load your own firmware for any of the chips.
 
