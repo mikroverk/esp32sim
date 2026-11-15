@@ -28,6 +28,8 @@
 !p4-lcd35-synth.json
 !s31-mosaico.json
 !c6-xiao.json
+# The WiFi station's page demo: the committed C6 build above, two access points, networks around them
+!c6-wifi.json
 !c6-energy-scan.json
 !c6-contiki.json
 !c6-contiki-net.json

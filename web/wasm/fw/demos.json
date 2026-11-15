@@ -37,12 +37,12 @@
  {
   "fw": "c3-hello",
   "title": "ESP32-C3 · hello_world (RISC-V)",
-  "note": "the other chip: one RV32IMC core, console only — real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a physical C3."
+  "note": "one RV32IMC core, console only — real mask ROM through the bootloader into FreeRTOS. Compared with a physical C3 module: 205 of 208 console lines identical over three boots, the difference being the ROM's Saved PC line"
  },
  {
   "fw": "c6-hello",
   "title": "ESP32-C6 · hello_world (RISC-V)",
-  "note": "the newest chip: one RV32IMAC core, console only — real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a Waveshare ESP32-C6-LCD-1.47."
+  "note": "one RV32IMAC core, console only — real mask ROM through the bootloader into FreeRTOS. Compared with a Waveshare ESP32-C6-LCD-1.47: 203 of 204 console lines identical over three boots, the difference being the ROM's Saved PC line on the first boot"
  },
  {
   "fw": "c6-energy-scan",
@@ -65,9 +65,14 @@
   "note": "two emulated C6 motes in this tab: node 1 is Contiki-NG's rpl-udp server and the DAG root, node 2 the client — it joins the DAG, then sends a UDP request every 10 s and gets a reply. 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included"
  },
  {
+  "fw": "c6-wifi",
+  "title": "ESP32-C6 · WiFi station and the Network panel",
+  "note": "our station firmware (examples/c6-wifi-station) on a bare C6: it scans and finds two joinable virtual access points and three networks around them, joins one with WPA2, takes a DHCP lease and pings the gateway. The Network panel shows every Ethernet frame the station sends and receives, dissected; click one for its fields, or download them all as a pcap. The browser has no sockets, so the gateway is as far as it goes"
+ },
+ {
   "fw": "p4-c6-hosted",
   "title": "ESP32-P4 + ESP32-C6 · WiFi through a co-processor",
-  "note": "two chips in this tab, as on the Waveshare ESP32-P4-WIFI6: the P4 (rev ≥ 3, two RISC-V cores) runs IDF's wifi_station with ESP-Hosted, the C6 the ESP-Hosted slave, both from their mask ROMs and in lock-step over SDIO. The C6 joins the virtual access point and the P4 gets its address through it. A real board with a v3.2 P4 and its own C6 goes through the same steps to its address"
+  "note": "two chips in this tab, as on the Waveshare ESP32-P4-WIFI6: the P4 (rev ≥ 3, two RISC-V cores) runs IDF's wifi_station with ESP-Hosted, the C6 the ESP-Hosted slave, both from their mask ROMs and in lock-step over SDIO. The C6 joins the virtual access point and the P4 gets its address through it; the Network panel shows the C6 station's frames. A real board with a v3.2 P4 and its own C6 goes through the same steps to its address"
  },
  {
   "fw": "p4-lcd35-synth",
