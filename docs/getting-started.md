@@ -31,7 +31,8 @@ How to build esp32sim and run firmware on each chip. For every flag, see the
 | In the browser | yes (WebAssembly) | yes (WebAssembly) | yes (WebAssembly) |
 | Status | mature | draft, see [esp32c3.md](esp32c3.md) | draft, see [esp32c6.md](esp32c6.md) |
 
-The classic ESP32 is described in [esp32.md](esp32.md). How each chip is checked against silicon is
+The classic ESP32, the ESP32-P4 and the ESP32-S31 have their own sections below and pages:
+[esp32.md](esp32.md), [esp32p4.md](esp32p4.md), [esp32s31.md](esp32s31.md). How each chip is checked against silicon is
 in [hardware-testing.md](hardware-testing.md).
 
 Most of the SoC is shared. The C3 reuses the S3's UART, USB-Serial/JTAG, systimer, timer groups,
@@ -171,6 +172,43 @@ See [esp32c6.md](esp32c6.md).
 The classic ESP32 boots its ECO3 mask ROM on dual LX6 cores, with GPIO, UART and timers:
 `--chip esp32`. `--board ttgo-tdisplay` adds the LilyGO TTGO T-Display's ST7789 and buttons. See
 [esp32.md](esp32.md) for how to run it.
+
+## ESP32-P4
+
+`esp32sim-p4` (or `--chip p4`) boots the P4's mask ROM on two RISC-V cores. Silicon rev < 3 and
+rev ≥ 3 have their own models; the CLI picks the revision from the images.
+
+```sh
+FW=web/wasm/fw/public
+./target/release/esp32sim-p4 --flash-mb 2 --bootloader $FW/p4-hello-bootloader.bin \
+    --ptable $FW/p4-hello-ptable.bin --app $FW/p4-hello_world.bin --max-seconds 27
+```
+
+- `--board waveshare-p4-lcd35` adds the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (rev ≥ 3): the
+  ST7796 over SPI and AXI-GDMA, FT5x06 touch and the ES8311 codec.
+- `--coproc c6:...` runs an ESP32-C6 on SDIO in lock-step, with the unmodified ESP-Hosted slave, so
+  the P4 reaches WiFi as it does on the real board.
+- `--sd IMG` puts a card in the SD socket; `--usb-host F` drives the USB-OTG port from a script.
+
+See [esp32p4.md](esp32p4.md).
+
+## ESP32-S31
+
+`esp32sim-s31` (or `--chip s31`) runs ESP-IDF v6.1 firmware for the ESP32-S31 on two RISC-V cores.
+The images the tests use are in `esp32s31/firmware` (`tools/fetch-s31-firmware.sh` rebuilds them):
+
+```sh
+F=esp32s31/firmware
+./target/release/esp32sim-s31 --boot rom --bootloader $F/s31-hello-bootloader.bin \
+    --ptable $F/s31-hello-ptable.bin --app $F/s31-hello_world.bin --max-seconds 5
+```
+
+- `--board mosaico` adds the Espressif ESP-Mosaico: the CO5300 466x466 AMOLED, CST9220 touch, the
+  ES8311 codec and microphone, BMI270 and two BMM150, the AI and Boot keys and the vibration motor.
+  `--imu-motion 1` moves the board; `--web PORT` shows the display.
+- `--wifi` attaches the same virtual access point as on the other chips (WPA2, DHCP, NAT).
+
+See [esp32s31.md](esp32s31.md) and the `mosaico` section of [boards.md](boards.md).
 
 ## Scripts: host actions at emulated time
 

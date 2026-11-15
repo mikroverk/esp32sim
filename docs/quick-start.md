@@ -26,16 +26,16 @@ cd esp32sim-*/
 ./esp32sim --version
 ```
 
-It holds `esp32sim` (every chip: `--chip esp32|s3|c3|c6|p4`, default S3), the aliases `esp32sim-c3`,
-`esp32sim-c6` and `esp32sim-p4`, this page, the CLI reference, the getting-started guide and `tools/fetch-rom-elfs.sh`.
+It holds `esp32sim` (every chip: `--chip esp32|s3|c3|c6|p4|s31`, default S3), the aliases `esp32sim-c3`,
+`esp32sim-c6`, `esp32sim-p4` and `esp32sim-s31`, this page, the CLI reference, the getting-started guide and `tools/fetch-rom-elfs.sh`.
 Put the directory on your `PATH` or call the binaries by path; the examples below assume the current
 directory.
 
 On macOS the first start of a downloaded binary may be refused by Gatekeeper ("cannot be opened
 because the developer cannot be verified"): allow it under System Settings → Privacy & Security, or
-`xattr -d com.apple.quarantine esp32sim esp32sim-c3 esp32sim-c6 esp32sim-p4`.
+`xattr -d com.apple.quarantine esp32sim esp32sim-c3 esp32sim-c6 esp32sim-p4 esp32sim-s31`.
 
-Building from source works as well: `cargo build --release` in a checkout puts the same four
+Building from source works as well: `cargo build --release` in a checkout puts the same five
 binaries in `target/release/`.
 
 ## 2. Get the mask ROM
@@ -60,6 +60,8 @@ export ESP32SIM_ROM_DIR=$PWD/roms
 | ESP32-C3 | `esp32c3_rev3_rom.elf` |
 | ESP32-C6 | `esp32c6_rev0_rom.elf` |
 | ESP32 (classic) | `esp32_rev300_rom.elf` |
+| ESP32-P4 rev < 3 / rev ≥ 3 | `esp32p4_rev0_rom.elf` / `esp32p4_rev300_rom.elf` |
+| ESP32-S31 | `esp32s31_rev0_rom.elf` |
 
 If ESP-IDF is installed, the ROMs are found on their own under `~/.espressif/tools/esp-rom-elfs/`.
 Without a ROM the emulator stops at once with `no <chip> mask ROM ELF found`.
@@ -90,7 +92,8 @@ UART0, then the run stops after 10 emulated seconds and prints its report. `--bo
 module: any firmware, console only; the boards are listed under `--board` in
 [the CLI reference](cli.md#images-and-boot).
 
-The other chips take the same flags. The RISC-V chips default to a 4 MB flash and UART0:
+The other chips take the same flags. The C3 and C6 default to a 4 MB flash and UART0 (the P4 16 MB,
+the S31 2 MB, or 16 MB with `--board mosaico`):
 
 ```sh
 ./esp32sim-c3 --boot rom --bootloader $H/bootloader/bootloader.bin \

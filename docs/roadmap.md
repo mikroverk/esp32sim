@@ -68,8 +68,9 @@ with tracking issues where available that list items and what "done" means:
    then its own Wi-Fi MAC model, since the SDK drives different hardware than the ESP32.
 12. **ESP32-P4 (RISC-V, dual HP core)** — in progress ([#215](https://github.com/mikroverk/esp32sim/issues/215)):
    F, CLIC, L2MEM/PSRAM, SDMMC, USB-OTG and Wi-Fi from an
-   emulated C6 over ESP-Hosted (`--coproc`) are there; Xesppie, MIPI-DSI and DMA2D/PPA for the
-   display boards it ships on are not.
+   emulated C6 over ESP-Hosted (`--coproc`) are there, rev ≥ 3 runs the Waveshare
+   Touch-LCD-3.5 board (`waveshare-p4-lcd35`); Xesppie, MIPI-DSI and DMA2D/PPA for the MIPI
+   display boards are not.
 13. **One model per IP block** — chips were added by copying their nearest sibling, and the
    copies drift. Done: the AES DMA of the C3 and C6 through the shared GDMA walker, one GDMA
    adapter for the C3/C6 layouts, the reboot survivors of the classic ESP32 and S3 brought in
@@ -79,5 +80,10 @@ with tracking issues where available that list items and what "done" means:
    default `SocBus` methods, reboot survivors and register reset values declared by each device,
    and one interrupt-routing block; one crate that builds machines for the CLI and the browser
    (groundwork for several boards in lock-step); usage errors instead of panics in the CLI.
+14. **ESP32-S31 (RISC-V, dual core)** — in (#354, #358, #359, #360, #363; started in #320): IDF
+   v6.1 firmware from the mask ROM, Zb*/Zc*/hardware loops/PIE subset, decoded RV32 blocks
+   (#356), and the Espressif ESP-Mosaico (`--board mosaico`): display, touch, WiFi with WPA2,
+   audio, IMU, keys, motor. Left: the browser build, a recorded comparison with the board, the
+   motor pin's pull and the magnetometer axes checked on hardware.
 
 Not planned: blob-level WiFi/BLE emulation, cache-timing accuracy, Wokwi/cloud integration.
