@@ -56,6 +56,8 @@ pub struct Emu {
     nat_out: Vec<u8>,
     /// records of a relay `esp32sim_nat_relay` replaced, not taken yet: the next take hands them over first
     nat_left: Vec<u8>,
+    /// the station's frames go to the page (`esp32sim_netmon`)
+    netmon: bool,
     booted: bool,
     /// a mask ROM ELF was loaded: a ROM boot without one would run from empty memory and print nothing
     rom_loaded: bool,
@@ -237,7 +239,7 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
     }
     Box::into_raw(Box::new(Emu {
         m,
-        out: Vec::new(), ethernet_out: Vec::new(), ble_out: String::new(), nat: None, nat_out: Vec::new(), nat_left: Vec::new(),
+        out: Vec::new(), ethernet_out: Vec::new(), ble_out: String::new(), nat: None, nat_out: Vec::new(), nat_left: Vec::new(), netmon: false,
         booted: false, rom_loaded: false,
         #[cfg(target_arch = "wasm32")]
         jit: BrowserJit::default(),
