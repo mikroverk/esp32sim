@@ -114,8 +114,8 @@ impl<R: Revision> Soc for Esp32p4<R> {
     const ROM_DATA_TABLE: &'static [&'static str] = &["_data_table_start"];
     const ROM_DATA_TABLE_END: &'static [&'static str] = &["_data_table_end"];
     const ROM_DATA_TABLE_STRIDE: u32 = 12;
-    /// RV32IMAFC with the P4's EXT_ILL CSR and CLIC mode; Xesppie and the hardware loops decode
-    /// as illegal. `mhartid` is the core's index.
+    /// RV32IMAFC with the P4's EXT_ILL CSR, CLIC mode and the hardware loops (Xesploop);
+    /// Xesppie decodes as illegal. `mhartid` is the core's index.
     fn new_core(i: usize) -> Cpu {
         let mut c = if R::CLIC_STD { Cpu::new_esp32p4_rev3() } else { Cpu::new_esp32p4() };
         c.hartid = i as u32; c.pc = RESET_VECTOR; c

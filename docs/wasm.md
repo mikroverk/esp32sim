@@ -96,8 +96,8 @@ the tab falls half a second behind. `Date.now()` is passed in for the emulated S
 | **Linux 6.11 on the ESP32-S3** (svermigo/Linux-on-esp32-S3) | real time, ~4× under Node | the esp-hosted network adapter on core 0, Linux XIP from flash on core 1, cramfs root, jffs2 overlays; login and a shell typed on the page console (UART0). Needs the `wifi` spec (PHY calibration) and a stub on `nimble_port_init` — no Bluetooth baseband is modelled, so BLE provisioning is skipped |
 | Waveshare Touch-LCD-4B energy panel + SID player | **real time**, ~62 Minsn/s | LVGL at 60 fps, touch, the tune plays through WebAudio |
 | Atech 14-port synth | real time | ST7735 and WS2812 decoded, buttons/knob, scripted scenario |
-| ESP32-C3 hello_world | real time | the other chip: one RV32IMC core, console only — pick board `esp32c3` |
-| ESP32-C6 hello_world | real time | the newest chip: one RV32IMAC core, console only — pick board `esp32c6` |
+| ESP32-C3 hello_world | real time | one RV32IMC core, console only — pick board `esp32c3` |
+| ESP32-C6 hello_world | real time | one RV32IMAC core, console only — pick board `esp32c6` |
 | LilyGO TTGO T-Display spot prices (MicroPython) | real time, ~3× under Node | the classic ESP32: stock MicroPython v1.29.0 booted by the ROM from the combined image, the app from a LittleFS image in the vfs partition, the ST7789 135×240 over VSPI; demo data, no Wi-Fi — board `ttgo-tdisplay` |
 | ESP32-C6 802.15.4 energy scanner | real time | the Waveshare ESP32-C6-LCD-1.47: LVGL spectrum on the ST7789 over SPI2+GDMA, WS2812, energy detect from the MAC model's moving 2.4 GHz picture; BOOT on the page — board `waveshare-c6-lcd147` |
 | ESP32-P4 Scintilla synth (`p4-lcd35-synth`) | about a quarter of real time (one uncontrolled measurement: Chrome on an M-series Mac, 180–190 Minsn/s counted, 24–26 %) | the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: LVGL on the ST7796 over SPI2 and the AXI-GDMA, FT5x06 touch, the ES8311's audio from I2S1; no C6, so BLE MIDI is off — board `waveshare-p4-lcd35` |
@@ -238,13 +238,34 @@ which requests Binaryen `wasm-opt -O3` and requires that tool to be installed.
 The measured configuration used no Binaryen postprocessing. `CARGO_ENCODED_RUSTFLAGS`,
 when set, takes precedence over `RUSTFLAGS` under Cargo's usual rules.
 
+## Access points and the Network panel
+
+`esp32sim_wifi(e, ptr, len)` takes the CLI's `--wifi` spec (`ssid=`, `psk=`, `chan=`, `bssid=`,
+`epoch=`); each further line is another joinable access point on the same network, as a
+repeated `--wifi` (at most 8, the first line's `epoch` only; a later one without a `bssid` gets
+one derived from its SSID). A list the CLI would refuse is refused whole, with the reason on
+`host_log`. A manifest's `wifi` is one spec or a list of them; the Configure dialog's WiFi field
+separates them with `;`.
+
+`esp32sim_netmon(e)` gives the page the Network panel (`web/netmon.js`) that a `--web` run with
+`--wifi` has: one `{"t":"netmon","linktype":1}` message, then every Ethernet frame the station
+sends and receives as a binary message of type 5 (`[5][dir: 0 from the station, 1 to it][emulated
+µs, u64 le][frame]`, the `--pcap` frames, live). On the P4 the station is its co-processor C6.
+0, or 1 for a chip without WiFi; a second call changes nothing. The worker calls it whenever a
+WiFi spec is set, as `--web` does. A manifest's `netmon_open: true` opens the panel at once and
+`min_net_frames` makes `tools/wasm-test.mjs` require that many frames; `console` (`usb`, `uart0`,
+`term`) names the tab the firmware prints on. `c6-wifi.json` shows all of it: the committed
+station of `examples/c6-wifi-station` with two access points and three networks around them
+(`wifi_nearby`, below).
+
 ## Networks around the station
 
 `esp32sim_wifi_nearby(e, ptr, len)` sets the networks around the station, the CLI's
 `--wifi-nearby`, replacing the ones there were: UTF-8 text with one of the option's specs per
 line (`ssid=`, `chan=`, `rssi=`, `secure=`, `bssid=`; blank lines are skipped, no lines means
 none), at most 32. A scan lists them with their channel, signal and security, and joining one
-fails as out of reach ([EX237](evidence/wifi-nearby/README.md)). Call it after `esp32sim_wifi`,
+fails as out of reach ([EX237](evidence/wifi-nearby/README.md)). A manifest lists them as
+`wifi_nearby`, one spec each. Call it after `esp32sim_wifi`,
 before or after boot; a new `esp32sim_wifi` starts with none around. The P4 with its C6 gives
 them to the C6's access point. A network with the access point's own SSID or BSSID is left out,
 as the option leaves it out, and `host_log` says why. 0, or 1 without the access point or for

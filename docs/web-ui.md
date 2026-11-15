@@ -33,9 +33,10 @@ Text frames (JSON):
 
 | `t` | Fields | When |
 | --- | --- | --- |
-| `board` | `name`, `chip` (`esp32s3`, `esp32c3`, `esp32c6`, `esp32`) | on connect; the page switches layout and titles a bare module by the chip |
+| `board` | `name`, `chip` (`esp32s3`, `esp32c3`, `esp32c6`, `esp32`, `esp32p4`, `esp32s31`) | on connect; the page switches layout and titles a bare module by the chip |
 | `serial` | `src` (`usb`/`uart0`), `data` | console output (ANSI colours stripped by the page) |
 | `ring` | `leds` `[[r,g,b]…]` | ring changed |
+| `netmon` | `linktype` (1, Ethernet) | a run with a WiFi station (`--wifi` with `--web`; `esp32sim_netmon` in the browser): the page adds its Network panel |
 | `stat` | `time`, `insns`, `frames`, `behind`, `resyncs`, `speed` (emulated seconds per wall second over the last second, `null` before the first second and when not paced), `cam`, `gpio_in` | every 20 ms emulated |
 
 Binary frames (first byte = type):
@@ -46,6 +47,7 @@ Binary frames (first byte = type):
 | — | `{"t":"emu","msg":…}` — a line from the emulator itself (wasm build: stubs, chip resets, load errors), shown in the console |
 | 2 | audio: `[rate u32 le]` then int16le mono samples; the rate is what the firmware programmed the I2S clock to (44.1 kHz Atech, 24 kHz autopling, 22.05 kHz the panel's SID player) and can change between chunks |
 | 4 | camera preview: `w u16le, h u16le`, RGB888 (320×240) |
+| 5 | a WiFi station's Ethernet frame: `dir u8` (0 sent by the station, 1 received), emulated µs `u64le`, the frame — the Network panel (`web/netmon.js`, dissected with the vendored dpkt-js) lists, filters and saves them as a pcap |
 
 On quiet-push boards, continuous redraws are published on every other push opportunity rather
 than waiting indefinitely for silence. This keeps drawing visible but can expose a partially

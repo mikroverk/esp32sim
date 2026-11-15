@@ -25,6 +25,11 @@ pub(super) trait MachineApi {
     fn approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> u32;
     /// The virtual access point, on the chip with the radio.
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> { self.bus().attach_wifi(cfg, None) }
+    /// A further joinable access point beside it, on the same network (the CLI's next `--wifi`).
+    fn add_wifi_ap(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> { self.bus().add_wifi_ap(cfg) }
+    /// The station's Ethernet frames into `tap`, and from it to the page as the machine runs (the
+    /// Network panel of a `--web` run with `--wifi`).
+    fn net_monitor(&mut self, tap: esp_soc::netcap::NetTap) -> Result<(), String>;
     /// The networks around that access point.
     fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.bus().wifi_nearby(list) }
     /// The NAT of that access point's network, on the same chip.
@@ -85,6 +90,11 @@ impl<S: Soc> MachineApi for Machine<S> {
         match self.set_approximate_jit_timing(cpi, quantum) { Ok(()) => 0, Err(reason) => { log(&reason); 1 } }
     }
     fn set_jit(&mut self, enabled: bool) { for core in &mut self.cores { xtensa_lx7::Core::set_jit(core, enabled); } }
+    fn net_monitor(&mut self, tap: esp_soc::netcap::NetTap) -> Result<(), String> {
+        self.bus.set_net_tap(tap.clone())?;
+        self.net_tap = Some(tap);   // the machine's web push hands its live frames to the page
+        Ok(())
+    }
 }
 
 /// A load kind or flash offset with this bit set goes to the co-processor (`esp32sim_load`,
@@ -146,6 +156,13 @@ impl<R: esp32p4::Revision> MachineApi for esp32p4::coproc::CoSim<R> {
     fn set_jit(&mut self, enabled: bool) { MachineApi::set_jit(&mut self.p4, enabled); MachineApi::set_jit(&mut self.c6.borrow_mut().m, enabled); }
     fn approximate_jit_timing(&mut self, _cpi: u32, _quantum: u32) -> u32 { log("[emu] approximate timing: not with a co-processor"); 1 }
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> { self.c6.borrow_mut().m.bus.attach_wifi(cfg, None) }
+    fn add_wifi_ap(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> { self.c6.borrow_mut().m.bus.add_wifi_ap(cfg) }
+    /// The C6 has the station; the P4's web push, which the page drains, carries its frames.
+    fn net_monitor(&mut self, tap: esp_soc::netcap::NetTap) -> Result<(), String> {
+        self.c6.borrow_mut().m.bus.set_net_tap(tap.clone())?;
+        self.p4.net_tap = Some(tap);
+        Ok(())
+    }
     fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.c6.borrow_mut().m.bus.wifi_nearby(list) }
     fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.c6.borrow_mut().m.bus.attach_nat(nat, local_ntp) }
 }

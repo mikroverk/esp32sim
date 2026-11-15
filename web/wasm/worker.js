@@ -141,7 +141,12 @@ onmessage = async (ev) => {
     }
     else if (m.op === 'load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => m.at !== undefined ? wasm.esp32sim_load_at(emu, m.at >>> 0, p, n) : wasm.esp32sim_load(emu, m.kind, p, n)); postMessage({ loaded: m.at !== undefined ? 'at' + m.at : m.kind, ok: rc === 0 }); }
     else if (m.op === 'stub') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_stub_spec(emu, p, n)) !== 0) setupError ||= 'invalid stub: ' + m.spec; }
-    else if (m.op === 'wifi') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)) !== 0) setupError ||= 'invalid WiFi configuration (see console)'; }
+    else if (m.op === 'wifi') {
+      if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)) !== 0) setupError ||= 'invalid WiFi configuration (see console)';
+      // the Network panel: the station's frames as type-5 messages (a module without the export has none)
+      else if (m.netmon && wasm.esp32sim_netmon) wasm.esp32sim_netmon(emu);
+    }
+    else if (m.op === 'wifi-nearby') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi_nearby(emu, p, n)) !== 0) setupError ||= 'invalid networks around the station (see console)'; }
     else if (m.op === 'start') {
       // Optional timing-model exports (`?timing=hw`), applied after the loads and before the first instruction.
       running = false;

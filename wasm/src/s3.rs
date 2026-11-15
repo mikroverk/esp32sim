@@ -6,7 +6,11 @@ const MAX_TIMING_PRICE: u32 = 1_000_000;
 
 /// Attach the virtual access point and subnet: `ssid=NAME,psk=PASS,chan=N`. No NAT — the browser
 /// has no sockets — so DHCP, DNS, SNTP and ICMP answer, and connections past the gateway are refused,
-/// until `esp32sim_nat_relay` hands them to the page.
+/// until `esp32sim_nat_relay` hands them to the page. Each further line is another joinable access
+/// point on the same network, as the CLI's repeated `--wifi` (at most 8; a later one without a
+/// `bssid` gets one derived from its SSID; no two share an SSID or a BSSID). Returns 0, or 1 with
+/// the reason on `host_log` and nothing attached when the text is not UTF-8 or the CLI would refuse
+/// the list.
 ///
 /// # Safety
 /// `e` must point to a live emulator to which the caller has exclusive access. For nonzero `len`,
@@ -20,14 +24,46 @@ pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize)
         Ok(spec) => spec,
         Err(_) => { log("[emu] wifi: configuration is not UTF-8"); return 1; }
     };
-    let cfg = match esp_soc::wifi::ApConfig::parse(spec) {
-        Ok(cfg) => cfg,
+    // one spec per line; no lines is the one default access point, as an empty spec always was
+    let mut specs: Vec<String> = spec.lines().map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect();
+    if specs.is_empty() { specs.push(String::new()); }
+    let cfgs = match esp_soc::wifi::ApConfig::parse_all(&specs) {
+        Ok(cfgs) => cfgs,
         Err(reason) => { log(&format!("[emu] wifi: {reason}")); return 1; }
     };
-    log(&format!("[emu] virtual AP '{}' ({}), subnet 10.0.2.0/24, no NAT in the browser", cfg.ssid, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" }));
+    let mut cfgs = cfgs.into_iter();
+    let Some(first) = cfgs.next() else { return 1; };
+    log(&format!("[emu] virtual AP '{}' ({}), subnet 10.0.2.0/24, no NAT in the browser", first.ssid, if first.psk.is_some() { "WPA2-PSK" } else { "open" }));
     // the same access point and network behind every chip's MAC; no NAT in the browser
     super::nat::end_relay(e);   // a new network has no relay until esp32sim_nat_relay
-    if let Err(reason) = e.m.attach_wifi(cfg) { log(&format!("[emu] wifi: {reason}")); return 1; }
+    if let Err(reason) = e.m.attach_wifi(first) { log(&format!("[emu] wifi: {reason}")); return 1; }
+    for cfg in cfgs {
+        log(&format!("[emu] virtual AP '{}' bssid {} channel {} ({}), the same network", cfg.ssid, esp_soc::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" }));
+        if let Err(reason) = e.m.add_wifi_ap(cfg) { log(&format!("[emu] wifi: {reason}")); return 1; }
+    }
+    0
+}
+
+/// The page's Network panel (`web/netmon.js`), as the CLI's `--web` gives it with `--wifi`: from
+/// now on every Ethernet frame the WiFi station sends and receives goes to the page as a binary
+/// message of type 5 (`[5][dir: 0 from the station, 1 to it][emulated µs, u64 le][frame]`), after
+/// one `{"t":"netmon","linktype":1}` text message. On the P4 the station is its co-processor's C6.
+/// Before or after boot, after `esp32sim_wifi`; a second call changes nothing. Returns 0, or 1 for a
+/// chip without WiFi, with the reason on `host_log`.
+///
+/// # Safety
+/// `e` must point to a live emulator to which the caller has exclusive access.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_netmon(e: *mut Emu) -> u32 {
+    // SAFETY: The caller provides exclusive access to a live emulator.
+    let e = unsafe { &mut *e };
+    if e.netmon { return 0; }
+    let mut capture = esp_soc::netcap::NetCapture::default();
+    capture.enable_live();
+    let tap = std::sync::Arc::new(std::sync::Mutex::new(capture));
+    if let Err(reason) = e.m.net_monitor(tap) { log(&format!("[emu] network monitor: {reason}")); return 1; }
+    e.netmon = true;
+    if let Some(w) = e.m.web() { w.send_text("{\"t\":\"netmon\",\"linktype\":1}"); }
     0
 }
 

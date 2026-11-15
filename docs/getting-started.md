@@ -27,7 +27,7 @@ How to build esp32sim and run firmware on each chip. For every flag, see the
 | Boots | ROM, bootloader, FreeRTOS, app | ROM, bootloader, FreeRTOS, app | ROM, bootloader, FreeRTOS, app |
 | Boards / displays | ST7735, ST7701S 480x480 + touch, WS2812, camera, audio | none, console only | ST7789 172x320 over SPI+DMA, WS2812, an 802.15.4 energy-detect stand-in |
 | WiFi | virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station) | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station, legacy rates) |
-| Speed | block interpreter and AArch64 JIT, about 150 to 240 Minsn/s | plain interpreter (no block cache or JIT yet), still well above real time on hello_world | same interpreter |
+| Speed | block interpreter and AArch64 JIT, about 150 to 240 Minsn/s | decoded basic blocks (EX265, #356), no JIT yet; well above real time on hello_world | the same decoded blocks |
 | In the browser | yes (WebAssembly) | yes (WebAssembly) | yes (WebAssembly) |
 | Status | mature | draft, see [esp32c3.md](esp32c3.md) | draft, see [esp32c6.md](esp32c6.md) |
 
