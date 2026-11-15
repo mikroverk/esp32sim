@@ -1,41 +1,68 @@
 #!/bin/sh
-# Build the ESP32-S31 hello_world images the Machine golden boots, from source, and pin them by
-# SHA-256 (no published S31 artifacts exist yet, so this builds instead of downloading).
+# Build the ESP32-S31 images the tests boot, from source, and pin them by SHA-256 (no published
+# S31 artifacts exist yet, so this builds instead of downloading).
 #   . $IDF_PATH/export.sh   # ESP-IDF v6.1, commit below
 #   tools/fetch-s31-firmware.sh [DIR]      default esp32s31/firmware
-# Source: $IDF_PATH/examples/get-started/hello_world, unmodified, plus
-# tools/s31-hello/sdkconfig.defaults (reproducible build, fixed project version, no build date).
-# Built in target/s31-hello-build (not committed). A file already in DIR with the right hash is kept.
+# s31-hello-*: $IDF_PATH/examples/get-started/hello_world, unmodified, plus
+#   tools/s31-hello/sdkconfig.defaults (reproducible build, fixed project version, no build date).
+# s31-wifi-*: examples/c6-wifi-station with tools/s31-wifi/main-CMakeLists.txt (no ST7789 driver)
+#   and tools/s31-wifi/sdkconfig.defaults (the emulator's virtual access point, no display).
+# s31-mosaico-board.bin: examples/mosaico-board as it is (its sdkconfig.defaults and the
+#   dependencies.lock that pins espressif/bmm150 1.1.0, fetched by the component manager).
+# Built in target/s31-*-build (not committed). A file already in DIR with the right hash is kept.
 set -eu
 cd "$(dirname "$0")/.."
 DIR=${1:-esp32s31/firmware}
 IDF_COMMIT=fff9895c82d744c7237be8847347bdd1b07c6643   # v6.1
 # file, SHA-256, build output
-IMAGES="s31-hello-bootloader.bin d60f6fac20b132ffe97194e3f160cb575b0fc52cea744e0a14c06658973d0b68 bootloader/bootloader.bin
+HELLO="s31-hello-bootloader.bin d60f6fac20b132ffe97194e3f160cb575b0fc52cea744e0a14c06658973d0b68 bootloader/bootloader.bin
 s31-hello-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
 s31-hello_world.bin 6b965db02941e8db4895d27c2ad8eea1733e22ddf9a82ccd4d6f77ae62c6335c hello_world.bin"
+WIFI="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf65157ae14d99211b66 bootloader/bootloader.bin
+s31-wifi-ptable.bin 5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a partition_table/partition-table.bin
+s31-wifi_station.bin e0e0fcfa27528765915a337f1da904c99cf7fe2b63a88042d48e3d839c8fb0c3 c6_wifi_station.bin"
+# Its bootloader and partition table come out byte for byte the WiFi build's and hello's, so the
+# board set reuses those files. Its build checks its own outputs against the same pins (build
+# below), so a board build whose bootloader or ptable differ fails instead of using them.
+BOARD="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf65157ae14d99211b66 bootloader/bootloader.bin
+s31-hello-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
+s31-mosaico-board.bin 542246f60b5b6f13dd1c18072ea158f496ebbf925edd33c1e757e1e0d1f11b20 mosaico_board.bin"
+
+# The reused files must carry the same pin in every set that names them.
+for n in $(echo "$BOARD" | awk '{print $1":"$2}'); do
+  other=$(printf '%s\n%s\n' "$HELLO" "$WIFI" | awk -v f="${n%%:*}" '$1 == f {print $2}')
+  [ -z "$other" ] || [ "$other" = "${n#*:}" ] || { echo "${n%%:*}: the board set pins ${n#*:}, the image it reuses is $other" >&2; exit 1; }
+done
 
 sha256_ok() {
   if command -v shasum >/dev/null 2>&1; then echo "$2  $1" | shasum -a 256 -c >/dev/null 2>&1
   else echo "$2  $1" | sha256sum -c >/dev/null 2>&1; fi
 }
-all_ok=1
-for n in $(echo "$IMAGES" | awk '{print $1":"$2}'); do
-  sha256_ok "$DIR/${n%%:*}" "${n#*:}" || all_ok=0
-done
-if [ $all_ok = 1 ]; then echo "S31 hello images in $DIR: 3 pinned files present"; exit 0; fi
+present() {
+  for n in $(echo "$1" | awk '{print $1":"$2}'); do sha256_ok "$DIR/${n%%:*}" "${n#*:}" || return 1; done
+}
+# build NAME SOURCE-DIR DEFAULTS-OR-EMPTY MAIN-CMAKELISTS-OR-EMPTY IMAGES
+build() {
+  : "${IDF_PATH:?source ESP-IDF v6.1 export.sh first}"
+  got=$(git -C "$IDF_PATH" rev-parse HEAD)
+  [ "$got" = "$IDF_COMMIT" ] || { echo "IDF_PATH is at $got, need $IDF_COMMIT (v6.1)" >&2; exit 1; }
+  B=target/$1-build
+  rm -rf "$B"; mkdir -p target
+  cp -R "$2" "$B"
+  rm -rf "$B/build" "$B/sdkconfig" "$B/sdkconfig.old" "$B/managed_components"
+  [ -z "$3" ] || { rm -f "$B"/sdkconfig.*defaults; cp "$3" "$B/sdkconfig.defaults"; }
+  [ -z "$4" ] || cp "$4" "$B/main/CMakeLists.txt"
+  (cd "$B" && idf.py --preview set-target esp32s31 >/dev/null && idf.py build >/dev/null)
+  mkdir -p "$DIR"
+  echo "$5" | while read -r name hash out; do
+    sha256_ok "$B/build/$out" "$hash" || { echo "$name: SHA-256 mismatch in the $1 build ($(shasum -a 256 "$B/build/$out" | cut -d' ' -f1))" >&2; exit 1; }
+    cp "$B/build/$out" "$DIR/$name"; echo "built $name"
+  done
+}
 
-: "${IDF_PATH:?source ESP-IDF v6.1 export.sh first}"
-got=$(git -C "$IDF_PATH" rev-parse HEAD)
-[ "$got" = "$IDF_COMMIT" ] || { echo "IDF_PATH is at $got, need $IDF_COMMIT (v6.1)" >&2; exit 1; }
-B=target/s31-hello-build
-rm -rf "$B"; mkdir -p target
-cp -R "$IDF_PATH/examples/get-started/hello_world" "$B"
-rm -rf "$B/build" "$B/sdkconfig"
-cp tools/s31-hello/sdkconfig.defaults "$B/sdkconfig.defaults"
-(cd "$B" && idf.py --preview set-target esp32s31 >/dev/null && idf.py build >/dev/null)
-mkdir -p "$DIR"
-echo "$IMAGES" | while read -r name hash out; do
-  sha256_ok "$B/build/$out" "$hash" || { echo "$name: SHA-256 mismatch ($(shasum -a 256 "$B/build/$out" | cut -d' ' -f1))" >&2; exit 1; }
-  cp "$B/build/$out" "$DIR/$name"; echo "built $name"
-done
+if present "$HELLO"; then echo "S31 hello images in $DIR: 3 pinned files present"
+else build s31-hello "${IDF_PATH:-}/examples/get-started/hello_world" tools/s31-hello/sdkconfig.defaults "" "$HELLO"; fi
+if present "$WIFI"; then echo "S31 WiFi station images in $DIR: 3 pinned files present"
+else build s31-wifi examples/c6-wifi-station tools/s31-wifi/sdkconfig.defaults tools/s31-wifi/main-CMakeLists.txt "$WIFI"; fi
+if present "$BOARD"; then echo "S31 Mosaico board-test images in $DIR: 3 pinned files present"
+else build s31-mosaico-board examples/mosaico-board "" "" "$BOARD"; fi

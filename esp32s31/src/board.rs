@@ -3,7 +3,7 @@
 //! AMOLED on GP-SPI2 in QSPI mode (CLK 42, CS 50, D0-D3 36/51/35/9, TE 43), its RESET on GPIO 44
 //! (shared with the touch controller's), and the display supply enabled by GPIO 60 driven low.
 //! Modelled: the panel and its reset and power gates, the CST9220 touch on I2C0 (0x5A, SDA 56,
-//! SCL 3, INT 6), the top button on GPIO 7 and the Boot key on GPIO 61, the BQ27220 fuel gauge (0x55), the BMI270 IMU (0x69) and two BMM150 magnetometers (0x11, 0x12) on I2C0, and the panel's TE output on GPIO 43: a 60 Hz frame with a 1 ms high blanking pulse.
+//! SCL 3, INT 6), the AI button on GPIO 7 and the Boot key on GPIO 61, the vibration motor on GPIO 8, the PWR_SW shutdown line on GPIO 57, the BQ27220 fuel gauge (0x55), the BMI270 IMU (0x69) and two BMM150 magnetometers (0x11, 0x12) on I2C0, and the panel's TE output on GPIO 43: a 60 Hz frame with a 1 ms high blanking pulse.
 //! Audio: the ES8311 codec (0x19) on I2C0 as a register file with its chip ID, serving the factory
 //! firmware's `audio_dac` and `audio_adc` both (no ES7210 is addressed), full duplex on I2S0 (the factory firmware logs BCLK 37, WS 49, DOUT 52, DIN 40) with the
 //! speaker amplifier enabled by GPIO 45; what I2S0 transmits is the run's audio (`--wav`).
@@ -29,11 +29,26 @@ pub const ES8311_ADDRESS: u8 = 0x19;
 /// CST9220 INT, active low: low while a finger is down, and for 1 ms after it lifts so the
 /// driver reads the release report.
 pub const PIN_TOUCH_INT: u8 = 6;
-/// The top button: the factory firmware's board manager calls it `button_power` (gpio_config_t mask
-/// bit 7; single click sleep/back, long press chat). Active low with the board's pull-up.
+/// The AI button on top (esp-mosaico-bsp `esp_mosaico.h` BSP_BUTTON_AI_GPIO; the factory
+/// firmware's board manager calls it `button_power`: single click sleep/back, long press chat).
+/// Active low (BSP_BUTTON_ACTIVE_LEVEL 0) with the board's pull-up.
 pub const PIN_AI_BUTTON: u8 = 7;
-/// The Boot key: `button_boot` in the same table (mask bit 61), active low.
+/// The Boot key: BSP_BUTTON_BOOT_GPIO (the factory firmware's `button_boot`), active low. These
+/// two are the board's only GPIO keys: the BSP, esp-brookesia's esp_mosaico_v1_2 board files and
+/// esp-mosaico-claw read no other button, and there is no power key on a GPIO (power is
+/// switched outside the chip; the chip can only request shutdown on `PIN_POWER_SWITCH`).
 pub const PIN_BOOT_BUTTON: u8 = 61;
+/// The vibration motor: BSP_MOTOR_GPIO, on high (BSP_MOTOR_ON_LEVEL 1). The BSP drives it from
+/// LEDC PWM by default (CONFIG_BSP_MOTOR_ENABLE_PWM: low-speed timer 0, 10 bits, 5 kHz, channel
+/// 0) or as a plain output. Modelled as on or off; an undriven pin reads off (`pull_downs`: a
+/// motor driver's gate pull-down is assumed, the schematic is not public).
+pub const PIN_MOTOR: u8 = 8;
+/// PWR_SW: BSP_POWER_SWITCH_GPIO, open drain; `bsp_power_set_shutdown(true)` drives it low
+/// (BSP_POWER_SWITCH_ASSERT_LEVEL 0) to ask the power circuit to switch the board off, and
+/// releases it to high impedance otherwise. Reported, not acted on.
+pub const PIN_POWER_SWITCH: u8 = 57;
+/// What the web page's indicator shows while the motor runs.
+const MOTOR_COLOUR: [u8; 3] = [255, 160, 0];
 /// The BMI270 IMU (`imu_sensor`) on I2C0: the factory firmware's board-manager entry
 /// {"imu_sensor", "custom", "bmi270", addr 0x69, "i2c_master"} (SDO high).
 pub const BMI270_ADDRESS: u8 = esp_soc::devices::BMI270_ADDRESS;
@@ -69,15 +84,35 @@ pub struct Mosaico {
     touch_int_low: bool,
     touch_release_at: Option<u64>,
     te_edges: Vec<esp_soc::board::BoardEdge>,
-    /// Scripted motion for the BMI270 (clock: emulated nanoseconds, stored by `advance_to`)
+    /// Scripted motion for the BMI270 and the BMM150s (clock: emulated nanoseconds, stored by `advance_to`)
     pub imu: std::sync::Arc<esp_soc::devices::imu_motion::ImuMotion>,
+    /// The vibration motor: running, how often it started, how long it ran (emulated ns, up to
+    /// the last start when running), and its one-LED indicator for `leds()`.
+    pub motor: bool,
+    pub motor_starts: u64,
+    motor_ns: u64,
+    motor_since: u64,
+    motor_led: [[u8; 3]; 1],
+    motor_updates: u64,
+    /// PWR_SW asserted (driven low): the firmware asked for power off.
+    pub shutdown_requested: bool,
 }
 impl Default for Mosaico { fn default() -> Self { Self::new() } }
 impl Mosaico {
     pub const WIDTH: usize = 480;
     pub const HEIGHT: usize = 480;
     pub fn new() -> Self {
-        Mosaico { panel: Co5300::new(Self::WIDTH, Self::HEIGHT, 0), powered: false, in_reset: false, amp: false, gpio_events: 0, dropped: 0, touch: Default::default(), nand: crate::spi_nand::SpiNand::new(), te_level: false, te_now: 0, touch_int_low: false, touch_release_at: None, te_edges: Vec::new(), imu: Default::default() }
+        Mosaico { panel: Co5300::new(Self::WIDTH, Self::HEIGHT, 0), powered: false, in_reset: false, amp: false, gpio_events: 0, dropped: 0, touch: Default::default(), nand: crate::spi_nand::SpiNand::new(), te_level: false, te_now: 0, touch_int_low: false, touch_release_at: None, te_edges: Vec::new(), imu: Default::default(),
+                  motor: false, motor_starts: 0, motor_ns: 0, motor_since: 0, motor_led: [[0; 3]], motor_updates: 0, shutdown_requested: false }
+    }
+    /// Emulated nanoseconds the motor has run, including the current run.
+    pub fn motor_ns(&self) -> u64 { self.motor_ns + if self.motor { self.te_now.saturating_sub(self.motor_since) } else { 0 } }
+    fn set_motor(&mut self, on: bool) {
+        if on == self.motor { return; }
+        if on { self.motor_starts += 1; self.motor_since = self.te_now; } else { self.motor_ns += self.te_now.saturating_sub(self.motor_since); }
+        self.motor = on;
+        self.motor_led = [if on { MOTOR_COLOUR } else { [0; 3] }];
+        self.motor_updates += 1;
     }
 }
 impl BoardModel for Mosaico {
@@ -90,11 +125,16 @@ impl BoardModel for Mosaico {
                 PIN_LCD_POWER_N => { if level && self.powered { self.panel.reset(); } self.powered = !level; }
                 PIN_LCD_RESET => { if !level { self.panel.reset(); } self.in_reset = !level; }
                 PIN_PA => self.amp = level,
+                PIN_MOTOR => self.set_motor(level),
+                PIN_POWER_SWITCH => self.shutdown_requested = !level,
                 _ => {}
             }
         }
     }
     fn gpio_events(&self) -> u64 { self.gpio_events }
+    fn pull_downs(&self) -> u64 { 1 << PIN_MOTOR }
+    /// The motor's indicator: one "LED", lit while it runs.
+    fn leds(&self) -> Option<(&[[u8; 3]], u64)> { Some((&self.motor_led, self.motor_updates)) }
     fn input_levels(&self) -> Vec<(u8, bool)> { vec![(PIN_LCD_TE, self.te_level), (PIN_TOUCH_INT, !self.touch_int_low), (PIN_AI_BUTTON, true), (PIN_BOOT_BUTTON, true)] }
     /// The S31 machine passes emulated time in nanoseconds. TE runs only while the panel is powered
     /// and out of reset; a jump over several frames yields the level at `now` (one edge pair at most).
@@ -129,8 +169,8 @@ impl BoardModel for Mosaico {
              (0, crate::bq27220::ADDRESS, Box::new(crate::bq27220::Bq27220::new())),
              (0, ES8311_ADDRESS, Box::new(esp_periph::i2c::Reg8Device::new("es8311", &[(0xfd, 0x83), (0xfe, 0x11)]))),
              (0, BMI270_ADDRESS, Box::new(esp_soc::devices::Bmi270::new(self.imu.clone(), 1_000_000_000))),
-             (0, BMM150_ADDRESSES[0], Box::new(esp_soc::devices::Bmm150::new(Default::default()))),
-             (0, BMM150_ADDRESSES[1], Box::new(esp_soc::devices::Bmm150::new(Default::default())))]
+             (0, BMM150_ADDRESSES[0], Box::new(esp_soc::devices::Bmm150::with_motion(Default::default(), self.imu.clone(), 1_000_000_000))),
+             (0, BMM150_ADDRESSES[1], Box::new(esp_soc::devices::Bmm150::with_motion(Default::default(), self.imu.clone(), 1_000_000_000)))]
     }
     fn set_imu_motion(&mut self, mode: u32) -> bool { self.imu.mode.store(mode, std::sync::atomic::Ordering::Relaxed); true }
     fn imu_motion(&self) -> u32 { self.imu.mode.load(std::sync::atomic::Ordering::Relaxed) }
@@ -156,9 +196,10 @@ impl BoardModel for Mosaico {
     fn display_frames(&self) -> u64 { self.panel.frames }
     fn report(&self) -> String {
         let n = self.nand.stats;
-        format!("[emu] mosaico: CO5300 {} RAMWR, {} pixels; power {}, reset {}; {} transactions dropped; gpio events {}; speaker amp {}\n[emu] mosaico: NAND {} page reads, {} programs, {} erases, {} refused",
+        format!("[emu] mosaico: CO5300 {} RAMWR, {} pixels; power {}, reset {}; {} transactions dropped; gpio events {}; speaker amp {}\n[emu] mosaico: NAND {} page reads, {} programs, {} erases, {} refused\n[emu] mosaico: motor {}, {} starts, {} ms on; PWR_SW {}",
                 self.panel.frames, self.panel.pixels_written, if self.powered { "on" } else { "off" },
-                if self.in_reset { "held" } else { "released" }, self.dropped, self.gpio_events, if self.amp { "on" } else { "off" }, n.reads, n.programs, n.erases, n.refused)
+                if self.in_reset { "held" } else { "released" }, self.dropped, self.gpio_events, if self.amp { "on" } else { "off" }, n.reads, n.programs, n.erases, n.refused,
+                if self.motor { "on" } else { "off" }, self.motor_starts, self.motor_ns() / 1_000_000, if self.shutdown_requested { "asserted (shutdown requested)" } else { "released" })
     }
 }
 
@@ -178,5 +219,34 @@ mod tests {
         b.gpio_changes(&[(PIN_LCD_RESET, true)]);
         b.spi_transfer(2, &ramwr, 0);
         assert_eq!(b.panel.frame[0], 0x1234);
+    }
+
+    #[test]
+    fn motor_runs_while_gpio8_is_high_and_lights_its_indicator() {
+        let mut b = Mosaico::new();
+        assert_eq!(b.pull_downs(), 1 << PIN_MOTOR, "an undriven motor pin reads off");
+        assert_eq!(b.leds(), Some((&[[0, 0, 0]][..], 0)));
+        b.advance_to(1_000_000);
+        b.gpio_changes(&[(PIN_MOTOR, true)]);
+        assert!(b.motor);
+        assert_eq!(b.leds(), Some((&[MOTOR_COLOUR][..], 1)));
+        b.gpio_changes(&[(PIN_MOTOR, true)]);
+        assert_eq!(b.leds().unwrap().1, 1, "no change, no update");
+        b.advance_to(201_000_000);
+        assert_eq!(b.motor_ns(), 200_000_000, "running: counted up to now");
+        b.gpio_changes(&[(PIN_MOTOR, false)]);
+        b.advance_to(500_000_000);
+        assert_eq!((b.motor, b.motor_starts, b.motor_ns()), (false, 1, 200_000_000));
+        assert!(b.report().contains("motor off, 1 starts, 200 ms on; PWR_SW released"), "{}", b.report());
+        b.gpio_changes(&[(PIN_POWER_SWITCH, false)]);
+        assert!(b.report().contains("PWR_SW asserted"), "{}", b.report());
+    }
+
+    #[test]
+    fn keys_by_name() {
+        let b = Mosaico::new();
+        assert_eq!(b.named_pin("ai"), Some(7));
+        assert_eq!(b.named_pin("boot"), Some(61));
+        assert!(b.input_levels().contains(&(PIN_AI_BUTTON, true)) && b.input_levels().contains(&(PIN_BOOT_BUTTON, true)), "released: high");
     }
 }

@@ -98,10 +98,24 @@ impl Pads {
         Electrical { drive, input: mux & (1 << 9) != 0, pull_up: mux & (1 << 8) != 0, pull_down: mux & (1 << 7) != 0 }
     }
     fn electrical(&self, pin: usize) -> Electrical { self.held[pin].unwrap_or_else(|| self.live(pin)) }
-    /// Each pin's level as a board sees it: low only where the pad drives low (high-Z,
-    /// unrouted and unbonded pins read high, as through the board's pull-ups).
-    pub fn board_levels(&self) -> u64 {
-        (0..PINS).filter(|&p| Self::valid(p) && self.electrical(p).drive == Drive::Low).fold(!0u64, |m, p| m & !(1u64 << p))
+    /// Each pin's level as a board sees it: low where the pad drives low, and where it does not
+    /// drive and the board pulls the line down (`pull_downs`, `BoardModel::pull_downs`). Other
+    /// high-Z, unrouted and unbonded pins read high, as through the board's pull-ups.
+    pub fn board_levels(&self, pull_downs: u64) -> u64 {
+        (0..PINS).filter(|&p| Self::valid(p) && match self.electrical(p).drive {
+            Drive::Low => true,
+            Drive::HighZ => pull_downs >> p & 1 != 0,
+            _ => false,
+        }).fold(!0u64, |m, p| m & !(1u64 << p))
+    }
+    /// The GPIO-matrix output signal driving `pin` (OUT_SEL, gpio_sig_map.h), when a peripheral
+    /// rather than the GPIO output register drives it: the drive is then the peripheral's. With
+    /// whether the matrix inverts it (OUT_INV_SEL, FUNC_OUT_SEL_CFG bit 9, soc/esp32s31 gpio_reg.h).
+    pub fn routed_signal(&self, pin: usize) -> Option<(u32, bool)> {
+        if !Self::valid(pin) || self.held[pin].is_some() { return None; }
+        let (mux, sel) = (self.iomux[pin], self.out_sel[pin]);
+        let enable = (self.enable & (1 << pin) != 0) ^ (sel & (1 << 11) != 0);
+        (Self::gpio_function(pin, (mux >> 12) & 7) && sel & 0x1ff != 256 && (enable || sel & (1 << 10) == 0)).then_some((sel & 0x1ff, sel & 1 << 9 != 0))
     }
     pub fn drive(&self, pin: usize) -> Result<Drive, Fault> {
         if !Self::valid(pin) { return Err(Fault::Unmapped); }
@@ -250,6 +264,24 @@ mod tests {
         assert_eq!(p.read(GPIO_BASE + 0x68), Ok(0)); // known low output wins
         p.set_input(36, Some(true)).unwrap(); assert_eq!(p.read(GPIO_BASE + 0x68), Err(Fault::Prohibited));
         for pin in [29, 41, 62, usize::MAX] { assert_eq!(p.set_unresolved_sample(pin, Some(false)), Err(Fault::Unmapped)); }
+    }
+    #[test]
+    fn board_pull_downs_and_peripheral_routed_pins() {
+        let mut p = Pads::default();
+        assert_eq!(p.board_levels(0) >> 8 & 1, 1, "undriven: the board's pull-up");
+        assert_eq!(p.board_levels(1 << 8) >> 8 & 1, 0, "undriven with the board's pull-down");
+        configure(&mut p, 8, true);
+        assert_eq!(p.drive(8), Ok(Drive::Low)); assert_eq!(p.board_levels(0) >> 8 & 1, 0);
+        assert_eq!(p.routed_signal(8), None, "the GPIO output register drives it");
+        p.write(GPIO_BASE + 0xaf4 + 8 * 4, 126).unwrap(); // LEDC0 channel 0 through the matrix
+        assert_eq!(p.routed_signal(8), Some((126, false)));
+        assert_eq!(p.board_levels(1 << 8) >> 8 & 1, 1, "the peripheral's drive is not the pad's to resolve");
+        p.write(GPIO_BASE + 0xaf4 + 8 * 4, 126 | 1 << 10).unwrap(); // OEN from the GPIO enable: still on
+        assert_eq!(p.routed_signal(8), Some((126, false)));
+        p.write(GPIO_BASE + 0xaf4 + 8 * 4, 126 | 1 << 9).unwrap();  // OUT_INV_SEL
+        assert_eq!(p.routed_signal(8), Some((126, true)));
+        p.write(IO_MUX_BASE + 8 * 4, 0x3200).unwrap();               // another IO_MUX function
+        assert_eq!(p.routed_signal(8), None);
     }
     #[test]
     fn individual_and_global_hold_preserve_each_others_snapshot() {

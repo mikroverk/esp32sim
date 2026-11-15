@@ -1,0 +1,6 @@
+# examples/c6-wifi-station/main without the ST7789 driver, which does not build on ESP-IDF v6.1
+# (lcd_color_rgb_endian_t is gone) and is not used with CONFIG_STATION_LCD=n.
+idf_component_register(
+    SRCS "station.c" "lcd_text.c"
+    INCLUDE_DIRS "."
+    PRIV_REQUIRES esp_wifi esp_event esp_netif nvs_flash lwip esp_driver_gpio esp_driver_spi)

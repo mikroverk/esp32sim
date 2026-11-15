@@ -193,17 +193,34 @@ not that firmware's boot or relay connection.
 
 ## `mosaico` — Espressif ESP-Mosaico v1.2 (ESP32-S31)
 
-Wiring from esp-mosaico-bsp (`esp_mosaico.h`); details in `esp32s31/src/board.rs` and [esp32s31.md](esp32s31.md).
+Wiring from esp-mosaico-bsp (`esp_mosaico.h`, revision `841f6245`); details in `esp32s31/src/board.rs` and [esp32s31.md](esp32s31.md).
 
 | Device | Bus | Model |
 | --- | --- | --- |
 | CO5300 480×480 AMOLED | GP-SPI2 in QSPI mode (CLK 42, CS 50, D0-D3 36/51/35/9), RST 44, supply GPIO 60 low, TE 43 | `Co5300`; TE: 60 Hz with a 1 ms pulse |
 | CST9220 touch | I2C0 (SDA 56, SCL 3) at 0x5A, INT 6 | touch reports, INT low while touched |
-| BMI270 IMU, two BMM150 | I2C0 at 0x69, 0x11, 0x12 | `--imu-motion` drives the BMI270 |
+| BMI270 IMU | I2C0 at 0x69 | `--imu-motion` drives it |
+| two BMM150 | I2C0 at 0x11, 0x12 | the Bosch register map, trims and compensation; an Earth-like field (20, 0, -40) µT at rest, turned with the board by `--imu-motion 1` (the sensor's axes taken as the screen's) |
 | BQ27220 fuel gauge | I2C0 at 0x55 | synthetic battery |
 | ES8311 codec | I2C0 at 0x19, I2S0 full duplex, amplifier GPIO 45 | a register file; I2S0 output is the run's audio (`--wav`) |
 | W25N01GV SPI NAND | GP-SPI3 | `spi_nand.rs`, command level |
-| Top / Boot buttons | GPIO 7 / 61, active low | `press power`, `press boot` |
+| AI button / Boot key | GPIO 7 / 61, active low (`BSP_BUTTON_AI_GPIO`, `BSP_BUTTON_BOOT_GPIO`) | `press ai` (also `power`, `btn1`), `press boot` (`btn2`); two buttons on the web page |
+| Vibration motor | GPIO 8, on high (`BSP_MOTOR_GPIO`), LEDC PWM by default or a plain output | on or off (PWM with a duty above zero is on; the strength is not modelled); a pull-down is assumed, so an undriven pin is off. The board report counts starts and time on; the web page's indicator lights while it runs |
+| PWR_SW | GPIO 57, open drain, low asks for power off (`BSP_POWER_SWITCH_GPIO`) | reported (`PWR_SW asserted`), not acted on |
+
+There is no power key on a GPIO: the BSP, esp-brookesia's `esp_mosaico_v1_2` board files and
+esp-mosaico-claw read only the AI button and the Boot key. GPIO 24/25 are the NAND's HOLD and
+WP and GPIO 35 is LCD D2. The factory firmware's board manager calls GPIO 7 `button_power`.
+
+LEDC is not a peripheral model: its registers are plain storage, and a pad the GPIO matrix
+routes to an LEDC channel (signals 126-133, 230-237) reads that channel's output enable, duty
+and idle level from them.
+
+Tests: `mosaico_board_s31` boots `examples/mosaico-board` (keys, the motor through LEDC and
+GPIO, both BMM150 through espressif/bmm150 1.1.0, with and without `--imu-motion 1`);
+`wifi_station_s31_mosaico` boots `examples/c6-wifi-station` built for the S31, which joins the
+virtual access point (WPA2) and takes its DHCP lease. Both images are built with ESP-IDF v6.1 by
+`tools/fetch-s31-firmware.sh` and committed in `esp32s31/firmware`.
 
 ## `waveshare-c6-lcd147` — Waveshare ESP32-C6-LCD-1.47 (ESP32-C6)
 

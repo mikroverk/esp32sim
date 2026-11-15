@@ -1,0 +1,14 @@
+STARTED
+SCAN found=1
+SCAN 1 ssid="esp32sim" channel=6 rssi=-40 auth=WPA2 bssid=02:53:49:4d:00:01
+CONNECT attempt=1 ssid="esp32sim" ESP_OK
+CONNECTED channel=6 bssid=02:53:49:4d:00:01
+GOT_IP ip=10.0.2.15 mask=255.255.255.0 gw=10.0.2.2
+STATUS state=connected rssi=-40 channel=6
+PING seq=1 time=0 ms
+PING seq=2 time=0 ms
+PING seq=3 time=0 ms
+PING seq=4 time=0 ms
+PING seq=5 time=0 ms
+PING done sent=5 received=5
+STATUS state=connected rssi=-40 channel=6

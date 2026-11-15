@@ -16,7 +16,15 @@
 //! The raw values are the inverse of the API's compensation (`compensate_x/y/z`) for the field
 //! the board sets, with RHALL equal to dig_xyz1 (so the temperature-like term drops out): with
 //! the default trims the driver reports `field` in uT.
+//!
+//! With the shared scripted motion (`ImuMotion` mode 1, `with_motion`) `field` is what the sensor
+//! reads upright at rest, and each conversion turns it with the handling script's attitude
+//! (`imu_motion::rotate_screen`), the sensor's axes taken as the screen's: the magnitude stays,
+//! the direction follows the board's tilts and flip.
+use super::imu_motion::{rotate_screen, ImuMotion};
 use esp_periph::i2c::I2cDevice;
+use std::sync::atomic::Ordering::Relaxed;
+use std::sync::Arc;
 
 pub const BMM150_CHIP_ID: u8 = 0x32;
 
@@ -34,13 +42,26 @@ pub struct Bmm150 {
     trim: Bmm150Trim,
     /// The field the sensor sees, in uT (sensor axes). Earth-like by default.
     pub field: [f64; 3],
+    /// Scripted motion and the rate of its clock (ticks per second of guest time).
+    motion: Option<(Arc<ImuMotion>, u64)>,
 }
 
 impl Bmm150 {
     pub fn new(trim: Bmm150Trim) -> Self {
-        let mut d = Bmm150 { regs: [0; 256], ptr: 0, first: true, trim, field: [20.0, 0.0, -40.0] };
+        let mut d = Bmm150 { regs: [0; 256], ptr: 0, first: true, trim, field: [20.0, 0.0, -40.0], motion: None };
         d.reset();
         d
+    }
+    /// A sensor on a board with scripted motion (the board's `ImuMotion`, its clock at `clock_hz`).
+    pub fn with_motion(trim: Bmm150Trim, motion: Arc<ImuMotion>, clock_hz: u64) -> Self {
+        Bmm150 { motion: Some((motion, clock_hz)), ..Self::new(trim) }
+    }
+    /// The field the next conversion measures: `field`, turned by the scripted motion when on.
+    pub fn measured_field(&self) -> [f64; 3] {
+        match &self.motion {
+            Some((m, hz)) if m.mode.load(Relaxed) != 0 => rotate_screen(self.field, m.cycle.load(Relaxed) as f64 / *hz as f64),
+            _ => self.field,
+        }
     }
     fn reset(&mut self) {
         let power = self.regs[0x4b] & 1;
@@ -79,9 +100,10 @@ impl Bmm150 {
     fn latch(&mut self) {
         if !self.powered() { return; }
         let t = self.trim;
-        let x = Self::raw_xy(self.field[0], t.x1, t.x2);
-        let y = Self::raw_xy(self.field[1], t.y1, t.y2);
-        let z = self.raw_z(self.field[2]);
+        let field = self.measured_field();
+        let x = Self::raw_xy(field[0], t.x1, t.x2);
+        let y = Self::raw_xy(field[1], t.y1, t.y2);
+        let z = self.raw_z(field[2]);
         self.regs[0x42..0x44].copy_from_slice(&((x << 3) as u16).to_le_bytes());
         self.regs[0x44..0x46].copy_from_slice(&((y << 3) as u16).to_le_bytes());
         self.regs[0x46..0x48].copy_from_slice(&((z << 1) as u16).to_le_bytes());
@@ -182,6 +204,43 @@ mod tests {
         d.field = [-12.5, 33.0, 10.0];
         let f = compensate(&mut d);
         for (got, want) in f.iter().zip([-12.5, 33.0, 10.0]) { assert!((got - want).abs() < 0.5, "{f:?}"); }
+    }
+
+    /// With the handling script on, the field turns with the board: the same at rest and before
+    /// the script moves (t < 3 s), a different direction once it rolls and leans and while
+    /// flipped, the magnitude the Earth-like one throughout, and the turn the one the script's
+    /// accelerometer reports for gravity.
+    #[test]
+    fn scripted_motion_turns_the_field() {
+        let motion = Arc::new(ImuMotion::default());
+        let mut d = Bmm150::with_motion(Bmm150Trim::default(), motion.clone(), 1_000_000_000);
+        wr(&mut d, 0x4b, &[0x01]);
+        wr(&mut d, 0x4c, &[0x00]);
+        let close = |a: [f64; 3], b: [f64; 3]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 0.5);
+        let norm = |f: [f64; 3]| f.iter().map(|v| v * v).sum::<f64>().sqrt();
+        motion.cycle.store(6_500_000_000, Relaxed);
+        assert!(close(compensate(&mut d), [20.0, 0.0, -40.0]), "mode 0 is at rest");
+        motion.mode.store(1, Relaxed);
+        motion.cycle.store(2_000_000_000, Relaxed);
+        assert!(close(compensate(&mut d), [20.0, 0.0, -40.0]), "the script has not started");
+        let rest = norm([20.0, 0.0, -40.0]);
+        for s in [5.0, 6.5, 9.0, 12.0] {
+            motion.cycle.store((s * 1e9) as u64, Relaxed);
+            let f = compensate(&mut d);
+            assert!(!close(f, [20.0, 0.0, -40.0]), "{s} s: {f:?}");
+            assert!((norm(f) - rest).abs() < 1.0, "{s} s: |B| {} vs {rest}", norm(f));
+        }
+        motion.cycle.store(17_000_000_000, Relaxed);
+        let want = rotate_screen([20.0, 0.0, -40.0], 17.0);
+        let f = compensate(&mut d);
+        assert!(close(f, want), "{f:?} vs {want:?}");
+        // The same rotation turns gravity: "down" at rest, (0, 1, 0), is minus what the
+        // script's accelerometer reports (outside its shakes).
+        for t in [4.0, 7.3, 12.0, 17.0, 21.0, 28.0] {
+            let down = rotate_screen([0.0, 1.0, 0.0], t);
+            let (a, _) = super::super::imu_motion::motion_script_screen(t);
+            assert!(down.iter().zip(a).all(|(d, a)| (d + a).abs() < 1e-9), "{t} s: {down:?} vs {a:?}");
+        }
     }
 
     #[test]
