@@ -597,6 +597,33 @@ fn mosaico_board_s31() {
     expect_text("mosaico-board-s31.board.txt", &moving);
 }
 
+/// The page's ESP-Mosaico demo (`web/wasm/fw/s31-mosaico.json`, `examples/mosaico-demo`, IDF v6.1
+/// with esp-mosaico-bsp `841f6245`; built and pinned by `tools/fetch-s31-firmware.sh`): the BSP
+/// brings up the CO5300 over GP-SPI2 in QSPI mode with LVGL 9 and TE-synchronised full frames, the
+/// CST9220, the BMI270 and both BMM150, and the keys through iot_button. With the board's scripted
+/// motion, a touch reaches LVGL, the AI button pulses the motor through LEDC and recolours the UI,
+/// the Boot key turns to the sensor page and back. Pinned: the demo's lines, the last frame, the
+/// instruction count.
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn mosaico_demo_s31() {
+    let rom = rom("esp32s31_rev0");
+    let (script, png) = (tmp("mosaico-demo.txt"), tmp("mosaico-demo.png"));
+    std::fs::write(&script, "4.5 touch 300 200 1\n4.8 touch 300 200 0\n5.0 press ai 150\n5.5 press boot 150\n6.5 press boot 150\n").unwrap();
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--no-dump",
+        "--bootloader", &format!("{FW}/s31-mosaico-demo-bootloader.bin"), "--ptable", &format!("{FW}/s31-mosaico-demo-ptable.bin"), "--app", &format!("{FW}/s31-mosaico-demo.bin"),
+        "--script", script.to_str().unwrap(), "--imu-motion", "1", "--tft-png", png.to_str().unwrap(), "--max-seconds", "7.5"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    let demo: String = r.stdout.lines().filter_map(|l| l.split_once("demo: ").map(|(_, rest)| format!("{rest}\n"))).collect();
+    for want in ["sensors imu=1 mag0=1 mag1=1", "ui up", "touch 1 at 300,200", "AI button 1: accent 1, motor pulse", "BOOT key 1: sensors page", "BOOT key 2: compass page"] {
+        assert!(demo.contains(want), "missing {want:?}:\n{demo}");
+    }
+    assert!(r.stderr.contains("[emu] mosaico: CO5300") && r.stderr.contains("power on, reset released; 0 transactions dropped"), "{}", r.stderr);
+    assert!(r.stderr.contains("[emu] mosaico: motor off, 1 starts, 120 ms on"), "{}", r.stderr);
+    expect_text("mosaico-demo-s31.demo.txt", &demo);
+    expect_sha("mosaico-demo-s31.png.sha256", &std::fs::read(&png).unwrap());
+    expect_u64("mosaico-demo-s31.insns", r.insns);
+}
+
 /// The P4 with an ESP32-C6 co-processor on SDIO (`examples/esp-hosted-p4`): IDF's WiFi station
 /// example on the P4, its WiFi through esp_wifi_remote and ESP-Hosted 2.12.13 to the unmodified
 /// ESP-Hosted slave on the C6, whose radio joins the virtual access point. The P4 resets the C6

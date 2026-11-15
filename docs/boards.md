@@ -222,6 +222,17 @@ GPIO, both BMM150 through espressif/bmm150 1.1.0, with and without `--imu-motion
 virtual access point (WPA2) and takes its DHCP lease. Both images are built with ESP-IDF v6.1 by
 `tools/fetch-s31-firmware.sh` and committed in `esp32s31/firmware`.
 
+Firmware with a display: `examples/mosaico-demo`, Espressif's esp-mosaico-bsp (`841f6245`, its
+ESP-IDF requirement patched from 6.2 to 6.1, no code change) with LVGL 9.5: a compass needle from
+the BMM150, a rolling ball from the BMI270, touch, the AI button (colour and a motor pulse) and the
+Boot key (a sensor page). The BSP runs on the model unmodified apart from one setting,
+`CONFIG_BSP_VCC_3V3_RAMP_MS=0`: its 3.3 V soft start is an LEDC fade, and LEDC fades are not
+modelled. Built and pinned by `tools/fetch-s31-firmware.sh` into
+`web/wasm/fw/public/s31-mosaico-demo*` (licences in `s31-mosaico-demo-NOTICE.txt`), pinned by
+the golden `mosaico_demo_s31`, and the browser demo `s31-mosaico` (`?wasm&fw=s31-mosaico`, board
+`mosaico` in the page's form, the round panel, the two buttons and the motor indicator). Not run
+on a physical board.
+
 ## `waveshare-c6-lcd147` — Waveshare ESP32-C6-LCD-1.47 (ESP32-C6)
 
 | Device | Bus | Model |
