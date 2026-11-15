@@ -346,18 +346,6 @@ pub unsafe extern "C" fn esp32sim_profile_report(e: *mut Emu) {
 }
 
 
-/// Select a scripted IMU motion on a supporting S3 board before execution (0 = still, 1 = the
-/// 30 s fluidbox handling script). Returns 1 if unsupported.
-/// # Safety
-/// The pointer must reference a live exclusively borrowed emulator.
-#[no_mangle]
-pub unsafe extern "C" fn esp32sim_set_imu_motion(e: *mut Emu, mode: u32) -> u32 {
-    let e = unsafe { &mut *e };
-    let Some(m) = e.m.s3_mut() else { return 1 };
-    if m.insns() != 0 || mode > 1 { return 1; }
-    if m.bus.board.set_imu_motion(mode) { 0 } else { 1 }
-}
-
 /// Opt in to interactive host display publication for a supporting S3 board, before execution.
 /// This changes host snapshots only, not guest display timing. Returns 1 if unsupported.
 /// # Safety
@@ -373,7 +361,7 @@ pub unsafe extern "C" fn esp32sim_set_smooth_display(e: *mut Emu, on: u32) -> u3
 #[cfg(test)]
 mod imu_motion_tests {
     use super::*;
-    use crate::{esp32sim_delete, esp32sim_new};
+    use crate::{esp32sim_delete, esp32sim_new, esp32sim_set_imu_motion};
 
     fn status0(e: *mut Emu) -> u8 {
         // SAFETY: the test owns the live emulator.
