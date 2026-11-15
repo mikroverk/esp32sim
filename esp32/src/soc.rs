@@ -94,6 +94,10 @@ impl esp_soc::SocBus for SocBus {
     fn add_wifi_ap(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> {
         self.periph.wifi.link.add_ap(cfg, &self.debug)
     }
+    fn attach_wifi_station(&mut self, cfg: esp_soc::wifi::sta::StaConfig) -> Result<(), String> {
+        let log = self.debug.has("wifi-frames");
+        self.periph.wifi.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))
+    }
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         Ok(())

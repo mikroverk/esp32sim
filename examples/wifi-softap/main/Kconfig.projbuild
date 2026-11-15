@@ -1,0 +1,15 @@
+menu "WiFi SoftAP"
+config SOFTAP_SSID
+    string "SSID of the access point"
+    default "esp32sim-ap"
+config SOFTAP_PASSWORD
+    string "WPA2 passphrase (empty = open network)"
+    default "esp32sim-pass"
+    help
+        WPA2-PSK with protected management frames optional, as Arduino-ESP32 3.x's
+        WiFi.softAP configures it. The defaults are what the emulator's --wifi-sta joins.
+config SOFTAP_CHANNEL
+    int "Channel"
+    default 6
+    range 1 13
+endmenu

@@ -139,6 +139,10 @@ pub trait SocBus: Bus {
     /// One more joinable access point (a further `--wifi`) beside the one `attach_wifi` put on the
     /// air, behind the same network (`StationLink::add_ap`).
     fn add_wifi_ap(&mut self, _cfg: crate::wifi::ApConfig) -> Result<(), String> { Err("this chip has no WiFi".into()) }
+    /// Put a virtual station (`--wifi-sta`) on the air the chip's WiFi MAC hears, to join the
+    /// guest's own access point (`StationLink::attach_station`), logging as the bus's debug flags
+    /// say. It survives a guest reboot, which sends it back to listening for the access point.
+    fn attach_wifi_station(&mut self, _cfg: crate::wifi::sta::StaConfig) -> Result<(), String> { Err("this chip has no virtual station for a SoftAP yet".into()) }
     /// Record every Ethernet frame the WiFi station sends and receives into `tap` (`--pcap`, the
     /// board page's Network panel). It survives `attach_wifi` and a guest reboot.
     fn set_net_tap(&mut self, _tap: crate::netcap::NetTap) -> Result<(), String> { Err("this chip has no WiFi".into()) }

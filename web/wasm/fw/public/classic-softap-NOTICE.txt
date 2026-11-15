@@ -1,0 +1,38 @@
+Classic ESP32 Wi-Fi SoftAP firmware
+===================================
+
+Files: classic-softap-bootloader.bin, classic-softap-ptable.bin, classic-wifi_softap.bin.
+
+They are examples/wifi-softap (this repository, MIT) built with ESP-IDF v5.5.4 and
+crosstool-NG esp-14.2.0_20260121 GCC 14.2.0 for the classic ESP32, as described in that
+example's README. Two clean builds in different directories produced identical binaries.
+ESP-IDF sources and pinned submodules:
+https://github.com/espressif/esp-idf/tree/v5.5.4
+
+Linked components and licences
+------------------------------
+The application link map was inspected for archives with retained, nonzero sections. This
+list describes the linked subset, not every library available in ESP-IDF.
+
+* ESP-IDF (system, drivers, NVS, netif, event loop, Wi-Fi driver) and Espressif's binary
+  Wi-Fi/PHY/coexistence libraries (libnet80211, libpp, libphy, libcore, libcoexist,
+  libespnow): Espressif Systems, Apache-2.0.
+* wpa_supplicant (ESP-IDF's port, the access point's authenticator): Jouni Malinen and
+  contributors, BSD.
+* Mbed TLS (its crypto library, used by wpa_supplicant): ARM Limited and contributors,
+  Apache-2.0.
+* FreeRTOS: Amazon.com and contributors, MIT.
+* lwIP: Swedish Institute of Computer Science and contributors, BSD-3-Clause.
+* TLSF allocator: Matthew Conte, BSD-3-Clause.
+* newlib C runtime: its per-file copyright holders and licences.
+* GCC libgcc runtime: Free Software Foundation and contributors, GPL-3.0 with GCC Runtime
+  Library Exception 3.1. Both texts are included in crypto-tls-runtime-licenses.txt.
+
+The FreeRTOS, lwIP, wpa_supplicant, TLSF, newlib and Apache-2.0 licence texts and copyright
+notices are already distributed in wifi-station-NOTICE.txt, starting at its individually
+labelled licence sections. That file's general ESP-IDF inventory is not the linked-component
+list for this firmware.
+
+The SSID and passphrase in the image (esp32sim-ap / esp32sim-pass) are public test inputs,
+never production credentials. The bootloader and partition table are ESP-IDF's defaults for
+the example's configuration.

@@ -65,6 +65,13 @@ impl WifiMac {
         (off <= TXQ0 && (TXQ0 - off).is_multiple_of(8) && (TXQ0 - off) / 8 < 5)
             .then(|| ((TXQ0 - off) / 8) as u8)
     }
+    /// The MAC address software put in address slot `n` (0x040 + 8n, low word first): slot 0 is
+    /// the station's, slot 1 the access point's.
+    fn slot_mac(&self, n: u32) -> [u8; 6] {
+        let (lo, hi) = (self.read_reg(0x040 + 8 * n), self.read_reg(0x044 + 8 * n));
+        let (l, h) = (lo.to_le_bytes(), hi.to_le_bytes());
+        [l[0], l[1], l[2], l[3], h[0], h[1]]
+    }
     pub fn tx_done(&mut self, queue: u8) {
         self.txq_complete |= 1 << queue;
         self.events |= EVENT_TX;
@@ -223,7 +230,18 @@ impl SocBus {
         let (chan, rssi) = { let (c, r) = self.periph.wifi.link.rx_meta(frame); (c as u32, i32::from(r)) };
         let broadcast = frame.get(4).is_some_and(|v| v & 1 != 0);
         // wDev_ProcessRxSucData subtracts the classic 96 dB RSSI offset.
-        let w0 = ((rssi + 96) as u32 & 0xff) | (1 << 28) | if broadcast { 0 } else { 1 << 29 };
+        // libpp takes the interface a frame is for from bits 28 to 30 (inferred from
+        // wDev_ProcessRxSucData and ppRxProtoProc in ESP-IDF v5.3.6's libpp; no header documents
+        // them): bit 28 alone is the station's, MAC slot 0 (0x040), and bit 29 alone the access
+        // point's, slot 1 (0x048). A frame for the guest's own access point carries bit 29 alone,
+        // or libpp drops it, as silicon flags it (a classic ESP32 rev 1.0 under ESP-IDF v5.5.4:
+        // docs/evidence/wifi-softap-rx-match). Every other frame keeps the flags it had: silicon
+        // flags unicast to the station with bit 28 alone, which libpp takes as it takes 28 and 29
+        // together, and no golden runs the classic station, so a change here would go untested.
+        let slot1 = self.periph.wifi.slot_mac(1);
+        let to_ap = slot1 != [0; 6] && slot1 != self.periph.wifi.slot_mac(0) && frame.get(4..10) == Some(&slot1[..]);
+        let matched = if to_ap { 1 << 29 } else { (1 << 28) | if broadcast { 0 } else { 1 << 29 } };
+        let w0 = ((rssi + 96) as u32 & 0xff) | matched;
         // Classic rx_ctrl is 28 bytes: noise at +8, channel at +10, sig_len/state at +24.
         let mut bytes = Vec::with_capacity(total);
         for w in [
@@ -642,6 +660,35 @@ mod tests {
         assert_eq!(b.dma_read_word(desc), Some(control));
         assert!(dma_range(0x3ff0_0000, 4).is_none());
         assert!(dma_range(u32::MAX, 4).is_none());
+    }
+
+    #[test]
+    fn rx_ctrl_marks_a_frame_for_the_guests_access_point_with_bit_29_alone() {
+        // the softAP's slots as ESP-IDF v5.3.6 writes them: station 24:6f:28:00:11:22 in slot 0,
+        // its access point, one higher, in slot 1
+        let (station, ap) = ([0x24, 0x6f, 0x28, 0x00, 0x11, 0x22], [0x24, 0x6f, 0x28, 0x00, 0x11, 0x23]);
+        let flags = |slots: bool, a1: [u8; 6]| {
+            let mut b = SocBus::new(0, [2, 0, 0, 0, 0, 1]);
+            if slots {
+                for (off, v) in [(0x040, 0x0028_6f24), (0x044, 0x2211), (0x048, 0x0028_6f24), (0x04c, 0x2311)] { b.periph.wifi.write(off, v); }
+            }
+            let (desc, buf) = (0x3ffb_0000, 0x3ffb_1000);
+            b.dma_write_word(desc, (1 << 31) | 1600);
+            b.dma_write_word(desc + 4, buf);
+            b.dma_write_word(desc + 8, 0);
+            b.periph.wifi.write(0x088, desc);
+            let mut frame = [0u8; 30];
+            frame[0] = 0xb0;                                                   // authentication
+            frame[4..10].copy_from_slice(&a1);
+            b.wifi_rx_deliver(&frame, 1000, false);
+            b.dma_read_word(buf).unwrap() & 0x7000_0000
+        };
+        assert_eq!(flags(true, ap), 1 << 29);
+        assert_eq!(flags(true, station), (1 << 28) | (1 << 29));
+        assert_eq!(flags(true, [0xff; 6]), 1 << 28);
+        // before the guest writes its slots, every frame keeps the station's flags
+        assert_eq!(flags(false, ap), (1 << 28) | (1 << 29));
+        assert_eq!(flags(false, [0; 6]), (1 << 28) | (1 << 29));
     }
 }
 /// Classic analog I2C master, shared by the APB and ROM AHB register aliases.

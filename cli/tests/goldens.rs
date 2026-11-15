@@ -815,6 +815,30 @@ fn classic_reset_clock_and_flash_size() {
     assert!(!r.stdout.contains("ESP_ERR_FLASH_SIZE_NOT_MATCH"), "{}", r.stdout);
 }
 
+/// The guest as a WiFi access point (`examples/wifi-softap`, built with ESP-IDF 5.5.4 for the
+/// classic ESP32): the virtual station of `--wifi-sta` follows its beacons, joins it through the
+/// WPA2 four-way handshake as the supplicant, and takes a lease from the guest's own DHCP server.
+/// The firmware's lines say so from its side (`JOINED`, `LEASED`); the console and the instruction
+/// count pin the run bit for bit, and the end-of-run lines the radio traffic.
+#[test]
+#[ignore = "needs the ESP32 ECO3 mask ROM ELF"]
+fn wifi_softap_classic() {
+    let rom = rom("esp32_rev300");
+    let r = run(BIN, &["--chip", "esp32", "--rom", rom.to_str().unwrap(), "--board", "esp32dev", "--boot", "rom", "--no-dump", "--console", "uart0",
+        "--bootloader", &format!("{FW}/classic-softap-bootloader.bin"), "--ptable", &format!("{FW}/classic-softap-ptable.bin"), "--app", &format!("{FW}/classic-wifi_softap.bin"),
+        "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "6"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
+    assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    expect_text("wifi-softap-classic.softap.txt", &softap);
+    expect_text("wifi-softap-classic.console.txt", &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("[emu] wifi")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text("wifi-softap-classic.report.txt", &report);
+    expect_u64("wifi-softap-classic.insns", r.insns);
+}
+
 /// Classic ECO3 ROM, stock IDF bootloader and hello_world application.
 #[test]
 #[ignore = "needs the ESP32 ECO3 mask ROM ELF"]
