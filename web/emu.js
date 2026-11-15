@@ -76,7 +76,7 @@
     <div class="row"><b>WebAssembly build</b><span class="note">everything runs in this tab — nothing is uploaded; firmware is read from your disk</span><span id="pace" class="note"></span></div>
     <div class="row" id="fw_demos" style="display:none"><span>Demos:</span></div>
     <div class="row">
-      <label>board <select id="fw_board"><option>waveshare-lcd4b</option><option>waveshare-amoled18-v2</option><option>stopwatch</option><option>atech14</option><option>waveshare-cam</option><option>none</option><option>esp32</option><option>ttgo-tdisplay</option><option>cyd</option><option>ulanzi-tc001</option><option>esp32c3</option><option>esp32c6</option><option>waveshare-c6-lcd147</option><option>xiao-esp32c6</option><option>esp32p4</option><option>esp32p4-rev3</option><option>waveshare-p4-lcd35</option></select></label>
+      <label>board <select id="fw_board"><option>waveshare-lcd4b</option><option>waveshare-amoled18-v2</option><option>stopwatch</option><option>atech14</option><option>waveshare-cam</option><option>none</option><option>esp32</option><option>ttgo-tdisplay</option><option>cyd</option><option>ulanzi-tc001</option><option>esp32c3</option><option>esp32c6</option><option>waveshare-c6-lcd147</option><option>xiao-esp32c6</option><option>esp32p4</option><option>esp32p4-rev3</option><option>waveshare-p4-lcd35</option><option>esp32s31</option><option>mosaico</option></select></label>
       <label>flash MB <input id="fw_flash" type="number" value="16" min="1" max="32" style="width:52px"></label>
       <label>PSRAM MB <input id="fw_psram" type="number" value="8" min="0" max="32" style="width:52px"></label>
       <label>WiFi <input id="fw_wifi" placeholder="ssid=…,psk=… (optional)" style="width:190px"></label>
@@ -95,14 +95,16 @@
     <div class="row note">Your build's three images are in its build directory: <code>bootloader/bootloader.bin</code>, <code>partition_table/partition-table.bin</code> and the app. Booting again replaces the running machine; the files stay chosen. <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/quick-start.md" target="_blank">Quick start ↗</a></div>`;
   document.body.insertBefore(panel, document.querySelector('main'));
   const $ = (id) => document.getElementById(id);
-  // The memory the demos use for each board (the CLI's defaults: S3 8 / 2, P4 16 / 0, the others 4 / 0); picking
-  // a board sets them, the visitor can still change them.
+  // The memory the demos use for each board (the CLI's defaults: S3 8 / 2, P4 16 / 0, S31 2 / 0, the others 4 / 0);
+  // picking a board sets them, the visitor can still change them. The S31's PSRAM is the board's (the
+  // Mosaico's 16 MB in package), whatever the form says.
   const MEMORY = { 'waveshare-lcd4b': [16, 8], 'waveshare-amoled18-v2': [16, 8], 'waveshare-cam': [16, 8], atech14: [8, 2], none: [8, 2],
-    esp32: [4, 0], 'ttgo-tdisplay': [4, 0], cyd: [4, 0], 'ulanzi-tc001': [4, 0], esp32c3: [4, 0], esp32c6: [4, 0], 'waveshare-c6-lcd147': [4, 0], esp32p4: [16, 0], 'esp32p4-rev3': [16, 0], 'waveshare-p4-lcd35': [16, 32] };
+    esp32: [4, 0], 'ttgo-tdisplay': [4, 0], cyd: [4, 0], 'ulanzi-tc001': [4, 0], esp32c3: [4, 0], esp32c6: [4, 0], 'waveshare-c6-lcd147': [4, 0], esp32p4: [16, 0], 'esp32p4-rev3': [16, 0], 'waveshare-p4-lcd35': [16, 32], esp32s31: [2, 0], mosaico: [16, 16] };
   $('fw_board').onchange = () => { const m = MEMORY[$('fw_board').value]; if (m) { $('fw_flash').value = m[0]; $('fw_psram').value = m[1]; } };
   // The mask ROM the site hosts for the chip a board name implies (the files tools/fetch-demo-assets.sh
   // puts in wasm/fw/): used when the visitor picks no ROM ELF of their own.
-  const romFor = (board) => board === 'esp32c3' ? 'esp32c3_rev3_rom.elf' : board === 'esp32p4' ? 'esp32p4_rev0_rom.elf' : board === 'esp32p4-rev3' || board === 'waveshare-p4-lcd35' ? 'esp32p4_rev300_rom.elf' : /c6/.test(board) ? 'esp32c6_rev0_rom.elf'
+  const romFor = (board) => board === 'esp32c3' ? 'esp32c3_rev3_rom.elf' : board === 'esp32p4' ? 'esp32p4_rev0_rom.elf' : board === 'esp32p4-rev3' || board === 'waveshare-p4-lcd35' ? 'esp32p4_rev300_rom.elf'
+    : /^(esp32s31|s31|mosaico|esp-mosaico)$/.test(board) ? 'esp32s31_rev0_rom.elf' : /c6/.test(board) ? 'esp32c6_rev0_rom.elf'
     : /^(esp32|esp32dev.*|ttgo-tdisplay|tdisplay|cyd|ulanzi-tc001|tc001)$/.test(board) ? 'esp32_rev300_rom.elf' : 'esp32s3_rev0_rom.elf';
   const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsArrayBuffer(f); });
 
@@ -118,7 +120,7 @@
     let experiments;
     try { const { experimentsFromParams } = await import('./wasm/experiments.mjs'); experiments = experimentsFromParams(q, cfg.board); }
     catch (err) { setStatus(err.message); return; }
-    const ok = await ask('created', { op: 'create', board: cfg.board, smoothDisplay: cfg.smoothDisplay === true, flash_mb: cfg.flash_mb, psram_mb: cfg.psram_mb, jit: q.get('jit') !== '0', experiments });
+    const ok = await ask('created', { op: 'create', board: cfg.board, smoothDisplay: cfg.smoothDisplay === true, imuMotion: cfg.imuMotion | 0, flash_mb: cfg.flash_mb, psram_mb: cfg.psram_mb, jit: q.get('jit') !== '0', experiments });
     if (!ok) { setStatus('could not create emulator: check board and memory sizes (maximum 32 MiB)'); return; }
     for (const [kind, data, at] of files) {
       // `c6:KIND` is the co-processor's image (the module's COPROC_KIND bit), as is a flash offset with bit 31 set
@@ -190,7 +192,7 @@
       // coproc: { files: {...}, flash_at: {...} } — the ESP32-C6 next to a P4 (board `esp32p4…+c6`)
       for (const [kind, u] of Object.entries((man.coproc || {}).files || {})) { const r = await fetch(`wasm/fw/${u}`, { cache: 'no-cache' }); if (!r.ok) { fail(missing(u, r.status)); return; } files.push(['c6:' + kind, await r.arrayBuffer()]); }
       for (const [off, u] of Object.entries((man.coproc || {}).flash_at || {})) { const r = await fetch(`wasm/fw/${u}`, { cache: 'no-cache' }); if (!r.ok) { fail(missing(u, r.status)); return; } files.push(['flash', await r.arrayBuffer(), (parseInt(off, 16) | 0x80000000) >>> 0]); }
-      const cfg = { board: man.board, flash_mb: man.flash_mb || 8, psram_mb: man.psram_mb || 2, wifi: man.wifi || '', stubs: man.stubs || [], symbols: man.symbols || {}, appDirect: !!man.app_direct, nodes: man.nodes, slice_ns: man.slice_ns };
+      const cfg = { board: man.board, flash_mb: man.flash_mb || 8, psram_mb: man.psram_mb || 2, wifi: man.wifi || '', stubs: man.stubs || [], symbols: man.symbols || {}, appDirect: !!man.app_direct, nodes: man.nodes, slice_ns: man.slice_ns, imuMotion: man.imu_motion | 0 };
       const nodeFiles = [];
       for (const node of man.nodes || []) { const own = []; for (const [kind, url] of Object.entries(node.files || {})) for (const u of [].concat(url)) { const r = await fetch(`wasm/fw/${u}`, { cache: 'no-cache' }); if (!r.ok) { fail(missing(u, r.status)); return; } own.push([kind, await r.arrayBuffer()]); } nodeFiles.push(own); }
       const wait = () => ready ? (man.nodes ? bootNet(cfg, files, nodeFiles) : boot(cfg, files)) : setTimeout(wait, 50);

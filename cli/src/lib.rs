@@ -21,11 +21,11 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("       default chip here: {}; esp32sim-c3/c6/p4/s31 are --chip c3 / c6 / p4 / s31", chip);
     eprintln!();
     eprintln!("  --rom F               the chip's mask ROM ELF; default: $ESP32SIM_ROM_DIR, then ~/.espressif/tools/esp-rom-elfs/*/");
-    eprintln!("                        (Espressif's, not in the tarball: tools/fetch-rom-elfs.sh DIR downloads all five)");
+    eprintln!("                        (Espressif's, not in the tarball: tools/fetch-rom-elfs.sh DIR downloads all of them)");
     eprintln!("  --board NAME          board model (S3: atech14, waveshare-lcd4b, waveshare-amoled18-v2, waveshare-cam, none;");
     eprintln!("                        C6: waveshare-c6-lcd147, none; P4: waveshare-p4-lcd35, none; S31: mosaico, none;");
     eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, esp32dev, none)");
-    eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0)");
+    eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
     eprintln!("  --imu-motion N        scripted IMU motion: 0 at rest, 1 the 30 s tilt/flip/shake script (amoled18-v2, mosaico)");
@@ -42,7 +42,7 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --adc PIN, --adc-raw PIN=N   last ADC sample at exit / a 12-bit count into that pad");
     eprintln!("  --sd IMG, --sd-rw IMG (P4) a card in the SD socket, copy-on-write / write-through;");
     eprintln!("                        --sd-prg-us N, --sd-serial HEX for its programming time and serial");
-    eprintln!("  --usb-host F          (P4) a USB host on the USB-OTG port running F; --sd-timing for timed SD");
+    eprintln!("  --usb-host F          (P4, S31) a USB host on the USB-OTG port running F; --sd-timing for timed SD");
     eprintln!("  --coproc c6:KEY=V,... (P4) an ESP32-C6 co-processor on SDIO, run in lock-step");
     eprintln!("  --no-dump             skip the register dump at exit");
     eprintln!();
@@ -668,21 +668,19 @@ fn setup_p4<R: esp32p4::Revision>(o: &Opts) -> esp_soc::Machine<esp32p4::Esp32p4
 }
 
 
-/// ESP32-S31 bare module: 2 MiB NOR + W25Q16 JEDEC by default (IDF hello image header).
+/// ESP32-S31 bare module: 2 MiB NOR + W25Q16 JEDEC by default (IDF hello image header); the
+/// Mosaico's GD25Q128 is 16 MiB.
 fn setup_s31(o: &Opts) -> esp32s31::Machine {
-    let flash = o.flash_mb.unwrap_or(2) << 20;
+    let flash = o.flash_mb.unwrap_or(if o.board == "mosaico" { 16 } else { 2 }) << 20;
     let mut m = esp32s31::machine(o.mac.unwrap_or([0x10, 0x20, 0x30, 0x40, 0x50, 0x60]), flash);
     m.bus.set_flash_size(flash);
-    // Prefer the hello image's JEDEC / SFDP when flash is the default 2 MiB; larger sizes keep
-    // BoardInputs unset so callers can supply their own NOR identity.
-    let inputs = match (o.board.as_str(), o.flash_mb.unwrap_or(2)) {
-        ("mosaico", _) => Some(esp32s31::soc::BoardInputs::mosaico_gd25q128()),
-        (_, 2) => Some(esp32s31::soc::BoardInputs::hello_w25q16()),
-        _ => None,
+    // The Mosaico's own flash part, else a devkit W25Q whose JEDEC capacity follows --flash-mb.
+    // Without board inputs the flash clock has no source and IDF aborts at start-up.
+    let inputs = if o.board == "mosaico" { esp32s31::soc::BoardInputs::mosaico_gd25q128() } else {
+        esp32s31::soc::BoardInputs::devkit_sized(flash)
+            .unwrap_or_else(|| usage_error(&format!("--flash-mb {}: 1, 2, 4, 8 or 16 on the S31", flash >> 20)))
     };
-    if let Some(inputs) = inputs {
-        m.bus.set_board_inputs(inputs).unwrap_or_else(|e| usage_error(&e));
-    }
+    m.bus.set_board_inputs(inputs).unwrap_or_else(|e| usage_error(&e));
     if let Some(board) = esp32s31::board::make_board(&o.board) { m.bus.board = board; }
     m.bus.attach_board_devices();
     set_imu_motion(m.bus.board.as_mut(), o);

@@ -4,18 +4,18 @@ version = 4
 
 [[package]]
 name = "emu-core"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "esp-periph"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
 ]
 
 [[package]]
 name = "esp-soc"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "esp32"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -33,7 +33,7 @@ dependencies = [
 
 [[package]]
 name = "esp32c3"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -43,7 +43,7 @@ dependencies = [
 
 [[package]]
 name = "esp32c6"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -53,7 +53,7 @@ dependencies = [
 
 [[package]]
 name = "esp32p4"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "esp32s3"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -74,7 +74,7 @@ dependencies = [
 
 [[package]]
 name = "esp32s31"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -84,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "esp32sim"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-periph",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "esp32sim-wasm"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "esp-periph",
  "esp-soc",
@@ -108,13 +108,14 @@ dependencies = [
  "esp32c6",
  "esp32p4",
  "esp32s3",
+ "esp32s31",
  "esp32sim-wasm-jit",
  "xtensa-lx7",
 ]
 
 [[package]]
 name = "esp32sim-wasm-jit"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
  "esp-soc",
@@ -124,14 +125,14 @@ dependencies = [
 
 [[package]]
 name = "riscv-rv32"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
 ]
 
 [[package]]
 name = "xtensa-lx7"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "emu-core",
 ]

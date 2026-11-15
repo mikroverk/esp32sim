@@ -115,6 +115,60 @@ fn c6_speaks_the_web_protocol() {
     assert_eq!(unsafe { esp32sim_cpu_hz(e.0) }, 160e6);
 }
 
+/// The ESP-Mosaico demo the page runs (`web/wasm/fw/s31-mosaico.json`): the S31 from its ROM,
+/// the board's scripted motion selected before boot, the LVGL UI up on the 480 x 480 CO5300, and a
+/// touch and the AI button through the web protocol reaching the firmware.
+#[test]
+#[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn s31_mosaico_speaks_the_web_protocol() {
+    let mut e = Emu::new("mosaico", 16, 16);
+    // SAFETY: `e.0` is live and this test retains exclusive access to its wrapper.
+    assert_eq!(unsafe { esp32sim_set_imu_motion(e.0, 1) }, 0, "the Mosaico has an IMU model");
+    e.load(0, &std::fs::read(common::rom("esp32s31_rev0")).unwrap());
+    e.load_file(1, "web/wasm/fw/public/s31-mosaico-demo-bootloader.bin"); e.load_file(2, "web/wasm/fw/public/s31-mosaico-demo-ptable.bin");
+    e.load_file(3, "web/wasm/fw/public/s31-mosaico-demo.bin");
+    e.boot();
+    let mut all = e.out();
+    let ui_up = |all: &[(u32, Vec<u8>)]| has(&texts(all), "demo: ui up");
+    for _ in 0..40 { if ui_up(&all) { break; } assert_eq!(e.run(32_000_000), 0); all.extend(e.out()); }   // up to 4 s
+    assert!(ui_up(&all), "the UI never came up: {:?}", texts(&all).iter().filter(|t| t.contains("serial")).collect::<Vec<_>>());
+    let ts = texts(&all);
+    assert!(has(&ts, "\"t\":\"board\",\"name\":\"mosaico\",\"chip\":\"esp32s31\""), "{:?}", &ts[..ts.len().min(3)]);
+    assert!(has(&ts, "demo: sensors imu=1 mag0=1 mag1=1"), "the BMI270 and both BMM150 answer");
+    e.text_in("{\"t\":\"touch\",\"x\":300,\"y\":200,\"down\":1}");
+    for _ in 0..3 { assert_eq!(e.run(32_000_000), 0); all.extend(e.out()); }
+    e.text_in("{\"t\":\"touch\",\"x\":300,\"y\":200,\"down\":0}");
+    e.text_in("{\"t\":\"btn\",\"pin\":7,\"v\":1}");
+    for _ in 0..3 { assert_eq!(e.run(32_000_000), 0); all.extend(e.out()); }
+    e.text_in("{\"t\":\"btn\",\"pin\":7,\"v\":0}");
+    for _ in 0..6 { assert_eq!(e.run(32_000_000), 0); all.extend(e.out()); }
+    let ts = texts(&all);
+    assert!(has(&ts, "demo: touch 1 at 300,200"), "the touch reached LVGL");
+    assert!(has(&ts, "demo: AI button 1"), "the AI button reached iot_button");
+    let frame = all.iter().rev().find(|m| m.0 == 2 && m.1[0] == 1).expect("a display frame went out");
+    assert_eq!(&frame.1[1..5], &[0xe0, 1, 0xe0, 1], "the CO5300 frame is 480x480");
+    // SAFETY: `e.0` stays live and neither query overlaps mutable access.
+    assert_eq!(unsafe { esp32sim_cpu_hz(e.0) }, 320e6);
+    // SAFETY: `e.0` is live and exclusively borrowed by this test.
+    assert_eq!(unsafe { esp32sim_set_imu_motion(e.0, 0) }, 1, "not once the machine has run");
+}
+
+/// The ESP32-S31 boards the page offers: `esp32s31` is a bare module, `mosaico` the ESP-Mosaico;
+/// scripted IMU motion needs a board with an IMU model.
+#[test]
+fn s31_boards_and_imu_motion() {
+    for (board, flash, motion) in [("mosaico", 16, 0), ("esp32s31", 2, 1), ("esp32c3", 4, 1), ("waveshare-amoled18-v2", 16, 0)] {
+        let e = Emu::new(board, flash, 0);
+        // SAFETY: `e.0` is live and exclusively borrowed by this test.
+        assert_eq!(unsafe { esp32sim_set_imu_motion(e.0, 1) }, motion, "{board}");
+        // SAFETY: as above.
+        assert_eq!(unsafe { esp32sim_set_imu_motion(e.0, 2) }, 1, "{board}: no mode 2");
+    }
+    let e = Emu::new("esp32s31", 2, 0);
+    // SAFETY: `e.0` stays live and the query does not overlap mutable access.
+    assert_eq!(unsafe { esp32sim_cpu_hz(e.0) }, 320e6);
+}
+
 #[test]
 fn camera_binary_input_reports_boards_without_a_camera() {
     for board in ["none", "atech14", "waveshare-cam", "c3", "c6"] {

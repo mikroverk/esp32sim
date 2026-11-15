@@ -8,8 +8,10 @@ through the SDMMC host ("SD card" below), presents it as a USB mass-storage devi
 a host written in Rust on the high-speed USB-OTG port ("USB" below), and
 reaches WiFi through an emulated ESP32-C6 on SDIO running unmodified ESP-Hosted slave firmware,
 the two chips in lock-step in one process ("The co-processor" below). Silicon **rev ≥ 3**
-(v3.x), what a stock `idf.py set-target esp32p4` builds for, has its own model, so far up to
-hello_world on one and both cores ("Revisions" below). This page describes the chip and its
+(v3.x), what a stock `idf.py set-target esp32p4` builds for, has its own model: hello_world on
+one and both cores, ESP-Hosted WiFi through the C6, and the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5
+board with LVGL, touch and audio ("Revisions" below, and `waveshare-p4-lcd35` in [boards.md](boards.md)).
+This page describes the chip and its
 peripherals.
 
 ```sh

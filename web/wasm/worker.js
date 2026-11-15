@@ -16,7 +16,7 @@ const mem = () => new Uint8Array(wasm.memory.buffer);
 function put(bytes) { const p = wasm.esp32sim_alloc(bytes.length); mem().set(bytes, p); return p; }
 function withBytes(bytes, f) { const p = put(bytes); try { return f(p, bytes.length); } finally { wasm.esp32sim_free(p, bytes.length); } }
 const blockJit = createJitHost(() => wasm);
-let experiments = [], setupError = null, smoothDisplay = false;
+let experiments = [], setupError = null, smoothDisplay = false, imuMotion = 0;
 let frameAck = false, framesInFlight = 0, pendingFrame = null;
 const imports = { env: { ...blockJit.imports, host_log: (p, n) => postMessage({ log: dec.decode(mem().subarray(p, p + n)) }) } };
 
@@ -135,6 +135,7 @@ onmessage = async (ev) => {
       setupError = null;
       experiments = m.experiments === undefined ? [] : m.experiments;
       smoothDisplay = m.smoothDisplay === true;
+      imuMotion = m.imuMotion | 0;
       if (emu !== 0 && wasm.esp32sim_cpu_hz) CPU_HZ = wasm.esp32sim_cpu_hz(emu);
       postMessage({ created: emu !== 0 });
     }
@@ -148,6 +149,8 @@ onmessage = async (ev) => {
       if (setupError) throw new Error(setupError);
       applyExperiments(wasm, emu, experiments);
       if (smoothDisplay && (!wasm.esp32sim_set_smooth_display || wasm.esp32sim_set_smooth_display(emu, 1) !== 0)) throw new Error('smooth display publication is unsupported');
+      // A manifest's `imu_motion`: the board's scripted handling (its IMU and magnetometers), from the first instruction.
+      if (imuMotion && (!wasm.esp32sim_set_imu_motion || wasm.esp32sim_set_imu_motion(emu, imuMotion) !== 0)) throw new Error('scripted IMU motion is unsupported on this board');
       const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'net-create') {
       setupError = null;

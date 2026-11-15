@@ -105,7 +105,10 @@ unsafe fn text<'a>(ptr: *const u8, len: usize) -> &'a str {
 /// board such as `ttgo-tdisplay` for the classic ESP32, `esp32c6`, `waveshare-c6-lcd147` or
 /// `xiao-esp32c6` for the C6, `esp32c3` for the C3, or `esp32p4` (rev < 3) or `esp32p4-rev3` for the
 /// P4, with `+c6` for its C6 co-processor, which are console-only and take no board, or
-/// `waveshare-p4-lcd35` for that P4 rev >= 3 board (its panel, touch and codec). Null on failure.
+/// `waveshare-p4-lcd35` for that P4 rev >= 3 board (its panel, touch and codec), or `esp32s31`
+/// (a bare module) or `mosaico` (the ESP-Mosaico: its flash, PSRAM and eFuse as the CLI's
+/// `--board mosaico` sets them, its panel, touch, keys, motor and sensors) for the ESP32-S31.
+/// Null on failure.
 /// Flash and PSRAM are each limited to 32 MiB, matching the browser configuration form.
 /// Classic ESP32 enables PSRAM only at 4 MiB; other sizes within the cap start without
 /// PSRAM (0 is the default), preserving existing callers' configurations.
@@ -137,9 +140,12 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
     let p4_board = esp32p4::board::make_board(p4_name).filter(|_| !matches!(p4_name, "none" | "bare"));
     let p4_rev3 = p4_board.is_some() || matches!(p4_name, "esp32p4-rev3" | "p4-rev3");   // the board has a v3.2 chip
     let p4 = p4_rev3 || matches!(p4_name, "esp32p4" | "p4");
+    // The ESP32-S31: `esp32s31` is the bare module, `mosaico` the ESP-Mosaico (the CLI's names).
+    let s31_board = esp32s31::board::make_board(&board).filter(|_| !matches!(board.as_str(), "none" | "bare"));
+    let s31 = s31_board.is_some() || matches!(board.as_str(), "esp32s31" | "s31");
     let classic_board = if board == "esp32" {
         esp32::board::make_board("esp32dev")
-    } else if p4 || c6_board.is_some() || matches!(board.as_str(), "none" | "bare") {
+    } else if p4 || s31 || c6_board.is_some() || matches!(board.as_str(), "none" | "bare") {
         None
     } else {
         esp32::board::make_board(&board)
@@ -184,6 +190,22 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
             (false, true) => MachineKind::P4C6(Box::new(esp32p4::coproc::CoSim::new(p4_machine(flash_bytes, psram_bytes, p4_board), coproc_c6(), coproc_config()))),
             (true, true) => MachineKind::P4Rev3C6(Box::new(esp32p4::coproc::CoSim::new(p4_machine(flash_bytes, psram_bytes, p4_board), coproc_c6(), coproc_config()))),
         }
+    } else if s31 {
+        // As the CLI's setup_s31: the board's NOR identity, PSRAM and eFuse (the Mosaico's, or a
+        // devkit W25Q of the flash size on a bare module), SPI_FAST_FLASH_BOOT. The PSRAM is the
+        // board's: the Mosaico's 16 MiB in package, none on a bare module.
+        let mut m = esp32s31::machine([0x10, 0x20, 0x30, 0x40, 0x50, 0x60], flash_bytes);
+        m.bus.set_flash_size(flash_bytes);
+        let inputs = if s31_board.is_some() { Some(esp32s31::soc::BoardInputs::mosaico_gd25q128()) }
+            else { esp32s31::soc::BoardInputs::devkit_sized(flash_bytes) };
+        let Some(inputs) = inputs else { log(&format!("[emu] S31 flash of {} bytes: 1, 2, 4, 8 or 16 MiB", flash_bytes)); return std::ptr::null_mut(); };
+        if let Err(reason) = m.bus.set_board_inputs(inputs) { log(&format!("[emu] {}", reason)); return std::ptr::null_mut(); }
+        if let Some(b) = s31_board { m.bus.board = b; }
+        m.bus.attach_board_devices();
+        m.bus.set_strap(0x10);
+        m.console.mask = 2;
+        prepare(&mut m);
+        MachineKind::S31(Box::new(m))
     } else if let Some(b) = c6_board {
         let mut m = esp32c6::machine([0xdc, 0x1e, 0xd5, 0x6e, 0x8c, 0xdc], flash_bytes);
         m.bus.board = b;
@@ -469,6 +491,20 @@ pub unsafe extern "C" fn esp32sim_in_bin(e: *mut Emu, ptr: *const u8, len: usize
         if input.len() > 8 << 20 { w.send_text(r#"{"t":"camera-error","message":"input exceeds 8 MiB"}"#); }
         else { w.push_incoming_bin(input.to_vec()); }
     }
+}
+
+/// Select a scripted IMU motion before execution (0 = still, 1 = the 30 s handling script) on a
+/// board with an IMU model: the S3's `waveshare-amoled18-v2` (the fluidbox benchmark) or the S31's
+/// `mosaico` (its BMI270, the two BMM150 turning with it), as the CLI's `--imu-motion`. Returns 1
+/// if the board has none, the mode is unknown or the machine has executed an instruction.
+/// # Safety
+/// The pointer must reference a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_imu_motion(e: *mut Emu, mode: u32) -> u32 {
+    // SAFETY: The caller provides exclusive access to a live emulator.
+    let e = unsafe { &mut *e };
+    if e.m.insns() != 0.0 || mode > 1 { return 1; }
+    if e.m.bus().board().set_imu_motion(mode) { 0 } else { 1 }
 }
 
 /// Enable or disable the scheduler-integrated block JIT. The interpreter remains available.
