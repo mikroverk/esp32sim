@@ -225,9 +225,8 @@ virtual access point (WPA2) and takes its DHCP lease. Both images are built with
 Firmware with a display: `examples/mosaico-demo`, Espressif's esp-mosaico-bsp (`841f6245`, its
 ESP-IDF requirement patched from 6.2 to 6.1, no code change) with LVGL 9.5: a compass needle from
 the BMM150, a rolling ball from the BMI270, touch, the AI button (colour and a motor pulse) and the
-Boot key (a sensor page). The BSP runs on the model unmodified apart from one setting,
-`CONFIG_BSP_VCC_3V3_RAMP_MS=0`: its 3.3 V soft start is an LEDC fade, and LEDC fades are not
-modelled. Built and pinned by `tools/fetch-s31-firmware.sh` into
+Boot key (a sensor page). The BSP runs on the model with its own settings, including its 3.3 V
+soft start, an LEDC fade waited for with its end interrupt. Built and pinned by `tools/fetch-s31-firmware.sh` into
 `web/wasm/fw/public/s31-mosaico-demo*` (licences in `s31-mosaico-demo-NOTICE.txt`), pinned by
 the golden `mosaico_demo_s31`, and the browser demo `s31-mosaico` (`?wasm&fw=s31-mosaico`, board
 `mosaico` in the page's form, the round panel, the two buttons and the motor indicator). Not run

@@ -617,8 +617,9 @@ fn mosaico_board_s31() {
 /// brings up the CO5300 over GP-SPI2 in QSPI mode with LVGL 9 and TE-synchronised full frames, the
 /// CST9220, the BMI270 and both BMM150, and the keys through iot_button. With the board's scripted
 /// motion, a touch reaches LVGL, the AI button pulses the motor through LEDC and recolours the UI,
-/// the Boot key turns to the sensor page and back. Pinned: the demo's lines, the last frame, the
-/// instruction count.
+/// the Boot key turns to the sensor page and back. The BSP's 3.3 V soft start (an LEDC fade, waited
+/// for with its end interrupt) runs at its default 50 ms. Pinned: the demo's lines, the last frame,
+/// the instruction count.
 #[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
 fn mosaico_demo_s31() {
     let rom = rom("esp32s31_rev0");
@@ -628,6 +629,8 @@ fn mosaico_demo_s31() {
         "--bootloader", &format!("{FW}/s31-mosaico-demo-bootloader.bin"), "--ptable", &format!("{FW}/s31-mosaico-demo-ptable.bin"), "--app", &format!("{FW}/s31-mosaico-demo.bin"),
         "--script", script.to_str().unwrap(), "--imu-motion", "1", "--tft-png", png.to_str().unwrap(), "--max-seconds", "7.5"]);
     assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    // The BSP's stock 3.3 V soft start: an LEDC fade the app waits for (its end interrupt).
+    assert!(r.stdout.contains("VCC_3V3 power on: VCC_PW GPIO60 ramped to 0 over 50 ms"), "{}", r.stdout);
     let demo: String = r.stdout.lines().filter_map(|l| l.split_once("demo: ").map(|(_, rest)| format!("{rest}\n"))).collect();
     for want in ["sensors imu=1 mag0=1 mag1=1", "ui up", "touch 1 at 300,200", "AI button 1: accent 1, motor pulse", "BOOT key 1: sensors page", "BOOT key 2: compass page"] {
         assert!(demo.contains(want), "missing {want:?}:\n{demo}");

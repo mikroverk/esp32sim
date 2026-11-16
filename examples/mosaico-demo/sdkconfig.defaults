@@ -21,7 +21,3 @@ CONFIG_APP_REPRODUCIBLE_BUILD=y
 CONFIG_APP_EXCLUDE_PROJECT_VER_VAR=n
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
 CONFIG_APP_PROJECT_VER="mosaico-demo-1"
-# The BSP's VCC_3V3 soft start (an LEDC fade, waited for with LEDC_FADE_WAIT_DONE) needs a fade
-# engine and its end interrupt, which the S31 model's LEDC does not have: drive the enable directly
-# (the BSP's own option for that).
-CONFIG_BSP_VCC_3V3_RAMP_MS=0

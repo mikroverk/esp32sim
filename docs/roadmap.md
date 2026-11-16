@@ -84,7 +84,7 @@ with tracking issues where available that list items and what "done" means:
    v6.1 firmware from the mask ROM, Zb*/Zc*/hardware loops/PIE subset, decoded RV32 blocks
    (#356), and the Espressif ESP-Mosaico (`--board mosaico`): display, touch, WiFi with WPA2,
    audio, IMU, keys, motor, in the CLI and in the browser (the `s31-mosaico` compass demo). Left:
-   LEDC fades, a recorded comparison with the board, the motor pin's pull and the IMU and
+   a recorded comparison with the board, the motor pin's pull and the IMU and
    magnetometer axes checked on hardware.
 
 Not planned: blob-level WiFi/BLE emulation, cache-timing accuracy, Wokwi/cloud integration.
