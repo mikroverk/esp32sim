@@ -87,7 +87,7 @@ impl I2s {
             if self.rx_conf & (1 << 3) != 0 {
                 return if self.tx_conf & (1 << 30) != 0 { self.derive_rate() } else { None };
             }
-            return Self::v2_rate(self.v2_rx_clock, self.rx_conf, conf1);
+            return self.v2_rate(self.v2_rx_clock, self.rx_conf, conf1);
         }
         let frame_bits = if self.rx_conf & (1 << 20) != 0 {
             if self.rx_conf & (1 << 22) != 0 {

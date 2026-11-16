@@ -39,18 +39,27 @@ pub struct I2s {
     v2_clock: (u32, u32),
     /// v2: the RX clock words (same layout as the TX ones)
     pub(crate) v2_rx_clock: (u32, u32),
+    /// v2: the rate of each clock source the words' SRC_SEL picks, 0 where it is not known
+    /// (`new_v2`: the S31's; `new_v2_p4`: the P4's)
+    v2_sources: [u64; 4],
 }
 impl I2s {
     pub fn new(cpu_hz: u64) -> Self {
         let mut ram = RegRam::new();
         // RX_EOF_NUM resets to 0x40: esp32s3 i2s_reg.h:1059, esp32c3 i2s_reg.h:1005, esp32c6 i2s_reg.h:1226.
         ram.write(0x64, 0x40);
-        I2s { cpu_hz, streaming: false, rx: None, v2: false, v2_clock: (0, 0), v2_rx_clock: (0, 0), rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram, tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, bytes_in: 0, tx_started_log: false }
+        I2s { cpu_hz, streaming: false, rx: None, v2: false, v2_clock: (0, 0), v2_rx_clock: (0, 0), v2_sources: [0; 4], rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram, tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, bytes_in: 0, tx_started_log: false }
     }
     /// The P4/S31 register layout (IDF master soc/esp32s31/register/soc/i2s_reg.h, IDF v5.5.4
     /// soc/esp32p4/register/hw_ver3/soc/i2s_reg.h): 0x30-0x40 are RX recombination registers there,
     /// not clock registers, and the TX field positions differ (see `v2`).
-    pub fn new_v2(cpu_hz: u64) -> Self { I2s { v2: true, ..Self::new(cpu_hz) } }
+    /// The S31's sources (HP_SYS_CLKRST I2Sn_TX_CTRL0 SRC_SEL: 0 XTAL, 1 APLL, 2 RC_FAST,
+    /// 3 external): XTAL only.
+    pub fn new_v2(cpu_hz: u64) -> Self { I2s { v2: true, v2_sources: [40_000_000, 0, 0, 0], ..Self::new(cpu_hz) } }
+    /// The P4's: the same layout, its clock words converted by the SoC into the S31's (see
+    /// `set_v2_clock`), and SRC_SEL 0 XTAL, 1 APLL, 2 external, 3 PLL_F160M (IDF v5.5.4
+    /// hal/esp32p4/include/hal/i2s_ll.h `i2s_ll_get_clk_src`, PLL_F160M from silicon rev 3).
+    pub fn new_v2_p4(cpu_hz: u64) -> Self { I2s { v2_sources: [40_000_000, 0, 0, 160_000_000], ..Self::new_v2(cpu_hz) } }
     /// v2: the clock/reset block's TX clock words as `i2s_ll_tx_set_raw_clk_div` and
     /// `i2s_ll_tx_clk_set_src` leave them (S31 HP_SYS_CLKRST I2Sn_TX_CTRL0: CLK_EN 0, SRC_SEL 2:1
     /// (0 XTAL, 1 APLL, 2 RC_FAST, 3 external), DIV_N 10:3; I2Sn_TX_DIV_CTRL0: X 8:0, Y 17:9,
@@ -107,17 +116,17 @@ impl I2s {
     ///   fs   = BCK / (2 · (half_sample_bits + 1))
     /// Returns None while the clock is off or unprogrammed, so the default stays in force.
     pub fn derive_rate(&self) -> Option<u32> {
-        if self.v2 { return Self::v2_rate(self.v2_clock, self.tx_conf, self.tx_conf1); }
+        if self.v2 { return self.v2_rate(self.v2_clock, self.tx_conf, self.tx_conf1); }
         Self::clock_rate(self.tx_clkm_conf, self.tx_clkm_div_conf, self.tx_conf1, 2 * (((self.tx_conf1 >> 18) & 0x3f) as u64 + 1))
     }
     /// v2 frame rate from the clock/reset block's words, the BCK divider in CONF 26:21 and
     /// HALF_SAMPLE_BITS in CONF1 26:19 (the same positions for TX and RX).
-    pub(crate) fn v2_rate((c, d): (u32, u32), conf: u32, conf1: u32) -> Option<u32> {
-        if c & 1 == 0 || (c >> 1) & 3 != 0 { return None; }                       // off, or a source other than XTAL
-        // into the classic words: CLK_ACTIVE, XTAL, DIV_N; z/y/x/yn1; BCK divider at conf1 12:7
-        let clk = (1 << 26) | ((c >> 3) & 0xff);
+    pub(crate) fn v2_rate(&self, (c, d): (u32, u32), conf: u32, conf1: u32) -> Option<u32> {
+        let src = self.v2_sources[((c >> 1) & 3) as usize];
+        if c & 1 == 0 || src == 0 { return None; }                               // off, or a source of unknown rate
+        // into the classic divider word: z/y/x/yn1; BCK divider at conf1 12:7
         let div = ((d >> 18) & 0x1ff) | (((d >> 9) & 0x1ff) << 9) | ((d & 0x1ff) << 18) | (d & (1 << 27));
-        Self::clock_rate(clk, div, ((conf >> 21) & 0x3f) << 7, 2 * (((conf1 >> 19) & 0xff) as u64 + 1))
+        Self::divided_rate(src, (c >> 3) & 0xff, div, ((conf >> 21) & 0x3f) << 7, 2 * (((conf1 >> 19) & 0xff) as u64 + 1))
     }
     // ESP-IDF v5.5.5 components/hal/esp32s3/include/hal/i2s_ll.h,
     // i2s_ll_rx_clk_set_src and i2s_ll_rx_set_mclk: XTAL/PLL240/PLL160,
@@ -125,7 +134,12 @@ impl I2s {
     fn clock_rate(c: u32, d: u32, conf1: u32, frame_bits: u64) -> Option<u32> {
         if c & (1 << 26) == 0 { return None; }                                   // TX_CLK_ACTIVE
         let src: u64 = match (c >> 27) & 3 { 0 => 40_000_000, 1 => 240_000_000, 2 => 160_000_000, _ => return None };   // XTAL / PLL240M / PLL160M / external
-        let n = (c & 0xff) as u64;
+        Self::divided_rate(src, c & 0xff, d, conf1, frame_bits)
+    }
+    /// The frame rate from a source clock, the integer divider `n`, the fractional divider word
+    /// (z 8:0, y 17:9, x 26:18, yn1 27), the BCK divider at conf1 12:7 and the bits per frame.
+    fn divided_rate(src: u64, n: u32, d: u32, conf1: u32, frame_bits: u64) -> Option<u32> {
+        let n = n as u64;
         if n == 0 { return None; }
         let (z, y, x, yn1) = ((d & 0x1ff) as u64, ((d >> 9) & 0x1ff) as u64, ((d >> 18) & 0x1ff) as u64, d & (1 << 27) != 0);
         let (a, b) = if z == 0 { (1, 0) } else { let a = (x + 1) * z + y; (a, if yn1 { a - z } else { z }) };

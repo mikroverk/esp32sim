@@ -558,8 +558,9 @@ pub struct Peripherals {
     pub axi_dma: AxiDma,
     /// AHB-GDMA: the I2S controllers' DMA
     pub ahb_dma: AhbDma,
-    /// I2S1 (0x500C7000), the BSP's codec port (CONFIG_BSP_I2S_NUM 1): the shared model, the
-    /// C6's register map. Its clock dividers are HP_SYS_CLKRST's and not read: 44.1 kHz.
+    /// I2S1 (0x500C7000), the BSP's codec port (CONFIG_BSP_I2S_NUM 1): the shared model in the
+    /// P4/S31 field layout (IDF v5.5.4 register/hw_ver3/soc/i2s_reg.h: TX_CONF1 BITS_MOD 18:14,
+    /// TX_CONF MONO bit 6), its TX clock from HP_SYS_CLKRST (`i2s1_clock`). RX's clock is not read.
     pub i2s1: esp_periph::I2s,
     /// LEDC (0x500D3000); its clock is HP_SYS_CLKRST PERI_CLK_CTRL22's (`ledc_clock`)
     pub ledc: Ledc,
@@ -666,7 +667,7 @@ impl Peripherals {
             spi0: MspiCache(flash_controller(false)), psram0: MspiCache(RegRam::new()), spi1: flash_controller(true), psram1: psram_controller(),
             sha: Sha::new(), intmtx: IntMatrix::new(), clic: Clic::default(), cache: Cache::new(), hp_sys: HpSys::default(), hp_clkrst: HpClkRst::new(),
             lp: LpAon::new(), ana_mst: AnaMst::default(), assist_debug: AssistDebug::default(), rng: Rng::new(),
-            spi2: GpSpi::new(), i2c1: esp_periph::i2c::I2c::new(), axi_dma: AxiDma::new(), ahb_dma: AhbDma::new(), i2s1: esp_periph::I2s::new(CPU_HZ), ledc: Ledc::new(LedcLayout::P4),
+            spi2: GpSpi::new(), i2c1: esp_periph::i2c::I2c::new(), axi_dma: AxiDma::new(), ahb_dma: AhbDma::new(), i2s1: esp_periph::I2s::new_v2_p4(CPU_HZ), ledc: Ledc::new(LedcLayout::P4),
             misc: Misc::new(), spi_exec: false, psram_exec: false, clock: Self::new_clock(), cycle_base: 0, last_status: [0; 4],
         }
     }
@@ -704,6 +705,7 @@ impl Peripherals {
     pub fn write32(&mut self, addr: u32, v: u32) {
         let fx = mmio::write32(self, addr, v);
         if addr == 0x500e_609c { self.ledc_clock(v); }
+        if (0x500e_6054..=0x500e_605c).contains(&addr) { self.i2s1_clock(); }
         if fx.contains(WriteEffect::SPI_EXEC | WriteEffect::PERIPH_RESET) {
             if fx.contains(WriteEffect::PERIPH_RESET) {
                 match addr {
@@ -716,6 +718,16 @@ impl Peripherals {
         }
     }
 
+    /// HP_SYS_CLKRST PERI_CLK_CTRL15-17, I2S1's TX clock (register/hw_ver3/soc/hp_sys_clkrst_reg.h:
+    /// CTRL15 I2S1_TX_CLK_EN bit 28, I2S1_TX_CLK_SRC_SEL 30:29; CTRL16 I2S1_TX_DIV_N 7:0, DIV_X
+    /// 16:8, DIV_Y 25:17; CTRL17 DIV_Z 8:0, DIV_YN1 bit 9; hal/i2s_ll.h `i2s_ll_tx_set_raw_clk_div`),
+    /// handed to the I2S model in the S31's word layout (`I2s::set_v2_clock`).
+    fn i2s1_clock(&mut self) {
+        let [c15, c16, c17] = [0x54, 0x58, 0x5c].map(|off| Device::read(&mut self.hp_clkrst, off));
+        let ctrl0 = (c15 >> 28 & 1) | (c15 >> 29 & 3) << 1 | (c16 & 0xff) << 3;
+        let div = (c16 >> 8 & 0x1ff) | (c16 >> 17 & 0x1ff) << 9 | (c17 & 0x1ff) << 18 | (c17 >> 9 & 1) << 27;
+        self.i2s1.set_v2_clock(ctrl0, div);
+    }
     /// HP_SYS_CLKRST PERI_CLK_CTRL22: LEDC_CLK_SRC_SEL 1:0 (0 XTAL, 1 RC_FAST, 2 PLL_F80M),
     /// LEDC_CLK_EN bit 2 (register/hw_ver3/soc/hp_sys_clkrst_reg.h:2510-2524, hal/ledc_ll.h:98-115;
     /// RC_FAST is SOC_CLK_RC_FAST_FREQ_APPROX, 20 MHz).
@@ -799,6 +811,27 @@ impl Peripherals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// I2S1 TX on the P4's field layout and clock: 16-bit mono (BITS_MOD 18:14, MONO bit 6) is 2
+    /// bytes a frame, not 4; the rate comes from HP_SYS_CLKRST PERI_CLK_CTRL15-17. 16 kHz from
+    /// XTAL as the S31 test programs it (MCLK = 40 MHz / (9 + 49/64), BCK = MCLK / 8, 32-bit
+    /// frames), then the same divider from PLL_F160M (SRC_SEL 3) runs four times as fast.
+    #[test]
+    fn i2s1_reads_the_p4_fields_and_its_hp_sys_clkrst_clock() {
+        let mut p = Peripherals::new([0; 6], (3, 1));
+        let i2s = 0x500c_7000;
+        p.write32(i2s + 0x2c, (15 << 14) | (15 << 19));                  // TX_CONF1: 16-bit, half frame 16
+        p.write32(i2s + 0x54, (1 << 16) | 1);                             // TX_TDM_CTRL: two slots, the first active
+        p.write32(i2s + 0x24, (7 << 21) | (1 << 6) | (1 << 2));           // TX_CONF: BCK_DIV_NUM 8, MONO, TX_START
+        assert_eq!((p.i2s1.sample_bytes(), p.i2s1.bytes_per_frame), (2, 2));
+        p.write32(0x500e_6058, 9 | (3 << 8) | (4 << 17));                 // CTRL16: DIV_N 9, X 3, Y 4
+        p.write32(0x500e_605c, 15 | (1 << 9));                            // CTRL17: Z 15, YN1
+        assert_eq!(p.i2s1.sample_rate, 44100, "no clock yet: the default");
+        p.write32(0x500e_6054, 1 << 28);                                  // CTRL15: I2S1_TX_CLK_EN, XTAL
+        assert_eq!(p.i2s1.sample_rate, 16000);
+        p.write32(0x500e_6054, (1 << 28) | (3 << 29));                    // PLL_F160M
+        assert_eq!(p.i2s1.sample_rate, 64000);
+    }
 
     /// AXI-GDMA OUT channel 2: a whole-word descriptor address in LINK2, START in LINK1 bit 1, the
     /// peripheral select and interrupt words of its block at 0x138 + 2 * 0x68 (axi_dma_reg.h).

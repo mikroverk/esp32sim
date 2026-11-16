@@ -611,7 +611,7 @@ mod tests {
     fn i2s1_a_frame_split_between_descriptors_stays_whole() {
         let mut b = SocBus::new(0x1000, [0; 6], (3, 1));
         b.periph.i2s1.write(0x24, 1 << 2);                            // TX_START
-        (b.periph.i2s1.tx_conf1, b.periph.i2s1.bytes_per_frame) = (15 << 13, 4);   // 16-bit samples, two slots
+        (b.periph.i2s1.tx_conf1, b.periph.i2s1.bytes_per_frame) = (15 << 14, 4);   // 16-bit samples (BITS_MOD 18:14), two slots
         let (d1, d2) = (0x4ff4_0000, 0x4ff4_0010);
         for (o, v) in [(0, 1u32 << 31 | 6 << 12 | 6), (4, d1 + 0x100), (8, d2)] { b.write32(d1 + o, v).unwrap(); }
         for (o, v) in [(0, 1u32 << 31 | 1 << 30 | 2 << 12 | 2), (4, d1 + 0x200), (8, 0)] { b.write32(d2 + o, v).unwrap(); }
