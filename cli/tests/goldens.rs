@@ -692,7 +692,7 @@ fn hosted_p4_rev3() {
 /// the model of Waveshare's ESP32-P4-WIFI6-Touch-LCD-3.5, with no C6 on the SDIO bus: Waveshare's
 /// BSP 2.0.2 and LVGL 9 bring up the ST7796 over GPSPI2 and the AXI-GDMA, the FT5x06 on I2C1 and
 /// the ES8311 on I2S1 and the AHB-GDMA. A4 (the thirteenth white key, at the panel's (290, 160)
-/// under the firmware's landscape touch mapping) held for 0.6 s sounds at 440 Hz; a tap on the
+/// under the firmware's landscape touch mapping) held for 0.6 s sounds at 220.5 Hz (Chunky Synth is an octave down); a tap on the
 /// program display opens the patch picker. Pinned: the audio, the last frame, the instruction count.
 #[test] #[ignore = "needs the ESP32-P4 rev 3 mask ROM ELF"]
 fn scintilla_p4_lcd35() {
@@ -715,7 +715,10 @@ fn scintilla_p4_lcd35() {
     let w = &pcm[onset + 2205..onset + 2205 + 1764];
     let lag = (44100 / 1000..44100 / 100).max_by_key(|&l| w[..w.len() - l].iter().zip(&w[l..]).map(|(&a, &b)| a as i64 * b as i64).sum::<i64>()).unwrap();
     let hz = 44100.0 / lag as f64;
-    assert!((hz - 440.0).abs() < 440.0 * 0.03, "A4 sounds at {hz:.1} Hz");
+    // The key is A4; Chunky Synth sounds it an octave down, at 220.5 Hz as scintilla-fm1's engine
+    // renders it on the host. (Before the P4's I2S read its own field layout, every second
+    // sample was dropped and this measured 440.)
+    assert!((hz - 220.5).abs() < 220.5 * 0.03, "the key sounds at {hz:.1} Hz");
     expect_sha("scintilla-p4-lcd35.wav.sha256", &data);
     expect_sha("scintilla-p4-lcd35.png.sha256", &std::fs::read(&png).unwrap());
     expect_u64("scintilla-p4-lcd35.insns", r.insns);
