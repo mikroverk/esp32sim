@@ -187,6 +187,8 @@ pub struct S31Bus {
     pub ahb_dma: esp_periph::gdma::AhbDmaV2,
     /// I2S0 and I2S1 (IRQ sources 6 and 7).
     pub i2s: [esp_periph::I2s; 2],
+    /// LEDC0 and LEDC1 (IRQ sources 31 and 32).
+    pub ledc: crate::ledc::Ledc,
     /// XTAL-domain remainder carried between ticks for the I2C controllers.
     pub i2c_frac: u64,
 }
@@ -261,7 +263,7 @@ impl S31Bus {
             // GHWCFG words are assumed equal to the P4's until read from an S31.
             usb_otg: esp_periph::usb_otg::Dwc2::new(esp_periph::usb_otg::Dwc2Config::esp32p4_hs(crate::periph::CPU_HZ)),
             spi2: esp_periph::GpSpi::new().diverting_dma_rx(), spi3: esp_periph::GpSpi::with_host(3).diverting_dma_rx(), i2c: [esp_periph::i2c::I2c::new(), esp_periph::i2c::I2c::new()], i2c_frac: 0, axi_dma: esp_periph::gdma::AxiDma::new(), dma2d: esp_periph::dma2d::Dma2d::new(), ppa: esp_periph::ppa::Ppa::new(),
-            ahb_dma: esp_periph::gdma::AhbDmaV2::new(), i2s: [esp_periph::I2s::new_v2(crate::periph::CPU_HZ), esp_periph::I2s::new_v2(crate::periph::CPU_HZ)] }
+            ahb_dma: esp_periph::gdma::AhbDmaV2::new(), i2s: [esp_periph::I2s::new_v2(crate::periph::CPU_HZ), esp_periph::I2s::new_v2(crate::periph::CPU_HZ)], ledc: Default::default() }
     }
     fn memory(&self, address: u32, bytes: usize) -> Option<&[u8]> {
         for (base, data) in [(SRAM_BASE, &self.sram), (LP_BASE, &self.lp), (ROM_BASE, &self.rom)] {
@@ -548,7 +550,7 @@ impl S31Bus {
         let mut dma = UsbDma { sram: &mut self.sram, lp: &mut self.lp, ver: &mut self.code_ver };
         self.usb_otg.run(&mut dma);
     }
-    pub(crate) fn peripheral_irqs(&self) -> crate::interrupts::Irqs { crate::interrupts::Irqs { uart: self.uart_irq(), wdt: self.rtc_wdt.irq(), efuse: self.periph.efuse.irq(), usb: self.periph.usb.irq(), monitor: self.bus_monitor.irq(), cache: self.cache.irq(), mwdt: [self.periph.timg[0].irq_wdt(), self.periph.timg[1].irq_wdt()], systimer: self.periph.systimer.irqs(), psram: self.psram_controller.irq(), brownout: self.power.mode0.irq(), from_cpu: self.cores.from_cpu_irqs(), usb_otg: self.usb_otg.irq(), spi2: self.spi2.irq(), spi3: self.spi3.irq(), i2c: [self.i2c[0].irq(), self.i2c[1].irq()], gpio: self.pads.irq_lines(), axi_dma: esp_periph::Device::irq_sources(&self.axi_dma), aes: self.periph.aes.irq(), sha: self.sha.irq(), dma2d: self.dma2d.irq_bits() as u8, ppa: self.ppa.irq(), wifi_mac: self.wifi_mac.irq(), ahb_dma: esp_periph::Device::irq_sources(&self.ahb_dma), i2s: [self.i2s[0].irq(), self.i2s[1].irq()] } }
+    pub(crate) fn peripheral_irqs(&self) -> crate::interrupts::Irqs { crate::interrupts::Irqs { uart: self.uart_irq(), wdt: self.rtc_wdt.irq(), efuse: self.periph.efuse.irq(), usb: self.periph.usb.irq(), monitor: self.bus_monitor.irq(), cache: self.cache.irq(), mwdt: [self.periph.timg[0].irq_wdt(), self.periph.timg[1].irq_wdt()], systimer: self.periph.systimer.irqs(), psram: self.psram_controller.irq(), brownout: self.power.mode0.irq(), from_cpu: self.cores.from_cpu_irqs(), usb_otg: self.usb_otg.irq(), spi2: self.spi2.irq(), spi3: self.spi3.irq(), i2c: [self.i2c[0].irq(), self.i2c[1].irq()], gpio: self.pads.irq_lines(), axi_dma: esp_periph::Device::irq_sources(&self.axi_dma), aes: self.periph.aes.irq(), sha: self.sha.irq(), dma2d: self.dma2d.irq_bits() as u8, ppa: self.ppa.irq(), wifi_mac: self.wifi_mac.irq(), ahb_dma: esp_periph::Device::irq_sources(&self.ahb_dma), i2s: [self.i2s[0].irq(), self.i2s[1].irq()], ledc: self.ledc.irqs() } }
     pub(crate) fn set_hart(&mut self, hart: usize) { self.hart = hart; }
     pub(crate) fn reset_hart(&mut self, hart: usize) { self.reservations[hart] = None; self.interrupts.clic[hart] = Default::default(); }
     pub fn refresh_irq(&mut self, threshold: u32) -> Option<u32> {
@@ -694,6 +696,10 @@ impl S31Bus {
     fn read_modelled(&mut self, address: u32, bytes: usize) -> Result<u32, Fault> {
         if let Err(e) = self.apm.check(address, bytes, 2) { return self.fault(address, bytes, false, false, e); }
         if let Err(e) = self.permissions.check(address, false) { return self.fault(address, bytes, false, false, e); }
+        if let Some(g) = crate::ledc::group(address) {
+            let word = self.ledc.groups[g].read(address & 0xffc);
+            return Ok(if bytes == 4 { word } else { (word >> ((address & 3) * 8)) & ((1u32 << (bytes * 8)) - 1) });
+        }
         if (USB_OTG..USB_OTG + 0x4_0000).contains(&address) {
             if bytes != 4 || address & 3 != 0 { return self.fault(address, bytes, false, false, Fault::Misaligned); }
             return Ok(esp_periph::Device::read(&mut self.usb_otg, address - USB_OTG));
@@ -935,6 +941,15 @@ impl S31Bus {
     fn write_modelled(&mut self, address: u32, value: u32, bytes: usize) -> Result<(), Fault> {
         if let Err(e) = self.apm.check(address, bytes, 1) { return self.fault(address, bytes, true, false, e); }
         if let Err(e) = self.permissions.check(address, true) { return self.fault(address, bytes, true, false, e); }
+        if let Some(g) = crate::ledc::group(address) {
+            // A narrower store merges into the register's stored word (`Group::write` sees the word).
+            let value = if bytes == 4 { value } else {
+                let (shift, mask) = ((address & 3) * 8, (1u32 << (bytes * 8)) - 1);
+                (self.ledc.groups[g].read(address & 0xffc) & !(mask << shift)) | ((value & mask) << shift)
+            };
+            self.ledc.groups[g].write(address & 0xffc, value);
+            return Ok(());
+        }
         if (USB_OTG..USB_OTG + 0x4_0000).contains(&address) {
             if bytes != 4 || address & 3 != 0 { return self.fault(address, bytes, true, false, Fault::Misaligned); }
             esp_periph::Device::write(&mut self.usb_otg, address - USB_OTG, value);

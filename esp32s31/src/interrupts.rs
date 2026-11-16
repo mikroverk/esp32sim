@@ -31,6 +31,8 @@ pub const PPA_SOURCE: usize = 102; // IDF master interrupts.h: ETS_PPA_INTR_SOUR
 /// ETS_DMA2D_IN_CH0_INTR_SOURCE; IN ch1-2, then OUT ch0-3 follow.
 pub const DMA2D_IN_SOURCE: usize = 105;
 pub const I2C0_SOURCE: usize = 23;
+/// ETS_LEDC0_INTR_SOURCE (interrupt_core0_reg.h LEDC0_INTR_MAP at 0x7c); LEDC1 follows.
+pub const LEDC0_SOURCE: usize = 31;
 /// IDF master interrupts.h: ETS_I2S0_INTR_SOURCE 6, ETS_I2S1_INTR_SOURCE 7.
 pub const I2S0_SOURCE: usize = 6;
 /// ETS_AHB_PDMA_IN_CH0_INTR_SOURCE; IN ch1-4, then OUT ch0-4 (41-45) follow.
@@ -52,15 +54,17 @@ pub struct Irqs { pub uart: bool, pub wdt: bool, pub efuse: bool, pub usb: bool,
     pub wifi_mac: bool,
     /// AHB-GDMA, as `esp_periph::gdma::Gdma` numbers it: bits 0-4 OUT ch0-4, 5-9 IN ch0-4
     pub ahb_dma: u64,
-    pub i2s: [bool; 2] }
+    pub i2s: [bool; 2],
+    /// LEDC0, LEDC1 (`ledc.rs`)
+    pub ledc: [bool; 2] }
 impl Irqs {
     // Fixed S31 interrupts.h: TIMERGRP0_WDT27,TIMERGRP1_WDT30,SYSTIMER_TARGET0..2 sources33..35,LP_ANAPERI143.
-    pub(crate) fn sources(self) -> [(usize, bool); 55] { [(UART0_SOURCE, self.uart), (AES_SOURCE, self.aes), (SHA_SOURCE, self.sha), (RTC_WDT_SOURCE, self.wdt), (EFUSE_SOURCE, self.efuse), (USB_SERIAL_SOURCE, self.usb), (MONITOR_SOURCE, self.monitor), (CACHE_SOURCE, self.cache), (27, self.mwdt[0]), (30, self.mwdt[1]), (33, self.systimer[0]), (34, self.systimer[1]), (35, self.systimer[2]), (112, self.psram), (143, self.brownout), (65, self.from_cpu[0]), (66, self.from_cpu[1]), (67, self.from_cpu[2]), (68, self.from_cpu[3]), (USB_OTG_SOURCE, self.usb_otg), (SPI2_SOURCE, self.spi2), (SPI2_SOURCE + 1, self.spi3), (I2C0_SOURCE, self.i2c[0]), (I2C0_SOURCE + 1, self.i2c[1]), (GPIO_SOURCE, self.gpio[0]), (GPIO_SOURCE + 1, self.gpio[1]), (GPIO_SOURCE + 2, self.gpio[2]), (GPIO_SOURCE + 3, self.gpio[3]),
+    pub(crate) fn sources(self) -> [(usize, bool); 57] { [(UART0_SOURCE, self.uart), (AES_SOURCE, self.aes), (SHA_SOURCE, self.sha), (RTC_WDT_SOURCE, self.wdt), (EFUSE_SOURCE, self.efuse), (USB_SERIAL_SOURCE, self.usb), (MONITOR_SOURCE, self.monitor), (CACHE_SOURCE, self.cache), (27, self.mwdt[0]), (30, self.mwdt[1]), (33, self.systimer[0]), (34, self.systimer[1]), (35, self.systimer[2]), (112, self.psram), (143, self.brownout), (65, self.from_cpu[0]), (66, self.from_cpu[1]), (67, self.from_cpu[2]), (68, self.from_cpu[3]), (USB_OTG_SOURCE, self.usb_otg), (SPI2_SOURCE, self.spi2), (SPI2_SOURCE + 1, self.spi3), (I2C0_SOURCE, self.i2c[0]), (I2C0_SOURCE + 1, self.i2c[1]), (GPIO_SOURCE, self.gpio[0]), (GPIO_SOURCE + 1, self.gpio[1]), (GPIO_SOURCE + 2, self.gpio[2]), (GPIO_SOURCE + 3, self.gpio[3]),
         (AXI_DMA_IN_SOURCE, self.axi_dma >> 5 & 1 != 0), (AXI_DMA_IN_SOURCE + 1, self.axi_dma >> 6 & 1 != 0), (AXI_DMA_IN_SOURCE + 2, self.axi_dma >> 7 & 1 != 0),
         (AXI_DMA_IN_SOURCE + 3, self.axi_dma & 1 != 0), (AXI_DMA_IN_SOURCE + 4, self.axi_dma >> 1 & 1 != 0), (AXI_DMA_IN_SOURCE + 5, self.axi_dma >> 2 & 1 != 0),
         (PPA_SOURCE, self.ppa), (DMA2D_IN_SOURCE, self.dma2d & 1 != 0), (DMA2D_IN_SOURCE + 1, self.dma2d >> 1 & 1 != 0), (DMA2D_IN_SOURCE + 2, self.dma2d >> 2 & 1 != 0),
         (DMA2D_IN_SOURCE + 3, self.dma2d >> 3 & 1 != 0), (DMA2D_IN_SOURCE + 4, self.dma2d >> 4 & 1 != 0), (DMA2D_IN_SOURCE + 5, self.dma2d >> 5 & 1 != 0), (DMA2D_IN_SOURCE + 6, self.dma2d >> 6 & 1 != 0), (crate::wifi::MAC_SOURCE, self.wifi_mac),
-        (I2S0_SOURCE, self.i2s[0]), (I2S0_SOURCE + 1, self.i2s[1]),
+        (I2S0_SOURCE, self.i2s[0]), (I2S0_SOURCE + 1, self.i2s[1]), (LEDC0_SOURCE, self.ledc[0]), (LEDC0_SOURCE + 1, self.ledc[1]),
         (AHB_DMA_IN_SOURCE, self.ahb_dma >> 5 & 1 != 0), (AHB_DMA_IN_SOURCE + 1, self.ahb_dma >> 6 & 1 != 0), (AHB_DMA_IN_SOURCE + 2, self.ahb_dma >> 7 & 1 != 0), (AHB_DMA_IN_SOURCE + 3, self.ahb_dma >> 8 & 1 != 0), (AHB_DMA_IN_SOURCE + 4, self.ahb_dma >> 9 & 1 != 0),
         (AHB_DMA_IN_SOURCE + 5, self.ahb_dma & 1 != 0), (AHB_DMA_IN_SOURCE + 6, self.ahb_dma >> 1 & 1 != 0), (AHB_DMA_IN_SOURCE + 7, self.ahb_dma >> 2 & 1 != 0), (AHB_DMA_IN_SOURCE + 8, self.ahb_dma >> 3 & 1 != 0), (AHB_DMA_IN_SOURCE + 9, self.ahb_dma >> 4 & 1 != 0)] }
 }

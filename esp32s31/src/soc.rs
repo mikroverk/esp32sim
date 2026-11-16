@@ -37,8 +37,8 @@ pub fn machine(mac: [u8; 6], flash_size: usize) -> Machine {
 const TIME_HZ: u64 = crate::periph::CPU_HZ;
 /// Modem TSF timer latch request (bits 0-3); the latched value follows at +0xC/+0x10.
 const TSF_LATCH: u32 = 0x2010_d814;
-/// LEDC0 and LEDC1 (soc/esp32s31 reg_base.h DR_REG_LEDC0_BASE, DR_REG_LEDC1_BASE).
-const LEDC_BASE: [u32; 2] = [0x2039_2000, 0x2039_c000];
+#[cfg(test)]
+use crate::ledc::BASE as LEDC_BASE;
 
 impl Soc for S31 {
     type Core = Cpu;
@@ -342,7 +342,7 @@ impl SocBus {
         if address >> 24 != 0x20 { return; }
         if address & !3 == TSF_LATCH { self.latch_tsf(); }
         if crate::pads::Pads::is_mmio(address) { self.deliver_pin_levels(); self.irq_dirty = true; }
-        else if Self::is_ledc(address) { self.ledc_latch(address); if self.ledc_pins != 0 { self.deliver_ledc_levels(); } }
+        else if crate::ledc::group(address).is_some() && self.ledc_pins != 0 { self.deliver_ledc_levels(); }
         self.deliver_spi();
     }
 
@@ -383,37 +383,35 @@ impl SocBus {
     }
 
     /// The level an LEDC channel puts on its GPIO-matrix output (LEDCn_LS_SIG_OUT_PAD_OUTm_IDX,
-    /// 126-133 and 230-237), from the registers IDF writes (soc/esp32s31 ledc_reg.h, kept as
-    /// plain storage): with SIG_OUT_EN (CONF0 bit 2) high while the duty in effect (DUTY_R, the
-    /// integer part, bits 24:4; see `ledc_latch`) is above zero and the channel's timer
-    /// (CONF0 TIMER_SEL bits 1:0) neither paused (TIMERn_CONF bit 23) nor held in reset (bit 24),
-    /// and the idle level (CONF0 bit 3) otherwise. The waveform itself is not modelled: a board
-    /// sees PWM as on or off. None for other signals.
+    /// 126-133 and 230-237; soc/esp32s31 ledc_reg.h): with SIG_OUT_EN (CONF0 bit 2) high while
+    /// the duty in effect (DUTY_R, `ledc.rs`, integer part bits 24:4) is above zero and the
+    /// channel's timer (CONF0 TIMER_SEL bits 1:0) neither paused (TIMERn_CONF bit 23) nor held
+    /// in reset (bit 24), and the idle level (CONF0 bit 3) otherwise. The waveform itself is not
+    /// modelled: a board sees PWM as on or off. None for other signals.
     fn ledc_output(&self, signal: u32) -> Option<bool> {
         let (group, channel) = match signal { 126..=133 => (0, signal - 126), 230..=237 => (1, signal - 230), _ => return None };
-        let base = LEDC_BASE[group] + channel * 0x14;
-        let reg = |a: u32| self.inner.unmodelled.get(&a).copied().unwrap_or(0);
-        let conf0 = reg(base);
-        let timer = reg(LEDC_BASE[group] + 0xa0 + (conf0 & 3) * 8);
-        let running = timer & (3 << 23) == 0;
-        Some(if conf0 & 1 << 2 != 0 && running { reg(base + 0x10) >> 4 & 0x1f_ffff != 0 } else { conf0 & 1 << 3 != 0 })
+        let g = &self.inner.ledc.groups[group];
+        let conf0 = g.read(channel * 0x14);
+        let running = g.read(0xa0 + (conf0 & 3) * 8) & (3 << 23) == 0;
+        Some(if conf0 & 1 << 2 != 0 && running { g.read(channel * 0x14 + 0x10) >> 4 & 0x1f_ffff != 0 } else { conf0 & 1 << 3 != 0 })
     }
-    /// A new duty takes effect only on an update: PARA_UP (CONF0 bit 4, ledc_ll_ls_channel_update)
-    /// or DUTY_START (CONF1 bit 31, ledc_ll_set_duty_start), as IDF v6.1 ledc.c `ledc_update_duty`
-    /// writes both (soc/esp32s31 ledc_reg.h, hal/ledc_ll.h). The latch copies DUTY (+0x8) into
-    /// DUTY_R (+0x10, the duty in effect) and clears the self-clearing bit; no fade is modelled.
-    fn ledc_latch(&mut self, address: u32) {
-        let offset = address & 0xffc;
-        if offset >= 8 * 0x14 { return; }
-        let (base, reg) = ((address & !0xfff) + offset / 0x14 * 0x14, offset % 0x14);
-        let (bit, at) = match reg { 0 => (1 << 4, base), 0xc => (1 << 31, base + 0xc), _ => return };
-        let Some(v) = self.inner.unmodelled.get(&at).copied() else { return };
-        if v & bit == 0 { return; }
-        self.inner.unmodelled.insert(at, v & !bit);
-        let duty = self.inner.unmodelled.get(&(base + 8)).copied().unwrap_or(0);
-        self.inner.unmodelled.insert(base + 0x10, duty & 0x1ff_ffff);
+    /// The LEDC groups' source clocks (HP_SYS_CLKRST LEDC_CTRL0, register storage here).
+    fn ledc_source_hz(&self) -> [u64; 2] {
+        let ctrl = self.inner.unmodelled.get(&crate::ledc::CLK_CTRL).copied().unwrap_or(0);
+        let rc = self.inner.clocks.rc_fast_hz();
+        [crate::ledc::Ledc::source_hz(0, ctrl, rc), crate::ledc::Ledc::source_hz(1, ctrl, rc)]
     }
-    fn is_ledc(address: u32) -> bool { LEDC_BASE.contains(&(address & !0xfff)) }
+    /// Runs the LEDC duty changes; the pins they drive follow, and an ended change may interrupt.
+    fn advance_ledc(&mut self, cycles: u64) {
+        if !self.inner.ledc.running() { return; }
+        let hz = self.ledc_source_hz();
+        let before: [[u32; 8]; 2] = std::array::from_fn(|g| std::array::from_fn(|ch| self.inner.ledc.groups[g].read(ch as u32 * 0x14 + 0x10)));
+        let mut ended = false;
+        for g in 0..2 { ended |= self.inner.ledc.groups[g].advance(cycles, hz[g], TIME_HZ); }
+        if ended { self.irq_dirty = true; }
+        let moved = (0..2).any(|g| (0..8).any(|ch| self.inner.ledc.groups[g].read(ch as u32 * 0x14 + 0x10) != before[g][ch]));
+        if moved && self.ledc_pins != 0 { self.deliver_ledc_levels(); }
+    }
 
     /// The modem's TSF timers (802.11 timing synchronization, microseconds). The Wi-Fi library
     /// reads timer n (0-3) by setting bit n of 0x2010D814, reading the latched value from
@@ -560,6 +558,12 @@ impl esp_soc::SocBus for SocBus {
             let dt = u128::from(ns.saturating_sub(self.board_ns)) * u128::from(hz);
             (dt.div_ceil(1_000_000_000).min(u128::from(u64::MAX)) as u64).max(1)
         });
+        // The next LEDC duty step (a fade's end interrupt, or a pin's level).
+        let ledc = if self.inner.ledc.running() {
+            let hz = self.ledc_source_hz();
+            (0..2).filter_map(|g| self.inner.ledc.groups[g].cycles_until_step(hz[g], TIME_HZ)).min()
+        } else { None };
+        let board = match (board, ledc) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
         let Some(ticks) = self.inner.periph.systimer.ticks_until_irq(stalled) else { return board };
         if ticks == 0 { return Some(1); }
         let source = if self.inner.periph.systimer.source_rc_fast() {
@@ -1018,6 +1022,7 @@ impl Bus for SocBus {
                 if changed { self.irq_dirty = true; }
             }
         }
+        self.advance_ledc(u64::from(cycles));
         // Emulated time for the board (TE), in nanoseconds.
         let t = u128::from(cycles) * 1_000_000_000 + u128::from(self.board_ns_frac);
         self.board_ns += (t / u128::from(hz)) as u64; self.board_ns_frac = (t % u128::from(hz)) as u64;

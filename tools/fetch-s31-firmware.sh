@@ -38,7 +38,7 @@ s31-hello-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb
 s31-mosaico-board.bin 542246f60b5b6f13dd1c18072ea158f496ebbf925edd33c1e757e1e0d1f11b20 mosaico_board.bin"
 DEMO="s31-mosaico-demo-bootloader.bin a0cf5ca20b34d2c4e2deaa0f8c16e23e2fa09cce77f0544db802a16bc74df830 bootloader/bootloader.bin
 s31-mosaico-demo-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
-s31-mosaico-demo.bin 64631e73b59ca1d43567a3cf2a67fff8423e58916800594a6119bf97bb58b452 mosaico_demo.bin"
+s31-mosaico-demo.bin ec2c2f899836671907943a3ee55e2d06ec8c16a601a80596a8e8656bba25d00d mosaico_demo.bin"
 
 # The reused files must carry the same pin in every set that names them.
 for n in $(echo "$BOARD" | awk '{print $1":"$2}'); do
