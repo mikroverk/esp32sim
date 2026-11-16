@@ -49,11 +49,11 @@ pair with ESP-Hosted's raw throughput test, built as
 `public/hosted-NOTICE.txt`; `tools/fetch-p4-firmware.sh` pins them too.
 `p4-lcd35-synth.json` boots `public/p4-scintilla-lcd35*`, the Scintilla synth for the Waveshare
 ESP32-P4-WIFI6-Touch-LCD-3.5, built from [joakimeriksson/esp32](https://github.com/joakimeriksson/esp32)
-at commit `eed6180`, directory `scintilla-p4-lcd35`, and pinned in `tools/fetch-p4-firmware.sh`. Its
+at commit `3a477c7`, directory `scintilla-p4-lcd35`, and pinned in `tools/fetch-p4-firmware.sh`. Its
 application is GPL-3.0-only; that text, the corresponding source and the licences of the linked
 components (LVGL, Waveshare's BSP, ESP-IDF and others) are in `public/p4-scintilla-NOTICE.txt`
 (the firmware repository's `p4/p4-scintilla-NOTICE.txt` at the pinned commit, SHA-256
-`c6eec7a427747c9c552a7474c4ec04641d9ac29c811173a81db7bb2f621d3aac`).
+`3f95af3053c5a110384b8a77af4ba52123634ab0663cc356445b58ad1dcbf2f8`).
 
 `s31-mosaico.json` boots `public/s31-mosaico-demo*`, the ESP-Mosaico (ESP32-S31) demo of
 [`examples/mosaico-demo`](../../../examples/mosaico-demo/README.md): our code, built with ESP-IDF

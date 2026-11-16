@@ -262,7 +262,7 @@ The wiring is Waveshare's BSP `waveshare/esp32_p4_wifi6_touch_lcd_3_5` 2.0.2
 | TF card | SDMMC slot 0 | `--sd` |
 
 Firmware for it: the Scintilla synth (`p4-scintilla-lcd35*`, fetched by `tools/fetch-p4-firmware.sh`;
-source joakimeriksson/esp32 at commit `eed6180`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
+source joakimeriksson/esp32 at commit `3a477c7`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
 `web/wasm/fw/public/p4-scintilla-NOTICE.txt`), pinned by the golden `scintilla_p4_lcd35`, and the
 page demo `p4-lcd35-synth`. It wants PSRAM: `--psram-mb 32`, as the board has (the CLI's default
 is none; the page's manifest sets 32).

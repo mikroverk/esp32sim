@@ -687,7 +687,7 @@ fn hosted_p4_rev3() {
     expect_u64("hosted-p4-rev3.insns", r.insns);
 }
 
-/// Scintilla (the Elka Synthex in integer C, GPL-3.0, joakimeriksson/esp32 `eed6180`, directory
+/// Scintilla (the Elka Synthex in integer C, GPL-3.0, joakimeriksson/esp32 `3a477c7`, scintilla-fm1's engine 0.3.2, directory
 /// `scintilla-p4-lcd35`; licences in web/wasm/fw/public/p4-scintilla-NOTICE.txt) on
 /// the model of Waveshare's ESP32-P4-WIFI6-Touch-LCD-3.5, with no C6 on the SDIO bus: Waveshare's
 /// BSP 2.0.2 and LVGL 9 bring up the ST7796 over GPSPI2 and the AXI-GDMA, the FT5x06 on I2C1 and
