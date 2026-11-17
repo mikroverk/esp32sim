@@ -145,11 +145,11 @@ ESP-IDF v5.5.4's DHCP server (`components/lwip/apps/dhcpserver/dhcpserver.c`) le
 minutes by default and acknowledges a REQUEST without option 50 whose `ciaddr` is the address it
 leased to that MAC, unicast or broadcast; its ACK carries option 51 and neither 58 nor 59. With
 the lease set to 1 minute, the example's station renewed every 30 s and kept 192.168.4.2, and the
-guest logged each ACK as an assignment. A lease without option 51 is kept and never renewed; one
-under 1 s is taken as 1 s. In relay mode the host program takes its own lease: with the relay
-switched on, the station gives up its own lease and DHCP, so nothing goes out under the program's
-MAC, and with the relay off again it starts DHCP anew. The end-of-run line counts keep-alives and
-renewals (rebinds among them) when there are any.
+guest logged each ACK as an assignment. A lease without option 51 is kept and never renewed; a
+lease, T1 or T2 under 1 s is taken as 1 s. In relay mode the host program takes its own lease:
+with the relay switched on, the station gives up its own lease and DHCP, so nothing goes out under
+the program's MAC, and with the relay off again it starts DHCP anew. The end-of-run line counts
+keep-alives and renewals (rebinds among them) when there are any.
 
 Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
 AP+STA with both sides on the air; the S3, C3 and C6; host ports forwarded to the guest's access

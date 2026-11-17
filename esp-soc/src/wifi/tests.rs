@@ -1383,6 +1383,19 @@ fn a_lease_of_0_s_is_taken_as_1_s() {
 }
 
 #[test]
+fn a_t1_or_t2_of_0_s_is_taken_as_1_s() {
+    // options 58 and 59 of 0 s with a 100 s lease: one renewal a second, not one in every round
+    for (t1, t2) in [(0, 50), (0, 0), (100, 0)] {
+        let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+        let leased = g.lease(&mut sta, &mut ack_with(100, Some((t1, t2))));
+        let sent = g.run(&mut sta, leased, leased + 10_000_000, &|_| {}, &mut ack_with(100, Some((t1, t2))));
+        let n = dhcp_sent(&sent, leased).len();
+        assert!((9..=11).contains(&n), "T1 {t1}, T2 {t2}: {n} DHCP messages in 10 s");
+        assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    }
+}
+
+#[test]
 fn a_renewal_without_an_answer_is_sent_again_after_half_the_time_left_at_least_60_s() {
     // ESP-IDF's default lease, 7200 s: T1 3600 s, T2 6300 s. The server stops answering. Time goes
     // on in 1 s steps with a beacon each, which `idle_at` makes exact for the station

@@ -563,12 +563,13 @@ impl VirtualSta {
     /// sends 51 and neither of the others. Without 51, or with 0xffffffff, the lease has no end and
     /// is never renewed.
     fn bind(&mut self, ip: [u8; 4], times: [Option<u32>; 3], now_us: u64) {
-        let us = |t: Option<u32>| t.map(|s| u64::from(s) * 1_000_000);
+        // a lease, T1 or T2 under 1 s is taken as 1 s: one of 0 would have the station ask again
+        // in every round
+        let us = |t: Option<u32>| t.map(|s| (u64::from(s) * 1_000_000).max(RETRY_US));
         (self.t1_us, self.t2_us, self.lease_end_us) = match times[0] {
             None | Some(u32::MAX) => (u64::MAX, u64::MAX, u64::MAX),
             Some(l) => {
-                // a server's T2 past the lease or T1 past T2 is held to it. A lease under 1 s is
-                // taken as 1 s: one of 0 would have the station ask again in every round
+                // a server's T2 past the lease or T1 past T2 is held to it
                 let l = (u64::from(l) * 1_000_000).max(RETRY_US);
                 let t2 = us(times[2]).unwrap_or(l / 8 * 7).min(l);
                 (now_us + us(times[1]).unwrap_or(l / 2).min(t2), now_us + t2, now_us + l)
