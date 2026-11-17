@@ -999,7 +999,9 @@ impl Guest {
             }
             for a in sta.step(now) {
                 sent.push((now, a.frame.clone()));
-                let Some(eth) = self.ap.on_station_tx(&with_fcs_slot(a.frame), now).and_then(|d| data_to_eth(&d)) else { continue };
+                // a protected frame's CCMP header off: the payload behind it is in the clear
+                let clear = |d: Vec<u8>| if d.len() >= 32 && d[1] & 0x40 != 0 { [&d[..24], &d[32..]].concat() } else { d };
+                let Some(eth) = self.ap.on_station_tx(&with_fcs_slot(a.frame), now).and_then(|d| data_to_eth(&clear(d))) else { continue };
                 self.net.sta_mac = sta.cfg.mac;
                 for r in self.net.handle(&eth, now) {
                     let Some(r) = reply(r) else { continue };
@@ -1317,4 +1319,89 @@ fn where_the_access_point_requires_protected_keepalives_the_station_sends_protec
         }
         assert_eq!(sta.keepalives as usize, rest.len());
     }
+}
+
+#[test]
+fn a_protected_keepalive_is_not_captured_and_an_open_network_gets_null_frames() {
+    // WPA2 with protected keep-alives, the station the host: a lease, then keep-alives that are
+    // protected data frames and stay out of the capture, which holds what the guest's network sees
+    let (mut sta, mut g) = (station("ssid=esp32sim,psk=esp32sim-pass"), Guest::new());
+    g.ap = VirtualAp::new(ApConfig { psk: Some("esp32sim-pass".into()), ..config() }, false);
+    let mut t = 0;
+    while sta.lease.is_none() { g.run(&mut sta, t, t + 1_000, &max_idle(4, 1), &mut no_edit); t += 1_000; assert!(t < 3_000_000, "{}", sta.report()); }
+    sta.take_sent();
+    let sent = g.run(&mut sta, t, t + 10_000_000, &max_idle(4, 1), &mut no_edit);
+    assert!(sent.len() >= 4 && sent.iter().all(|(_, f)| f[..2] == [0x08, 0x41]), "protected data frames only");
+    assert!(sta.take_sent().is_empty(), "keep-alives in the capture");
+    // an open network has no key to protect one with: null frames
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    sta.host = false;
+    let sent = g.run(&mut sta, 0, 10_000_000, &max_idle(4, 1), &mut no_edit);
+    let after_join: Vec<_> = sent.iter().filter(|(_, f)| f[0] & 0x0c == 0x08).collect();
+    assert!(after_join.len() >= 4 && after_join.iter().all(|(_, f)| is_null(f)), "{:?}", after_join.iter().map(|(_, f)| &f[..2]).collect::<Vec<_>>());
+}
+
+#[test]
+fn with_the_relay_switched_on_the_station_gives_up_its_own_dhcp() {
+    // a lease with T1 at 20 s, then the station stops being the host
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    sta.set_host(false);
+    assert_eq!(sta.lease, None);
+    let sent = g.run(&mut sta, leased, leased + 200_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
+    assert!(dhcp_sent(&sent, leased).is_empty(), "DHCP under the host program's MAC");
+    assert_eq!(sta.state, sta::StaLink::Joined, "still carrying the relay");
+    // the relay off again: the station is the host once more and takes a lease
+    sta.set_host(true);
+    g.run(&mut sta, leased + 200_000_000, leased + 201_000_000, &|_| {}, &mut no_edit);
+    assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    // and through `StationLink`, as the relay is switched
+    let mut link = StationLink::default();
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    let (mut ap, mut net) = (VirtualAp::new(config(), false), crate::net::VirtualNet::new(false));
+    for now in (0..1_000_000).step_by(100) {
+        for a in ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+        let Some(f) = link.next_rx(now, false) else { continue };
+        let Some(eth) = ap.on_station_tx(&with_fcs_slot(f), now).and_then(|d| data_to_eth(&d)) else { continue };
+        net.sta_mac = link.station().unwrap().cfg.mac;
+        for reply in net.handle(&eth, now) { if let Some(f) = ap.data_from_ds(&reply) { ap.queue.push(AirFrame { at_us: now, frame: f }); } }
+    }
+    assert!(link.station().unwrap().lease.is_some());
+    link.set_relay(true);
+    assert_eq!(link.station().unwrap().lease, None);
+}
+
+#[test]
+fn a_lease_of_0_s_is_taken_as_1_s() {
+    // a server that leases for 0 s: the station renews twice a second, not in every round
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(0, None));
+    let sent = g.run(&mut sta, leased, leased + 10_000_000, &|_| {}, &mut ack_with(0, None));
+    let n = dhcp_sent(&sent, leased).len();
+    assert!((18..=22).contains(&n), "{n} DHCP messages in 10 s");
+    assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+}
+
+#[test]
+fn a_renewal_without_an_answer_is_sent_again_after_half_the_time_left_at_least_60_s() {
+    // ESP-IDF's default lease, 7200 s: T1 3600 s, T2 6300 s. The server stops answering. Time goes
+    // on in 1 s steps with a beacon each, which `idle_at` makes exact for the station
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(7200, None));
+    let mut at = Vec::new();
+    for s in 1..=7300u64 {
+        let now = leased + s * 1_000_000;
+        sta.on_ap_tx(&with_fcs_slot(g.ap.beacon_like(8, &[0xff; 6], now)), now);
+        for a in sta.step(now) { if let Some(d) = dhcp_out(&a.frame) { at.push((s, d.kind, d.eth_dst == [0xff; 6])); } }
+    }
+    // renewing: 3600, then half of what is left to T2, at least 60 s (4950, 5625, 5962.5, 6131.25,
+    // 6215.6, 6275.6); rebinding at T2, 6300, then half of what is left to the end (6750, 6975,
+    // 7087.5, 7147.5); DISCOVER at the end, 7200. Each goes out 200 us after its time, so in the
+    // 1 s step after it
+    let renewing: Vec<u64> = at.iter().filter(|a| a.1 == 3 && !a.2).map(|a| a.0).collect();
+    let rebinding: Vec<u64> = at.iter().filter(|a| a.1 == 3 && a.2).map(|a| a.0).collect();
+    assert_eq!(renewing, [3601, 4951, 5626, 5964, 6133, 6217, 6277]);
+    assert_eq!(rebinding, [6301, 6751, 6976, 7089, 7149]);
+    assert_eq!(at.iter().find(|a| a.1 == 1).map(|a| a.0), Some(7201));
+    assert_eq!(sta.lease, None);
 }

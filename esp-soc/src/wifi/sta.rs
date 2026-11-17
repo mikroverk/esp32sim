@@ -98,7 +98,9 @@ pub struct VirtualSta {
     t2_us: u64,
     lease_end_us: u64,
     /// when the station last sent the access point a frame, and how long it may then stay silent
-    /// before a keep-alive: `KEEPALIVE_US`, or shorter for a BSS Max Idle Period
+    /// before a keep-alive: `KEEPALIVE_US`, or shorter for a BSS Max Idle Period. A frame counts
+    /// from when it is due, though the air may hold it a little longer for a busy receive ring
+    /// (`StationLink::next_rx`, at most `RX_STALL_US`); against 2 s of margin that does not matter
     last_tx_us: u64,
     keepalive_us: u64,
     /// the access point counts only protected frames as activity (BSS Max Idle Period element)
@@ -154,6 +156,19 @@ impl VirtualSta {
     }
 
     fn note(&self, s: &str) { if self.log { eprintln!("[wifi-sta] {s}"); } }
+
+    /// Whether the station is the host on the guest's network (`StationLink::set_relay`). With the
+    /// relay on, the host program has the station's MAC and does its own DHCP, and the guest's
+    /// replies go to it, not here: the station gives up its own exchange and lease, so it does not
+    /// renew or rediscover under the program's MAC. With the relay off again it starts DHCP anew.
+    pub fn set_host(&mut self, host: bool) {
+        if self.host && !host {
+            if self.state == StaLink::Joined { self.deadline_us = None; }                       // only DHCP's while joined
+            (self.dhcp, self.lease) = (Dhcp::Idle, None);
+            (self.t1_us, self.t2_us, self.lease_end_us) = (u64::MAX, u64::MAX, u64::MAX);
+        }
+        self.host = host;
+    }
 
     fn leave(&mut self, now_us: u64, why: &str) {
         self.note(why);
@@ -429,6 +444,16 @@ impl VirtualSta {
 
     /// `payload` of `ethertype` to `dst` through the access point, as a data frame to the DS.
     fn send_data(&mut self, at_us: u64, dst: [u8; 6], ethertype: u16, payload: &[u8]) {
+        let f = self.data_frame(dst, ethertype, payload);
+        self.send(at_us, f);
+        if self.host && ethertype != 0x888e {
+            let mut e = Vec::with_capacity(14 + payload.len());
+            e.extend_from_slice(&dst); e.extend_from_slice(&self.cfg.mac); e.extend_from_slice(&ethertype.to_be_bytes()); e.extend_from_slice(payload);
+            self.sent.push((at_us, e));
+        }
+    }
+    /// The 802.11 frame of `send_data`, without the copy for the capture.
+    fn data_frame(&mut self, dst: [u8; 6], ethertype: u16, payload: &[u8]) -> Vec<u8> {
         let bssid = self.bssid;
         let protected = if self.keys { 0x4000 } else { 0 };
         let mut f = self.hdr(0x0108 | protected, bssid, dst);                               // data, to-DS
@@ -440,24 +465,20 @@ impl VirtualSta {
         f.extend_from_slice(&[0xaa, 0xaa, 0x03, 0, 0, 0]); f.extend_from_slice(&ethertype.to_be_bytes());
         f.extend_from_slice(payload);
         if self.keys { f.extend_from_slice(&[0; 8]); }                                      // MIC space
-        self.send(at_us, f);
-        if self.host && ethertype != 0x888e {
-            let mut e = Vec::with_capacity(14 + payload.len());
-            e.extend_from_slice(&dst); e.extend_from_slice(&self.cfg.mac); e.extend_from_slice(&ethertype.to_be_bytes()); e.extend_from_slice(payload);
-            self.sent.push((at_us, e));
-        }
+        f
     }
 
     /// The joined station has sent the access point nothing for `keepalive_us`: a null data frame
     /// to the DS (type 2, subtype 4). It has no body to protect, so where the access point requires
     /// protected keep-alives the station sends a data frame of ethertype 0x0800 with no payload
     /// instead, protected with the pairwise key, as wpa_supplicant 2.11 does (`wnm_bss_keep_alive`
-    /// in `wpa_supplicant/events.c`).
+    /// in `wpa_supplicant/events.c`). An open network has no key, and gets the null frame. Neither
+    /// carries anything for the guest's network, so neither goes into the capture.
     fn keepalive(&mut self, now_us: u64) {
         self.keepalives += 1;
         let bssid = self.bssid;
-        if self.protected_keepalive { self.send_data(now_us, bssid, 0x0800, &[]); return; }
-        let f = self.hdr(0x0148, bssid, bssid);                                             // null, to-DS
+        let f = if self.protected_keepalive && self.keys { self.data_frame(bssid, 0x0800, &[]) }
+                else { self.hdr(0x0148, bssid, bssid) };                                    // null, to-DS
         self.send(now_us, f);
     }
 
@@ -546,8 +567,9 @@ impl VirtualSta {
         (self.t1_us, self.t2_us, self.lease_end_us) = match times[0] {
             None | Some(u32::MAX) => (u64::MAX, u64::MAX, u64::MAX),
             Some(l) => {
-                // a server's T2 past the lease or T1 past T2 is held to it
-                let l = u64::from(l) * 1_000_000;
+                // a server's T2 past the lease or T1 past T2 is held to it. A lease under 1 s is
+                // taken as 1 s: one of 0 would have the station ask again in every round
+                let l = (u64::from(l) * 1_000_000).max(RETRY_US);
                 let t2 = us(times[2]).unwrap_or(l / 8 * 7).min(l);
                 (now_us + us(times[1]).unwrap_or(l / 2).min(t2), now_us + t2, now_us + l)
             }
