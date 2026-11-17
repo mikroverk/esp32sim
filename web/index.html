@@ -120,7 +120,8 @@
   .device img { display: block; width: 100%; height: auto; border-radius: 9px; }
   .stage .run { grid-column: 2; background: var(--gold); color: var(--ink); min-height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
   .stage .run:hover { background: #ffc43d; }
-  .stage figcaption { color: #aeb3c2; font: 12px/1.4 var(--mono); }
+  .stage figcaption { color: #aeb3c2; font-size: 13.5px; line-height: 1.45; }
+  .stage figcaption b { display: block; color: #f1f2f6; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
 
   /* ----- sections ----- */
   section { padding: 56px 0; }
@@ -250,7 +251,7 @@
   <div class="side">
     <figure class="stage" style="margin:0">
       <a class="device" href="run.html?wasm&amp;fw=panel" title="Run the Touch-LCD-4B energy panel"><img src="assets/demo-panel.webp" width="480" height="480" alt="The energy panel firmware's first page: a price histogram for the day and four tiles"></a>
-      <figcaption>the frame the emulator wrote with --tft-png, 5 s after power-on</figcaption>
+      <figcaption><b>A home-energy panel on an ESP32-S3</b>LVGL on a 480×480 touch display, as the emulator drew it 5 s after power-on. Tap it to boot it here.</figcaption>
       <a class="run" href="run.html?wasm&amp;fw=panel">▶ Run it</a>
     </figure>
     <aside class="latest" aria-labelledby="latest-h">
