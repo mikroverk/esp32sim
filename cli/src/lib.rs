@@ -36,7 +36,8 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
-    eprintln!("  --imu-motion N        scripted IMU motion: 0 at rest, 1 the 30 s tilt/flip/shake script (amoled18-v2, mosaico)");
+    eprintln!("  --imu-motion N        scripted sensor motion: 0 at rest, 1 the 30 s tilt/flip/shake script");
+    eprintln!("                        (amoled18-v2, mosaico; on --board custom it drives lsm6ds3 and drifts aht20)");
     eprintln!("  --wifi ssid=…,psk=…   a virtual access point with DHCP, DNS, NTP and NAT to the host network");
     eprintln!("  --wifi-sta ssid=…,psk=…   a virtual station that joins the guest's own access point (not the P4)");
     eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi or --wifi-sta)");
@@ -830,7 +831,7 @@ fn setup_s31(o: &Opts) -> esp32s31::Machine {
 fn set_imu_motion(board: &mut dyn esp_soc::BoardModel, o: &Opts) {
     let Some(mode) = o.imu_motion else { return };
     if mode > 1 { usage_error("--imu-motion: modes are 0 (at rest) and 1 (the 30 s handling script)"); }
-    if !board.set_imu_motion(mode) { usage_error(&format!("--imu-motion: board '{}' has no IMU model (waveshare-amoled18-v2 on the S3, mosaico on the S31)", board.name())); }
+    if !board.set_imu_motion(mode) { usage_error(&format!("--imu-motion: board '{}' has no sensor model (waveshare-amoled18-v2 on the S3, mosaico on the S31, custom on the S3)", board.name())); }
 }
 
 /// Everything after the chip is set up: images, boot, observers, the run, the reports.

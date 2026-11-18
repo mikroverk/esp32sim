@@ -8,6 +8,10 @@
 //! command or a read of the sensor's byte stream, so this model keeps a byte cursor rather than a
 //! memory map.
 use esp_periph::i2c::I2cDevice;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use super::imu_motion::{sin, ImuMotion};
 
 /// AHT10 and AHT20 share the fixed address.
 pub const AHT20_ADDRESS: u8 = 0x38;
@@ -34,6 +38,8 @@ pub struct Aht20 {
     pub conversions: u64,
     temperature: f32,
     humidity: f32,
+    /// Shared motion selector: mode 0 holds the reading still, mode 1 drifts it over conversions.
+    motion: Arc<ImuMotion>,
 }
 
 impl Default for Aht20 {
@@ -41,7 +47,11 @@ impl Default for Aht20 {
 }
 
 impl Aht20 {
-    pub fn new() -> Self {
+    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default())) }
+
+    /// Share the board's motion selector so the same `--imu-motion` switch that moves an IMU also
+    /// drifts this sensor. Deterministic by construction: the phase is the conversion count.
+    pub fn with_motion(motion: Arc<ImuMotion>) -> Self {
         Self {
             cmd: [0; 8],
             cmd_len: 0,
@@ -51,6 +61,7 @@ impl Aht20 {
             conversions: 0,
             temperature: 25.0,
             humidity: 50.0,
+            motion,
         }
     }
 
@@ -66,6 +77,14 @@ impl Aht20 {
     /// A conversion finishes at once in the model: a real part needs ~80 ms, but tying that to wall
     /// clock would only slow a run down, so the sample is ready as soon as the trigger is taken.
     fn pack(&mut self) {
+        // Mode 1 ("the 30 s handling script" switch) turns the fixed reading into a slow drift:
+        // a warm room and its humidity wandering, sampled at the conversion count. Keeping the
+        // phase on an integer counter rather than wall clock is what makes runs reproducible.
+        if self.motion.mode.load(Ordering::Relaxed) != 0 {
+            let t = self.conversions as f64 * 0.5;
+            self.temperature = (25.0 + 2.5 * sin(t * 0.13)) as f32;
+            self.humidity = (50.0 + 12.0 * sin(t * 0.07)) as f32;
+        }
         let h = (self.humidity.clamp(0.0, 100.0) / 100.0 * FULL_SCALE).round() as u32;
         let t = ((self.temperature.clamp(-50.0, 150.0) + 50.0) / 200.0 * FULL_SCALE).round() as u32;
         self.sample[0] = STATUS_READY;
@@ -162,5 +181,31 @@ mod tests {
         for b in [0xBE, 0x08, 0x00] { d.write(b); }
         assert_eq!(read_bytes(&mut d, 1)[0], STATUS_READY);
         assert_eq!(d.conversions, 0, "a reset is not a conversion");
+    }
+
+    #[test]
+    fn motion_mode_one_drifts_the_reading() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Ordering::Relaxed);
+        let mut d = Aht20::with_motion(motion);
+        let mut temps = Vec::new();
+        for _ in 0..12 {
+            trigger(&mut d);
+            temps.push(d.reading().0);
+        }
+        assert!(temps.iter().any(|&t| (t - temps[0]).abs() > 0.05), "temperature must drift: {temps:?}");
+        assert!(temps.iter().all(|&t| (15.0..35.0).contains(&t)), "drift stays plausible: {temps:?}");
+    }
+
+    #[test]
+    fn motion_mode_zero_keeps_the_reading_still() {
+        let motion = Arc::new(ImuMotion::default());
+        let mut d = Aht20::with_motion(motion);
+        let mut temps = Vec::new();
+        for _ in 0..5 {
+            trigger(&mut d);
+            temps.push(d.reading().0);
+        }
+        assert!(temps.iter().all(|&t| (t - 25.0).abs() < f32::EPSILON), "mode 0 must not move: {temps:?}");
     }
 }

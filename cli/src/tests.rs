@@ -61,6 +61,22 @@ fn custom_board_wires_aht20_and_lsm6ds3_on_their_buses() {
 }
 
 #[test]
+fn custom_board_accepts_scripted_sensor_motion() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x38:aht20",
+        "--device", "1:0x6a:lsm6ds3",
+        "--imu-motion", "1",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let mut machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.imu_motion(), 1, "--imu-motion 1 must reach a custom board");
+    assert!(machine.bus.board.set_imu_motion(0));
+    assert_eq!(machine.bus.board.imu_motion(), 0);
+    assert!(!machine.bus.board.set_imu_motion(9), "only modes 0 and 1 exist");
+}
+
+#[test]
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);

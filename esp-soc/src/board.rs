@@ -302,6 +302,14 @@ impl ConfigurableBoard {
 
 impl BoardModel for ConfigurableBoard {
     fn name(&self) -> &'static str { "custom" }
+    /// `--imu-motion N`: 0 holds every sensor still, 1 replays the handling script. A bare board is
+    /// always wired with sensors, so the selector is accepted and shared with them.
+    fn set_imu_motion(&mut self, mode: u32) -> bool {
+        if mode > 1 { return false; }
+        self.motion.mode.store(mode, std::sync::atomic::Ordering::Relaxed);
+        true
+    }
+    fn imu_motion(&self) -> u32 { self.motion.mode.load(std::sync::atomic::Ordering::Relaxed) }
     /// Only the bit-banged panel reads pin levels; an I2C-only board needs no edge polling.
     fn uses_gpio_edges(&self) -> bool { self.bitbang.is_some() }
 
@@ -339,8 +347,8 @@ impl BoardModel for ConfigurableBoard {
                     "bmi270" => Box::new(devices::Bmi270::new(self.motion.clone(), 1_000_000)),
                     "bmm150" => Box::new(devices::Bmm150::new(devices::Bmm150Trim::default())),
                     "ft5x06" => Box::new(devices::Ft5x06::new(pts.clone())),
-                    "aht20" => Box::new(devices::Aht20::new()),
-                    "lsm6ds3" => Box::new(devices::Lsm6ds3::new()),
+                    "aht20" => Box::new(devices::Aht20::with_motion(self.motion.clone())),
+                    "lsm6ds3" => Box::new(devices::Lsm6ds3::with_motion(self.motion.clone())),
                     other => unreachable!("model {other} validated in DeviceSpec::parse"),
                 };
                 Some((*bus, *addr, dev))

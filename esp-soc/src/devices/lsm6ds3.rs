@@ -5,6 +5,10 @@
 //! registers from 0x22 (gyro) and 0x28 (accel) hold little-endian 16-bit samples. The die
 //! temperature at 0x20 is 25 °C plus 1/16 °C per count, as the datasheet defines it.
 use esp_periph::i2c::I2cDevice;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use super::imu_motion::{motion_script_screen, ImuMotion};
 
 /// SA0 strapped low, the common breakout default. SA0 high is 0x6B.
 pub const LSM6DS3_ADDRESS: u8 = 0x6A;
@@ -22,8 +26,10 @@ const CTRL3_SW_RESET: u8 = 0x01;
 /// Both data-ready flags (XLDA | GDA) set while the outputs hold a fresh sample.
 const STATUS_READY: u8 = 0x03;
 
-/// 16 384 LSB per g at the default ±2 g full scale; the gyro sits at rest.
+/// 16 384 LSB per g at the default ±2 g full scale.
 const ONE_G: i16 = 16_384;
+/// 8.75 mdps/LSB at ±250 dps is 114.3 LSB per dps.
+const LSB_PER_DPS: f64 = 114.3;
 
 pub struct Lsm6ds3 {
     regs: [u8; 128],
@@ -33,6 +39,10 @@ pub struct Lsm6ds3 {
     accel: [i16; 3],
     gyro: [i16; 3],
     pub reads: u64,
+    /// Shared motion selector: mode 0 holds the posture, mode 1 replays the handling script.
+    motion: Arc<ImuMotion>,
+    /// Script seconds elapsed, advanced once per read transaction so runs stay reproducible.
+    phase: f64,
 }
 
 impl Default for Lsm6ds3 {
@@ -41,7 +51,11 @@ impl Default for Lsm6ds3 {
 
 impl Lsm6ds3 {
     /// At rest, face up: gravity on +Z, the gyro still.
-    pub fn new() -> Self {
+    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default())) }
+
+    /// Share the board's motion selector so `--imu-motion 1` replays the same 30 s handling script
+    /// an on-board IMU uses; mode 0 keeps the resting posture.
+    pub fn with_motion(motion: Arc<ImuMotion>) -> Self {
         let mut d = Self {
             regs: [0; 128],
             ptr: 0,
@@ -49,6 +63,8 @@ impl Lsm6ds3 {
             accel: [0, 0, ONE_G],
             gyro: [0, 0, 0],
             reads: 0,
+            motion,
+            phase: 0.0,
         };
         d.regs[REG_WHO_AM_I as usize] = LSM6DS3_WHO_AM_I_VALUE;
         d.publish();
@@ -87,7 +103,27 @@ impl Lsm6ds3 {
 
 impl I2cDevice for Lsm6ds3 {
     fn start(&mut self, read: bool) -> bool {
-        if !read { self.first = true; }
+        if read {
+            // Each read transaction advances the script a fixed half second, so a driver polling at
+            // any rate walks the same trajectory and two runs produce identical samples.
+            self.phase += 0.5;
+            if self.motion.mode.load(Ordering::Relaxed) != 0 {
+                let (a, g) = motion_script_screen(self.phase);
+                self.accel = [
+                    (a[0] * ONE_G as f64) as i16,
+                    (a[1] * ONE_G as f64) as i16,
+                    (a[2] * ONE_G as f64) as i16,
+                ];
+                self.gyro = [
+                    (g[0] * LSB_PER_DPS) as i16,
+                    (g[1] * LSB_PER_DPS) as i16,
+                    (g[2] * LSB_PER_DPS) as i16,
+                ];
+                self.publish();
+            }
+        } else {
+            self.first = true;
+        }
         true
     }
 
@@ -170,5 +206,29 @@ mod tests {
         assert_eq!(read_at(&mut d, REG_WHO_AM_I, 1), [LSM6DS3_WHO_AM_I_VALUE]);
         let b = read_at(&mut d, REG_OUTX_L_XL, 6);
         assert_eq!(i16::from_le_bytes([b[4], b[5]]), ONE_G);
+    }
+
+    #[test]
+    fn motion_mode_one_moves_the_accelerometer() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Ordering::Relaxed);
+        let mut d = Lsm6ds3::with_motion(motion);
+        let mut xs = Vec::new();
+        for _ in 0..20 {
+            let b = read_at(&mut d, REG_OUTX_L_XL, 6);
+            xs.push(i16::from_le_bytes([b[0], b[1]]));
+        }
+        assert!(xs.iter().any(|&x| x != xs[0]), "the handling script must move the axis: {xs:?}");
+    }
+
+    #[test]
+    fn motion_mode_zero_holds_the_resting_posture() {
+        let motion = Arc::new(ImuMotion::default());
+        let mut d = Lsm6ds3::with_motion(motion);
+        for _ in 0..10 {
+            let b = read_at(&mut d, REG_OUTX_L_XL, 6);
+            let axis = |i: usize| i16::from_le_bytes([b[i * 2], b[i * 2 + 1]]);
+            assert_eq!((axis(0), axis(1), axis(2)), (0, 0, ONE_G));
+        }
     }
 }
