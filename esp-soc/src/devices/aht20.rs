@@ -158,7 +158,7 @@ mod tests {
 
         let b = read_bytes(&mut d, 7);
         let raw_h = ((b[1] as u32) << 16 | (b[2] as u32) << 8 | b[3] as u32) >> 4;
-        let raw_t = ((b[3] as u32 & 0x0f) << 16 | (b[4] as u32) << 8 | b[5] as u32);
+        let raw_t = (b[3] as u32 & 0x0f) << 16 | (b[4] as u32) << 8 | b[5] as u32;
         let humidity = raw_h as f32 * 100.0 / FULL_SCALE;
         let temperature = raw_t as f32 * 200.0 / FULL_SCALE - 50.0;
         assert!((humidity - 63.9).abs() < 0.1, "humidity {humidity}");

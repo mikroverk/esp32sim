@@ -14,6 +14,15 @@ fn display_message(width: u32, height: u32, pixels: &[u16]) -> Vec<u8> {
     message
 }
 
+/// A frame for display slot `index` (1 and up): a bare board can show several panels at once and
+/// the page draws them side by side. Type 1 stays slot 0 so single-panel boards are unchanged.
+fn display_indexed_message(index: usize, width: u32, height: u32, pixels: &[u16]) -> Vec<u8> {
+    let mut message = Vec::with_capacity(6 + pixels.len() * 2);
+    message.extend_from_slice(&[6, index as u8, width as u8, (width >> 8) as u8, height as u8, (height >> 8) as u8]);
+    message.extend(pixels.iter().flat_map(|pixel| pixel.to_le_bytes()));
+    message
+}
+
 fn camera_message(rgb: &[u8]) -> Vec<u8> {
     let mut message = Vec::with_capacity(5 + rgb.len());
     message.extend_from_slice(&[4, 64, 1, 240, 0]); // 320 by 240 preview, little-endian u16
@@ -52,6 +61,28 @@ impl<S: Soc> Machine<S> {
             if let Some((w_, h_, px, _)) = board.display() {
                 self.ws.px_sent = ver;
                 w.send_binary(&display_message(w_, h_, &px));
+            }
+        }
+        // A bare board can carry several panels: name each slot once so the page can caption them,
+        // then push the extra ones on their own counters. A preset board reports none, so none of
+        // this costs it a framebuffer copy.
+        let board = self.bus.board_ref();
+        let slots = board.extra_displays() + 1;
+        if slots > 1 || board.name() == "custom" {
+            if self.ws.panels_announced != slots {
+                self.ws.panels_announced = slots;
+                for i in 0..slots {
+                    let geometry = if i == 0 { board.display() } else { board.extra_display(i - 1, u64::MAX) };
+                    if let Some((w_, h_, _, _)) = geometry {
+                        w.send_text(&format!("{{\"t\":\"panel\",\"idx\":{i},\"label\":\"{}\",\"w\":{w_},\"h\":{h_}}}", json_escape(board.display_label(i))));
+                    }
+                }
+            }
+            if self.ws.px_sent_extra.len() != slots - 1 { self.ws.px_sent_extra = vec![u64::MAX; slots - 1]; }
+            for i in 0..slots - 1 {
+                let Some((w_, h_, px, version)) = board.extra_display(i, self.ws.px_sent_extra[i]) else { continue };
+                self.ws.px_sent_extra[i] = version;
+                w.send_binary(&display_indexed_message(i + 1, w_, h_, &px));
             }
         }
         let board = self.bus.board_ref();
@@ -97,6 +128,19 @@ impl<S: Soc> Machine<S> {
             hello.push(frame(1, format!("{{\"t\":\"board\",\"name\":\"{}\",\"chip\":\"{}\"}}", board.name(), S::NAME).as_bytes()));
             if self.net_tap.as_ref().is_some_and(|t| t.lock().unwrap().live_enabled()) { hello.push(frame(1, b"{\"t\":\"netmon\",\"linktype\":1}")); }
             if let Some((w_, h_, px, _)) = board.display() { hello.push(frame(2, &display_message(w_, h_, &px))); }
+            // several panels on one bare board: caption each slot, then hand over every frame
+            let slots = board.extra_displays() + 1;
+            if slots > 1 || board.name() == "custom" {
+                for i in 0..slots {
+                    let geometry = if i == 0 { board.display() } else { board.extra_display(i - 1, u64::MAX) };
+                    if let Some((w_, h_, _, _)) = geometry {
+                        hello.push(frame(1, format!("{{\"t\":\"panel\",\"idx\":{i},\"label\":\"{}\",\"w\":{w_},\"h\":{h_}}}", json_escape(board.display_label(i))).as_bytes()));
+                    }
+                }
+                for i in 0..slots - 1 {
+                    if let Some((w_, h_, px, _)) = board.extra_display(i, u64::MAX) { hello.push(frame(2, &display_indexed_message(i + 1, w_, h_, &px))); }
+                }
+            }
             if let Some(rgb) = board.camera_preview(320, 240) { hello.push(frame(2, &camera_message(&rgb))); }
             if let Some((leds, _)) = board.leds() { hello.push(frame(1, format!("{{\"t\":\"ring\",\"leds\":[{}]}}", leds_json(leds)).as_bytes())); }
             for (id, leds, _) in board.led_grids() { hello.push(frame(1, format!("{{\"t\":\"grid\",\"id\":\"{}\",\"leds\":[{}]}}", id, leds_json(leds)).as_bytes())); }
@@ -190,4 +234,26 @@ impl<S: Soc> Machine<S> {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The page's decoder reads the slot at byte 1, the geometry at 2 and 4, the pixels at 6:
+    /// this test is what keeps those offsets honest.
+    #[test]
+    fn an_indexed_frame_carries_its_slot_and_geometry() {
+        let message = display_indexed_message(1, 128, 64, &[0x1234, 0xabcd]);
+        assert_eq!(&message[..6], &[6, 1, 128, 0, 64, 0]);
+        assert_eq!(message.len(), 6 + 2 * 2);
+        assert_eq!(u16::from_le_bytes([message[6], message[7]]), 0x1234);
+    }
+
+    #[test]
+    fn slot_zero_keeps_the_long_standing_message() {
+        let message = display_message(128, 64, &[0xffff]);
+        assert_eq!(&message[..5], &[1, 128, 0, 64, 0]);
+        assert_eq!(message.len(), 5 + 2);
+    }
 }

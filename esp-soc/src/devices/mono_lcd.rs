@@ -122,6 +122,9 @@ impl MonoPanel {
 
     pub fn is_on(&self) -> bool { self.on }
 
+    /// The glass's size, without building the frame `visible()` returns.
+    pub fn size(&self) -> (u32, u32) { (MONO_WIDTH as u32, MONO_HEIGHT as u32) }
+
     /// What the glass shows, as RGB565 (black/white), honouring remap, scan direction and inversion.
     pub fn visible(&self) -> (u32, u32, Vec<u16>) {
         let mut px = vec![0u16; MONO_WIDTH * MONO_HEIGHT];

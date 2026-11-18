@@ -75,6 +75,14 @@ pub trait BoardModel {
     fn lcd_frame(&mut self, _w: u32, _h: u32, _rgb565: &[u8]) {}
     /// The board's display for the UI/PNG: (width, height, RGB565 pixels, change counter).
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> { None }
+    /// Panels besides `display()`: a bare board can carry several at once and the page lays them
+    /// out side by side. Preset boards, whose peripherals are fixed, keep the default of none.
+    fn extra_displays(&self) -> usize { 0 }
+    /// The `i`-th extra panel (0 = the first one after `display()`), skipped when its change
+    /// counter already equals `since` so an idle panel costs nothing but the counter read.
+    fn extra_display(&self, _i: usize, _since: u64) -> Option<(u32, u32, Vec<u16>, u64)> { None }
+    /// Caption for display slot `i` (0 = `display()`, then the extra panels in order).
+    fn display_label(&self, _i: usize) -> &'static str { self.name() }
     /// Completed display frames (for the UI's statistics line).
     fn display_frames(&self) -> u64 { 0 }
     /// Cheap change counter of the display (`display().3` without building the frame).
@@ -257,6 +265,8 @@ pub struct ConfigurableBoard {
     motion: std::sync::Arc<crate::devices::imu_motion::ImuMotion>,
     /// A DCS panel behind bit-banged SPI, with its D/C line kept out of the SPI model.
     tft: Option<crate::devices::DcsPanel>,
+    /// What that panel is, for the page's caption: ST7735 and ILI9341 share the pixel path.
+    tft_label: &'static str,
     bitbang: Option<crate::devices::SpiBitBang>,
     dc_pin: Option<u8>,
     /// A QSPI panel driven by a GP-SPI host.
@@ -277,6 +287,10 @@ pub struct ConfigurableBoard {
 /// Monochrome panel RAM shared between a device (which writes it) and the board (which shows it).
 pub type MonoRam = std::sync::Arc<std::sync::Mutex<crate::devices::MonoPanel>>;
 
+/// A display a bare board can show, in the order the page lays the panels out.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PanelSlot { Co5300, Tft, Nt7534, Sh1106 }
+
 fn mono_ram() -> MonoRam {
     std::sync::Arc::new(std::sync::Mutex::new(crate::devices::MonoPanel::new()))
 }
@@ -296,7 +310,7 @@ impl ConfigurableBoard {
     pub fn new(specs: Vec<DeviceSpec>) -> Self {
         let mut board = ConfigurableBoard {
             specs, motion: std::sync::Arc::new(crate::devices::imu_motion::ImuMotion::default()),
-            tft: None, bitbang: None, dc_pin: None, panel: None, panel_host: None,
+            tft: None, tft_label: "ST7735 (SPI)", bitbang: None, dc_pin: None, panel: None, panel_host: None,
             sh1106: None, nt7534: None, nt7534_driver: None, nt7534_spi: None, nt7534_rs: None,
             strips: Vec::new(), gpio_events: 0,
         };
@@ -304,12 +318,14 @@ impl ConfigurableBoard {
             match spec {
                 DeviceSpec::St7735 { sclk, mosi, cs, dc } => {
                     board.tft = Some(crate::devices::DcsPanel::st7735());
+                    board.tft_label = "ST7735 160×80 (SPI)";
                     board.bitbang = Some(crate::devices::SpiBitBang::new(sclk, mosi, cs));
                     board.dc_pin = Some(dc);
                 }
                 DeviceSpec::Ili9341 { sclk, mosi, cs, dc } => {
                     // The 2.4" module's RAM is 240×320; the DCS pixel path is identical.
                     board.tft = Some(crate::devices::DcsPanel::new(240, 320));
+                    board.tft_label = "ILI9341 240×320 (SPI)";
                     board.bitbang = Some(crate::devices::SpiBitBang::new(sclk, mosi, cs));
                     board.dc_pin = Some(dc);
                 }
@@ -337,6 +353,46 @@ impl ConfigurableBoard {
         board
     }
     pub fn specs(&self) -> &[DeviceSpec] { &self.specs }
+
+    /// The panels wired on, in the order the page lays them out: slot 0 is whatever `display()`
+    /// publishes, so a board with one panel keeps the layout it always had.
+    fn panel_slots(&self) -> Vec<PanelSlot> {
+        let mut slots = Vec::new();
+        if self.panel.is_some() { slots.push(PanelSlot::Co5300); }
+        if self.tft.is_some() { slots.push(PanelSlot::Tft); }
+        if self.nt7534.is_some() { slots.push(PanelSlot::Nt7534); }
+        if self.sh1106.is_some() { slots.push(PanelSlot::Sh1106); }
+        slots
+    }
+
+    fn slot_label(&self, slot: PanelSlot) -> &'static str {
+        match slot {
+            PanelSlot::Co5300 => "CO5300 (QSPI)",
+            PanelSlot::Tft => self.tft_label,
+            PanelSlot::Nt7534 => "NT7534 3.5\" (SPI)",
+            PanelSlot::Sh1106 => "SH1106 1.3\" (I2C)",
+        }
+    }
+
+    /// One slot's frame. `full` false gives the geometry and change counter only, so a poll for
+    /// "did this panel move" does not copy a framebuffer.
+    fn slot_frame(&self, slot: PanelSlot, full: bool) -> Option<(u32, u32, Vec<u16>, u64)> {
+        match slot {
+            PanelSlot::Co5300 => self.panel.as_ref().map(|p| {
+                (p.width() as u32, p.height() as u32, if full { p.frame.clone() } else { Vec::new() }, p.frames)
+            }),
+            PanelSlot::Tft => self.tft.as_ref().map(|t| {
+                (t.cols as u32, t.rows as u32, if full { t.gram.clone() } else { Vec::new() }, t.pixels_written)
+            }),
+            PanelSlot::Nt7534 | PanelSlot::Sh1106 => {
+                let ram = if slot == PanelSlot::Nt7534 { self.nt7534.as_ref() } else { self.sh1106.as_ref() }?;
+                let panel = mono_lock(ram);
+                let (w, h) = panel.size();
+                let pixels = if full { panel.visible().2 } else { Vec::new() };
+                Some((w, h, pixels, panel.pixels_written))
+            }
+        }
+    }
 }
 
 impl BoardModel for ConfigurableBoard {
@@ -429,6 +485,19 @@ impl BoardModel for ConfigurableBoard {
         } else {
             0
         }
+    }
+    fn display_label(&self, i: usize) -> &'static str {
+        match self.panel_slots().get(i) {
+            Some(slot) => self.slot_label(*slot),
+            None => "custom",
+        }
+    }
+    fn extra_displays(&self) -> usize { self.panel_slots().len().saturating_sub(1) }
+    fn extra_display(&self, i: usize, since: u64) -> Option<(u32, u32, Vec<u16>, u64)> {
+        let slot = *self.panel_slots().get(i + 1)?;
+        let (_, _, _, version) = self.slot_frame(slot, false)?;
+        if version == since { return None; }
+        self.slot_frame(slot, true)
     }
     fn display_frames(&self) -> u64 {
         if let Some(panel) = &self.panel {
@@ -600,5 +669,46 @@ mod configurable_tests {
         }
         let d = board.display().unwrap();
         assert!(d.2.iter().any(|&p| p != 0), "the glass must show the written pixels");
+    }
+
+    #[test]
+    fn every_panel_gets_its_own_display_slot() {
+        let specs = vec![
+            DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
+            DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
+        ];
+        let board = ConfigurableBoard::new(specs);
+        assert_eq!(board.extra_displays(), 1, "one panel beyond what display() publishes");
+        assert_eq!(board.display_label(0), "ILI9341 240×320 (SPI)");
+        assert_eq!(board.display_label(1), "SH1106 1.3\" (I2C)");
+        assert_eq!(board.display_label(2), "custom", "past the last panel");
+    }
+
+    #[test]
+    fn an_idle_extra_panel_copies_no_pixels() {
+        let specs = vec![
+            DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
+            DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
+        ];
+        let mut board = ConfigurableBoard::new(specs);
+        let (w, h, pixels, version) = board.extra_display(0, u64::MAX).expect("the OLED is slot 1");
+        assert_eq!((w, h), (128, 64));
+        assert_eq!(pixels.len(), 128 * 64);
+        assert!(board.extra_display(0, version).is_none(), "unchanged since the page last saw it");
+
+        // Write one page of data through the SH1106 and the slot reports a new frame.
+        {
+            let classes = board.i2c_devices();
+            let mut oled = classes.into_iter().find(|(_, addr, _)| *addr == 0x3c).expect("SH1106").2;
+            oled.start(false);
+            for byte in [0x00u8, 0xB0, 0x00, 0x10] { oled.write(byte); }
+            oled.stop();
+            oled.start(false);
+            oled.write(0x40);
+            for _ in 0..8 { oled.write(0xFF); }
+            oled.stop();
+        }
+        let moved = board.extra_display(0, version).expect("the panel moved");
+        assert_ne!(moved.3, version);
     }
 }
