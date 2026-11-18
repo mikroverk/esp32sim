@@ -30,6 +30,22 @@ fn custom_board_wires_devices_from_flags() {
 }
 
 #[test]
+fn custom_board_wires_spi_and_gpio_without_i2c_addresses() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "8:12:ws2812",
+        "--device", "2:1:41:40:st7735",
+        "--device", "2:368:448:16:co5300",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.name(), "custom");
+    assert!(!machine.bus.periph.i2c[0].has_device(0x76), "SPI/GPIO specs must not land on I2C");
+    assert!(machine.bus.board.leds().is_some(), "the WS2812 strip is attached");
+    assert!(machine.bus.board.display().is_some(), "a panel is attached");
+}
+
+#[test]
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);

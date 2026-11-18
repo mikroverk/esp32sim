@@ -26,8 +26,12 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --board NAME          board model (S3: atech14, waveshare-lcd4b, waveshare-amoled18-v2, waveshare-cam, stopwatch, none;");
     eprintln!("                        C6: waveshare-c6-lcd147, xiao-esp32c6, none; P4: waveshare-p4-lcd35, none; S31: mosaico, none;");
     eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, ai-thinker-cam, esp32dev, none)");
-    eprintln!("  --device BUS:ADDR:KIND  (S3) with --board custom, wire an I2C device onto the bare module;");
-    eprintln!("                        repeatable. KIND: bmp280, bmi270, bmm150, ft5x06. e.g. 0:0x76:bmp280");
+    eprintln!("  --device SPEC         (S3) with --board custom, wire one device onto the bare module; repeatable.");
+    eprintln!("                        Each bus takes only its real wiring, the trailing field being the model:");
+    eprintln!("                        I2C     BUS:ADDR:MODEL   bmp280, bmi270, bmm150, ft5x06  (e.g. 0:0x76:bmp280)");
+    eprintln!("                        WS2812  PIN:LEDS:ws2812  an addressable strip on an RMT data pin");
+    eprintln!("                        SPI     SCLK:MOSI:CS:DC:st7735  a bit-banged DCS panel");
+    eprintln!("                        QSPI    HOST:WIDTH:HEIGHT:XOFF:co5300  a panel on a GP-SPI host");
     eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
@@ -532,7 +536,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
     if o.board == "custom" {
         let specs: Vec<DeviceSpec> = o.devices.iter().map(|s| DeviceSpec::parse(s).unwrap_or_else(|e| usage_error(&e))).collect();
-        if specs.is_empty() { usage_error("--board custom needs at least one --device BUS:ADDR:KIND"); }
+        if specs.is_empty() { usage_error("--board custom needs at least one --device SPEC (e.g. 0:0x76:bmp280, 8:12:ws2812)"); }
         m.bus.board = Box::new(ConfigurableBoard::new(specs));
     } else {
         if !o.devices.is_empty() { usage_error("--device requires --board custom"); }
