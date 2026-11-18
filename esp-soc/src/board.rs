@@ -178,7 +178,10 @@ impl BoardModel for NoBoard {
 pub enum DeviceSpec {
     I2c { bus: u8, addr: u8, model: String },
     Ws2812 { pin: u8, leds: usize },
+    /// A 132×162 ST7735-family panel behind bit-banged SPI.
     St7735 { sclk: u8, mosi: u8, cs: u8, dc: u8 },
+    /// A 240×320 ILI9341 panel behind bit-banged SPI (the common 2.4" module).
+    Ili9341 { sclk: u8, mosi: u8, cs: u8, dc: u8 },
     Co5300 { host: u8, width: usize, height: usize, x_offset: u16 },
 }
 
@@ -198,7 +201,7 @@ impl DeviceSpec {
             u8::try_from(v).map_err(|_| format!("--device: {what} {v} outside 0..255"))
         };
         match kind.as_str() {
-            "bmp280" | "bmi270" | "bmm150" | "ft5x06" => {
+            "bmp280" | "bmi270" | "bmm150" | "ft5x06" | "aht20" | "lsm6ds3" => {
                 if fields.len() != 2 {
                     return Err(format!("--device: I2C needs BUS:ADDR:{kind}, got {s:?}"));
                 }
@@ -222,12 +225,15 @@ impl DeviceSpec {
                 }
                 Ok(DeviceSpec::Ws2812 { pin: byte(n[0], "pin")?, leds: n[1] as usize })
             }
-            "st7735" | "dcs-panel" | "lcd" => {
+            "st7735" | "dcs-panel" | "lcd" | "ili9341" => {
                 let n = numbers(4)?;
-                Ok(DeviceSpec::St7735 {
-                    sclk: byte(n[0], "sclk")?, mosi: byte(n[1], "mosi")?,
-                    cs: byte(n[2], "cs")?, dc: byte(n[3], "dc")?,
-                })
+                let (sclk, mosi, cs, dc) =
+                    (byte(n[0], "sclk")?, byte(n[1], "mosi")?, byte(n[2], "cs")?, byte(n[3], "dc")?);
+                if kind == "ili9341" {
+                    Ok(DeviceSpec::Ili9341 { sclk, mosi, cs, dc })
+                } else {
+                    Ok(DeviceSpec::St7735 { sclk, mosi, cs, dc })
+                }
             }
             "co5300" => {
                 let n = numbers(4)?;
@@ -237,7 +243,7 @@ impl DeviceSpec {
                 let x_offset = u16::try_from(n[3]).map_err(|_| format!("--device: x offset {} too large", n[3]))?;
                 Ok(DeviceSpec::Co5300 { host: byte(n[0], "host")?, width: n[1] as usize, height: n[2] as usize, x_offset })
             }
-            _ => Err(format!("--device: unknown model {kind:?} (bmp280, bmi270, bmm150, ft5x06, ws2812, st7735, co5300)")),
+            _ => Err(format!("--device: unknown model {kind:?} (bmp280, bmi270, bmm150, ft5x06, aht20, lsm6ds3, ws2812, st7735, ili9341, co5300)")),
         }
     }
 }
@@ -270,6 +276,12 @@ impl ConfigurableBoard {
             match spec {
                 DeviceSpec::St7735 { sclk, mosi, cs, dc } => {
                     board.tft = Some(crate::devices::DcsPanel::st7735());
+                    board.bitbang = Some(crate::devices::SpiBitBang::new(sclk, mosi, cs));
+                    board.dc_pin = Some(dc);
+                }
+                DeviceSpec::Ili9341 { sclk, mosi, cs, dc } => {
+                    // The 2.4" module's RAM is 240×320; the DCS pixel path is identical.
+                    board.tft = Some(crate::devices::DcsPanel::new(240, 320));
                     board.bitbang = Some(crate::devices::SpiBitBang::new(sclk, mosi, cs));
                     board.dc_pin = Some(dc);
                 }
@@ -327,6 +339,8 @@ impl BoardModel for ConfigurableBoard {
                     "bmi270" => Box::new(devices::Bmi270::new(self.motion.clone(), 1_000_000)),
                     "bmm150" => Box::new(devices::Bmm150::new(devices::Bmm150Trim::default())),
                     "ft5x06" => Box::new(devices::Ft5x06::new(pts.clone())),
+                    "aht20" => Box::new(devices::Aht20::new()),
+                    "lsm6ds3" => Box::new(devices::Lsm6ds3::new()),
                     other => unreachable!("model {other} validated in DeviceSpec::parse"),
                 };
                 Some((*bus, *addr, dev))
@@ -385,6 +399,12 @@ mod configurable_tests {
                    DeviceSpec::St7735 { sclk: 2, mosi: 1, cs: 41, dc: 40 });
         assert_eq!(DeviceSpec::parse("2:368:448:16:co5300").unwrap(),
                    DeviceSpec::Co5300 { host: 2, width: 368, height: 448, x_offset: 16 });
+        assert_eq!(DeviceSpec::parse("0:0x38:aht20").unwrap(),
+                   DeviceSpec::I2c { bus: 0, addr: 0x38, model: "aht20".into() });
+        assert_eq!(DeviceSpec::parse("1:0x6a:lsm6ds3").unwrap(),
+                   DeviceSpec::I2c { bus: 1, addr: 0x6a, model: "lsm6ds3".into() });
+        assert_eq!(DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
+                   DeviceSpec::Ili9341 { sclk: 2, mosi: 1, cs: 41, dc: 40 });
     }
 
     #[test]
@@ -404,12 +424,16 @@ mod configurable_tests {
             DeviceSpec::parse("0:0x69:bmi270").unwrap(),
             DeviceSpec::parse("1:0x10:bmm150").unwrap(),
             DeviceSpec::parse("1:0x38:ft5x06").unwrap(),
+            DeviceSpec::parse("0:0x38:aht20").unwrap(),
+            DeviceSpec::parse("1:0x6a:lsm6ds3").unwrap(),
         ];
         let mut board = ConfigurableBoard::new(specs);
         let devs = board.i2c_devices();
-        assert_eq!(devs.len(), 4);
+        assert_eq!(devs.len(), 6);
         assert_eq!((devs[0].0, devs[0].1), (0, 0x76));
         assert_eq!((devs[3].0, devs[3].1), (1, 0x38));
+        assert_eq!((devs[4].0, devs[4].1), (0, 0x38));
+        assert_eq!((devs[5].0, devs[5].1), (1, 0x6a));
     }
 
     #[test]
@@ -442,5 +466,20 @@ mod configurable_tests {
             board.gpio_changes(&[(1, level), (2, true), (2, false)]);
         }
         assert!(board.display().is_some(), "the DCS panel decodes the byte stream");
+    }
+
+    #[test]
+    fn ili9341_panel_is_the_240x320_module() {
+        let specs = vec![DeviceSpec::parse("2:1:41:40:ili9341").unwrap()];
+        let mut board = ConfigurableBoard::new(specs);
+        assert_eq!(board.display().map(|d| (d.0, d.1)), Some((240, 320)));
+        assert_eq!(board.display_frames(), 0, "no RAMWR yet");
+        // CS low, then a clocked 0x11 (sleep out) with D/C low: the panel leaves sleep.
+        board.gpio_changes(&[(41, false)]);
+        for bit in 0..8 {
+            let level = 0x11u8 & (0x80 >> bit) != 0;
+            board.gpio_changes(&[(1, level), (2, true), (2, false)]);
+        }
+        assert_eq!(board.display().unwrap().3, 0, "still no pixels written");
     }
 }
