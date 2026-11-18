@@ -431,7 +431,16 @@ impl BoardModel for ConfigurableBoard {
         }
     }
     fn display_frames(&self) -> u64 {
-        if let Some(panel) = &self.panel { panel.frames } else if let Some(tft) = &self.tft { tft.frames } else { 0 }
+        if let Some(panel) = &self.panel {
+            panel.frames
+        } else if let Some(tft) = &self.tft {
+            tft.frames
+        } else if let Some(ram) = self.nt7534.as_ref().or(self.sh1106.as_ref()) {
+            // A whole 128x64 frame is 1024 bytes; pixels_written counts bits, eight per byte.
+            mono_lock(ram).pixels_written / 8192
+        } else {
+            0
+        }
     }
     fn leds(&self) -> Option<(&[[u8; 3]], u64)> {
         self.strips.first().map(|(_, chain)| (&chain.leds[..], chain.updates))
