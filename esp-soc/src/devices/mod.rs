@@ -4,6 +4,7 @@
 //! each LED of a chain sits physically.
 pub mod bmi270;
 pub mod bmm150;
+pub mod bmp280;
 pub mod co5300;
 pub mod dcs_panel;
 pub mod ft5x06;
@@ -13,6 +14,7 @@ pub mod ws2812;
 
 pub use bmi270::{Bmi270, BMI270_ADDRESS};
 pub use bmm150::{Bmm150, Bmm150Trim};
+pub use bmp280::{Bmp280, BMP280_ADDRESS};
 pub use dcs_panel::DcsPanel;
 pub use ft5x06::{Ft5x06, Ft5x06Points, FT5X06_ADDRESS};
 pub use spi_bitbang::SpiBitBang;
