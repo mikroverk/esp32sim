@@ -165,3 +165,105 @@ impl BoardModel for NoBoard {
     fn name(&self) -> &'static str { "none" }
     fn uses_gpio_edges(&self) -> bool { false }
 }
+
+/// One I2C device the user wired onto a bare board: bus number, 7-bit address, device model.
+/// Parsed from `--device bus:addr:kind` (addr accepts `0x76` or decimal `76`).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeviceSpec {
+    pub bus: u8,
+    pub addr: u8,
+    pub kind: String,
+}
+
+impl DeviceSpec {
+    pub fn parse(s: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 3 {
+            return Err(format!("--device: expected bus:addr:kind, got {s:?}"));
+        }
+        let bus = parts[0].trim().parse::<u8>()
+            .map_err(|_| format!("--device: bad bus {:?} (0..255)", parts[0]))?;
+        let a = parts[1].trim();
+        let addr = if let Some(hex) = a.strip_prefix("0x").or_else(|| a.strip_prefix("0X")) {
+            u8::from_str_radix(hex, 16)
+        } else {
+            a.parse::<u32>().and_then(|d| if d <= 0x7f { Ok(d as u8) } else { Err(a.parse::<u32>().unwrap_err()) })
+        }.map_err(|_| format!("--device: bad address {a:?} (0x03..0x77)"))?;
+        if addr == 0 || addr > 0x7f {
+            return Err(format!("--device: address {a:?} outside 7-bit range 0x03..0x77"));
+        }
+        let kind = parts[2].trim().to_ascii_lowercase();
+        if !matches!(kind.as_str(), "bmp280" | "bmi270" | "bmm150" | "ft5x06") {
+            return Err(format!("--device: unknown model {kind:?} (bmp280, bmi270, bmm150, ft5x06)"));
+        }
+        Ok(DeviceSpec { bus, addr, kind })
+    }
+}
+
+/// A user-defined bare board: only the SoC, with the I2C devices listed in `specs` wired on.
+/// Created by the CLI for `--board custom --device ...`. No preset peripherals are attached.
+pub struct ConfigurableBoard {
+    specs: Vec<DeviceSpec>,
+    motion: std::sync::Arc<crate::devices::imu_motion::ImuMotion>,
+}
+
+impl ConfigurableBoard {
+    pub fn new(specs: Vec<DeviceSpec>) -> Self {
+        Self { specs, motion: std::sync::Arc::new(crate::devices::imu_motion::ImuMotion::default()) }
+    }
+    pub fn specs(&self) -> &[DeviceSpec] { &self.specs }
+}
+
+impl BoardModel for ConfigurableBoard {
+    fn name(&self) -> &'static str { "custom" }
+    fn uses_gpio_edges(&self) -> bool { false }
+    fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> {
+        use crate::devices;
+        let pts: devices::Ft5x06Points = std::sync::Arc::new(std::sync::Mutex::new([None; devices::ft5x06::FT5X06_POINTS]));
+        self.specs.iter().map(|s| {
+            let dev: Box<dyn I2cDevice> = match s.kind.as_str() {
+                "bmp280" => Box::new(devices::Bmp280::new()),
+                "bmi270" => Box::new(devices::Bmi270::new(self.motion.clone(), 1_000_000)),
+                "bmm150" => Box::new(devices::Bmm150::new(devices::Bmm150Trim::default())),
+                "ft5x06" => Box::new(devices::Ft5x06::new(pts.clone())),
+                _ => unreachable!("validated in DeviceSpec::parse"),
+            };
+            (s.bus, s.addr, dev)
+        }).collect()
+    }
+}
+
+#[cfg(test)]
+mod configurable_tests {
+    use super::*;
+
+    #[test]
+    fn parses_device_specs() {
+        assert_eq!(DeviceSpec::parse("0:0x76:bmp280").unwrap(),
+                   DeviceSpec { bus: 0, addr: 0x76, kind: "bmp280".into() });
+        assert_eq!(DeviceSpec::parse("1:118:BMP280").unwrap(),
+                   DeviceSpec { bus: 1, addr: 0x76, kind: "bmp280".into() });
+    }
+
+    #[test]
+    fn rejects_bad_device_specs() {
+        assert!(DeviceSpec::parse("0:0x76").is_err());
+        assert!(DeviceSpec::parse("0:0x99:bmp280").is_err());
+        assert!(DeviceSpec::parse("0:0x76:nope").is_err());
+    }
+
+    #[test]
+    fn configurable_board_returns_all_devices() {
+        let specs = vec![
+            DeviceSpec::parse("0:0x76:bmp280").unwrap(),
+            DeviceSpec::parse("0:0x69:bmi270").unwrap(),
+            DeviceSpec::parse("1:0x10:bmm150").unwrap(),
+            DeviceSpec::parse("1:0x38:ft5x06").unwrap(),
+        ];
+        let mut board = ConfigurableBoard::new(specs);
+        let devs = board.i2c_devices();
+        assert_eq!(devs.len(), 4);
+        assert_eq!((devs[0].0, devs[0].1), (0, 0x76));
+        assert_eq!((devs[3].0, devs[3].1), (1, 0x38));
+    }
+}

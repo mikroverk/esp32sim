@@ -15,6 +15,21 @@ fn stopwatch_memory_defaults_preserve_other_boards_and_explicit_overrides() {
 }
 
 #[test]
+fn custom_board_wires_devices_from_flags() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x76:bmp280",
+        "--device", "1:0x38:ft5x06",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.name(), "custom");
+    assert!(machine.bus.periph.i2c[0].has_device(0x76), "BMP280 not attached on I2C0");
+    assert!(machine.bus.periph.i2c[1].has_device(0x38), "FT5X06 not attached on I2C1");
+    assert!(!machine.bus.periph.i2c[0].has_device(0x38), "nothing should be on I2C0:0x38");
+}
+
+#[test]
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);

@@ -3,6 +3,7 @@
 //! `Machine<S>`; the few flags a chip owns (board, WiFi, camera, PSRAM, register presets) live in
 //! its setup function.
 use esp_soc::observers::{BlockProfile, Breakpoints, Coverage, IrqLatency, MmioHeat, PcHist, RegTrace, Trace, Vcd, Watch};
+use esp_soc::board::{ConfigurableBoard, DeviceSpec};
 use esp_soc::{Machine, Soc, SocBus, Stop};
 use emu_core::{Bus, Core};
 use std::path::PathBuf;
@@ -25,6 +26,8 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --board NAME          board model (S3: atech14, waveshare-lcd4b, waveshare-amoled18-v2, waveshare-cam, stopwatch, none;");
     eprintln!("                        C6: waveshare-c6-lcd147, xiao-esp32c6, none; P4: waveshare-p4-lcd35, none; S31: mosaico, none;");
     eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, ai-thinker-cam, esp32dev, none)");
+    eprintln!("  --device BUS:ADDR:KIND  (S3) with --board custom, wire an I2C device onto the bare module;");
+    eprintln!("                        repeatable. KIND: bmp280, bmi270, bmm150, ft5x06. e.g. 0:0x76:bmp280");
     eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
@@ -99,6 +102,11 @@ fn timing_cycles(value: &str, name: &str) -> Result<u32, String> {
 }
 
 fn validate_timing(o: &Opts) -> Result<(), String> {
+    if o.board == "custom" || !o.devices.is_empty() {
+        if !matches!(o.chip.as_str(), "s3" | "esp32s3") {
+            return Err("--board custom / --device require --chip s3".into());
+        }
+    }
     if o.approximate_timing && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
         return Err("--approximate-timing, --approximate-memory and --approximate-cache require --chip s3".into());
     }
@@ -159,7 +167,7 @@ pub struct Opts {
     pub wifi_sta: Option<String>,
     /// whether `--net` was given, which `--wifi-sta` refuses: it configures `--wifi`'s network
     pub net_given: bool,
-    pub board: String, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
+    pub board: String, pub devices: Vec<String>, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     /// `--imu-motion N`: scripted IMU motion mode for boards with an IMU model (0 at rest, 1 the 30 s handling script)
     pub imu_motion: Option<u32>,
@@ -217,6 +225,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--efuse-regs" => o.efuse_regs = Some(next()),
             "--regs-init" => o.regs_init = Some(next()),
             "--board" => o.board = next(),
+            "--device" => o.devices.push(next()),
             "--spi2-timing" => o.spi2_timing = true,
             "--measured-te" => o.measured_te = true,
             "--imu-motion" => o.imu_motion = Some(next().parse().unwrap_or_else(|_| usage_error("--imu-motion: expected a mode number (0 rest, 1 handling script)"))),
@@ -521,7 +530,14 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
         if invalid { usage_error(message); }
     }
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
-    m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none)", o.board); std::process::exit(2) });
+    if o.board == "custom" {
+        let specs: Vec<DeviceSpec> = o.devices.iter().map(|s| DeviceSpec::parse(s).unwrap_or_else(|e| usage_error(&e))).collect();
+        if specs.is_empty() { usage_error("--board custom needs at least one --device BUS:ADDR:KIND"); }
+        m.bus.board = Box::new(ConfigurableBoard::new(specs));
+    } else {
+        if !o.devices.is_empty() { usage_error("--device requires --board custom"); }
+        m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none, custom)", o.board); std::process::exit(2) });
+    }
     if o.measured_te {
         assert_eq!(m.bus.board.name(), "waveshare-amoled18-v2", "--measured-te requires the AMOLED V2 board");
         m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::with_measured_te());
