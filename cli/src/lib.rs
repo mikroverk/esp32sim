@@ -28,10 +28,11 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, ai-thinker-cam, esp32dev, none)");
     eprintln!("  --device SPEC         (S3) with --board custom, wire one device onto the bare module; repeatable.");
     eprintln!("                        Each bus takes only its real wiring, the trailing field being the model:");
-    eprintln!("                        I2C     BUS:ADDR:MODEL   bmp280, bmi270, bmm150, ft5x06, aht20, lsm6ds3");
-    eprintln!("                                                 (e.g. 0:0x76:bmp280, 0:0x38:aht20, 1:0x6a:lsm6ds3)");
+    eprintln!("                        I2C     BUS:ADDR:MODEL   bmp280, bmi270, bmm150, ft5x06, aht20, lsm6ds3, sh1106");
+    eprintln!("                                                 (e.g. 0:0x76:bmp280, 0:0x38:aht20, 0:0x3c:sh1106)");
     eprintln!("                        WS2812  PIN:LEDS:ws2812  an addressable strip on an RMT data pin");
     eprintln!("                        SPI     SCLK:MOSI:CS:DC:st7735|ili9341  a bit-banged DCS panel");
+    eprintln!("                        SPI     SCLK:MOSI:CS:RS:nt7534|st7565  a 128x64 monochrome panel");
     eprintln!("                        QSPI    HOST:WIDTH:HEIGHT:XOFF:co5300  a panel on a GP-SPI host");
     eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");

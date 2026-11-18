@@ -182,6 +182,8 @@ pub enum DeviceSpec {
     St7735 { sclk: u8, mosi: u8, cs: u8, dc: u8 },
     /// A 240×320 ILI9341 panel behind bit-banged SPI (the common 2.4" module).
     Ili9341 { sclk: u8, mosi: u8, cs: u8, dc: u8 },
+    /// A 128×64 monochrome NT7534 LCD behind bit-banged SPI; RS high selects command or data.
+    Nt7534 { sclk: u8, mosi: u8, cs: u8, rs: u8 },
     Co5300 { host: u8, width: usize, height: usize, x_offset: u16 },
 }
 
@@ -201,7 +203,7 @@ impl DeviceSpec {
             u8::try_from(v).map_err(|_| format!("--device: {what} {v} outside 0..255"))
         };
         match kind.as_str() {
-            "bmp280" | "bmi270" | "bmm150" | "ft5x06" | "aht20" | "lsm6ds3" => {
+            "bmp280" | "bmi270" | "bmm150" | "ft5x06" | "aht20" | "lsm6ds3" | "sh1106" => {
                 if fields.len() != 2 {
                     return Err(format!("--device: I2C needs BUS:ADDR:{kind}, got {s:?}"));
                 }
@@ -225,15 +227,15 @@ impl DeviceSpec {
                 }
                 Ok(DeviceSpec::Ws2812 { pin: byte(n[0], "pin")?, leds: n[1] as usize })
             }
-            "st7735" | "dcs-panel" | "lcd" | "ili9341" => {
+            "st7735" | "dcs-panel" | "lcd" | "ili9341" | "nt7534" | "st7565" => {
                 let n = numbers(4)?;
-                let (sclk, mosi, cs, dc) =
-                    (byte(n[0], "sclk")?, byte(n[1], "mosi")?, byte(n[2], "cs")?, byte(n[3], "dc")?);
-                if kind == "ili9341" {
-                    Ok(DeviceSpec::Ili9341 { sclk, mosi, cs, dc })
-                } else {
-                    Ok(DeviceSpec::St7735 { sclk, mosi, cs, dc })
-                }
+                let (sclk, mosi, cs, fourth) =
+                    (byte(n[0], "sclk")?, byte(n[1], "mosi")?, byte(n[2], "cs")?, byte(n[3], "dc/rs")?);
+                Ok(match kind.as_str() {
+                    "ili9341" => DeviceSpec::Ili9341 { sclk, mosi, cs, dc: fourth },
+                    "nt7534" | "st7565" => DeviceSpec::Nt7534 { sclk, mosi, cs, rs: fourth },
+                    _ => DeviceSpec::St7735 { sclk, mosi, cs, dc: fourth },
+                })
             }
             "co5300" => {
                 let n = numbers(4)?;
@@ -243,7 +245,7 @@ impl DeviceSpec {
                 let x_offset = u16::try_from(n[3]).map_err(|_| format!("--device: x offset {} too large", n[3]))?;
                 Ok(DeviceSpec::Co5300 { host: byte(n[0], "host")?, width: n[1] as usize, height: n[2] as usize, x_offset })
             }
-            _ => Err(format!("--device: unknown model {kind:?} (bmp280, bmi270, bmm150, ft5x06, aht20, lsm6ds3, ws2812, st7735, ili9341, co5300)")),
+            _ => Err(format!("--device: unknown model {kind:?} (bmp280, bmi270, bmm150, ft5x06, aht20, lsm6ds3, sh1106, ws2812, st7735, ili9341, nt7534, co5300)")),
         }
     }
 }
@@ -260,9 +262,34 @@ pub struct ConfigurableBoard {
     /// A QSPI panel driven by a GP-SPI host.
     panel: Option<crate::devices::co5300::Co5300>,
     panel_host: Option<u8>,
+    /// A 128×64 monochrome LCD on I2C; the RAM is shared so `display()` can publish it.
+    sh1106: Option<MonoRam>,
+    /// The same monochrome panel behind SPI (NT7534): its RAM, driver, bus and RS pin.
+    nt7534: Option<MonoRam>,
+    nt7534_driver: Option<crate::devices::Nt7534>,
+    nt7534_spi: Option<crate::devices::SpiBitBang>,
+    nt7534_rs: Option<u8>,
     /// Addressable LED strips, each on the data pin its RMT channel drives.
     strips: Vec<(u8, crate::devices::Ws2812Chain)>,
     gpio_events: u64,
+}
+
+/// Monochrome panel RAM shared between a device (which writes it) and the board (which shows it).
+pub type MonoRam = std::sync::Arc<std::sync::Mutex<crate::devices::MonoPanel>>;
+
+fn mono_ram() -> MonoRam {
+    std::sync::Arc::new(std::sync::Mutex::new(crate::devices::MonoPanel::new()))
+}
+
+fn mono_lock(ram: &MonoRam) -> std::sync::MutexGuard<'_, crate::devices::MonoPanel> {
+    ram.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// What a monochrome panel's glass shows, in the RGB565 shape `display()` promises.
+fn mono_display(ram: &MonoRam) -> (u32, u32, Vec<u16>, u64) {
+    let panel = mono_lock(ram);
+    let (w, h, pixels) = panel.visible();
+    (w, h, pixels, panel.pixels_written)
 }
 
 impl ConfigurableBoard {
@@ -270,6 +297,7 @@ impl ConfigurableBoard {
         let mut board = ConfigurableBoard {
             specs, motion: std::sync::Arc::new(crate::devices::imu_motion::ImuMotion::default()),
             tft: None, bitbang: None, dc_pin: None, panel: None, panel_host: None,
+            sh1106: None, nt7534: None, nt7534_driver: None, nt7534_spi: None, nt7534_rs: None,
             strips: Vec::new(), gpio_events: 0,
         };
         for spec in board.specs.clone() {
@@ -289,10 +317,21 @@ impl ConfigurableBoard {
                     board.panel = Some(crate::devices::co5300::Co5300::new(width, height, x_offset));
                     board.panel_host = Some(host);
                 }
+                DeviceSpec::Nt7534 { sclk, mosi, cs, rs } => {
+                    let ram = mono_ram();
+                    board.nt7534_driver = Some(crate::devices::Nt7534::new(ram.clone()));
+                    board.nt7534 = Some(ram);
+                    board.nt7534_spi = Some(crate::devices::SpiBitBang::new(sclk, mosi, cs));
+                    board.nt7534_rs = Some(rs);
+                }
                 DeviceSpec::Ws2812 { pin, leds } => {
                     board.strips.push((pin, crate::devices::Ws2812Chain::new(leds)));
                 }
-                DeviceSpec::I2c { .. } => {}
+                DeviceSpec::I2c { model, .. } => {
+                    if model == "sh1106" {
+                        board.sh1106 = Some(mono_ram());
+                    }
+                }
             }
         }
         board
@@ -310,14 +349,20 @@ impl BoardModel for ConfigurableBoard {
         true
     }
     fn imu_motion(&self) -> u32 { self.motion.mode.load(std::sync::atomic::Ordering::Relaxed) }
-    /// Only the bit-banged panel reads pin levels; an I2C-only board needs no edge polling.
-    fn uses_gpio_edges(&self) -> bool { self.bitbang.is_some() }
+    /// Only the bit-banged panels read pin levels; an I2C-only board needs no edge polling.
+    fn uses_gpio_edges(&self) -> bool { self.bitbang.is_some() || self.nt7534_spi.is_some() }
 
     fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
         self.gpio_events += changes.len() as u64;
-        let (Some(dc), Some(tft), Some(spi)) = (self.dc_pin, self.tft.as_mut(), self.bitbang.as_mut()) else { return };
         for &(pin, level) in changes {
-            if pin == dc { tft.dc = level; } else if let Some(b) = spi.pin(pin, level) { tft.byte(b); }
+            // The DCS panel (ST7735/ILI9341) keeps its D/C line out of the SPI model.
+            if let (Some(dc), Some(tft), Some(spi)) = (self.dc_pin, self.tft.as_mut(), self.bitbang.as_mut()) {
+                if pin == dc { tft.dc = level; } else if let Some(b) = spi.pin(pin, level) { tft.byte(b); }
+            }
+            // The monochrome panel (NT7534) does the same with RS.
+            if let (Some(rs), Some(drv), Some(spi)) = (self.nt7534_rs, self.nt7534_driver.as_mut(), self.nt7534_spi.as_mut()) {
+                if pin == rs { drv.set_rs(level); } else if let Some(b) = spi.pin(pin, level) { drv.byte(b); }
+            }
         }
     }
 
@@ -349,6 +394,10 @@ impl BoardModel for ConfigurableBoard {
                     "ft5x06" => Box::new(devices::Ft5x06::new(pts.clone())),
                     "aht20" => Box::new(devices::Aht20::with_motion(self.motion.clone())),
                     "lsm6ds3" => Box::new(devices::Lsm6ds3::with_motion(self.motion.clone())),
+                    "sh1106" => {
+                        let ram = self.sh1106.clone().unwrap_or_else(mono_ram);
+                        Box::new(devices::Sh1106::new(ram))
+                    }
                     other => unreachable!("model {other} validated in DeviceSpec::parse"),
                 };
                 Some((*bus, *addr, dev))
@@ -362,12 +411,24 @@ impl BoardModel for ConfigurableBoard {
             Some((panel.width() as u32, panel.height() as u32, panel.frame.clone(), panel.frames))
         } else if let Some(tft) = &self.tft {
             Some((tft.cols as u32, tft.rows as u32, tft.gram.clone(), tft.pixels_written))
+        } else if let Some(ram) = &self.nt7534 {
+            Some(mono_display(ram))
+        } else if let Some(ram) = &self.sh1106 {
+            Some(mono_display(ram))
         } else {
             None
         }
     }
     fn display_version(&self) -> u64 {
-        if let Some(panel) = &self.panel { panel.frames } else if let Some(tft) = &self.tft { tft.pixels_written } else { 0 }
+        if let Some(panel) = &self.panel {
+            panel.frames
+        } else if let Some(tft) = &self.tft {
+            tft.pixels_written
+        } else if let Some(ram) = self.nt7534.as_ref().or(self.sh1106.as_ref()) {
+            mono_lock(ram).pixels_written
+        } else {
+            0
+        }
     }
     fn display_frames(&self) -> u64 {
         if let Some(panel) = &self.panel { panel.frames } else if let Some(tft) = &self.tft { tft.frames } else { 0 }
@@ -383,6 +444,14 @@ impl BoardModel for ConfigurableBoard {
         }
         if let Some(panel) = &self.panel {
             out.push_str(&format!("[emu] panel: {} frames, {}x{}\n", panel.frames, panel.width(), panel.height()));
+        }
+        if let Some(ram) = &self.nt7534 {
+            let p = mono_lock(ram);
+            out.push_str(&format!("[emu] mono nt7534: {} bytes written, on={}, contrast={:#x}\n", p.pixels_written / 8, p.is_on(), p.contrast));
+        }
+        if let Some(ram) = &self.sh1106 {
+            let p = mono_lock(ram);
+            out.push_str(&format!("[emu] mono sh1106: {} bytes written, on={}, contrast={:#x}\n", p.pixels_written / 8, p.is_on(), p.contrast));
         }
         for (pin, chain) in &self.strips {
             out.push_str(&format!("[emu] ws2812 on pin {pin}: {} updates, {} leds\n", chain.updates, chain.leds.len()));
@@ -413,6 +482,10 @@ mod configurable_tests {
                    DeviceSpec::I2c { bus: 1, addr: 0x6a, model: "lsm6ds3".into() });
         assert_eq!(DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
                    DeviceSpec::Ili9341 { sclk: 2, mosi: 1, cs: 41, dc: 40 });
+        assert_eq!(DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
+                   DeviceSpec::I2c { bus: 0, addr: 0x3c, model: "sh1106".into() });
+        assert_eq!(DeviceSpec::parse("2:1:41:40:nt7534").unwrap(),
+                   DeviceSpec::Nt7534 { sclk: 2, mosi: 1, cs: 41, rs: 40 });
     }
 
     #[test]
@@ -489,5 +562,34 @@ mod configurable_tests {
             board.gpio_changes(&[(1, level), (2, true), (2, false)]);
         }
         assert_eq!(board.display().unwrap().3, 0, "still no pixels written");
+    }
+
+    #[test]
+    fn mono_panels_are_wired_on_i2c_and_spi() {
+        let specs = vec![
+            DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
+            DeviceSpec::parse("2:1:41:40:nt7534").unwrap(),
+        ];
+        let mut board = ConfigurableBoard::new(specs);
+        assert_eq!(board.i2c_devices().len(), 1, "the SH1106 is the only I2C device");
+        assert_eq!(board.display().map(|d| (d.0, d.1)), Some((128, 64)));
+        assert!(board.uses_gpio_edges(), "the NT7534 needs pin edges");
+
+        // CS low, RS low, then 0xAF (display on) clocked MSB first.
+        board.gpio_changes(&[(41, false), (40, false)]);
+        for bit in 0..8 {
+            let level = 0xAFu8 & (0x80 >> bit) != 0;
+            board.gpio_changes(&[(1, level), (2, true), (2, false)]);
+        }
+        // RS high: eight data bytes with every pixel lit.
+        board.gpio_changes(&[(40, true)]);
+        for _ in 0..8 {
+            for bit in 0..8 {
+                let level = 0xFFu8 & (0x80 >> bit) != 0;
+                board.gpio_changes(&[(1, level), (2, true), (2, false)]);
+            }
+        }
+        let d = board.display().unwrap();
+        assert!(d.2.iter().any(|&p| p != 0), "the glass must show the written pixels");
     }
 }

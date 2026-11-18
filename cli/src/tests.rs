@@ -77,6 +77,19 @@ fn custom_board_accepts_scripted_sensor_motion() {
 }
 
 #[test]
+fn custom_board_wires_the_two_mono_panels() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x3c:sh1106",
+        "--device", "2:1:41:40:nt7534",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert!(machine.bus.periph.i2c[0].has_device(0x3c), "SH1106 not attached on I2C0");
+    assert_eq!(machine.bus.board.display().map(|d| (d.0, d.1)), Some((128, 64)));
+}
+
+#[test]
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);
