@@ -282,6 +282,8 @@ pub struct ConfigurableBoard {
     /// Addressable LED strips, each on the data pin its RMT channel drives.
     strips: Vec<(u8, crate::devices::Ws2812Chain)>,
     gpio_events: u64,
+    /// GP-SPI master transactions, recorded for `--buslog` (host, bytes). Capped.
+    spi_tx_log: Vec<(u8, Vec<u8>)>,
 }
 
 /// Monochrome panel RAM shared between a device (which writes it) and the board (which shows it).
@@ -312,7 +314,7 @@ impl ConfigurableBoard {
             specs, motion: std::sync::Arc::new(crate::devices::imu_motion::ImuMotion::default()),
             tft: None, tft_label: "ST7735 (SPI)", bitbang: None, dc_pin: None, panel: None, panel_host: None,
             sh1106: None, nt7534: None, nt7534_driver: None, nt7534_spi: None, nt7534_rs: None,
-            strips: Vec::new(), gpio_events: 0,
+            strips: Vec::new(), gpio_events: 0, spi_tx_log: Vec::new(),
         };
         for spec in board.specs.clone() {
             match spec {
@@ -429,6 +431,12 @@ impl BoardModel for ConfigurableBoard {
     }
 
     fn spi_tx(&mut self, host: u8, data: &[u8]) {
+        // Record for `--buslog`: AI reads these transactions to verify a display's command
+        // sequence without a waveform viewer. Cap both count and bytes per transaction.
+        if self.spi_tx_log.len() < 256 {
+            let take = data.len().min(64);
+            self.spi_tx_log.push((host, data[..take].to_vec()));
+        }
         if self.panel_host == Some(host) {
             if let Some(panel) = self.panel.as_mut() { panel.transaction(data); }
         }
@@ -517,6 +525,30 @@ impl BoardModel for ConfigurableBoard {
     fn gpio_events(&self) -> u64 { self.gpio_events }
     fn report(&self) -> String {
         let mut out = String::new();
+        // Decoded bit-bang SPI transactions — the readable form of the GPIO edges a
+        // software-driven panel (ST7735/ILI9341/NT7534) puts on the wire.
+        if !self.spi_tx_log.is_empty() {
+            out.push_str(&format!("[buslog] gpspi: {} master transactions (host, first 64 bytes)\n", self.spi_tx_log.len()));
+            for (i, (host, bytes)) in self.spi_tx_log.iter().take(24).enumerate() {
+                let hex = bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
+                out.push_str(&format!("[buslog]   #{:<3} host{} {}", i + 1, host, hex));
+                out.push('\n');
+            }
+            if self.spi_tx_log.len() > 24 { out.push_str(&format!("[buslog]   … {} more\n", self.spi_tx_log.len() - 24)); }
+        }
+        for (label, spi) in [("dcs", self.bitbang.as_ref()), ("nt7534", self.nt7534_spi.as_ref())] {
+            let Some(spi) = spi else { continue };
+            let frames = spi.frames();
+            if frames.is_empty() { continue; }
+            out.push_str(&format!("[buslog] {label}: {} CS transactions (MSB-first)\n", frames.len()));
+            for (i, bytes) in frames.iter().take(24).enumerate() {
+                let hex = bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
+                out.push_str(&format!("[buslog]   #{:<3} {}", i + 1, hex));
+                if bytes.len() > 16 { out.push_str(&format!(" … ({} bytes)", bytes.len())); }
+                out.push('\n');
+            }
+            if frames.len() > 24 { out.push_str(&format!("[buslog]   … {} more transactions\n", frames.len() - 24)); }
+        }
         if let Some(tft) = &self.tft {
             out.push_str(&format!("[emu] tft: {} RAMWR, {} pixels, madctl={:#x}\n", tft.frames, tft.pixels_written, tft.madctl));
         }

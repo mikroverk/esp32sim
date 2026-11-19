@@ -5,24 +5,40 @@ pub struct SpiBitBang {
     sclk_pin: u8, mosi_pin: u8, cs_pin: u8,
     sclk: bool, mosi: bool, cs: bool,
     shift: u8, nbits: u8,
+    /// Decoded transactions: one Vec per CS-low pulse, bytes in clock order.
+    frames: Vec<Vec<u8>>,
+    /// Cap on recorded frames; decoding keeps working past this, logging does not.
+    frame_limit: usize,
 }
 
 impl SpiBitBang {
     pub fn new(sclk_pin: u8, mosi_pin: u8, cs_pin: u8) -> Self {
-        SpiBitBang { sclk_pin, mosi_pin, cs_pin, sclk: false, mosi: false, cs: true, shift: 0, nbits: 0 }
+        SpiBitBang { sclk_pin, mosi_pin, cs_pin, sclk: false, mosi: false, cs: true, shift: 0, nbits: 0, frames: Vec::new(), frame_limit: 512 }
     }
+    /// Decoded transactions, each one CS-low pulse.
+    pub fn frames(&self) -> &[Vec<u8>] { &self.frames }
 
     /// Feed one GPIO output change, in order. Returns a byte when its last bit was clocked in.
     pub fn pin(&mut self, pin: u8, level: bool) -> Option<u8> {
         if pin == self.mosi_pin { self.mosi = level; }
-        else if pin == self.cs_pin { self.cs = level; if level { self.nbits = 0; self.shift = 0; } }
+        else if pin == self.cs_pin {
+            if self.cs && !level && self.frames.len() < self.frame_limit { self.frames.push(Vec::new()); }
+            self.cs = level;
+            if level { self.nbits = 0; self.shift = 0; }
+        }
         else if pin == self.sclk_pin {
             let rising = level && !self.sclk;
             self.sclk = level;
             if rising && !self.cs {
                 self.shift = (self.shift << 1) | self.mosi as u8;
                 self.nbits += 1;
-                if self.nbits == 8 { let b = self.shift; self.nbits = 0; self.shift = 0; return Some(b); }
+                if self.nbits == 8 {
+                    let b = self.shift;
+                    self.nbits = 0;
+                    self.shift = 0;
+                    if let Some(frame) = self.frames.last_mut() { frame.push(b); }
+                    return Some(b);
+                }
             }
         }
         None
