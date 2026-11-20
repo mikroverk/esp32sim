@@ -622,6 +622,12 @@ impl esp_soc::SocBus for SocBus {
         SocBus::write_flash(self, offset, data)
     }
 
+    fn read_flash(&self, offset: usize, len: usize) -> Option<&[u8]> {
+        self.flash.get(offset..).and_then(|tail| tail.get(..len))
+    }
+
+    fn flash_len(&self) -> usize { self.flash.len() }
+
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
         // Skip mask ROM: parse the IDF image, program Flash MMU (32 KiB pages, same as
         // the 2nd-stage bootloader), open SPI0 AXI, map flash-resident segments and

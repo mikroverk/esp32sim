@@ -118,12 +118,13 @@ fn c6_plic_and_intpri_share_host_input_interrupt_state() {
 /// bytes it accepted, its full size, and nothing past the end.
 #[test]
 fn flash_reads_back_what_was_written_on_every_chip() {
-    let buses: [Box<dyn SocBus>; 5] = [
+    let buses: [Box<dyn SocBus>; 6] = [
         Box::new(esp32::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32c3::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32c6::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32s3::bus::SocBus::new(FLASH_SIZE, 0, [0; 6])),
         Box::new(esp32p4::bus::SocBus::new(FLASH_SIZE, [0; 6], (1, 0))),
+        Box::new(esp32s31::SocBus::new(FLASH_SIZE, [0; 6])),
     ];
     for mut bus in buses {
         assert_eq!(bus.flash_len(), FLASH_SIZE);
