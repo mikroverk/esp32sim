@@ -81,6 +81,75 @@ Not yet working:
   use IP addresses. TCP servers in the guest are reachable with `--hostfwd`.
 - Hardware AES-GCM (block mode 6) and the DS/HMAC peripherals; mbedTLS has not asked for them yet.
 - Roaming, power save, 802.11n rates, multiple stations, WPA3/SAE, PMF.
+- The guest as an access point beyond the classic ESP32's first steps (below): AP+STA, the S3, C3
+  and C6, more than one station, and host ports forwarded to the guest's access point.
+
+## The guest as an access point (`--wifi-sta`)
+
+On the classic ESP32 a guest in `WIFI_MODE_AP` already works with the MAC as modelled: libpp sends
+its beacons, probe and authentication responses and EAPOL frames through TX queue 0 like any
+other frame. What it needs is something on the air that answers, and received frames flagged for
+the right interface. `--wifi-sta` puts a virtual station (`esp-soc/src/wifi/sta.rs`) where the
+access points would be: it follows the guest's beacons, authenticates and associates, takes the
+supplicant's side of the WPA2 four-way handshake (the PTK from the guest's ANonce, the MIC on
+message 3 checked before message 4 goes out), and takes a lease from the guest's DHCP server.
+Data is framed as CCMP the way `VirtualAp` frames it. Group frames need no group key either: the
+MAC hands them over in the clear, framed as CCMP, or for group frames in WPA/WPA2 mixed mode as
+TKIP (its 12-byte Michael MIC and ICV where CCMP's MIC is 8), so the GTK in message 3 is not
+unwrapped.
+
+The station leaves a network it cannot join alone and the end-of-run line says why: no Privacy bit
+when it has a passphrase (or the other way round), WEP or WPA (Privacy without an RSN element),
+WPA3-SAE only, protected management frames required. It listens again after a refusal, a
+deauthentication or disassociation addressed to it or to every station, 3 s without a beacon, or a
+beacon whose timestamp is lower than the last one's. ESP-IDF v5.5.4's `esp_wifi_stop` sends each
+station a disassociation (reason 2) and a deauthentication, so a guest that stops and starts its
+access point is joined again from its next beacon. It stops trying after three refusals in a row
+with the same authentication or association status, until the guest reboots. A wrong passphrase is
+not one of them: message 3 of the handshake never comes, the station gives up after 1 s and tries
+again a second later, every 2 s or so (`examples/wifi-softap`: 5 attempts in 10 s, a join in the
+guest's log each time). It takes the access point's group cipher (CCMP or TKIP, as WPA/WPA2 mixed
+mode announces) and needs CCMP among its pairwise ciphers. It drops the broadcasts the access point
+repeats to the BSS that it sent itself, as a station does.
+
+A guest in `WIFI_MODE_APSTA` whose station scans is joined too: its access point leaves the
+channel for the scans (21 beacons in 12 s against about 117), with gaps under the 3 s the station
+waits.
+
+Not yet: probe requests, so an access point with a hidden SSID is not found; renewing the lease
+(ESP-IDF's DHCP server leases for 120 minutes); keep-alive frames; a second station. The station
+sends nothing once it holds a lease, so a guest idles it out: `examples/wifi-softap` (ESP-IDF
+v5.5.4, a 300 s inactivity time by default) disassociated it with reason 4 at 302 s, and it joined
+again and took the lease again a second later. In relay mode the host program is the station:
+without four-address frames it sends from and receives at the station's MAC, and a frame it relays
+before the station has joined is refused; one the station takes and cannot carry, because it left
+the access point in between, is counted in the end-of-run line. The CLI's `--wifi-sta` and
+`SocBus::attach_wifi_station` attach a station; the board page and the wasm crate do not yet.
+
+The received frame's flags in `rx_ctrl` word 0 select the interface. In ESP-IDF v5.3.6's classic
+libpp, `wDev_ProcessRxSucData` keeps a frame when interface 1 is enabled and bit 29 is set, or
+interface 0 and bit 28, or interface 2 and bit 30, and drops it otherwise; `ppRxProtoProc` takes
+the interface from the same bits. The guest writes its station MAC to address slot 0 (0x040) and
+its access point's, one higher, to slot 1 (0x048). A frame whose first address is slot 1's gets bit
+29 alone; every other frame keeps the flags it had (bit 28, and 29 for unicast). The meaning is
+inferred from the disassembly, as no header documents it, and was then compared with silicon
+([receipt](evidence/wifi-softap-rx-match/README.md)): on a classic ESP32 rev 1.0 in
+`WIFI_MODE_APSTA`, every frame addressed to the SoftAP carried bits 31 and 29 and not 28, every
+unicast frame to the station (joined to another network) bits 31 and 28 and not 29, wildcard probe
+requests (for both interfaces) 28 and 29 together, and frames of other networks neither. A match
+needs the first address and the BSSID both, and the source not to be the interface's own address:
+the broadcasts an access point repeats to its BSS from the station got no bit, which is what the
+virtual station does with them. The model differs from silicon in three places, which libpp takes
+and the model keeps, since no golden runs the classic station and a change would go untested:
+silicon sets bit 31 on every frame received and the model leaves it clear; unicast to the station
+gets 28 and 29 where silicon sets 28 alone; and every broadcast gets 28, also other networks'
+beacons (`--wifi-nearby`, a further `--wifi`), which silicon gives no bit.
+
+Verified with ESP-IDF v5.3.6's `softAP` example (open, and WPA2-PSK without SAE and with PMF
+optional, as Arduino-ESP32 3.3.9's `WiFi.softAP` configures it) and an Arduino-ESP32 3.3.9
+application: the firmware logs the station joining and its DHCP server leasing 192.168.4.2. The
+`wifi_softap_classic` golden pins `examples/wifi-softap`. With WPA3-SAE the guest refuses the
+association (status 43), as the station offers WPA2-PSK only.
 
 ## Scope
 

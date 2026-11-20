@@ -5,12 +5,12 @@ Files: p4-scintilla-lcd35-bootloader.bin, p4-scintilla-lcd35-ptable.bin, p4-scin
 
 Scintilla, the 1981 Elka Synthex in integer C, for Waveshare's ESP32-P4-WIFI6-Touch-LCD-3.5
 (ESP32-P4 rev >= 3). Built by Joakim Eriksson with ESP-IDF v5.5.4 from
-https://github.com/joakimeriksson/esp32 at commit eed6180 (branch scintilla-no-coproc, pull request 3), directory scintilla-p4-lcd35,
+https://github.com/joakimeriksson/esp32 at commit 3a477c7 (branch scintilla-engine-0.3.2, pull request 7), directory scintilla-p4-lcd35,
 with `idf.py build` (its sdkconfig.defaults and dependencies.lock); the source of everything
 below is there and in the components it pins.
 
 The application (main/ and engine/, the engine a subtree of
-https://github.com/joakimeriksson/scintilla-fm1) is GPL-3.0-only; its text is below. As the GPL
+https://github.com/joakimeriksson/scintilla-fm1, its engine/ at ca22168, release 0.3.2) is GPL-3.0-only; its text is below. As the GPL
 requires, the corresponding source is at the commit above. main/ble_midi_parse.h is from
 https://github.com/joakimeriksson/atech-firmware (src/sid-theremin/midi_in.h), BSD-3-Clause, its
 text below.

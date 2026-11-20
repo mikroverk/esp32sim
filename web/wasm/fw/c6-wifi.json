@@ -1,0 +1,19 @@
+{
+ "board": "esp32c6",
+ "flash_mb": 4,
+ "psram_mb": 0,
+ "console": "usb",
+ "wifi": ["ssid=esp32sim,psk=esp32sim-pass", "ssid=esp32sim-guest,chan=11"],
+ "wifi_nearby": ["ssid=Workshop,chan=1,rssi=-67", "ssid=Lab-IoT,chan=6,rssi=-74", "ssid=Cafe-Guest,chan=11,rssi=-81,secure=0"],
+ "netmon_open": true,
+ "files": {
+  "rom": "esp32c6_rev0_rom.elf",
+  "bootloader": "public/c6-wifi-bootloader.bin",
+  "ptable": "public/c6-wifi-ptable.bin",
+  "app": "public/c6-wifi_station.bin"
+ },
+ "seconds": 14,
+ "expect": "PING done sent=5 received=5",
+ "min_net_frames": 10,
+ "_note": "The WiFi station of examples/c6-wifi-station, the committed CI build (console only, on USB-Serial/JTAG; licences in public/wifi-station-NOTICE.txt), on a bare ESP32-C6. Two joinable virtual access points (the CLI's two --wifi) and three networks around them (--wifi-nearby): the scan lists all five, the station joins esp32sim with WPA2, takes its DHCP lease and pings the gateway five times. The Network panel opens on the station's Ethernet frames (--pcap's, live). No NAT on the page: the gateway is as far as it goes."
+}

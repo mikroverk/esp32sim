@@ -102,8 +102,15 @@ pub trait BoardModel {
     fn touch(&mut self, _x: u16, _y: u16, _down: bool) {}
     /// Touch input observed at a specific bus horizon. Untimed boards use the ordinary input path.
     fn touch_at(&mut self, _cycle: VirtualCycle, x: u16, y: u16, down: bool) { self.touch(x, y, down); }
+    /// The (pin, level) a touch controller's interrupt line takes after the last `touch` call, for
+    /// boards whose controller pulls an input low while touched (CYD: XPT2046 T_IRQ on GPIO 36).
+    fn touch_irq(&self) -> Option<(u8, bool)> { None }
     /// Current board-driven GPIO input levels, used to reconnect a persistent board after reset.
     fn input_levels(&self) -> Vec<(u8, bool)> { Vec::new() }
+    /// GPIO pins the board pulls low (bit n = GPIO n), so an undriven pad reads low there rather
+    /// than high: a motor or LED driver whose gate has a pull-down. Chips that resolve undriven
+    /// pads for the board (the S31) use it.
+    fn pull_downs(&self) -> u64 { 0 }
     /// Whether GPIO edge polling is needed. Cached by `attach_board_devices`.
     fn uses_gpio_edges(&self) -> bool { true }
     /// Use instruction-sized, unmodeled quanta for GPIO pulse decoding, overriding timing models.

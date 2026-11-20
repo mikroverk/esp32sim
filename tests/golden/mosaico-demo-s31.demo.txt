@@ -1,0 +1,9 @@
+start
+sensors imu=1 mag0=1 mag1=1
+ui up
+t=0s heading=270 accel=+0.00,-1.00,+0.00 mag=20,0,-40
+touch 1 at 300,200
+AI button 1: accent 1, motor pulse
+BOOT key 1: sensors page
+BOOT key 2: compass page
+t=5s heading=223 accel=+0.29,-0.92,-0.27 mag=15,16,-38

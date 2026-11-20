@@ -1,0 +1,29 @@
+{
+  "base": "upstream main 66d33d0d (Merge pull request #350)",
+  "toolchain": "Rust 1.100.0 (0ef1bc386 2026-11-09); Node 24.22.1; Windows 11 (10.0.26200), x86_64",
+  "mask_roms": {
+    "source": "tools/fetch-rom-elfs.sh roms (espressif/esp-rom-elfs, pinned by SHA-256 in the script)",
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  "firmware": {
+    "sketches": "docs/evidence/wifi-nearby/wifi-net-probe.ino and wifi-home-probe.ino (EX237), the same builds as EX237's inputs.json",
+    "build": "arduino-cli 1.5.1, Arduino-ESP32 core 3.3.12 (ESP-IDF v5.5.5); fqbn esp32:esp32:esp32s3 (default options)",
+    "images": {
+      "wifi-net.bin": { "bytes": 996688, "sha256": "16e7673a06279cd4b8cab645b506ebf1230ec0c566a5517dadfabed5e2de83dd" },
+      "wifi-home.bin": { "bytes": 841728, "sha256": "4439d50201a1b23644b54a2060fce2ff1686dd0d032836822633864494f232d4" },
+      "bootloader.bin": { "bytes": 19968, "sha256": "66cf6c060fc857c8ea6d6812aab8e9b27448431846426218b6fb81526b31e564" },
+      "partitions.bin": { "bytes": 3072, "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1" }
+    },
+    "not_committed": "Plain Arduino builds of the sketches; not added to the repository."
+  },
+  "runs": {
+    "cli-scan": "esp32sim --rom roms/esp32s3_rev0_rom.elf --boot rom --board none --flash-mb 4 --bootloader bootloader.bin --ptable partitions.bin --wifi ssid=Jumperly --net none --console uart0 --no-dump --app wifi-net.bin --wifi-nearby ssid=Home,chan=1,rssi=-60 --wifi-nearby ssid=Cafe,chan=11,rssi=-75,secure=0 --wifi-nearby ssid=Office,chan=6,rssi=-82,bssid=02:00:00:00:00:42 --max-seconds 12 > runs/cli-scan.txt",
+    "cli-join": "esp32sim ... --app wifi-home.bin --wifi-nearby ssid=Home,chan=1 --max-seconds 30 > runs/cli-join.txt",
+    "page-scan": "node wifi-nearby-run.mjs web/wasm/esp32sim.wasm roms/esp32s3_rev0_rom.elf bootloader.bin partitions.bin wifi-net.bin ssid=Jumperly plan-scan.json 12 > runs/page-scan.txt",
+    "page-join": "node wifi-nearby-run.mjs ... wifi-home.bin ssid=Jumperly plan-join.json 30 > runs/page-join.txt",
+    "page-after-boot": "TIMES=1 node wifi-nearby-run.mjs ... wifi-net.bin ssid=Jumperly plan-after-boot.json 12 > runs/page-after-boot.txt",
+    "page-during-scan": "TIMES=1 node wifi-nearby-run.mjs ... wifi-net.bin ssid=Jumperly plan-during-scan.json 12 > runs/page-during-scan.txt",
+    "compare": "the CLI's stdout against the page's uart: lines, CR and empty lines dropped and the time: line's wall clock masked: identical for scan and join",
+    "module": "web/wasm/esp32sim.wasm from tools/wasm-build.sh on this commit"
+  }
+}

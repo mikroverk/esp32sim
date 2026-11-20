@@ -1,0 +1,11 @@
+--- a/components/esp-mosaico-bsp/idf_component.yml
++++ b/components/esp-mosaico-bsp/idf_component.yml
+@@ -9,7 +9,7 @@
+   - bsp
+ 
+ dependencies:
+-  idf: ">=6.2"
++  idf: ">=6.1"
+ 
+   espressif/esp_lvgl_adapter:
+     version: "0.6.2"

@@ -96,7 +96,8 @@ Needs `--flash-mb 16 --psram-mb 8`; `examples/waveshare-lcd4b/run-energy-panel.s
 | Panel tear signal | GPIO 13 input | approximate compatibility signal with its intended transition timestamps; no timing claim is adopted |
 | CST820 touch at 0x15 | I2C0: SCL 14, SDA 15; active-low interrupt on GPIO 21 | identity and point reports; browser pointer input is latched until firmware reads it |
 | TCA9554 at 0x20 | I2C0 | disconnected register-RAM initialization stub; output, power, and reset effects are outside this model |
-| AXP2101 at 0x34, PCF85063A at 0x51, QMI8658 at 0x6B | I2C0 | initialization-compatible register stubs, not behavioral models |
+| AXP2101 at 0x34, PCF85063A at 0x51 | I2C0 | initialization-compatible register stubs, not behavioral models |
+| QMI8658 at 0x6B | I2C0 | motion mode 0 (default): the initialization-compatible register stub; mode 1 (`--imu-motion 1`, or the page's motion selector): accelerometer and gyro samples of the shared 30 s tilt, flip and shake script, on guest time |
 
 This model applies only to V2, which carries CO5300 and CST820. The V1 SH8601 and FT3168
 combination is not selected by this board name. It needs `--flash-mb 16 --psram-mb 8`.
@@ -179,7 +180,7 @@ The directed `esp32s3 --test stopwatch` tests cover factory selection, bus-0
 attachments, firmware register initialization, reset/rail/shutdown gating,
 framebuffer stride, CST820 reports and GPIO38 interrupt routing. The scan
 parameters are not hardware measurements. Physical scanout, touch IRQs,
-BMI270 and RX8130 are not modeled. These tests do not establish firmware boot,
+its BMI270 (a model exists, used by `mosaico`) and the RX8130 are not attached. These tests do not establish firmware boot,
 relay connectivity or tear-free rendering. Native `--web` keeps native
 networking; browser-only WASM has no NAT for external relay connections.
 
@@ -189,6 +190,47 @@ observation, not a checked-in test or a public firmware fixture. That run cannot
 be reproduced from this repository alone; no public build or private relay
 configuration is included. CI covers the directed board and UI tests above,
 not that firmware's boot or relay connection.
+
+## `mosaico` — Espressif ESP-Mosaico v1.2 (ESP32-S31)
+
+Wiring from esp-mosaico-bsp (`esp_mosaico.h`, revision `841f6245`); details in `esp32s31/src/board.rs` and [esp32s31.md](esp32s31.md).
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| CO5300 480×480 AMOLED | GP-SPI2 in QSPI mode (CLK 42, CS 50, D0-D3 36/51/35/9), RST 44, supply GPIO 60 low, TE 43 | `Co5300`; TE: 60 Hz with a 1 ms pulse |
+| CST9220 touch | I2C0 (SDA 56, SCL 3) at 0x5A, INT 6 | touch reports, INT low while touched |
+| BMI270 IMU | I2C0 at 0x69 | `--imu-motion` drives it |
+| two BMM150 | I2C0 at 0x11, 0x12 | the Bosch register map, trims and compensation; an Earth-like field (20, 0, -40) µT at rest, turned with the board by `--imu-motion 1` (the sensor's axes taken as the screen's) |
+| BQ27220 fuel gauge | I2C0 at 0x55 | synthetic battery |
+| ES8311 codec | I2C0 at 0x19, I2S0 full duplex, amplifier GPIO 45 | a register file; I2S0 output is the run's audio (`--wav`) |
+| W25N01GV SPI NAND | GP-SPI3 | `spi_nand.rs`, command level |
+| AI button / Boot key | GPIO 7 / 61, active low (`BSP_BUTTON_AI_GPIO`, `BSP_BUTTON_BOOT_GPIO`) | `press ai` (also `power`, `btn1`), `press boot` (`btn2`); two buttons on the web page |
+| Vibration motor | GPIO 8, on high (`BSP_MOTOR_GPIO`), LEDC PWM by default or a plain output | on or off (PWM with a duty above zero is on; the strength is not modelled); a pull-down is assumed, so an undriven pin is off. The board report counts starts and time on; the web page's indicator lights while it runs |
+| PWR_SW | GPIO 57, open drain, low asks for power off (`BSP_POWER_SWITCH_GPIO`) | reported (`PWR_SW asserted`), not acted on |
+
+There is no power key on a GPIO: the BSP, esp-brookesia's `esp_mosaico_v1_2` board files and
+esp-mosaico-claw read only the AI button and the Boot key. GPIO 24/25 are the NAND's HOLD and
+WP and GPIO 35 is LCD D2. The factory firmware's board manager calls GPIO 7 `button_power`.
+
+LEDC is not a peripheral model: its registers are plain storage, and a pad the GPIO matrix
+routes to an LEDC channel (signals 126-133, 230-237) reads that channel's output enable, duty
+and idle level from them.
+
+Tests: `mosaico_board_s31` boots `examples/mosaico-board` (keys, the motor through LEDC and
+GPIO, both BMM150 through espressif/bmm150 1.1.0, with and without `--imu-motion 1`);
+`wifi_station_s31_mosaico` boots `examples/c6-wifi-station` built for the S31, which joins the
+virtual access point (WPA2) and takes its DHCP lease. Both images are built with ESP-IDF v6.1 by
+`tools/fetch-s31-firmware.sh` and committed in `esp32s31/firmware`.
+
+Firmware with a display: `examples/mosaico-demo`, Espressif's esp-mosaico-bsp (`841f6245`, its
+ESP-IDF requirement patched from 6.2 to 6.1, no code change) with LVGL 9.5: a compass needle from
+the BMM150, a rolling ball from the BMI270, touch, the AI button (colour and a motor pulse) and the
+Boot key (a sensor page). The BSP runs on the model with its own settings, including its 3.3 V
+soft start, an LEDC fade waited for with its end interrupt. Built and pinned by `tools/fetch-s31-firmware.sh` into
+`web/wasm/fw/public/s31-mosaico-demo*` (licences in `s31-mosaico-demo-NOTICE.txt`), pinned by
+the golden `mosaico_demo_s31`, and the browser demo `s31-mosaico` (`?wasm&fw=s31-mosaico`, board
+`mosaico` in the page's form, the round panel, the two buttons and the motor indicator). Not run
+on a physical board.
 
 ## `waveshare-c6-lcd147` — Waveshare ESP32-C6-LCD-1.47 (ESP32-C6)
 
@@ -219,10 +261,26 @@ The wiring is Waveshare's BSP `waveshare/esp32_p4_wifi6_touch_lcd_3_5` 2.0.2
 | TF card | SDMMC slot 0 | `--sd` |
 
 Firmware for it: the Scintilla synth (`p4-scintilla-lcd35*`, fetched by `tools/fetch-p4-firmware.sh`;
-source joakimeriksson/esp32 at commit `eed6180`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
+source joakimeriksson/esp32 at commit `3a477c7`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
 `web/wasm/fw/public/p4-scintilla-NOTICE.txt`), pinned by the golden `scintilla_p4_lcd35`, and the
 page demo `p4-lcd35-synth`. It wants PSRAM: `--psram-mb 32`, as the board has (the CLI's default
 is none; the page's manifest sets 32).
+## `xiao-esp32c6` — Seeed Studio XIAO ESP32-C6 (ESP32-C6)
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| User LED | GPIO 15, low active (the anode goes to 3V3 through a resistor, the cathode to the pin) | lit while the pin is driven low; the state follows the drive masks, not the edges, so a released pin is dark. Shown in the UI as a one-LED strip |
+| BOOT button | GPIO 9, active low, pulled up on the board | `press boot 150`; the page's BOOT button drives it low |
+| RF switch | GPIO 3 (power, low active) and GPIO 14 (port: low = the onboard ceramic antenna, high = the external U.FL) | tracked and reported; nothing is behind it |
+
+The board is an ESP32-C6FH4: 4 MB of flash and no PSRAM, which is the C6's default
+(`--flash-mb 4`; the C6 has no PSRAM at all, so `--psram-mb` is refused). The pin map is the
+Seeed one: D0–D10 and A0–A2 on GPIO 0, 1, 2, 21, 22, 23, 16, 17, 19, 20, 18, the back pads
+MTMS/MTDI/MTCK/MTDO on GPIO 4, 5, 6, 7, and `EN` as the chip's reset rather than a GPIO. Only
+the LED, the button and the RF switch are wired to anything, so only they are modelled.
+
+The blink firmware and the run recipe: `examples/xiao-esp32c6/`, [esp32c6.md](esp32c6.md). The
+firmware is also a browser demo (`?wasm&fw=c6-xiao`).
 
 ## `ttgo-tdisplay` — LilyGO TTGO T-Display (classic ESP32)
 
@@ -235,6 +293,19 @@ is none; the page's manifest sets 32).
 | I2C header | SDA 21 / SCL 22 | nothing attached |
 
 Selected with `--chip esp32 --board ttgo-tdisplay` (alias `tdisplay`); [esp32.md](esp32.md#the-board---board-ttgo-tdisplay).
+
+## `cyd` — ESP32-2432S028 "Cheap Yellow Display" (classic ESP32)
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| ILI9341 240×320 panel | SPI (SCLK 14, MOSI 13, MISO 12), CS 15, D/C 2, no RST | `DcsPanel::new(240, 320)`: bytes of transactions while CS 15 is low, from either SPI host; shown as the firmware addresses it: 320×240 landscape (the RAM transposed) with MADCTL.MV set (TFT_eSPI rotations 1 and 3), 240×320 portrait (the RAM as it is) with MV clear (rotations 0 and 2); red/blue exchanged unless MADCTL BGR; readback returns 0xff |
+| XPT2046 touch | its own SPI (CLK 25, MOSI 32, MISO 39), CS 33, T_IRQ GPIO 36 | answers the pressure and X/Y reads of the PaulStoffregen library while CS 33 is low; `touch x y 1` / the page's pointer (landscape pixels) press it and pull GPIO 36 low; raw values are an approximate linear map (200..3900) of the spot on the glass, the same in either rotation, not a calibrated curve |
+| Backlight | GPIO 21, active high | level tracked, in the report; LEDC duty via `--pwm 21`; the picture is not dimmed |
+| LDR, SD card, RGB LED, speaker | GPIO 34, SPI, GPIO 4/16/17, GPIO 26 | not modelled |
+
+Selected with `--chip esp32 --board cyd` (alias `esp32-2432s028`); [esp32.md](esp32.md#the-board---board-cyd).
+Only the original single-USB ESP32-2432S028 (ILI9341) is modelled: some boards sold as "CYD", such as
+the two-USB (micro-USB and USB-C) variant, have an ST7789 or need inverted colours, and show wrong colours here.
 
 ## `ulanzi-tc001` — Ulanzi TC001 pixel clock (classic ESP32)
 

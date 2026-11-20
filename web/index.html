@@ -7,9 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>try{const t=localStorage.getItem('esp32sim-theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
 <title>esp32sim — real ESP32 firmware in your browser, and a test bench for coding agents</title>
-<meta name="description" content="An instruction-level emulator for the ESP32, S3, C3 and C6 in Rust. Boots the real mask ROM, the real bootloader and unmodified firmware — in this browser tab, or on the command line as a deterministic hardware test bench for coding agents.">
+<meta name="description" content="An instruction-level emulator for the ESP32, S3, C3, C6, P4 and S31 in Rust. Boots the real mask ROM, the real bootloader and unmodified firmware — in this browser tab, or on the command line as a deterministic hardware test bench for coding agents.">
 <meta property="og:title" content="esp32sim — real ESP32 firmware in your browser">
-<meta property="og:description" content="Boot unmodified ESP32, S3, C3 and C6 firmware in a browser tab, or give a coding agent a deterministic board on the command line.">
+<meta property="og:description" content="Boot unmodified ESP32, S3, C3, C6, P4 and S31 firmware in a browser tab, or give a coding agent a deterministic board on the command line.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mikroverk.github.io/esp32sim/">
 <meta property="og:image" content="https://mikroverk.github.io/esp32sim/assets/social-card.png">
@@ -82,11 +82,37 @@
   :root[data-theme="dark"] .theme::before { content: "☀"; }
 
   /* ----- hero ----- */
-  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding: 64px 0 40px; }
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: start; padding: 64px 0 40px; }
+  /* Right column: the device, then the release news below it. */
+  .side { display: grid; gap: 30px; }
+  /* Beside the text the device is smaller, so the news and the device fit in the first screen. */
+  @media (min-width: 961px) {
+    .side .stage { padding: 26px 28px; }
+    .side .device { width: min(330px, 100%); }
+  }
   .hero h1 { font-size: clamp(38px, 5.2vw, 62px); font-weight: 800; letter-spacing: -.035em; }
   .hero h1 span { color: var(--link); }
   .lede { margin-top: 20px; font-size: clamp(17px, 1.6vw, 20px); color: var(--text); max-width: 560px; }
   .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  /* What the latest release brought, under the device in the hero; the full list is in #releases. */
+  .latest { border-top: 3px solid var(--ink); padding-top: 10px; }
+  .latest h2 { font-size: 15px; font-weight: 750; letter-spacing: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .latest h2 time { font-size: 12.5px; font-weight: 500; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .latest ul { list-style: none; margin: 4px 0 0; padding: 0; }
+  .latest li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .latest li a { display: block; color: var(--text); font-size: 14.5px; line-height: 1.42; text-decoration: none; }
+  .latest li a b { color: var(--ink); font-weight: 750; }
+  .latest li a:hover, .latest li a:focus-visible { color: var(--ink); text-decoration: underline; }
+  .latest .all { display: inline-block; margin: 8px 16px 0 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+  .news { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-2); }
+  .news li { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 6px 32px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .news li > div { min-width: 0; }
+  .news time { color: var(--dim); font-size: 14.5px; }
+  .news .tag { display: block; font-weight: 800; font-size: 19px; letter-spacing: -.01em; }
+  .news p { color: var(--text); font-size: 15.5px; margin-top: 6px; max-width: 76ch; }
+  .news .go { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 15px; }
+  .news .go a:first-child { font-weight: 700; }
+  @media (max-width: 640px) { .news li { grid-template-columns: 1fr; } }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 26px; color: var(--dim); font: 13px/1.5 var(--mono); }
   .facts span::before { content: "◆"; color: var(--gold); margin-right: 7px; font-size: 10px; vertical-align: 1px; }
   .stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px 16px; padding: 34px; border-radius: 26px; background: radial-gradient(circle at 50% 30%, #2b2f3a, var(--stage) 70%); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -30px rgba(23,26,36,.55); }
@@ -94,7 +120,8 @@
   .device img { display: block; width: 100%; height: auto; border-radius: 9px; }
   .stage .run { grid-column: 2; background: var(--gold); color: var(--ink); min-height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
   .stage .run:hover { background: #ffc43d; }
-  .stage figcaption { color: #aeb3c2; font: 12px/1.4 var(--mono); }
+  .stage figcaption { color: #aeb3c2; font-size: 13.5px; line-height: 1.45; }
+  .stage figcaption b { display: block; color: #f1f2f6; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
 
   /* ----- sections ----- */
   section { padding: 56px 0; }
@@ -178,6 +205,7 @@
 
   @media (max-width: 960px) {
     .hero { grid-template-columns: 1fr; gap: 34px; padding-top: 40px; }
+    .latest { max-width: 560px; }
     .grid, .all, .chips { grid-template-columns: 1fr 1fr; }
     .agents .split { grid-template-columns: 1fr; }
   }
@@ -199,6 +227,7 @@
     <a href="#demos">Demos</a>
     <a href="#agents">For coding agents</a>
     <a href="#inside">What's inside</a>
+    <a href="#releases">Releases</a>
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/quick-start.md">Quick start</a>
     <a href="https://github.com/mikroverk/esp32sim#readme">Docs</a>
     <a class="gh" href="https://github.com/mikroverk/esp32sim">GitHub ↗</a>
@@ -209,9 +238,9 @@
 <main>
 <section class="wrap hero" style="border-top:0">
   <div>
-    <span class="kicker">ESP32 · S3 · C3 · C6 — Xtensa and RISC-V</span>
+    <span class="kicker">ESP32 · S3 · C3 · C6 · P4 · S31 — Xtensa and RISC-V</span>
     <h1>Real ESP32 firmware.<br><span>In your browser.</span></h1>
-    <p class="lede">esp32sim is an instruction-level emulator for Espressif's ESP32-S3, C3, C6 and the classic ESP32, written in Rust. It boots the real mask ROM, the real bootloader and an unmodified application image — here in this tab, or on your command line as a hardware test bench that a coding agent can drive.</p>
+    <p class="lede">esp32sim is an instruction-level emulator for Espressif's ESP32-S3, C3, C6, P4, S31 and the classic ESP32, written in Rust. It boots the real mask ROM, the real bootloader and an unmodified application image — here in this tab, or on your command line as a hardware test bench that a coding agent can drive.</p>
     <div class="actions">
       <a class="button primary" href="run.html?wasm&amp;fw=panel">Run the touch panel →</a>
       <a class="button secondary" href="#demos">All demos</a>
@@ -219,17 +248,28 @@
     </div>
     <div class="facts"><span>ROM → bootloader → app</span><span>no patched firmware</span><span>no cloud, no accounts</span><span>MIT</span></div>
   </div>
-  <figure class="stage" style="margin:0">
-    <a class="device" href="run.html?wasm&amp;fw=panel" title="Run the Touch-LCD-4B energy panel"><img src="assets/demo-panel.webp" width="480" height="480" alt="The energy panel firmware's first page: a price histogram for the day and four tiles"></a>
-    <figcaption>the frame the emulator wrote with --tft-png, 5 s after power-on</figcaption>
-    <a class="run" href="run.html?wasm&amp;fw=panel">▶ Run it</a>
-  </figure>
+  <div class="side">
+    <figure class="stage" style="margin:0">
+      <a class="device" href="run.html?wasm&amp;fw=panel" title="Run the Touch-LCD-4B energy panel"><img src="assets/demo-panel.webp" width="480" height="480" alt="The energy panel firmware's first page: a price histogram for the day and four tiles"></a>
+      <figcaption><b>A home-energy panel on an ESP32-S3</b>LVGL on a 480×480 touch display, as the emulator drew it 5 s after power-on. Tap it to boot it here.</figcaption>
+      <a class="run" href="run.html?wasm&amp;fw=panel">▶ Run it</a>
+    </figure>
+    <aside class="latest" aria-labelledby="latest-h">
+      <h2 id="latest-h">New in v0.4.0 <time datetime="2026-11-15">15 Nov 2026</time></h2>
+      <ul>
+        <li><a href="run.html?wasm&amp;fw=s31-mosaico"><b>ESP32-S31 on Espressif's ESP-Mosaico:</b> the newest chip, its round AMOLED, touch and sensors, here in the browser</a></li>
+        <li><a href="run.html?wasm&amp;fw=p4-c6-hosted"><b>ESP32-P4:</b> two RISC-V cores, and WiFi through an emulated ESP32-C6 running ESP-Hosted</a></li>
+        <li><a href="https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md"><b>esptool</b> flashes the S3, C3, C6 and P4 through the ROM, as on a real board</a></li>
+      </ul>
+      <a class="all" href="https://github.com/mikroverk/esp32sim/releases/tag/v0.4.0">Release notes</a> <a class="all" href="#releases">Release history</a>
+    </aside>
+  </div>
 </section>
 
 <section id="demos"><div class="wrap">
   <div class="sec-head">
     <div><span class="kicker">Demos</span><h2>Pick something to boot.</h2></div>
-    <p>Every demo is a real firmware image booting through the real ROM inside this tab. Nothing runs on a server. The first load fetches the emulator (about 8 MB); firmware after that is small, except Linux's 16 MB flash.</p>
+    <p>Every demo is a real firmware image booting through the real ROM inside this tab. Nothing runs on a server. The first load fetches the emulator (about 5 MB); firmware after that is small, except Linux's 16 MB flash and Pocket Tank's 7.6 MB model.</p>
   </div>
   <div class="grid">
     <article class="card">
@@ -291,6 +331,20 @@ Password:
         <div class="go"><a href="run.html?wasm&amp;fw=c6-energy-scan">Run →</a><a class="src" href="https://github.com/joakimeriksson/esp32">source ↗</a></div></div>
     </article>
     <article class="card">
+      <a class="shot" href="run.html?wasm&amp;fw=s31-mosaico"><img src="assets/demo-s31-mosaico.webp" width="480" height="480" alt="" style="border-radius:50%;aspect-ratio:1;width:auto;height:100%"></a>
+      <div class="body"><div class="meta"><span>ESP32-S31</span><span>LVGL · touch · IMU</span></div>
+        <h3>ESP-Mosaico compass</h3>
+        <p>Espressif's newest chip on its ESP-Mosaico board: LVGL through the board's own BSP on the round 480×480 AMOLED, a compass needle from the magnetometer and a rolling ball from the accelerometer while the board is turned. Tap it; the AI button recolours it and buzzes the motor.</p>
+        <div class="go"><a href="run.html?wasm&amp;fw=s31-mosaico">Run →</a><a class="src" href="https://github.com/mikroverk/esp32sim/tree/main/examples/mosaico-demo">source · MIT ↗</a></div></div>
+    </article>
+    <article class="card">
+      <a class="shot" href="run.html?wasm&amp;fw=p4-lcd35-synth"><img src="assets/demo-p4-lcd35-synth.webp" width="480" height="320" alt="The Scintilla synth's first page: preset, octave, volume and a keyboard"></a>
+      <div class="body"><div class="meta"><span>ESP32-P4</span><span>LVGL · touch · audio</span></div>
+        <h3>Scintilla synth on the P4</h3>
+        <p>The Elka Synthex in integer C on the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: LVGL on the ST7796, FT5x06 touch and the ES8311 codec. Enable audio, play the keys, tap the red display for 80 presets. Slower than real time in a browser.</p>
+        <div class="go"><a href="run.html?wasm&amp;fw=p4-lcd35-synth">Play →</a><a href="run.html?wasm&amp;fw=p4-c6-hosted">WiFi through a C6</a><a class="src" href="https://github.com/joakimeriksson/esp32">source · GPL-3.0 ↗</a></div></div>
+    </article>
+    <article class="card">
       <a class="shot" href="run.html?wasm&amp;fw=c6-rpl-net"><div style="width:100%"><div class="net"><div class="mote"><i></i>node 1</div><div class="air"><span>UDP over 6LoWPAN · RPL</span></div><div class="mote"><i></i>node 2</div></div>
         <pre style="height:auto;margin-top:16px">[I] RPL: created DAG with instance ID 0, DAG ID fd00::ff:fe00:1, rank 128
 [I] RPL: sending a multicast-DIO with rank 128 to ff02::1a
@@ -299,6 +353,20 @@ Password:
         <h3>A radio network in one tab</h3>
         <p>Two emulated C6 motes on one 802.15.4 medium: Contiki-NG's rpl-udp server as the DAG root and a client that joins, then sends a UDP request every 10 s and gets a reply. Hardware ACKs included.</p>
         <div class="go"><a href="run.html?wasm&amp;fw=c6-rpl-net">Start network →</a><a href="run.html?wasm&amp;fw=c6-contiki-net">two broadcasters</a><a class="src" href="https://github.com/joakimeriksson/contiki-ng-esp32">source ↗</a></div></div>
+    </article>
+    <article class="card">
+      <a class="shot" href="run.html?wasm&amp;fw=c6-wifi"><img src="assets/demo-c6-wifi.webp" width="640" height="513" alt="The Network panel: the station's DHCP, ARP and ICMP frames, both ways"></a>
+      <div class="body"><div class="meta"><span>ESP32-C6</span><span>WiFi · DHCP · pcap</span></div>
+        <h3>Watch the WiFi traffic</h3>
+        <p>A station firmware scans two virtual access points and three networks around them, joins one with WPA2, takes a DHCP lease and pings the gateway. The Network panel lists every frame both ways, dissects the one you click and saves them all as a pcap.</p>
+        <div class="go"><a href="run.html?wasm&amp;fw=c6-wifi">Run →</a><a href="run.html?wasm&amp;fw=p4-c6-hosted">a P4 through its C6</a><a class="src" href="https://github.com/mikroverk/esp32sim/tree/main/examples/c6-wifi-station">source · MIT ↗</a></div></div>
+    </article>
+    <article class="card">
+      <a class="shot" href="run.html?wasm&amp;fw=c6-xiao"><img src="assets/demo-c6-xiao.webp" width="664" height="436" alt="The XIAO's user LED lit and its console reporting the BOOT button pressed"></a>
+      <div class="body"><div class="meta"><span>ESP32-C6</span><span>GPIO · LED · button</span></div>
+        <h3>Seeed Studio XIAO ESP32-C6</h3>
+        <p>Our blink firmware on Seeed's XIAO: the low-active user LED on GPIO 15 lights while the pin sinks current, and the BOOT button on GPIO 9 reads back. The script presses it at 2 s; the page's BOOT button presses it too.</p>
+        <div class="go"><a href="run.html?wasm&amp;fw=c6-xiao">Run →</a><a class="src" href="https://github.com/mikroverk/esp32sim/tree/main/examples/xiao-esp32c6">source · MIT ↗</a></div></div>
     </article>
   </div>
   <div class="all" id="alldemos"><noscript><p><a href="run.html?wasm">Every demo is listed on the emulator page.</a></p></noscript></div>
@@ -357,40 +425,56 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
 <section id="inside"><div class="wrap">
   <div class="sec-head">
     <div><span class="kicker">What's inside</span><h2>Software that behaves like the chip.</h2></div>
-    <p>Four SoCs across both of Espressif's CPU architectures. Most of the SoC model is shared; only the CPU crates are separate. The numbers are from the README and its tests.</p>
+    <p>Six SoCs across both of Espressif's CPU architectures. Most of the SoC model is shared; only the CPU crates are separate. The numbers are from the README and its tests.</p>
   </div>
   <div class="chips">
     <div class="chip"><h3>ESP32-S3 <small>mature</small></h3><dl>
       <dt>CPU</dt><dd>2 × Xtensa LX7 @ 240 MHz, PIE SIMD</dd>
       <dt>Boots</dt><dd>ROM → bootloader → FreeRTOS → app</dd>
-      <dt>Boards</dt><dd>ST7735, ST7701S 480×480 + touch, AMOLED 1.8, WS2812, camera, I²S audio</dd>
-      <dt>Wi-Fi</dt><dd>virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS</dd>
+      <dt>Boards</dt><dd>ST7735, ST7701S 480×480 + touch, AMOLED 1.8, M5Stack StopWatch, WS2812, camera, I²S audio</dd>
+      <dt>Wi-Fi</dt><dd>virtual APs and networks around them, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS, pcap</dd>
       <dt>Speed</dt><dd>block interpreter + AArch64 JIT, ~150–240 Minsn/s</dd>
       <dt>vs silicon</dt><dd>JTAG lock-step, 8000 steps, 0 PC divergences</dd>
     </dl></div>
     <div class="chip"><h3>ESP32 (classic) <small>early</small></h3><dl>
       <dt>CPU</dt><dd>2 × Xtensa LX6 @ 240 MHz, on the S3's Xtensa core crate</dd>
       <dt>Boots</dt><dd>ECO3 ROM → bootloader → FreeRTOS → app; stock MicroPython</dd>
-      <dt>Boards</dt><dd>LilyGO TTGO T-Display: ST7789 135×240 over VSPI, two buttons</dd>
-      <dt>Wi-Fi</dt><dd>the same virtual AP: WPA2, DHCP, NAT — one station; MicroPython joins and fetches over HTTPS</dd>
-      <dt>Inside</dt><dd>UART, I²C, LEDC, SPI + DMA, RMT, AES/SHA/RSA, ADC/DAC/touch pads, I²S RX, BLE</dd>
-      <dt>Not yet</dt><dd>PSRAM, double-precision FPU arithmetic, a recorded comparison with a board</dd>
+      <dt>Boards</dt><dd>LilyGO TTGO T-Display, the ESP32-2432S028 Cheap Yellow Display (ILI9341 + touch), Ulanzi TC001 (32×8 WS2812), AI-Thinker ESP32-CAM (OV2640, raw capture)</dd>
+      <dt>Wi-Fi</dt><dd>the same virtual APs: WPA2, DHCP, NAT; MicroPython joins and fetches over HTTPS; or the guest as the access point, joined by a virtual station</dd>
+      <dt>Inside</dt><dd>UART, I²C, LEDC, SPI + DMA, RMT, AES/SHA/RSA, ADC/DAC/touch pads, I²S RX and camera, 4 MB PSRAM, BLE</dd>
+      <dt>Not yet</dt><dd>double-precision FPU arithmetic, a recorded comparison with a board</dd>
     </dl></div>
     <div class="chip"><h3>ESP32-C3 <small>draft</small></h3><dl>
       <dt>CPU</dt><dd>1 × RISC-V RV32IMC @ 160 MHz</dd>
       <dt>Boots</dt><dd>ROM → bootloader → FreeRTOS → app</dd>
       <dt>Boards</dt><dd>console only</dd>
-      <dt>Wi-Fi</dt><dd>the same virtual AP: scan, WPA2, DHCP, NAT — one station</dd>
+      <dt>Wi-Fi</dt><dd>the same virtual APs and networks around them: scan, WPA2, DHCP, NAT</dd>
       <dt>Decoder</dt><dd>161 k instructions vs objdump, 0 mismatches</dd>
       <dt>vs silicon</dt><dd>console diff, 205/208 lines identical</dd>
     </dl></div>
     <div class="chip"><h3>ESP32-C6 <small>draft</small></h3><dl>
       <dt>CPU</dt><dd>1 × RISC-V RV32IMAC @ 160 MHz</dd>
       <dt>Boots</dt><dd>ROM → bootloader → FreeRTOS → app</dd>
-      <dt>Boards</dt><dd>ST7789 172×320 over SPI + DMA, WS2812, an 802.15.4 MAC with a shared medium</dd>
-      <dt>Wi-Fi</dt><dd>the same virtual AP: scan, WPA2, DHCP, NAT — one station</dd>
+      <dt>Boards</dt><dd>Waveshare C6-LCD-1.47: ST7789 172×320 over SPI + DMA, WS2812, an 802.15.4 MAC with a shared medium; Seeed XIAO ESP32-C6: user LED, BOOT button</dd>
+      <dt>Wi-Fi</dt><dd>the same virtual APs and networks around them: scan, WPA2, DHCP, NAT</dd>
       <dt>Decoder</dt><dd>126 k instructions vs objdump, 0 mismatches</dd>
       <dt>vs silicon</dt><dd>console diff, 203/204 lines identical</dd>
+    </dl></div>
+    <div class="chip"><h3>ESP32-P4 <small>draft</small></h3><dl>
+      <dt>CPU</dt><dd>2 × RISC-V RV32IMAFC @ 360 MHz, CLIC; rev &lt; 3 and ≥ 3</dd>
+      <dt>Boots</dt><dd>ROM → bootloader → FreeRTOS → app on one or both cores</dd>
+      <dt>Boards</dt><dd>Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: ST7796 320×480 over SPI + AXI-GDMA, FT5x06 touch, ES8311 audio</dd>
+      <dt>Wi-Fi</dt><dd>no radio on the chip: an emulated ESP32-C6 on SDIO runs the unmodified ESP-Hosted slave, in lock-step</dd>
+      <dt>Inside</dt><dd>SD/MMC host and SD card, high-speed USB-OTG with a host on the other end, esptool flashing</dd>
+      <dt>Not yet</dt><dd>MIPI-DSI, DMA2D and PPA for the MIPI display boards; Xesppie</dd>
+    </dl></div>
+    <div class="chip"><h3>ESP32-S31 <small>draft</small></h3><dl>
+      <dt>CPU</dt><dd>2 × RISC-V RV32IMAFC @ 320 MHz with Zb*, Zc*, hardware loops and the PIE subset</dd>
+      <dt>Boots</dt><dd>ROM → bootloader → FreeRTOS → app, ESP-IDF v6.1</dd>
+      <dt>Boards</dt><dd>Espressif ESP-Mosaico: CO5300 480×480 AMOLED over QSPI, touch, ES8311 audio and mic, IMU and magnetometers, keys, motor</dd>
+      <dt>Wi-Fi</dt><dd>the same virtual APs: scan, WPA2 through the AES block, DHCP, NAT; OTA updates</dd>
+      <dt>Firmware</dt><dd>the Mosaico's factory firmware (ESP-Claw) runs to its home screen</dd>
+      <dt>Not yet</dt><dd>a recorded comparison with a board</dd>
     </dl></div>
   </div>
   <div class="doclinks">
@@ -401,8 +485,51 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32.md">classic ESP32 status</a>
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32c3.md">C3 status</a>
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32c6.md">C6 status</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32p4.md">P4 status</a>
+    <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32s31.md">S31 status</a>
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/decisions.md">decisions</a>
   </div>
+</div></section>
+
+<section id="releases"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="kicker">Releases</span><h2>What came when.</h2></div>
+    <p>Every release has ready-to-run downloads for Linux (x86-64 and ARM64) and macOS (Apple silicon).</p>
+  </div>
+  <ol class="news">
+    <li>
+      <time datetime="2026-11-15">15 November 2026</time>
+      <div>
+        <span class="tag">v0.4.0</span>
+        <p>Two new chips, each on a real board: the ESP32-P4 on Waveshare's LCD-3.5, with WiFi through an emulated ESP32-C6 co-processor running the unmodified ESP-Hosted firmware, and the ESP32-S31 on Espressif's ESP-Mosaico, whose factory firmware runs to its home screen. esptool flashes the S3, C3, C6 and P4 through the ROM. WiFi you can shape from the page: several access points, nearby networks and BLE devices, and a live Network panel. RISC-V runs about three times faster.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.4.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+    <li>
+      <time datetime="2026-10-20">20 October 2026</time>
+      <div>
+        <span class="tag">v0.3.0</span>
+        <p>A fourth chip, the classic ESP32, from its own mask ROM to MicroPython on a TTGO T-Display. WiFi and Bluetooth on every chip, a much wider set of peripherals, and a browser build that runs some workloads faster than real time.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.3.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+    <li>
+      <time datetime="2026-09-13">13 September 2026</time>
+      <div>
+        <span class="tag">v0.2.0</span>
+        <p>A third chip, the ESP32-C6, with an 802.15.4 radio and Contiki-NG. Linux 6.11 boots on the ESP32-S3, and the S3 gets a WebAssembly JIT in the browser.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.2.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+    <li>
+      <time datetime="2026-09-02">2 September 2026</time>
+      <div>
+        <span class="tag">v0.1.0</span>
+        <p>The first release: unmodified ESP-IDF and Arduino firmware on the ESP32-S3 and ESP32-C3, from the real mask ROM through the bootloader into the application, natively and in the browser.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.1.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+  </ol>
 </div></section>
 
 <section><div class="wrap">
@@ -416,7 +543,7 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
 
 <footer><div class="wrap">
   <div class="row"><a href="https://github.com/mikroverk/esp32sim">source</a><a href="https://github.com/mikroverk/esp32sim#readme">README</a><a href="https://github.com/mikroverk/esp32sim/blob/main/LICENSE">MIT license</a><a href="https://github.com/mikroverk/esp32sim/releases">releases</a></div>
-  <p>Third-party pieces on this site: the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs), the Linux flash image (GPL-3.0, svermigo/Linux-on-esp32-S3), Pocket Tank (MIT, mediacutlet/pocket-tank), the MicroPython ESP32_GENERIC image (MIT, micropython.org) with Russ Hughes's st7789py driver and fonts (MIT, russhughes/st7789py_mpy), xterm.js (MIT). The demos run entirely in your browser.</p>
+  <p>Third-party pieces on this site: the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs), the Linux flash image (GPL-3.0, svermigo/Linux-on-esp32-S3), Pocket Tank (MIT, mediacutlet/pocket-tank), the MicroPython ESP32_GENERIC image (MIT, micropython.org) with Russ Hughes's st7789py driver and fonts (MIT, russhughes/st7789py_mpy), xterm.js (MIT), dpkt-js for the Network panel (BSD-3-Clause, vendored in vendor/dpkt-js), the Scintilla synth for the ESP32-P4 (GPL-3.0, joakimeriksson/esp32; licences in wasm/fw/public/p4-scintilla-NOTICE.txt). The demos run entirely in your browser.</p>
 </div></footer>
 
 <script>
@@ -428,10 +555,10 @@ function toggleTheme() {
 }
 // The complete demo list, from the same catalogue the emulator page uses, grouped by chip.
 fetch('wasm/fw/demos.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(demos => {
-  const groups = { esp32: ['ESP32', []], s3: ['ESP32-S3', []], c3: ['ESP32-C3', []], c6: ['ESP32-C6', []] };
+  const groups = { esp32: ['ESP32', []], s3: ['ESP32-S3', []], c3: ['ESP32-C3', []], c6: ['ESP32-C6', []], p4: ['ESP32-P4', []], s31: ['ESP32-S31', []] };
   let parent = null;
   for (const d of demos) {
-    const chip = /^c3-/.test(d.fw) ? 'c3' : /^c6-/.test(d.fw) ? 'c6' : /^(tdisplay|classic)-/.test(d.fw) ? 'esp32' : 's3';
+    const chip = /^c3-/.test(d.fw) ? 'c3' : /^c6-/.test(d.fw) ? 'c6' : /^p4-/.test(d.fw) ? 'p4' : /^s31-/.test(d.fw) ? 's31' : /^(tdisplay|classic)-/.test(d.fw) ? 'esp32' : 's3';
     const cont = d.title.startsWith('…');
     const li = document.createElement('li');
     const a = document.createElement('a'); a.href = 'run.html?wasm&fw=' + encodeURIComponent(d.fw); a.title = d.note || '';

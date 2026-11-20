@@ -45,8 +45,9 @@ with tracking issues where available that list items and what "done" means:
    the C6's unified map and MMU, PLIC/INTPRI, PCR and the LP blocks; hello_world verified against
    a Waveshare ESP32-C6-LCD-1.47, 203/204 console lines identical over three boots. The board is
    in (`waveshare-c6-lcd147`: ST7789 on SPI2+GDMA, WS2812 on the C6 RMT, BOOT button) and its
-   802.15.4 energy-scan firmware runs with a synthetic spectrum from the MAC model. Left: TF card,
-   I2C on the C6 layout, watchdogs, real radios.
+   802.15.4 energy-scan firmware runs with a synthetic spectrum from the MAC model. A second
+   board is in (`xiao-esp32c6`: low-active user LED on GPIO 15, BOOT button, RF switch). Left: TF
+   card, I2C on the C6 layout, watchdogs, real radios.
 6. **More boards** — board models for the S3, C6, P4 and classic ESP32 are in; [boards.md](boards.md)
    lists them and how to add one. The latest are the Ulanzi TC001 (#311) and the AI-Thinker
    ESP32-CAM with host JPEG (#328). Next candidates as firmware needs them; `--board waveshare-*`
@@ -67,8 +68,9 @@ with tracking issues where available that list items and what "done" means:
    then its own Wi-Fi MAC model, since the SDK drives different hardware than the ESP32.
 12. **ESP32-P4 (RISC-V, dual HP core)** — in progress ([#215](https://github.com/mikroverk/esp32sim/issues/215)):
    F, CLIC, L2MEM/PSRAM, SDMMC, USB-OTG and Wi-Fi from an
-   emulated C6 over ESP-Hosted (`--coproc`) are there; Xesppie, MIPI-DSI and DMA2D/PPA for the
-   display boards it ships on are not.
+   emulated C6 over ESP-Hosted (`--coproc`) are there, rev ≥ 3 runs the Waveshare
+   Touch-LCD-3.5 board (`waveshare-p4-lcd35`); Xesppie, MIPI-DSI and DMA2D/PPA for the MIPI
+   display boards are not.
 13. **One model per IP block** — chips were added by copying their nearest sibling, and the
    copies drift. Done: the AES DMA of the C3 and C6 through the shared GDMA walker, one GDMA
    adapter for the C3/C6 layouts, the reboot survivors of the classic ESP32 and S3 brought in
@@ -78,5 +80,11 @@ with tracking issues where available that list items and what "done" means:
    default `SocBus` methods, reboot survivors and register reset values declared by each device,
    and one interrupt-routing block; one crate that builds machines for the CLI and the browser
    (groundwork for several boards in lock-step); usage errors instead of panics in the CLI.
+14. **ESP32-S31 (RISC-V, dual core)** — in (#354, #358, #359, #360, #363; started in #320): IDF
+   v6.1 firmware from the mask ROM, Zb*/Zc*/hardware loops/PIE subset, decoded RV32 blocks
+   (#356), and the Espressif ESP-Mosaico (`--board mosaico`): display, touch, WiFi with WPA2,
+   audio, IMU, keys, motor, in the CLI and in the browser (the `s31-mosaico` compass demo). Left:
+   a recorded comparison with the board, the motor pin's pull and the IMU and
+   magnetometer axes checked on hardware.
 
 Not planned: blob-level WiFi/BLE emulation, cache-timing accuracy, Wokwi/cloud integration.

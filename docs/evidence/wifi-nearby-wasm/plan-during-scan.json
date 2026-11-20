@@ -1,0 +1,3 @@
+[
+  { "at": 0.3, "specs": ["ssid=Home,chan=1,rssi=-60", "ssid=Cafe,chan=11,rssi=-75,secure=0"] }
+]

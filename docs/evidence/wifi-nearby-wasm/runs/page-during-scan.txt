@@ -1,0 +1,20 @@
+uart 0.008: ESP-ROM:esp32s3-20210327
+uart 0.008: Build:Mar 27 2021
+uart 0.008: rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+uart 0.008: configspi:0x00000008
+uart 0.008: SPIWP:0x00
+uart 0.008: mode:DIO, clock div:1
+uart 0.008: load:0x3fce2820,len:0x10cc
+uart 0.008: load:0x403c8700,len:0xc2c
+uart 0.008: load:0x403cb700,len:0x30b0
+uart 0.008: entry 0x403c88b8
+uart 0.033: Ready
+nearby 0.3: 2 specs
+uart 2.642: scan: 2 network(s)
+uart 2.642:   Jumperly rssi=-40 ch=6 open
+uart 2.642:   Cafe rssi=-75 ch=11 open
+uart 4.650: connecting to Jumperly....
+uart 4.650: ip=10.0.2.15 gw=10.0.2.2 dns=10.0.2.3
+uart 4.650: dns: example.com -> 10.0.2.3
+uart 7.800: time: 2026-11-14 21:19:07 UTC
+uart 7.800: http GET http://example.com/ -> -1 (connection refused)

@@ -1,12 +1,13 @@
 # Command line
 
 ```
-esp32sim [--chip esp32|s3|c3|c6|p4] --boot rom --bootloader B.bin --ptable P.bin --app A.bin [--elf X.elf ...] [options]
+esp32sim [--chip esp32|s3|c3|c6|p4|s31] --boot rom --bootloader B.bin --ptable P.bin --app A.bin [--elf X.elf ...] [options]
 esp32sim --flash-image flash.bin --boot rom ...
 ```
 
 One binary for every chip; `esp32sim-c3` is `esp32sim --chip c3`, `esp32sim-c6` is
-`esp32sim --chip c6` and `esp32sim-p4` is `esp32sim --chip p4`. The RISC-V chips' defaults differ
+`esp32sim --chip c6`, `esp32sim-p4` is `esp32sim --chip p4`, and `esp32sim-s31` is
+`esp32sim --chip s31`. The RISC-V chips' defaults differ
 where the chip does (`--boot rom`, `--console uart0`, `--flash-mb 4`) and they refuse the flags
 their chip has nothing behind: the C3 board, camera, PSRAM and register presets; the C6, which has
 a board and WiFi, only camera, PSRAM and register presets. The P4 boots from its ROM on UART0 by
@@ -20,20 +21,20 @@ default too, with 16 MB of flash ([esp32p4.md](esp32p4.md)).
 | `--flash-image F` | whole flash dump written at 0 |
 | `--flash-file F` | the whole flash as a file that survives the run: loaded when it holds an image, written back at exit — and on a handled `SIGINT`/`SIGTERM` — atomically (a temporary file in the same directory, then a rename). Exactly `--flash-mb` bytes: a larger file is refused, a shorter one is padded with `0xff` (the erased state) and never with zeros. A file that already holds an image wins over `--flash-image`, which then only seeds a file that does not exist yet; `--bootloader`, `--ptable`, `--app` and `--flash-at` are written on top of either, and the source that won is printed |
 | `--flash-out F` | dump the flash as the run left it to F without changing what was loaded; one-shot — nothing is read back on the next start |
-| `--chip esp32\|s3\|c3\|c6\|p4` | which chip (default s3; `esp32` is the classic ESP32) |
+| `--chip esp32\|s3\|c3\|c6\|p4\|s31` | which chip (default s3; `esp32` is the classic ESP32) |
 | `--rom F` | mask ROM ELF (default: the chip's in `ESP32SIM_ROM_DIR`, then `~/.espressif/tools/esp-rom-elfs/*/`) |
 | `--mac xx:xx:xx:xx:xx:xx` | the station MAC the efuses report |
 | `--cam-stream PATH\|-`, `--cam-size WIDTHxHEIGHT` | live RGB24 camera source and its dimensions; requires `waveshare-cam` |
 | `--serial TEXT` | bytes into the USB-Serial/JTAG console before the run |
 | `--elf F` (repeatable) | symbols for logs/profiles (app ELF, bootloader ELF) |
-| `--flash-mb N`, `--psram-mb N` | flash size (JEDEC follows it) and PSRAM size. S3 defaults: 8 / 2, or 16 / 8 for StopWatch; octal MR2 density follows 4, 8, 16, 32 and 64 MiB. Classic ESP32 defaults: 4 / 0; `--psram-mb 4` enables quad PSRAM, `0` disables it; other classic sizes are rejected |
+| `--flash-mb N`, `--psram-mb N` | flash size (JEDEC follows it) and PSRAM size. S3 defaults: 8 / 2, or 16 / 8 for StopWatch; octal MR2 density follows 4, 8, 16, 32 and 64 MiB. Classic ESP32 defaults: 4 / 0; `--psram-mb 4` enables quad PSRAM, `0` disables it; other classic sizes are rejected. S31: 2 MiB by default (16 MiB with `--board mosaico`, which also has 16 MiB in-package PSRAM); 1, 2, 4, 8 or 16 |
 | `--flash-octal` | octal SPI flash (ESP32-S3-WROOM-2): Macronix octal commands, JEDEC C2 80 xx, efuse FLASH_TYPE octal; S3 only. An `--efuse-regs` dump is loaded after it: a dump that includes RD_REPEAT_DATA3 (efuse +0x3c) replaces that word, FLASH_TYPE (bit 9) with it |
 | `--sd IMAGE`, `--sd-rw IMAGE` | (P4) an SD card in the reference board's socket (CLK 43, CMD 44, D0-D3 39-42), holding the image: a high capacity card of the image's size, rounded down to 512 KiB. `--sd` is copy-on-write: what the firmware writes stays in memory and the file is never modified. `--sd-rw` writes through to the file. See [esp32p4.md](esp32p4.md), "SD card" |
 | `--sd-prg-us N`, `--sd-serial HEX` | (P4) the card's programming time after a write or an erase, in microseconds of emulated time (default 0: instant), and its CID serial number (default: derived from the image size) |
 | `--sd-timing` | (P4) commands and data take their time on the SD bus at the slot's card clock and width: CMD_DONE, DATA_OVER and the auto-stop come when the bits are through (default: at once); with `--coproc` the SDIO link's too. See [esp32p4.md](esp32p4.md), "The host" |
-| `--usb-host F` | (P4) a USB host on the high-speed USB-OTG port, running the commands in F (below) from power-up; the run then goes on to `--max-seconds`. See [esp32p4.md](esp32p4.md), "USB" |
+| `--usb-host F` | (P4, S31) a USB host on the high-speed USB-OTG port, running the commands in F (below) from power-up; the run then goes on to `--max-seconds`. See [esp32p4.md](esp32p4.md), "USB" |
 | `--coproc c6:KEY=VALUE,...` | (P4) an ESP32-C6 co-processor on SDIO slot 1, run in lock-step with the P4 (below); `--wifi` and `--net` then go to the C6's radio |
-| `--board atech14\|waveshare-cam\|waveshare-lcd4b\|waveshare-amoled18-v2\|stopwatch\|none` | board model (default atech14); on the C6: `waveshare-c6-lcd147` or `none`; on the P4: `waveshare-p4-lcd35` (rev ≥ 3) or `none`; on the classic ESP32: `ttgo-tdisplay` (alias `tdisplay`), `ulanzi-tc001` (alias `tc001`), `esp32dev-loopback` or `none`/`esp32dev` |
+| `--board atech14\|waveshare-cam\|waveshare-lcd4b\|waveshare-amoled18-v2\|stopwatch\|none` | board model (default atech14); on the C6: `waveshare-c6-lcd147`, `xiao-esp32c6` or `none`; on the P4: `waveshare-p4-lcd35` (rev ≥ 3) or `none`; on the S31: `mosaico` (alias `esp-mosaico`) or `none`; on the classic ESP32: `ttgo-tdisplay` (alias `tdisplay`), `cyd` (alias `esp32-2432s028`), `ulanzi-tc001` (alias `tc001`), `ai-thinker-cam` (alias `esp32cam`), `esp32dev-loopback` or `none`/`esp32dev` |
 | `--strap HEX`, `--reset-cause HEX`, `--efuse-regs F`, `--regs-init F` | reproduce a real chip's boot state (used by the differential tests) |
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
@@ -43,10 +44,12 @@ default too, with 16 MB of flash ([esp32p4.md](esp32p4.md)).
 | `--ble-observe` | passive full-mode PDU log: half-microsecond timestamp, channel, type, AdvA, decoded AD and raw PDU |
 | `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
 | `--ble-nearby SPEC` (repeatable) | a Bluetooth LE device around the station, heard but not connectable: the guest's scans report it (ADV_SCAN_IND, plus SCAN_RSP for an active scan) next to the virtual peer — `name=Thermo,rssi=-60` (`name` 1 to 26 bytes, a Complete Local Name after the Flags; `adv` / `rsp` the advertising data / scan response as hex, at most 31 bytes each, `adv` instead of `name`; `addr` aa:bb:cc:dd:ee:ff, default a random static address derived from the data, a random one not with the reserved top bits 10; `type` random (default) or public; `rssi` -127 to 20 dBm or 127 for not available, default -60; a `name` cannot hold `,`, use `adv` for one that does); reported as scannable and not connectable (ADV_SCAN_IND); up to 32, each on an address of its own, needs `--ble` |
-| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md). `--hostfwd` publishes a guest TCP port on the host |
-| `--wifi-nearby SPEC` (repeatable) | a network around the station, heard but not joinable: a scan lists it with its channel, signal and security, joining it fails as out of reach — `ssid=Home,chan=1,rssi=-60,secure=1` (`chan` 1 through 14, default 1; `rssi` in dBm, default -60; `secure` 0 or 1, default 1; `bssid` optional, derived from the SSID otherwise); up to 32, each on a BSSID of its own, needs `--wifi`; one with the access point's SSID or BSSID is left out with a log line |
+| `--wifi SPEC` (repeatable) | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md). `--hostfwd` publishes a guest TCP port on the host. Given several times, each spec is one more joinable access point (up to 8): every one beacons and answers probes, so a scan lists them all, and the station joins one at a time (associating with another leaves the first), e.g. `--wifi ssid=guest --wifi ssid=home,psk=home-pass`. Without `bssid` the first keeps 02:53:49:4d:00:01 and later ones derive a locally administered BSSID from their SSID; two access points may share neither SSID nor BSSID. All of them sit in front of the same virtual network, and the network's clock is the first spec's `epoch` (or `--net`'s); `epoch=` in a later spec is an error |
+| `--wifi-sta SPEC` | a virtual station that joins the guest's own access point (the guest in `WIFI_MODE_AP`): `ssid=NAME[,psk=PASSPHRASE][,mac=xx:xx:xx:xx:xx:xx]` (`password` and `pass` alias `psk`, 8 to 63 characters; `mac` default 02:53:54:41:00:01). It follows the guest's beacons for that SSID, authenticates (open system), associates, takes the supplicant's side of the WPA2 four-way handshake when given a passphrase, then takes a lease from the guest's DHCP server and answers ARP for it. With the Ethernet relay on (`set_ethernet_relay`), a host program is that host instead, sending and taking the station's MAC. The end-of-run line `[emu] wifi-sta:` gives its state, joins, lease and frame counts; `--debug wifi-frames` logs each step. It leaves a network it cannot join alone and says why in that line: WEP and WPA, WPA3-SAE only, and protected management frames required. It takes the access point's group cipher (CCMP or TKIP) and needs CCMP pairwise. It listens again after a refusal, a deauthentication or disassociation (to it or to every station), 3 s without a beacon, or a beacon whose timestamp is lower than the last one's, and stops after three refusals in a row with the same authentication or association status, until the guest reboots. A wrong passphrase is not a refusal: message 3 of the handshake never comes, the station gives up after 1 s and tries again a second later, so every 2 s or so for the whole run, with "wrong passphrase?" in the end-of-run line. `--wifi-sta` can be given once, and is refused with `--net`, which configures `--wifi`'s network. With the Ethernet relay on, frames the host program relayed that the station could not carry, because it left the access point after taking them, are counted in the end-of-run line. Classic ESP32 only so far, open and WPA2-PSK networks. The CLI refuses it beside `--wifi`: a virtual access point and a virtual station at once are not modelled. `--pcap` captures the Ethernet frames the station and the guest's access point exchange (docs/wifi-plan.md) |
+| `--wifi-nearby SPEC` (repeatable) | a network around the station, heard but not joinable: a scan lists it with its channel, signal and security, joining it fails as out of reach — `ssid=Home,chan=1,rssi=-60,secure=1` (`chan` 1 through 14, default 1; `rssi` in dBm, default -60; `secure` 0 or 1, default 1; `bssid` optional, derived from the SSID otherwise); up to 32, each on a BSSID of its own, needs `--wifi`; one with an access point's SSID or BSSID is left out with a log line |
 | `--net nat\|none[,epoch=S]` | what the virtual network does with traffic it is not itself answering: `nat` (default; `user` is an alias) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it. `epoch=S` sets the network's clock at power-on (seconds since 1970, at most 4294967295): its SNTP answers are that plus emulated time, so a run that asks for the time is reproducible; without it the host's clock at the first answer fixes it. `epoch=` in the `--wifi` spec does the same |
 | `--hostfwd tcp:HOST:HOSTPORT-GUEST:GUESTPORT` | (repeatable) listen on the host and deliver accepted TCP connections as SYNs to the station. Empty HOST binds 127.0.0.1; empty GUEST is 10.0.2.15. Example: `tcp:127.0.0.1:8080-:80`. Requires `--wifi` and `--net nat`. UDP is not forwarded |
+| `--pcap FILE` | write every Ethernet frame the WiFi station sends and receives (what the virtual network, the NAT or the host relay sees, both directions) to a classic pcap: linktype 1 (Ethernet), microsecond timestamps in emulated time, flushed per frame so the file can be read during the run (`tcpdump -r`, Wireshark, dpkt-js). One capture of the station's traffic, however many `--wifi` access points; every chip with `--wifi`, and the co-processor's C6 on a P4 run. With `--wifi-sta` it holds what the guest's access point and the virtual station exchange. The 4 bytes of the 802.11 FCS slot that end a frame the guest sends are left out, so both directions hold the Ethernet frame as it went on the wire. Requires `--wifi` or `--wifi-sta` |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |
 
@@ -85,13 +88,15 @@ the final image of a one-shot run uses it, a harness that wants "configure once,
 | --- | --- |
 | `--version`, `-V` | print `esp32sim <version>` and exit |
 | `--help`, `-h` | print the usage line and exit |
+| `--imu-motion N` | scripted IMU motion: 0 at rest, 1 the shared 30 s tilt, flip and shake script on guest time. Boards with an IMU model only: `waveshare-amoled18-v2` (QMI8658, S3) and `mosaico` (BMI270, S31; the two BMM150 magnetometers turn with it) |
 | `--max-seconds S` | stop after this much emulated time, including all reboots; also applies to `--cooja` |
 | `--max-insns N` | cap scheduler work across all reboots (details below); unavailable with `--cooja`, which uses `--max-seconds` |
 | `--i2s-tone PORT:HZ:AMPLITUDE` | continuous RX sine on I2S controller 0 or 1; amplitude 0..1, for example `0:1000:0.5`; repeat for multiple controllers |
+| `--mic-wav [PORT:]FILE` | a host WAV file as the microphone on I2S controller PORT (default 0): 16-bit integer PCM, mono or stereo (mono goes to both slots), any rate from 1 to 192 kHz, resampled to the firmware's RX rate by zero-order hold (no filter); other formats are refused. Played once from the first frame the receiver takes, then silence; repeat for several controllers |
 | `--script F` | host actions at emulated times (below) |
 | `--console usb\|uart0\|both\|all\|none`, `--console-prefix` | which consoles to print |
 | `--realtime` | pace to wall time without the UI |
-| `--web PORT [--web-dir DIR]` | browser UI (implies real time) |
+| `--web PORT [--web-dir DIR]` | browser UI (implies real time). With `--wifi` the page gets a Network panel: the station's Ethernet frames live (time, ↑ sent / ↓ received, a dissection summary from [dpkt-js](https://www.npmjs.com/package/dpkt-js) 0.1.0, vendored under web/vendor/dpkt-js and loaded when the panel is first opened or a row clicked; until then, length and hex), a filter, pause, clear, the dissection tree of a clicked frame and a pcap download of the frames the page received. They arrive as binary WebSocket messages `[5][dir: 0 sent, 1 received][emulated µs, u64 LE][frame]`, only while a page is connected; at most 512 frames or 1 MiB wait between pushes, the rest are dropped |
 | `--cam-image F`, `--cam-fps N` | camera source for boards with a camera |
 | `--cooja` (C6) | run as a Cooja-NG external mote: the lock-step NDJSON protocol on stdin/stdout, the guest console as `log` events, the 802.15.4 frames as `tx`/`rx`. Honors `--no-reboot` and `--max-seconds` (see [esp32c6.md](esp32c6.md), "Cooja-NG lock-step") |
 | `--cooja-slice-us N` | how long a busy guest runs before asking csim to step it again (default 100; `hello.args.slice_us` overrides). A transmission reaches csim's medium at the end of the slice it started in, so this bounds how late it is |
@@ -231,6 +236,7 @@ a block count at most 65536 and a file at most 1 GiB; a larger value is a usage 
 | `fat-write NAME BYTES CHUNK_KIB [GAP_MS] [FAT_EVERY]` | write an 8.3 file of test bytes into the root directory in a vfat-like order: the directory entry, the data in chunks, the FAT sectors (both copies) after every FAT_EVERY chunks (1), then the entry's size and cluster and FSInfo. Chunk i is due GAP_MS·i after the start, as a fixed-rate source produces them; the log gives the rate overall and over the second half, the worst lateness against that schedule and whether the host kept up (never a whole chunk behind) |
 | `fat-read NAME` | read a file back; one this file wrote is compared with what it wrote |
 | `uart0 TEXT` | a line into the firmware's UART0 (its console) |
+| `cdc MS [TEXT]` | open the CDC-ACM interface (SET_LINE_CODING, DTR+RTS), send TEXT plus CR LF on its bulk OUT endpoint when given, and copy what the device sends to stdout for MS milliseconds |
 
 `examples/usb_msc-p4/host.txt` writes a file, ejects the drive, polls it while the
 example's application owns the card (MEDIUM NOT PRESENT) and takes it again.
@@ -283,15 +289,19 @@ C6 is **ESP-IDF 5.5.x only**. Enable reads `esp_app_desc.idf_ver` from the appli
 ELF and refuses missing, malformed or other versions before installing hooks.
 Its native transport uses that version's `os_mbuf` layout and NPL initialization.
 S3/C3 accept builds exposing the required VHCI/lifecycle symbols, controller BSS
-and function sizes; there is no IDF version gate. Arduino 3.3.8 with IDF 5.5.4 is
-validated. IDF 4.4 Bluedroid is unsupported and fails with a missing-symbol error.
+and function sizes; there is no IDF version gate. Enable takes the mode of the
+config given to init, as IDF does: BLE (1) on S3/C3, whose init takes nothing
+else, and 1, 2 or 3 on the classic ESP32 ([esp32.md](esp32.md)). Arduino 3.3.8
+with IDF 5.5.4 is validated. IDF 4.4 Bluedroid is unsupported and fails with a missing-symbol error.
 Other IDF releases have not been validated.
 
-S3 VHCI transmit packets may also reside in mapped PSRAM, as used by
-StopWatch's ESP-IDF 6.1 build with external NimBLE allocation. Every page must
-map to installed PSRAM; flash, invalid mappings and out-of-range packets are
-rejected. The controller task trampoline and its receive buffer still require
-internal controller BSS.
+VHCI transmit packets may also reside in mapped PSRAM: on the S3, as used by
+StopWatch's ESP-IDF 6.1 build with external NimBLE allocation, and on the
+classic ESP32 with `--psram-mb 4`, as Bluedroid built with
+`CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST` sends them. Every page must map to
+installed PSRAM, and on the classic ESP32 the cache must be able to read it;
+flash, invalid mappings and out-of-range packets are rejected. The controller
+task trampoline and its receive buffer still require internal controller BSS.
 
 `[ble]` output reports advertising data and discovered GATT handles. Script commands
 use seconds like the other script actions. For example:
@@ -403,10 +413,13 @@ applies a touch at time zero. `adc` and `adcwave` also support classic ADC pads.
 
 ## I2S microphone input
 
-Standard I2S RX supports 16/24/32-bit mono or stereo on S3 controllers 0/1 and
-C3/C6 controller 0. S3 controller 0 also accepts PDM-to-PCM RX at 16 bits.
+Standard I2S RX supports 16/24/32-bit mono or stereo on S3 controllers 0/1,
+C3/C6 controller 0 and S31 controllers 0/1 (through the AHB-GDMA, also as the
+full-duplex slave RX that runs on the TX clock, as ESP-IDF sets it up when TX and
+RX share a port). S3 controller 0 also accepts PDM-to-PCM RX at 16 bits.
 `--i2s-tone 0:1000:0.5` supplies a continuous 1 kHz sine at half full scale;
-omit it for silence. The source survives software resets.
+`--mic-wav 0:speech.wav` plays a recording once; omit both for silence. The
+source survives software resets.
 
 Rust hosts use `SocBus::i2s_input(port)` to access `PcmInput`. `push(&[[left, right]])`
 queues signed 16-bit stereo frames at the firmware's programmed sample rate.

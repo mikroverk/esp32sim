@@ -15,6 +15,7 @@ const BIN: &str = env!("CARGO_BIN_EXE_esp32sim");
 const BIN_C3: &str = env!("CARGO_BIN_EXE_esp32sim-c3");
 const BIN_C6: &str = env!("CARGO_BIN_EXE_esp32sim-c6");
 const BIN_P4: &str = env!("CARGO_BIN_EXE_esp32sim-p4");
+const BIN_S31: &str = env!("CARGO_BIN_EXE_esp32sim-s31");
 const FW: &str = "web/wasm/fw/public";
 
 fn atech(extra: &[&str]) -> (Run, Vec<u8>) {
@@ -539,6 +540,108 @@ fn wifi_station_c3() { wifi_station("c3", BIN_C3, "esp32c3_rev3", &[]); }
 #[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
 fn wifi_station_c6() { wifi_station("c6", BIN_C6, "esp32c6_rev0", &[]); }
 
+/// The same station on the ESP32-S31 of the ESP-Mosaico (`--board mosaico`): built with ESP-IDF
+/// v6.1 by `tools/fetch-s31-firmware.sh` (`s31-wifi-*`, committed in `esp32s31/firmware`), the
+/// console on USB Serial/JTAG. The unmodified v6.1 WiFi library scans, joins the virtual access
+/// point through the WPA2 four-way handshake, takes the DHCP lease and pings the gateway five
+/// times. Pinned: the station's own lines (the console and the counts are not pinned yet, so a
+/// timing change in the S31 WiFi model does not fail this test unless the station's lines move).
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn wifi_station_s31_mosaico() {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-wifi-bootloader.bin"), "--ptable", &format!("{fw}/s31-wifi-ptable.bin"), "--app", &format!("{fw}/s31-wifi_station.bin"),
+        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "14"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    let station: String = r.stdout.lines().filter_map(|l| l.split_once("station: ").map(|(_, rest)| rest.trim_end_matches("\u{1b}[0m"))).map(|l| format!("{l}\n")).collect();
+    assert!(station.contains("CONNECTED channel=6 bssid=02:53:49:4d:00:01") && station.contains("GOT_IP ip=10.0.2.15 mask=255.255.255.0 gw=10.0.2.2")
+        && station.contains("PING done sent=5 received=5"), "the station did not get through:\n{}\n{}", station, r.stderr);
+    expect_text("wifi-station-s31.station.txt", &station);
+}
+
+/// The S31 without a board and with a flash size other than the hello image's 2 MiB: the
+/// devkit W25Q part follows `--flash-mb` (JEDEC 0xef4018 at 16 MiB), so IDF finds a flash clock
+/// source and hello_world prints. Before, any size but 2 left the flash part unset and IDF
+/// aborted with "Target frequency 80MHz higher than src 6MHz".
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn hello_s31_flash_16mb() {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "16", "--console", "uart0", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-hello-bootloader.bin"), "--ptable", &format!("{fw}/s31-hello-ptable.bin"), "--app", &format!("{fw}/s31-hello_world.bin"),
+        "--max-seconds", "2"]);
+    assert!(r.stdout.contains("Hello world!") && !r.stdout.contains("abort()"), "{}\n{}", r.stdout, r.stderr);
+    // IDF reads the 16 MiB part and, as on hardware, keeps the image header's 2 MB.
+    assert!(r.stdout.contains("Detected size(16384k)"), "the app did not detect 16 MiB of flash:\n{}", r.stdout);
+}
+
+/// The ESP-Mosaico's keys, motor and magnetometers as the esp-mosaico-bsp drives them
+/// (`examples/mosaico-board`, IDF v6.1, `esp32s31/firmware/s31-mosaico-board.bin`): a script
+/// presses the AI button (GPIO 7) and the Boot key (GPIO 61) and the firmware sees both edges;
+/// the vibration motor (GPIO 8) runs from LEDC PWM (60 %, then 100 %) and then as a plain GPIO,
+/// and the board report counts the two runs; espressif/bmm150 1.1.0 finds both BMM150s (0x11,
+/// 0x12), initialises them and reads the Earth-like field at rest. With `--imu-motion 1` the
+/// field read later has turned with the board and kept its magnitude; without it, it has not.
+fn mosaico_board(motion: &str) -> (String, String) {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let script = tmp(&format!("mosaico-keys-{motion}.txt"));
+    std::fs::write(&script, "3.0 press ai 150\n3.5 press boot 150\n").unwrap();
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-wifi-bootloader.bin"), "--ptable", &format!("{fw}/s31-hello-ptable.bin"), "--app", &format!("{fw}/s31-mosaico-board.bin"),
+        "--script", script.to_str().unwrap(), "--imu-motion", motion, "--max-seconds", "11"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    let board: String = r.stdout.lines().filter_map(|l| l.split_once("board: ").map(|(_, rest)| format!("{rest}\n"))).collect();
+    let report = r.stderr.lines().find(|l| l.starts_with("[emu] mosaico: motor")).unwrap_or_else(|| panic!("no motor report:\n{}", r.stderr)).to_string();
+    (board, report)
+}
+
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn mosaico_board_s31() {
+    let (rest, report) = mosaico_board("0");
+    for want in ["KEYS ai=1 boot=1", "KEY ai pressed", "KEY ai released", "KEY boot pressed", "KEY boot released", "MOTOR pwm init ESP_OK",
+        "MAG0 addr=0x11 chip_id=0x32 init=0 drdy=1", "MAG1 addr=0x12 chip_id=0x32 init=0 drdy=1",
+        "MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT", "MAG1 later r=0 x=20 y=0 z=-40 |B|=45 uT", "DONE"] {
+        assert!(rest.contains(want), "missing {want:?}:\n{rest}");
+    }
+    let (starts, ms): (u64, u64) = report.split_once("motor off, ").and_then(|(_, r)| r.split_once(" ms on")).and_then(|(r, _)| r.split_once(" starts, "))
+        .and_then(|(s, m)| Some((s.parse().ok()?, m.parse().ok()?))).unwrap_or_else(|| panic!("{report}"));
+    assert!(starts == 2 && (550..=650).contains(&ms) && report.ends_with("PWR_SW released"), "{report}");
+    let (moving, _) = mosaico_board("1");
+    assert!(moving.contains("MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT"), "{moving}");
+    let later = moving.lines().find(|l| l.starts_with("MAG0 later")).unwrap();
+    assert!(!later.contains("x=20 y=0 z=-40") && later.ends_with("|B|=45 uT"), "{later}");
+    expect_text("mosaico-board-s31.board.txt", &moving);
+}
+
+/// The page's ESP-Mosaico demo (`web/wasm/fw/s31-mosaico.json`, `examples/mosaico-demo`, IDF v6.1
+/// with esp-mosaico-bsp `841f6245`; built and pinned by `tools/fetch-s31-firmware.sh`): the BSP
+/// brings up the CO5300 over GP-SPI2 in QSPI mode with LVGL 9 and TE-synchronised full frames, the
+/// CST9220, the BMI270 and both BMM150, and the keys through iot_button. With the board's scripted
+/// motion, a touch reaches LVGL, the AI button pulses the motor through LEDC and recolours the UI,
+/// the Boot key turns to the sensor page and back. The BSP's 3.3 V soft start (an LEDC fade, waited
+/// for with its end interrupt) runs at its default 50 ms. Pinned: the demo's lines, the last frame,
+/// the instruction count.
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn mosaico_demo_s31() {
+    let rom = rom("esp32s31_rev0");
+    let (script, png) = (tmp("mosaico-demo.txt"), tmp("mosaico-demo.png"));
+    std::fs::write(&script, "4.5 touch 300 200 1\n4.8 touch 300 200 0\n5.0 press ai 150\n5.5 press boot 150\n6.5 press boot 150\n").unwrap();
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--no-dump",
+        "--bootloader", &format!("{FW}/s31-mosaico-demo-bootloader.bin"), "--ptable", &format!("{FW}/s31-mosaico-demo-ptable.bin"), "--app", &format!("{FW}/s31-mosaico-demo.bin"),
+        "--script", script.to_str().unwrap(), "--imu-motion", "1", "--tft-png", png.to_str().unwrap(), "--max-seconds", "7.5"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    // The BSP's stock 3.3 V soft start: an LEDC fade the app waits for (its end interrupt).
+    assert!(r.stdout.contains("VCC_3V3 power on: VCC_PW GPIO60 ramped to 0 over 50 ms"), "{}", r.stdout);
+    let demo: String = r.stdout.lines().filter_map(|l| l.split_once("demo: ").map(|(_, rest)| format!("{rest}\n"))).collect();
+    for want in ["sensors imu=1 mag0=1 mag1=1", "ui up", "touch 1 at 300,200", "AI button 1: accent 1, motor pulse", "BOOT key 1: sensors page", "BOOT key 2: compass page"] {
+        assert!(demo.contains(want), "missing {want:?}:\n{demo}");
+    }
+    assert!(r.stderr.contains("[emu] mosaico: CO5300") && r.stderr.contains("power on, reset released; 0 transactions dropped"), "{}", r.stderr);
+    assert!(r.stderr.contains("[emu] mosaico: motor off, 1 starts, 120 ms on"), "{}", r.stderr);
+    expect_text("mosaico-demo-s31.demo.txt", &demo);
+    expect_sha("mosaico-demo-s31.png.sha256", &std::fs::read(&png).unwrap());
+    expect_u64("mosaico-demo-s31.insns", r.insns);
+}
+
 /// The P4 with an ESP32-C6 co-processor on SDIO (`examples/esp-hosted-p4`): IDF's WiFi station
 /// example on the P4, its WiFi through esp_wifi_remote and ESP-Hosted 2.12.13 to the unmodified
 /// ESP-Hosted slave on the C6, whose radio joins the virtual access point. The P4 resets the C6
@@ -587,12 +690,12 @@ fn hosted_p4_rev3() {
     expect_u64("hosted-p4-rev3.insns", r.insns);
 }
 
-/// Scintilla (the Elka Synthex in integer C, GPL-3.0, joakimeriksson/esp32 `eed6180`, directory
+/// Scintilla (the Elka Synthex in integer C, GPL-3.0, joakimeriksson/esp32 `3a477c7`, scintilla-fm1's engine 0.3.2, directory
 /// `scintilla-p4-lcd35`; licences in web/wasm/fw/public/p4-scintilla-NOTICE.txt) on
 /// the model of Waveshare's ESP32-P4-WIFI6-Touch-LCD-3.5, with no C6 on the SDIO bus: Waveshare's
 /// BSP 2.0.2 and LVGL 9 bring up the ST7796 over GPSPI2 and the AXI-GDMA, the FT5x06 on I2C1 and
 /// the ES8311 on I2S1 and the AHB-GDMA. A4 (the thirteenth white key, at the panel's (290, 160)
-/// under the firmware's landscape touch mapping) held for 0.6 s sounds at 440 Hz; a tap on the
+/// under the firmware's landscape touch mapping) held for 0.6 s sounds at 220.5 Hz (Chunky Synth is an octave down); a tap on the
 /// program display opens the patch picker. Pinned: the audio, the last frame, the instruction count.
 #[test] #[ignore = "needs the ESP32-P4 rev 3 mask ROM ELF"]
 fn scintilla_p4_lcd35() {
@@ -615,7 +718,10 @@ fn scintilla_p4_lcd35() {
     let w = &pcm[onset + 2205..onset + 2205 + 1764];
     let lag = (44100 / 1000..44100 / 100).max_by_key(|&l| w[..w.len() - l].iter().zip(&w[l..]).map(|(&a, &b)| a as i64 * b as i64).sum::<i64>()).unwrap();
     let hz = 44100.0 / lag as f64;
-    assert!((hz - 440.0).abs() < 440.0 * 0.03, "A4 sounds at {hz:.1} Hz");
+    // The key is A4; Chunky Synth sounds it an octave down, at 220.5 Hz as scintilla-fm1's engine
+    // renders it on the host. (Before the P4's I2S read its own field layout, every second
+    // sample was dropped and this measured 440.)
+    assert!((hz - 220.5).abs() < 220.5 * 0.03, "the key sounds at {hz:.1} Hz");
     expect_sha("scintilla-p4-lcd35.wav.sha256", &data);
     expect_sha("scintilla-p4-lcd35.png.sha256", &std::fs::read(&png).unwrap());
     expect_u64("scintilla-p4-lcd35.insns", r.insns);
@@ -713,6 +819,30 @@ fn classic_reset_clock_and_flash_size() {
     assert_eq!(r.stdout.matches("Restarting now.").count(), 2);
     assert!(r.stderr.contains("[emu] stop: Halted"), "{}", r.stderr);
     assert!(!r.stdout.contains("ESP_ERR_FLASH_SIZE_NOT_MATCH"), "{}", r.stdout);
+}
+
+/// The guest as a WiFi access point (`examples/wifi-softap`, built with ESP-IDF 5.5.4 for the
+/// classic ESP32): the virtual station of `--wifi-sta` follows its beacons, joins it through the
+/// WPA2 four-way handshake as the supplicant, and takes a lease from the guest's own DHCP server.
+/// The firmware's lines say so from its side (`JOINED`, `LEASED`); the console and the instruction
+/// count pin the run bit for bit, and the end-of-run lines the radio traffic.
+#[test]
+#[ignore = "needs the ESP32 ECO3 mask ROM ELF"]
+fn wifi_softap_classic() {
+    let rom = rom("esp32_rev300");
+    let r = run(BIN, &["--chip", "esp32", "--rom", rom.to_str().unwrap(), "--board", "esp32dev", "--boot", "rom", "--no-dump", "--console", "uart0",
+        "--bootloader", &format!("{FW}/classic-softap-bootloader.bin"), "--ptable", &format!("{FW}/classic-softap-ptable.bin"), "--app", &format!("{FW}/classic-wifi_softap.bin"),
+        "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "6"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
+    assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    expect_text("wifi-softap-classic.softap.txt", &softap);
+    expect_text("wifi-softap-classic.console.txt", &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("[emu] wifi")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text("wifi-softap-classic.report.txt", &report);
+    expect_u64("wifi-softap-classic.insns", r.insns);
 }
 
 /// Classic ECO3 ROM, stock IDF bootloader and hello_world application.

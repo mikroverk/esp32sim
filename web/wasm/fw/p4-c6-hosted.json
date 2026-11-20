@@ -4,6 +4,7 @@
  "psram_mb": 0,
  "seconds": 5,
  "expect": "wifi station: got ip:10.0.2.15",
+ "min_net_frames": 4,
  "wifi": "ssid=esp32sim,psk=esp32sim-pass",
  "stubs": ["c6:0x420bac5c=0"],
  "files": {
