@@ -37,12 +37,12 @@
  {
   "fw": "c3-hello",
   "title": "ESP32-C3 · hello_world (RISC-V)",
-  "note": "the other chip: one RV32IMC core, console only — real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a physical C3."
+  "note": "one RV32IMC core, console only — real mask ROM through the bootloader into FreeRTOS. Compared with a physical C3 module: 205 of 208 console lines identical over three boots, the difference being the ROM's Saved PC line"
  },
  {
   "fw": "c6-hello",
   "title": "ESP32-C6 · hello_world (RISC-V)",
-  "note": "the newest chip: one RV32IMAC core, console only — real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a Waveshare ESP32-C6-LCD-1.47."
+  "note": "one RV32IMAC core, console only — real mask ROM through the bootloader into FreeRTOS. Compared with a Waveshare ESP32-C6-LCD-1.47: 203 of 204 console lines identical over three boots, the difference being the ROM's Saved PC line on the first boot"
  },
  {
   "fw": "c6-energy-scan",
@@ -65,9 +65,14 @@
   "note": "two emulated C6 motes in this tab: node 1 is Contiki-NG's rpl-udp server and the DAG root, node 2 the client — it joins the DAG, then sends a UDP request every 10 s and gets a reply. 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included"
  },
  {
+  "fw": "c6-wifi",
+  "title": "ESP32-C6 · WiFi station and the Network panel",
+  "note": "our station firmware (examples/c6-wifi-station) on a bare C6: it scans and finds two joinable virtual access points and three networks around them, joins one with WPA2, takes a DHCP lease and pings the gateway. The Network panel shows every Ethernet frame the station sends and receives, dissected; click one for its fields, or download them all as a pcap. The browser has no sockets, so the gateway is as far as it goes"
+ },
+ {
   "fw": "p4-c6-hosted",
   "title": "ESP32-P4 + ESP32-C6 · WiFi through a co-processor",
-  "note": "two chips in this tab, as on the Waveshare ESP32-P4-WIFI6: the P4 (rev ≥ 3, two RISC-V cores) runs IDF's wifi_station with ESP-Hosted, the C6 the ESP-Hosted slave, both from their mask ROMs and in lock-step over SDIO. The C6 joins the virtual access point and the P4 gets its address through it. A real board with a v3.2 P4 and its own C6 goes through the same steps to its address"
+  "note": "two chips in this tab, as on the Waveshare ESP32-P4-WIFI6: the P4 (rev ≥ 3, two RISC-V cores) runs IDF's wifi_station with ESP-Hosted, the C6 the ESP-Hosted slave, both from their mask ROMs and in lock-step over SDIO. The C6 joins the virtual access point and the P4 gets its address through it; the Network panel shows the C6 station's frames. A real board with a v3.2 P4 and its own C6 goes through the same steps to its address"
  },
  {
   "fw": "p4-lcd35-synth",
@@ -75,9 +80,19 @@
   "note": "the Elka Synthex in integer C on the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: LVGL on the ST7796 over SPI and DMA, FT5x06 touch, the ES8311's audio — enable audio and play the keys; tap the red display for the 80 presets, INSTRUMENT edits the sound live. Slower than real time in the browser"
  },
  {
+  "fw": "s31-mosaico",
+  "title": "ESP32-S31 · ESP-Mosaico compass (LVGL)",
+  "note": "the newest chip, two RISC-V cores at 320 MHz, on Espressif's ESP-Mosaico: our demo (examples/mosaico-demo) through Espressif's esp-mosaico-bsp, LVGL 9 on the round 480×480 CO5300 AMOLED over QSPI, the CST9220's touch, the BMM150 magnetometer as a compass needle and the BMI270 accelerometer as a rolling ball while the board's scripted handling turns it. Click or drag on the panel; the AI button changes the colour and pulses the vibration motor, the Boot key shows the sensor readings"
+ },
+ {
   "fw": "tdisplay-schematik",
   "title": "Schematik T-Display · classic ESP32 (Arduino)",
   "note": "a restyled Schematik Arduino sketch on the classic ESP32: a lowercase wordmark, four fun lines and verified emulator specs on the ST7789. GPIO35 advances; GPIO0 powers off into deep sleep and wakes back to the wordmark. No physical-board verification"
+ },
+ {
+  "fw": "c6-xiao",
+  "title": "ESP32-C6 · Seeed Studio XIAO (the user LED and the BOOT button)",
+  "note": "the Seeed Studio XIAO ESP32-C6: our blink firmware (examples/xiao-esp32c6) built with ESP-IDF 5.5.4 for the C6 — the low-active user LED on GPIO 15 blinks (the pin sinks the current, as on the board) and the script presses the BOOT button on GPIO 9, which the firmware reads back"
  },
  {
   "fw": "tdisplay-prices",

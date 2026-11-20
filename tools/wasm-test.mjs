@@ -12,7 +12,8 @@
 // A manifest (web/wasm/fw/<name>.json) names the board, sizes, stubs and files exactly as the
 // page reads them. Each run boots and executes `seconds` (3) of emulated time in 2 M-cycle
 // slices, then expects a `board` message, the expected console line, at least `min_frames` panel
-// frames when the manifest says so, and a clean run.
+// frames and `min_net_frames` frames of the WiFi station (the Network panel's) when the manifest
+// says so, and a clean run.
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -167,17 +168,22 @@ async function runManifest(name) {
   for (const [off, rel] of Object.entries((m.coproc || {}).flash_at || {})) withBytes(new Uint8Array(file(rel)), (p, n) => w.esp32sim_load_at(emu, (Number(off) | 0x80000000) >>> 0, p, n));
   for (const s of m.stubs || []) { const [sym, ...values] = s.split('='); const val = values.length ? values.join('=') : undefined; const name = (m.symbols || {})[sym] || sym;   // as the page: a symbols map resolves a stub without the ELF
     if (withBytes(enc.encode(name + (val === undefined ? '' : '=' + val)), (p, n) => w.esp32sim_stub_spec(emu, p, n)) !== 0) throw new Error('invalid stub: ' + s); }
-  if (m.wifi && withBytes(enc.encode(m.wifi), (p, n) => w.esp32sim_wifi(emu, p, n)) !== 0) throw new Error('invalid WiFi configuration');
+  // as the page: `wifi` is one access point or a list of them, one per line to the module; the
+  // networks around them (`wifi_nearby`) after it; and with WiFi the Network panel's frames
+  if (m.wifi && withBytes(enc.encode([].concat(m.wifi).join('\n')), (p, n) => w.esp32sim_wifi(emu, p, n)) !== 0) throw new Error(`invalid WiFi configuration: ${logs.join(' | ')}`);
+  if (m.wifi_nearby && withBytes(enc.encode([].concat(m.wifi_nearby).join('\n')), (p, n) => w.esp32sim_wifi_nearby(emu, p, n)) !== 0) throw new Error(`invalid wifi_nearby: ${logs.join(' | ')}`);
+  if (m.wifi && w.esp32sim_netmon && w.esp32sim_netmon(emu) !== 0) throw new Error(`no network monitor: ${logs.join(' | ')}`);
   w.esp32sim_set_jit(emu, process.env.ESP32SIM_NO_WASM_JIT ? 0 : 1);
+  if (m.imu_motion && w.esp32sim_set_imu_motion(emu, m.imu_motion) !== 0) throw new Error(`imu_motion ${m.imu_motion} refused: ${logs.join(' | ')}`);
   if (w.esp32sim_boot(emu, 0) !== 0) throw new Error(`boot failed: ${logs.join(' | ')}`);
 
   const hz = w.esp32sim_cpu_hz(emu);
-  let board = null, text = '', frames = 0;
+  let board = null, text = '', frames = 0, netFrames = 0;
   const drain = () => {
     const n = w.esp32sim_out_take(emu);
     for (let i = 0; i < n; i++) {
       const kind = w.esp32sim_out_kind(emu, i), p = w.esp32sim_out_ptr(emu, i), len = w.esp32sim_out_len(emu, i);
-      if (kind !== 1) { frames++; continue; }
+      if (kind !== 1) { if (mem()[p] === 5) netFrames++; else frames++; continue; }
       const msg = JSON.parse(dec.decode(mem().subarray(p, p + len)));
       if (msg.t === 'board') board = msg.name;
       if (msg.t === 'serial') text += msg.data;
@@ -197,6 +203,7 @@ async function runManifest(name) {
   if (!board) problems.push('no board message');
   if (!text.includes(m.expect || EXPECT.console)) problems.push(`console never showed ${JSON.stringify(m.expect || EXPECT.console)}; got ${text.length} bytes`);
   if (m.min_frames !== undefined && frames < m.min_frames) problems.push(`${frames} binary frames, wanted ${m.min_frames}: the firmware never drew its panel`);
+  if (m.min_net_frames !== undefined && netFrames < m.min_net_frames) problems.push(`${netFrames} station frames for the Network panel, wanted ${m.min_net_frames}`);
   const insns = w.esp32sim_insns(emu);
   if (w.esp32sim_profile_report && (process.env.CENSUS_OUT || process.env.CENSUS_STDOUT)) {
     const at = logs.length;
@@ -211,7 +218,7 @@ async function runManifest(name) {
   w.esp32sim_delete(emu);
   const wall = (Date.now() - t0) / 1000;
   if (problems.length) { failures++; console.error(`FAIL ${name}: ${problems.join('; ')}\n  logs: ${logs.slice(0, 5).join('\n        ')}\n  console tail: ${text.slice(-400)}`); }
-  else console.log(`ok   ${name}: board ${board}, ${(insns / 1e6).toFixed(1)} M insns in ${wall.toFixed(1)} s wall (${(insns / 1e6 / wall).toFixed(1)} Minsn/s), ${text.split('\n').length} console lines, ${frames} binary frames`);
+  else console.log(`ok   ${name}: board ${board}, ${(insns / 1e6).toFixed(1)} M insns in ${wall.toFixed(1)} s wall (${(insns / 1e6 / wall).toFixed(1)} Minsn/s), ${text.split('\n').length} console lines, ${frames} binary frames${netFrames ? `, ${netFrames} station frames` : ''}`);
 }
 
 if (!process.env.CENSUS_STDOUT) try { await testJitHandoff(); } catch (e) { failures++; console.error(`FAIL wasm JIT handoff: ${e.message}`); }

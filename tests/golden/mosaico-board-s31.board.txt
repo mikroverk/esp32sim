@@ -1,0 +1,20 @@
+START
+KEYS ai=1 boot=1
+MOTOR pwm init ESP_OK
+MOTOR pwm 60%
+MOTOR pwm 100%
+MOTOR pwm 0%
+MOTOR gpio on
+MOTOR gpio off
+I2C ESP_OK
+MAG0 addr=0x11 chip_id=0x32 init=0 drdy=1
+MAG1 addr=0x12 chip_id=0x32 init=0 drdy=1
+MAG0 rest r=0 x=20 y=0 z=-40 |B|=45 uT
+MAG1 rest r=0 x=20 y=0 z=-40 |B|=45 uT
+KEY ai pressed
+KEY ai released
+KEY boot pressed
+KEY boot released
+MAG0 later r=0 x=16 y=13 z=-40 |B|=45 uT
+MAG1 later r=0 x=16 y=13 z=-40 |B|=45 uT
+DONE

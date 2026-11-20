@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="assets/esp32sim-logo-icon.png"><meta property="og:title" content="esp32sim — run real ESP32 firmware in your browser"><meta property="og:description" content="Unmodified ESP32, S3, C3 and C6 firmware booting through the real mask ROM and bootloader, in this tab."><meta property="og:type" content="website"><meta property="og:url" content="https://mikroverk.github.io/esp32sim/run.html"><meta property="og:image" content="https://mikroverk.github.io/esp32sim/assets/social-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="esp32sim: real ESP32 firmware in your browser, an emulated touch panel and Linux booting on an ESP32-S3"><meta name="twitter:card" content="summary_large_image"><script>try{const t=localStorage.getItem('esp32sim-theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script><script>if(!new URLSearchParams(location.search).has('plain')){const r=document.documentElement;r.classList.add('workbench-pending');setTimeout(()=>r.classList.remove('workbench-pending'),4000)}</script><title>esp32sim — ESP32 emulator</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="assets/esp32sim-logo-icon.png"><meta property="og:title" content="esp32sim — run real ESP32 firmware in your browser"><meta property="og:description" content="Unmodified ESP32, S3, C3, C6, P4 and S31 firmware booting through the real mask ROM and bootloader, in this tab."><meta property="og:type" content="website"><meta property="og:url" content="https://mikroverk.github.io/esp32sim/run.html"><meta property="og:image" content="https://mikroverk.github.io/esp32sim/assets/social-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="esp32sim: real ESP32 firmware in your browser, an emulated touch panel and Linux booting on an ESP32-S3"><meta name="twitter:card" content="summary_large_image"><script>try{const t=localStorage.getItem('esp32sim-theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script><script>if(!new URLSearchParams(location.search).has('plain')){const r=document.documentElement;r.classList.add('workbench-pending');setTimeout(()=>r.classList.remove('workbench-pending'),4000)}</script><title>esp32sim — ESP32 emulator</title>
 <style>
   :root { --bg:#f4f4f5; --pcb:#efe9d8; --mod:#1d1f22; --mod2:#2b2e33; --fg:#1b1d20; --dim:#6b7280; --acc:#0ea5e9; }
   * { box-sizing:border-box; }
@@ -69,6 +69,7 @@
   #tftbig { width:480px; height:240px; image-rendering:pixelated; background:#000; border-radius:6px; border:3px solid #222; }
   .boardbtn { display:inline-block; padding:6px 14px; border-radius:8px; background:#d9d9dc; box-shadow: inset 0 -4px 0 rgba(0,0,0,.25); cursor:pointer; user-select:none; font-weight:600; }
   .boardbtn.down { box-shadow: inset 0 2px 0 rgba(0,0,0,.35); transform: translateY(2px); }
+  #lcd.round { border-radius: 50% !important; }
   .motecard { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid #e5e7eb; border-radius:10px; margin-right:12px; }
   .led { display:inline-block; width:18px; height:18px; border-radius:50%; background:#222; border:2px solid #555; margin-left:12px; }
   .chips button { font-size:12px; padding:4px 10px; }
@@ -108,15 +109,21 @@
       <div class="row"><strong>Panel</strong><span class="st" id="lcdstat">ST7701S 480×480 over the RGB bus — click/drag to touch</span><span style="flex:1"></span><label class="st">rotate <select id="lcdrot"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label></div>
       <canvas id="lcd" width="480" height="480" style="margin-top:8px;width:480px;height:480px;border-radius:12px;background:#000;cursor:crosshair;touch-action:none"></canvas>
       <div class="row" id="lcdextras" style="display:none;margin-top:8px"><span class="boardbtn" id="lcdboot" data-pin="9">BOOT</span><span class="st">press to switch all-channel / single-channel scan</span><span class="led" id="lcdled" title="WS2812"></span><span class="st">WS2812</span></div>
+      <div class="row" id="mosaicobuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="7">AI button (GPIO 7)</span><span class="boardbtn" data-pin="61">Boot key (GPIO 61)</span><span class="st">click = single press, hold = long press</span><span class="led" id="mosaicomotor" title="vibration motor (GPIO 8)"></span><span class="st">vibration motor</span></div>
       <div class="row" id="tdbuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="0">left (GPIO 0)</span><span class="boardbtn" data-pin="35">right (GPIO 35)</span><span class="st">the board's two buttons</span></div>
+      <div class="row" id="tc001buttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="26">left (GPIO 26)</span><span class="boardbtn" data-pin="27">select (GPIO 27)</span><span class="boardbtn" data-pin="14">right (GPIO 14)</span><span class="st">the clock's three buttons</span></div>
       <div class="row" id="stopwatchbuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="2">A (GPIO 2)</span><span class="boardbtn" data-pin="1">B (GPIO 1)</span></div>
+    </div>
+    <div class="card" id="xiaocard" style="display:none">
+      <div class="row"><strong>Seeed XIAO ESP32‑C6</strong><span class="st">the user LED on GPIO 15 (low active: the pin sinks the current) and the BOOT button on GPIO 9</span></div>
+      <div class="row" id="xiaoextras" style="margin-top:8px"><span class="led" id="xiaoled" title="user LED (GPIO 15)"></span><span class="st">user LED</span><span class="boardbtn" data-pin="9">BOOT</span><span class="st">press to hold the boot button (GPIO 9, active low)</span></div>
     </div>
     <div class="card" id="netpanel" style="display:none">
       <div class="row"><strong>Network</strong><span class="st" id="netstat">two emulated ESP32-C6 motes on one 802.15.4 medium</span></div>
       <div class="row" id="netnodes" style="margin-top:8px"></div>
     </div>
     <div class="card" id="campanel" style="display:none">
-      <div class="row"><strong>Camera</strong><span class="st">what the OV5640 sees — a picture file or your webcam (frames go to the DVP port at 10 fps)</span></div>
+      <div class="row"><strong>Camera</strong><span class="st" id="camwhat">what the OV5640 sees — a picture file or your webcam (frames go to the DVP port at 10 fps)</span></div>
       <div class="row" style="gap:8px;align-items:center;margin-top:6px">
         <input type="file" id="camfile" accept="image/*"><button class="act" id="camwebcam">📷 use webcam</button><button class="act" id="camstop" style="display:none">stop webcam</button>
         <span class="st" id="camstat"></span><meter id="vu2" min="0" max="1" value="0" style="width:120px" title="speaker"></meter><span class="st">speaker</span>
@@ -140,6 +147,7 @@
 <script src="touch-input.js"></script>
 <script src="terminal.js"></script>
 <script src="workbench.js"></script>
+<script src="netmon.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const con = $('#console'); let ws, view = 'usb', netInit = false, boardName = null; const lines = [];   // {src, text}
@@ -221,17 +229,20 @@ const lcdRaw = document.createElement('canvas');
 let lcdRotation = 0;
 // what the panel header says once a frame has arrived, and the rotation that reads upright for a
 // board's usual firmware (the T-Display is used landscape, MADCTL MV|MX: its top is the glass's right edge)
-const PANEL_TEXT = { 'waveshare-c6-lcd147': 'ST7789 172×320 over SPI2 + GDMA', 'ttgo-tdisplay': 'ST7789 135×240 over VSPI', stopwatch: 'CO5300 468×466 QSPI · CST820 touch' };
+const PANEL_TEXT = { cyd: 'ILI9341 320×240 over SPI, XPT2046 touch — click the screen to tap', 'waveshare-c6-lcd147': 'ST7789 172×320 over SPI2 + GDMA', 'ttgo-tdisplay': 'ST7789 135×240 over VSPI', 'ulanzi-tc001': '256 WS2812, 32×8, on GPIO 32 via RMT', stopwatch: 'CO5300 468×466 QSPI · CST820 touch' };
 const PANEL_ROTATE = { 'ttgo-tdisplay': 270 };
+// One LED is one pixel of the 32×8 matrix: the canvas itself is drawn 16× (512×128), since the
+// workbench shows a canvas at its own size and CSS scaling alone would leave the clock 32×8
+const PANEL_SCALE = { 'ulanzi-tc001': 16 };
 function paintLcd() {
   const c = $('#lcd'), w = lcdRaw.width, h = lcdRaw.height; if (!w || !h) return;
-  const quarter = lcdRotation === 90 || lcdRotation === 270, cw = quarter ? h : w, ch = quarter ? w : h;
-  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; const s = Math.min(w, h) <= 240 ? 2 : 1; c.style.width = (cw * s) + 'px'; c.style.height = (ch * s) + 'px'; }
+  const k = PANEL_SCALE[boardName] || 1, quarter = lcdRotation === 90 || lcdRotation === 270, cw = (quarter ? h : w) * k, ch = (quarter ? w : h) * k;
+  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; const s = k === 1 && Math.min(w, h) <= 240 ? 2 : 1; c.style.width = (cw * s) + 'px'; c.style.height = (ch * s) + 'px'; }
   const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.save();
   if (lcdRotation === 90) { ctx.translate(cw, 0); ctx.rotate(Math.PI / 2); }
   else if (lcdRotation === 180) { ctx.translate(cw, ch); ctx.rotate(Math.PI); }
   else if (lcdRotation === 270) { ctx.translate(0, ch); ctx.rotate(-Math.PI / 2); }
-  ctx.drawImage(lcdRaw, 0, 0); ctx.restore();
+  ctx.drawImage(lcdRaw, 0, 0, w * k, h * k); ctx.restore();
 }
 function setLcdRotation(deg) {
   deg = [0, 90, 180, 270].includes(+deg) ? +deg : 0;
@@ -320,16 +331,20 @@ function syncTitle() {
   document.title = demo ? demo + ' · esp32sim' : document.querySelector('h1').textContent;
 }
 function handleMessage(data) {
-    if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); return; }
+    if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); else if (t === 5 && window.NetMon) window.NetMon.frame(data); return; }
     const m = JSON.parse(data);
     if (m.t === 'board') window.dispatchEvent(new CustomEvent('esp32sim-board', { detail: m.name }));
     if (m.t === 'serial') { if (m.src === terminal.src) terminal.write(m.data); addSerial(m.src, m.data); }
     else if (m.t === 'emu') addSerial('usb', m.msg + '\n');
-    else if (m.t === 'board') { boardName = m.name; setLcdRotation(new URLSearchParams(location.search).get('rotate') ?? (window.EmuLink && window.EmuLink.displayRotate) ?? PANEL_ROTATE[m.name] ?? 0); document.body.classList.toggle('bare', m.name !== 'atech14'); $('#line').placeholder = lineHint(m.name); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'ttgo-tdisplay') { document.querySelector('h1').textContent = 'ESP32 emulator — LilyGO TTGO T-Display'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 135×240 over VSPI — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#tdbuttons').style.display = ''; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } else if (/^esp32p4(-rev3)?-c6$/.test(m.name)) { document.querySelector('h1').textContent = 'ESP32‑P4 + ESP32‑C6 — WiFi through ESP‑Hosted over SDIO, two chips in lock‑step'; document.querySelectorAll('.c6tab').forEach(b => b.style.display = ''); document.querySelector('.chiptab[data-src="usb"]').style.display = 'none'; document.querySelector('.chiptab[data-src="all"]').style.display = 'none'; document.querySelector('.chiptab[data-src="uart0"]').textContent = 'ESP32‑P4 (UART0)'; document.querySelector('.c6tab[data-src="uart0+c6"]').click(); } else if (m.name === 'none') { document.querySelector('h1').textContent = ({ esp32: 'ESP32', esp32c3: 'ESP32‑C3', esp32c6: 'ESP32‑C6', esp32p4: 'ESP32‑P4' }[m.chip] || 'ESP32‑S3') + ' emulator — bare module'; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; }  syncTitle(); }
+    else if (m.t === 'board') { boardName = m.name; setLcdRotation(new URLSearchParams(location.search).get('rotate') ?? (window.EmuLink && window.EmuLink.displayRotate) ?? PANEL_ROTATE[m.name] ?? 0); document.body.classList.toggle('bare', m.name !== 'atech14'); $('#line').placeholder = lineHint(m.name); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'xiao-esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Seeed Studio XIAO ESP32‑C6'; $('#xiaocard').style.display = ''; } else if (m.name === 'ttgo-tdisplay') { document.querySelector('h1').textContent = 'ESP32 emulator — LilyGO TTGO T-Display'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 135×240 over VSPI — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#tdbuttons').style.display = ''; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } else if (m.name === 'cyd') { document.querySelector('h1').textContent = 'ESP32 emulator — ESP32-2432S028 Cheap Yellow Display'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ILI9341 320×240 over SPI, XPT2046 touch — click the screen to tap'; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } else if (m.name === 'ulanzi-tc001') { document.querySelector('h1').textContent = 'ESP32 emulator — Ulanzi TC001 pixel clock'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = '256 WS2812, 32×8, on GPIO 32 via RMT — nothing drawn yet: this firmware has not sent a frame'; $('#lcd').style.display = 'none'; $('#tc001buttons').style.display = ''; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } else if (/^esp32p4(-rev3)?-c6$/.test(m.name)) { document.querySelector('h1').textContent = 'ESP32‑P4 + ESP32‑C6 — WiFi through ESP‑Hosted over SDIO, two chips in lock‑step'; document.querySelectorAll('.c6tab').forEach(b => b.style.display = ''); document.querySelector('.chiptab[data-src="usb"]').style.display = 'none'; document.querySelector('.chiptab[data-src="all"]').style.display = 'none'; document.querySelector('.chiptab[data-src="uart0"]').textContent = 'ESP32‑P4 (UART0)'; document.querySelector('.c6tab[data-src="uart0+c6"]').click(); } else if (m.name === 'none') { document.querySelector('h1').textContent = ({ esp32: 'ESP32', esp32c3: 'ESP32‑C3', esp32c6: 'ESP32‑C6', esp32p4: 'ESP32‑P4', esp32s31: 'ESP32‑S31' }[m.chip] || 'ESP32‑S3') + ' emulator — bare module'; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'ai-thinker-cam') { document.querySelector('h1').textContent = 'ESP32 emulator — AI‑Thinker ESP32‑CAM'; $('#camwhat').textContent = 'what the OV2640 sees — a picture file or your webcam (raw RGB565/YUV422 frames over I2S0 at about 10 fps)'; $('#campanel').style.display = ''; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; }  syncTitle(); }
+    // a manifest's `console` names the tab its firmware talks on (a bare C6 app on USB-Serial/JTAG)
+    if (m.t === 'board' && window.EmuLink && window.EmuLink.console) document.querySelector(`.tabs button[data-src="${window.EmuLink.console}"]`)?.click();
     if (m.t === 'board' && m.name === 'waveshare-p4-lcd35') { document.querySelector('h1').textContent = 'ESP32‑P4 emulator, Waveshare ESP32‑P4‑WIFI6‑Touch‑LCD‑3.5'; $('#lcdstat').textContent = 'ST7796 320×480 over SPI2 + AXI‑GDMA, FT5x06 touch: click or drag to touch'; const lcd = $('#lcd'); const quarter = lcdRotation === 90 || lcdRotation === 270; lcd.style.width = (quarter ? 480 : 320) + 'px'; lcd.style.height = (quarter ? 320 : 480) + 'px'; $('#lcdpanel').style.display = ''; syncTitle(); }
+    if (m.t === 'board' && m.name === 'mosaico') { document.querySelector('h1').textContent = 'ESP32‑S31 emulator, Espressif ESP‑Mosaico'; $('#lcdstat').textContent = 'CO5300 480×480 over QSPI (GP‑SPI2), CST9220 touch: click or drag to touch'; const lcd = $('#lcd'); lcd.style.width = '480px'; lcd.style.height = '480px'; $('#lcdpanel').style.display = ''; $('#mosaicobuttons').style.display = ''; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); syncTitle(); }
     if (m.t === 'board' && m.name === 'waveshare-amoled18-v2') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator, Waveshare ESP32‑S3‑Touch‑AMOLED‑1.8 V2'; $('#lcdstat').textContent = 'CO5300 368×448 over QSPI, click or drag to touch'; const lcd = $('#lcd'); const quarter = lcdRotation === 90 || lcdRotation === 270; lcd.style.width = (quarter ? 448 : 368) + 'px'; lcd.style.height = (quarter ? 368 : 448) + 'px'; $('#lcdpanel').style.display = ''; syncTitle(); }
     if (m.t === 'board') {
       $('#stopwatchbuttons').style.display = m.name === 'stopwatch' ? '' : 'none';
+      $('#lcd').classList.toggle('round', m.name === 'mosaico');   // the Mosaico's AMOLED is round
       if (m.name === 'stopwatch') {
         document.querySelector('h1').textContent = 'ESP32‑S3 emulator — M5Stack StopWatch';
         $('#lcdstat').textContent = PANEL_TEXT.stopwatch;
@@ -340,6 +355,7 @@ function handleMessage(data) {
       }
     }
     else if (m.t === 'grid') { drawGrid(m.id, m.leds); }
+    else if (m.t === 'netmon') { if (window.NetMon) { window.NetMon.show(); if (window.EmuLink && window.EmuLink.netmonOpen) { const d = $('#netmondetails'); if (d) d.open = true; } } }
     else if (m.t === 'net') {
       $('#netpanel').style.display = ''; document.body.classList.add('bare');
       document.querySelectorAll('.nodetab').forEach(b => b.style.display = ''); document.querySelectorAll('.chiptab').forEach(b => b.style.display = 'none');
@@ -354,7 +370,7 @@ function handleMessage(data) {
         $('#netinfo' + i).textContent = `sent ${n.tx} · heard ${n.rx}` + (n.dropped ? ` · ${n.dropped} lost` : '') + (n.halted ? ' · halted' : '');
       });
     }
-    else if (m.t === 'ring') { ringLeds = m.leds; drawRing(); if (m.leds.length === 1) { const [r, g, b] = m.leds[0]; paintLed($('#lcdled'), r, g, b); } }
+    else if (m.t === 'ring') { ringLeds = m.leds; drawRing(); if (m.leds.length === 1) { const [r, g, b] = m.leds[0]; paintLed(boardName === 'xiao-esp32c6' ? $('#xiaoled') : boardName === 'mosaico' ? $('#mosaicomotor') : $('#lcdled'), r, g, b); } }
     else if (m.t === 'camera-error') { stopWebcam(); $('#campanel').style.display = ''; $('#camstat').textContent = m.message; }
     else if (m.t === 'stat') { $('#stat').textContent = `t = ${m.time.toFixed(2)} s · ${(m.insns/1e6).toFixed(1)} M insns · ${m.frames} frames` + (m.speed == null ? '' : m.speed < 0.95 ? ` · ⚠ ${Math.floor(m.speed * 100)}% of real time` : ' · real time') + (m.resyncs ? ` · ${m.resyncs} resync` : '') + (m.cam ? ` · ${m.cam} camera frames` : ''); $('#stat').style.color = m.speed != null && m.speed < 0.95 ? '#f66' : ''; }
 }

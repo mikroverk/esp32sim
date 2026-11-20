@@ -27,11 +27,12 @@ How to build esp32sim and run firmware on each chip. For every flag, see the
 | Boots | ROM, bootloader, FreeRTOS, app | ROM, bootloader, FreeRTOS, app | ROM, bootloader, FreeRTOS, app |
 | Boards / displays | ST7735, ST7701S 480x480 + touch, WS2812, camera, audio | none, console only | ST7789 172x320 over SPI+DMA, WS2812, an 802.15.4 energy-detect stand-in |
 | WiFi | virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station) | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station, legacy rates) |
-| Speed | block interpreter and AArch64 JIT, about 150 to 240 Minsn/s | plain interpreter (no block cache or JIT yet), still well above real time on hello_world | same interpreter |
+| Speed | block interpreter and AArch64 JIT, about 150 to 240 Minsn/s | decoded basic blocks (EX265, #356), no JIT yet; well above real time on hello_world | the same decoded blocks |
 | In the browser | yes (WebAssembly) | yes (WebAssembly) | yes (WebAssembly) |
 | Status | mature | draft, see [esp32c3.md](esp32c3.md) | draft, see [esp32c6.md](esp32c6.md) |
 
-The classic ESP32 is described in [esp32.md](esp32.md). How each chip is checked against silicon is
+The classic ESP32, the ESP32-P4 and the ESP32-S31 have their own sections below and pages:
+[esp32.md](esp32.md), [esp32p4.md](esp32p4.md), [esp32s31.md](esp32s31.md). How each chip is checked against silicon is
 in [hardware-testing.md](hardware-testing.md).
 
 Most of the SoC is shared. The C3 reuses the S3's UART, USB-Serial/JTAG, systimer, timer groups,
@@ -58,7 +59,8 @@ tools/fetch-demo-assets.sh --no-linux      # the S3, C3 and C6 ROMs into web/was
 ```
 
 Then pass `--rom web/wasm/fw/esp32s3_rev0_rom.elf` (or the C3/C6 file), or set
-`ESP32SIM_ROM_DIR=web/wasm/fw`, which the tests also use.
+`ESP32SIM_ROM_DIR=$PWD/web/wasm/fw`, which the tests also use. Give the tests an absolute path:
+`cargo test` runs each test from its own crate's directory.
 
 ## ESP32-S3
 
@@ -154,6 +156,8 @@ H=examples/hello_world-c6/build
 
 - `--board waveshare-c6-lcd147` adds the Waveshare ESP32-C6-LCD-1.47: the ST7789 over SPI2 and the
   GDMA, the WS2812 and the BOOT button.
+- `--board xiao-esp32c6` adds the Seeed Studio XIAO ESP32-C6: the low-active user LED on GPIO 15,
+  the BOOT button on GPIO 9 and the RF switch (`examples/xiao-esp32c6/`).
 - The C6's 802.15.4 MAC answers energy scans, so the board's LVGL spectrum-scanner firmware runs end
   to end (`examples/waveshare-c6-lcd147/`). The MAC also sends and receives frames with the timing
   of the air.
@@ -168,6 +172,44 @@ See [esp32c6.md](esp32c6.md).
 The classic ESP32 boots its ECO3 mask ROM on dual LX6 cores, with GPIO, UART and timers:
 `--chip esp32`. `--board ttgo-tdisplay` adds the LilyGO TTGO T-Display's ST7789 and buttons. See
 [esp32.md](esp32.md) for how to run it.
+
+## ESP32-P4
+
+`esp32sim-p4` (or `--chip p4`) boots the P4's mask ROM on two RISC-V cores. Silicon rev < 3 and
+rev ≥ 3 have their own models; the CLI picks the revision from the images.
+
+```sh
+FW=web/wasm/fw/public
+./target/release/esp32sim-p4 --flash-mb 2 --bootloader $FW/p4-hello-bootloader.bin \
+    --ptable $FW/p4-hello-ptable.bin --app $FW/p4-hello_world.bin --max-seconds 27
+```
+
+- `--board waveshare-p4-lcd35` adds the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (rev ≥ 3): the
+  ST7796 over SPI and AXI-GDMA, FT5x06 touch and the ES8311 codec.
+- `--coproc c6:...` runs an ESP32-C6 on SDIO in lock-step, with the unmodified ESP-Hosted slave, so
+  the P4 reaches WiFi as it does on the real board.
+- `--sd IMG` puts a card in the SD socket; `--usb-host F` drives the USB-OTG port from a script.
+
+See [esp32p4.md](esp32p4.md).
+
+## ESP32-S31
+
+`esp32sim-s31` (or `--chip s31`) runs ESP-IDF v6.1 firmware for the ESP32-S31 on two RISC-V cores.
+The images the tests use are in `esp32s31/firmware` (`tools/fetch-s31-firmware.sh` rebuilds them):
+
+```sh
+F=esp32s31/firmware
+./target/release/esp32sim-s31 --boot rom --bootloader $F/s31-hello-bootloader.bin \
+    --ptable $F/s31-hello-ptable.bin --app $F/s31-hello_world.bin --max-seconds 5
+```
+
+- `--board mosaico` adds the Espressif ESP-Mosaico: the CO5300 480x480 AMOLED, CST9220 touch, the
+  ES8311 codec and microphone, BMI270 and two BMM150, the AI and Boot keys and the vibration motor.
+  `--imu-motion 1` moves the board; `--web PORT` shows the display. The page runs it too: the
+  `s31-mosaico` demo, a compass built from `examples/mosaico-demo`.
+- `--wifi` attaches the same virtual access point as on the other chips (WPA2, DHCP, NAT).
+
+See [esp32s31.md](esp32s31.md) and the `mosaico` section of [boards.md](boards.md).
 
 ## Scripts: host actions at emulated time
 
@@ -191,7 +233,8 @@ the WPA2-PSK four-way handshake. Behind it is a virtual network with DHCP, ARP, 
 off the host clock.
 
 `--net nat` (the default) relays the guest's TCP and UDP over ordinary host sockets, so firmware
-reaches the real network. `--net none` refuses it. No firmware changes, no root, no tun device.
+reaches the real network. `--net none` refuses it. `--hostfwd tcp:127.0.0.1:8080-:80` publishes a
+guest TCP server on the host. No firmware changes, no root, no tun device.
 
 ```sh
 ./target/release/esp32sim --board waveshare-lcd4b --boot rom --flash-mb 16 --psram-mb 8 \

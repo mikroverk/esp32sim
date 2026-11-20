@@ -62,13 +62,25 @@ impl esp_soc::SocBus for SocBus {
     fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
     fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
     fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
+    fn ble_keep_log(&mut self) { self.ble.lines.keep(); }
+    fn ble_log_take(&mut self) -> Option<String> { self.ble.lines.take() }
     fn ble_nearby(&mut self, list: Vec<esp_soc::ble::peer::Nearby>) -> Result<(), String> { self.ble.set_nearby(list, self.cycles, periph::CPU_HZ) }
+    fn set_net_tap(&mut self, tap: esp_soc::netcap::NetTap) -> Result<(), String> {
+        self.periph.wifi.link.set_tap(tap);
+        Ok(())
+    }
+    fn add_wifi_ap(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> {
+        self.flush_ticks();
+        self.periph.wifi.link.add_ap(cfg, &self.debug)
+    }
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
         self.flush_ticks();
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         self.refresh_tick_budget();
         Ok(())
     }
+    fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.periph.wifi.link.set_beacons(list).ok_or_else(|| "no virtual access point".to_string()) }
+    fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.flush_ticks(); self.periph.wifi.link.set_nat(nat, local_ntp) }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.flush_ticks();
         self.periph.wifi.link.set_relay(enabled);
@@ -169,7 +181,8 @@ impl esp_soc::SocBus for SocBus {
         // resets it) or the PSRAM (MR2 is read-only and keeps its density).
         p.spi0.octal_flash = old.spi0.octal_flash; p.spi1.octal_flash = old.spi1.octal_flash; p.spi1.flash_cr2 = old.spi1.flash_cr2;
         p.spi0.psram_mr[2] = old.spi0.psram_mr[2]; p.spi1.psram_mr[2] = old.spi1.psram_mr[2];
-        p.rtc.ram = old.rtc.ram; p.rtc.slow_ticks = old.rtc.slow_ticks;
+        p.rtc.ram = old.rtc.ram; p.rtc.slow_ticks = old.rtc.slow_ticks; p.rtc.reset_cause = cause;
+        p.usb.connected = old.usb.connected;            // the host side of the USB cable is not reset
         p.rtc.ram.write(0x38, cause | (cause << 6));
         p.rtc.ram.write(0x98, 0);                       // watchdog disarmed by the reset; the ROM re-arms it
         p.i2s0.pcm = old.i2s0.pcm; p.i2s0.frames_out = old.i2s0.frames_out; p.i2s1.pcm = old.i2s1.pcm; p.i2s1.frames_out = old.i2s1.frames_out;   // keep the captured audio continuous
@@ -198,8 +211,9 @@ impl esp_soc::SocBus for SocBus {
     fn uart_input(&mut self, n: usize, data: &[u8]) {
         let Some(u) = self.periph.uart.get_mut(n) else { return };
         let before = u.irq();
-        u.host_input(data);
+        u.host_input_queued(data);   // paced by the bus tick (`pace_uart_input`)
         self.irq_dirty |= before != u.irq();
+        self.refresh_tick_budget();
     }
     fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) {
         let offset = self.peripheral_clock_offset();

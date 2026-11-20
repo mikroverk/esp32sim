@@ -50,7 +50,7 @@ impl Nearby {
     /// both.
     pub fn parse(spec: &str) -> Result<Nearby, String> {
         let (mut name, mut adv, mut rsp, mut addr, mut public, mut rssi) = (None, None, Vec::new(), None, false, -60i8);
-        let data = |key: &str, value: &str| hex_bytes(value).filter(|d| d.len() <= 31)
+        let data = |key: &str, value: &str| crate::web::hex_decode(value).filter(|d| d.len() <= 31)
             .ok_or_else(|| format!("invalid nearby-device {key} '{value}': expected hex, at most 31 bytes"));
         for entry in spec.split(',') {
             let (key, value) = entry.split_once('=').ok_or_else(|| format!("invalid nearby-device option '{entry}': expected key=value"))?;
@@ -116,7 +116,7 @@ fn parse_addr(text: &str) -> Option<[u8; 6]> {
 
 /// An address as printed (most significant byte first), from its HCI order.
 pub fn addr_text(a: &[u8; 6]) -> String { a.iter().rev().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(":") }
-pub fn hex(b: &[u8]) -> String { b.iter().map(|v| format!("{v:02x}")).collect() }
+pub fn hex(b: &[u8]) -> String { crate::web::hex_encode(b) }
 fn uuid(b: &[u8]) -> String {
     let s = hex(&b.iter().rev().copied().collect::<Vec<_>>());
     if b.len() == 16 {
@@ -166,20 +166,16 @@ impl std::str::FromStr for Command {
             "subscribe" => Self::Write(handle, vec![1, 0]),
             _ => {
                 let value = parts[2];
-                let bytes = hex_bytes(value).filter(|b| b.len() <= 20)
+                let bytes = crate::web::hex_decode(value).filter(|b| b.len() <= 20)
                     .ok_or("BLE write requires at most 20 bytes of hexadecimal data")?;
                 Self::Write(handle, bytes)
             }
         })
     }
 }
-fn hex_bytes(text: &str) -> Option<Vec<u8>> {
-    if !text.len().is_multiple_of(2) || !text.bytes().all(|b| b.is_ascii_hexdigit()) { return None }
-    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).ok()).collect()
-}
 fn parse_uuid(text: &str) -> Result<[u8; 16], String> {
     let digits: String = text.chars().filter(|c| *c != '-').collect();
-    let mut bytes: [u8; 16] = hex_bytes(&digits).and_then(|b| b.try_into().ok())
+    let mut bytes: [u8; 16] = crate::web::hex_decode(&digits).and_then(|b| b.try_into().ok())
         .ok_or("expected a 128-bit BLE UUID")?;
     bytes.reverse();
     Ok(bytes)
@@ -639,8 +635,8 @@ mod tests {
 
     #[test]
     fn hex_bytes_and_read_by_type_preserve_wire_values() {
-        assert_eq!(hex_bytes("00aAFF"), Some(vec![0,170,255]));
-        for bad in ["0", "0g", "é0"] { assert_eq!(hex_bytes(bad), None); }
+        assert_eq!(crate::web::hex_decode("00aAFF"), Some(vec![0,170,255]));
+        for bad in ["0", "0g", "é0"] { assert_eq!(crate::web::hex_decode(bad), None); }
         assert_eq!("write 1 00aAFF".parse::<Command>().unwrap(), Command::Write(1, vec![0,170,255]));
         for bad in ["write 1 0", "write 1 zz", "write 1 é0", "write 1 000000000000000000000000000000000000000000"] { assert!(bad.parse::<Command>().is_err()); }
         assert_eq!(read_by_type(0x1234, 0x5678), [8,0x34,0x12,0x78,0x56,3,0x28]);
@@ -985,5 +981,71 @@ mod tests {
         c.reset();
         scan(&mut c, false);
         assert_eq!(reports(&mut c).iter().filter(|x| x.2 == thermo().addr).count(), 1);
+    }
+
+    /// The status of one command's Command Complete.
+    fn status(c: &mut Session, op: u16, p: &[u8]) -> u8 {
+        cmd(c, op, p);
+        let r = c.pop_packet().unwrap();
+        assert_eq!(&r[..6], &[4, 14, r[2], 1, op as u8, (op >> 8) as u8]);
+        r[6]
+    }
+    /// LE Add Device To Resolving List for a public address ending in `last` (HCI order).
+    fn rl_add(last: u8) -> Vec<u8> {
+        let mut p = vec![0, last, 0, 0, 0, 0, 0];
+        p.extend((7..39).map(|i| (i + last as usize) as u8));
+        p
+    }
+
+    #[test]
+    fn ll_privacy_is_reported_and_the_resolving_list_answers_as_on_an_s3() {
+        let mut c = Session::default();
+        cmd(&mut c, 0x2003, &[]);
+        let features = c.pop_packet().unwrap();
+        assert_eq!(features[7] & 0x40, 0x40, "LE feature bit 6, LL Privacy");
+        cmd(&mut c, 0x1002, &[]);
+        let commands = c.pop_packet().unwrap();
+        assert_eq!((commands[7 + 34] & 0xf8, commands[7 + 35] & 0x07, commands[7 + 39] & 0x04), (0xf8, 0x07, 0x04));
+        cmd(&mut c, 0x202a, &[]);
+        assert_eq!(c.pop_packet().unwrap(), [4, 14, 5, 1, 0x2a, 0x20, 0, 10]);
+        // The sequence the receipt's probe sent to an ESP32-S3, with the statuses it answered.
+        let remove = |last: u8| vec![0, last, 0, 0, 0, 0, 0];
+        let script: Vec<(u16, Vec<u8>, u8)> = vec![
+            (0x2029, vec![], 0),
+            (0x2028, remove(0), 0x02),
+            (0x2027, rl_add(0), 0),
+            (0x2027, rl_add(0), 0x12),
+            (0x2028, remove(0), 0),
+            (0x2028, remove(0), 0x02),
+        ];
+        for (op, p, expected) in script { assert_eq!(status(&mut c, op, &p), expected, "0x{op:04x} {p:02x?}"); }
+        for last in 1..=10 { assert_eq!(status(&mut c, 0x2027, &rl_add(last)), 0, "entry {last}"); }
+        assert_eq!(status(&mut c, 0x2027, &rl_add(11)), 0x07, "the eleventh: Memory Capacity Exceeded");
+        let script: Vec<(u16, Vec<u8>, u8)> = vec![
+            (0x2029, vec![], 0),
+            (0x202d, vec![1], 0),
+            (0x202d, vec![2], 0x12),
+            (0x2027, rl_add(1), 0),
+            (0x202d, vec![0], 0),
+            (0x202e, vec![0x84, 0x03], 0),
+            (0x202e, vec![0, 0], 0x12),
+            (0x202e, vec![0x10, 0x0e], 0),
+            (0x202e, vec![0x11, 0x0e], 0),
+            (0x204e, vec![0, 1, 0, 0, 0, 0, 0, 1], 0),
+            (0x204e, vec![0, 0x7f, 0, 0, 0, 0, 0, 1], 0x02),
+            (0x204e, vec![0, 1, 0, 0, 0, 0, 0, 2], 0x12),
+        ];
+        for (op, p, expected) in script { assert_eq!(status(&mut c, op, &p), expected, "0x{op:04x} {p:02x?}"); }
+        for (op, entry) in [(0x202b, 1), (0x202b, 0x7f), (0x202c, 1)] {
+            cmd(&mut c, op, &remove(entry));
+            assert_eq!(c.pop_packet().unwrap(), [4, 14, 10, 1, op as u8, 0x20, 2, 0, 0, 0, 0, 0, 0]);
+        }
+        // HCI Reset and a guest reset empty the list.
+        status(&mut c, 0x0c03, &[]);
+        assert_eq!(status(&mut c, 0x204e, &[0, 1, 0, 0, 0, 0, 0, 1]), 0x02);
+        assert_eq!(status(&mut c, 0x2027, &rl_add(1)), 0);
+        c.reset();
+        assert_eq!(status(&mut c, 0x2028, &remove(1)), 0x02);
+        assert!(c.drain_log().iter().all(|l| !l.contains("unsupported")));
     }
 }

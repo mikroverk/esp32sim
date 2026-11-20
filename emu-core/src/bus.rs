@@ -116,6 +116,13 @@ pub trait Bus {
     /// Fetch up to 4 instruction bytes at `pc` (any alignment). Bytes past the
     /// end of a mapped region may be zero.
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault>;
+    /// The bytes `fetch(pc)` would return now, without any of its side effects (fault records,
+    /// error latches), so a decoder can read ahead of execution. `None` when that fetch would
+    /// fault, and also whenever the bus cannot tell: a reader must then fall back to `fetch` at
+    /// the moment the instruction executes. Never `Some` where `fetch` would fault or return
+    /// other bytes. The default never reads ahead.
+    #[inline(always)]
+    fn fetch_ahead(&mut self, pc: u32) -> Option<[u8; 4]> { let _ = pc; None }
     /// Write-version counters, one per page of guest memory: `page_versions()[code_page(pc)]`
     /// changes whenever a write could have altered an instruction at `pc`. A decode-cache entry
     /// remembers its page index and the version it saw, so the common path is one indexed load
@@ -179,8 +186,9 @@ pub trait Bus {
     fn begin_timing_batch(&mut self, _core: usize, _now: u64) {}
     /// Add an opt-in instruction penalty to the same provisional batch drain.
     fn add_timing_penalty(&mut self, _cycles: u32) {}
-    /// Called after every executed instruction with the cycle estimate; lets the
-    /// SoC advance timers and DMA. Return pending external level-interrupt lines.
+    /// Called by the machine after each scheduling round with the cycles it ran; lets the SoC
+    /// advance timers and DMA (the S3 batches this device time). Non-zero means interrupt lines
+    /// may have moved and must be re-derived.
     fn tick(&mut self, cycles: u32) -> u32 { let _ = cycles; 0 }
 }
 

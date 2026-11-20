@@ -1,8 +1,9 @@
 //! The peripheral IP that Espressif reuses across chips (UART, USB-Serial/JTAG, systimer, timer
-//! groups, GPIO, RTC_CNTL, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S, RMT, I2C, the RISC-V
-//! chips' RNG), one file each, plus the plumbing that mounts them: the `Device` trait every model
-//! implements and the `DeviceSet` table a chip fills in once — dispatch, interrupt sources, clock
-//! ticks and timer deadlines all come from that one table.
+//! groups, GPIO, LEDC, MCPWM, RTC_CNTL, SAR ADC, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S,
+//! RMT, GP-SPI, I2C, SDMMC, USB-OTG, the RISC-V chips' RNG), one file each, plus the plumbing
+//! that mounts them: the `Device` trait every model implements and the `DeviceSet` table a chip
+//! fills in once — dispatch, interrupt sources, clock ticks and timer deadlines all come from
+//! that one table.
 pub mod device;
 pub mod mmio;
 pub mod regram;
@@ -25,12 +26,15 @@ pub mod sha;
 pub mod aes;
 pub mod rsa;
 pub mod gdma;
+pub mod dma2d;
+pub mod ppa;
 pub mod i2s;
 pub mod rmt;
 pub mod rmt_compact;
 pub mod gpspi;
 pub mod rng;
 pub mod intmtx;
+pub mod clic;
 pub mod sdmmc;
 pub mod usb_otg;
 

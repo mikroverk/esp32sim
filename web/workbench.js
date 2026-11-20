@@ -29,11 +29,18 @@
     esp32c3: { soc: 'ESP32-C3 rev 3', cpu: '1× RISC-V RV32IMC @ 160 MHz', board: 'Bare ESP32-C3', peripherals: 'UART · USB-Serial/JTAG · timers · flash' },
     esp32c6: { soc: 'ESP32-C6 rev 0', cpu: '1× RISC-V RV32IMAC @ 160 MHz', board: 'Bare ESP32-C6', peripherals: 'UART · USB-Serial/JTAG · timers · flash' },
     'waveshare-c6-lcd147': { soc: 'ESP32-C6 rev 0', cpu: '1× RISC-V RV32IMAC @ 160 MHz', board: 'Waveshare C6-LCD-1.47', peripherals: 'ST7789 172×320 · SPI2/GDMA · WS2812 · 802.15.4' },
+    'xiao-esp32c6': { soc: 'ESP32-C6 rev 0', cpu: '1× RISC-V RV32IMAC @ 160 MHz', board: 'Seeed Studio XIAO ESP32-C6', peripherals: 'user LED (GPIO 15, low active) · BOOT button (GPIO 9) · RF switch' },
+    esp32: { soc: 'ESP32-D0WD rev 3', cpu: '2× Xtensa LX6 @ 240 MHz', board: 'Bare ESP32 (esp32dev)', peripherals: 'UART · timers · flash' },
+    'ai-thinker-cam': { soc: 'ESP32-D0WD rev 3', cpu: '2× Xtensa LX6 @ 240 MHz', board: 'AI-Thinker ESP32-CAM', peripherals: 'OV2640 on SCCB · DVP over I²S0 · raw RGB565/YUV422' },
+    cyd: { soc: 'ESP32-D0WD', cpu: '2× Xtensa LX6 @ 240 MHz', board: 'ESP32-2432S028 Cheap Yellow Display', peripherals: 'ILI9341 320×240 · XPT2046 touch' },
     'ttgo-tdisplay': { soc: 'ESP32-D0WD rev 3', cpu: '2× Xtensa LX6 @ 240 MHz', board: 'LilyGO TTGO T-Display', peripherals: 'ST7789 135×240 · VSPI · two buttons' },
+    'ulanzi-tc001': { soc: 'ESP32-D0WD rev 3', cpu: '2× Xtensa LX6 @ 240 MHz', board: 'Ulanzi TC001', peripherals: '256 WS2812 32×8 · RMT · three buttons' },
     esp32p4: { soc: 'ESP32-P4 rev < 3 (v1.0)', cpu: '2× RISC-V RV32IMAFC @ 360 MHz', board: 'Bare ESP32-P4', peripherals: 'UART · USB-Serial/JTAG · timers · SDMMC · flash' },
     'esp32p4-rev3': { soc: 'ESP32-P4 rev ≥ 3 (v3.1)', cpu: '2× RISC-V RV32IMAFC @ 360 MHz', board: 'Bare ESP32-P4', peripherals: 'UART · USB-Serial/JTAG · timers · flash' },
     'esp32p4-c6': { soc: 'ESP32-P4 rev < 3 + ESP32-C6', cpu: '2× RV32IMAFC @ 360 MHz + 1× RV32IMAC @ 160 MHz', board: 'P4 with a C6 on SDIO, as the Waveshare ESP32-P4-WIFI6', peripherals: 'SDIO 4-bit · ESP-Hosted 2.12.13 · the C6\'s WiFi on a virtual AP' },
     'waveshare-p4-lcd35': { soc: 'ESP32-P4 rev ≥ 3 (v3.1)', cpu: '2× RISC-V RV32IMAFC @ 360 MHz', board: 'Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5', peripherals: 'ST7796 320×480 SPI · FT5x06 touch · ES8311 I²S audio' },
+    esp32s31: { soc: 'ESP32-S31 rev 0', cpu: '2× RISC-V RV32IMAFC @ 320 MHz', board: 'Bare ESP32-S31', peripherals: 'UART · USB-Serial/JTAG · timers · flash' },
+    mosaico: { soc: 'ESP32-S31 rev 0', cpu: '2× RISC-V RV32IMAFC @ 320 MHz', board: 'Espressif ESP-Mosaico v1.2', peripherals: 'CO5300 480×480 QSPI · CST9220 touch · BMI270 · 2× BMM150 · motor' },
     'esp32p4-rev3-c6': { soc: 'ESP32-P4 rev ≥ 3 (v3.1) + ESP32-C6', cpu: '2× RV32IMAFC @ 360 MHz + 1× RV32IMAC @ 160 MHz', board: 'P4 with a C6 on SDIO, as the Waveshare ESP32-P4-WIFI6', peripherals: 'SDIO 4-bit · ESP-Hosted 2.12.13 · the C6\'s WiFi on a virtual AP' },
     none: { soc: 'ESP32-S3 rev 0', cpu: '2× Xtensa LX7 @ 240 MHz', board: 'Bare ESP32-S3', peripherals: 'UART · USB-Serial/JTAG · timers · flash' },
   };
@@ -51,12 +58,15 @@
     'c6-contiki': ['Watch Contiki-NG boot on the console', 'A broadcast every 5 s', 'The WS2812 blinks through the RMT'],
     'pocket-tank': ['Tap or drag to touch the tank', 'Type feed 6 or shadow in the line box', 'help lists the director commands'],
     hello: ['Watch the ROM, the bootloader, then the app', 'The watchdog reboots it: same output again', 'Compare UART0 and USB-CDC'],
-    'c3-hello': ['The RISC-V mask ROM boots the app', 'Open UART0 for the console', 'Verified line for line against a real C3'],
+    'c3-hello': ['The RISC-V mask ROM boots the app', 'Open UART0 for the console', 'Compared line by line with a real C3'],
+    's31-mosaico': ['Click or drag on the round panel to touch', 'AI button: next colour and a motor pulse', 'Boot key: the sensor page'],
     'p4-lcd35-synth': ['Enable audio, then play the keys', 'Tap the red display to pick a preset', 'INSTRUMENT edits the sound while it plays'],
     'p4-c6-hosted': ['Both chips boot from their ROMs: [p4] and [c6]', 'The C6 joins the virtual AP for the P4', 'The P4 gets its address over SDIO'],
-    'c6-hello': ['The C6 mask ROM boots the app', 'Open UART0 for the console', 'Verified against a Waveshare C6-LCD-1.47'],
+    'c6-hello': ['The C6 mask ROM boots the app', 'Open UART0 for the console', 'Compared with a Waveshare C6-LCD-1.47'],
+    'c6-wifi': ['The scan lists two access points and three networks', 'Click a frame in the Network panel to dissect it', 'Download the pcap for Wireshark'],
+    'c6-xiao': ['The user LED blinks on GPIO 15', 'Press BOOT: the firmware reads GPIO 9', 'The script presses it at 2 s'],
   };
-  const CHIP = { esp32c3: 'c3', esp32c6: 'c6', 'waveshare-c6-lcd147': 'c6', 'ttgo-tdisplay': 'esp32', esp32p4: 'p4', 'esp32p4-rev3': 'p4', 'esp32p4-c6': 'p4', 'esp32p4-rev3-c6': 'p4', 'esp32p4+c6': 'p4', 'esp32p4-rev3+c6': 'p4', 'waveshare-p4-lcd35': 'p4' };
+  const CHIP = { esp32c3: 'c3', esp32c6: 'c6', 'waveshare-c6-lcd147': 'c6', 'xiao-esp32c6': 'c6', esp32: 'esp32', 'ttgo-tdisplay': 'esp32', cyd: 'esp32', 'ulanzi-tc001': 'esp32', 'ai-thinker-cam': 'esp32', esp32p4: 'p4', 'esp32p4-rev3': 'p4', 'esp32p4-c6': 'p4', 'esp32p4-rev3-c6': 'p4', 'esp32p4+c6': 'p4', 'esp32p4-rev3+c6': 'p4', 'waveshare-p4-lcd35': 'p4', esp32s31: 's31', mosaico: 's31' };
   // The board the running machine announced (run.html's `board` message): a native --web run has no
   // manifest or Configure form, and a board picked in Configure can change after the rail is built.
   let liveBoard = null, renderMachine = null;
@@ -65,14 +75,20 @@
     if (!manifest) return 'esp32sim --board ' + boardName + ' --boot rom --bootloader build/bootloader/bootloader.bin \\\n  --ptable build/partition_table/partition-table.bin --app build/app.bin --max-seconds 5';
     const chip = CHIP[boardName]; const f = manifest.files || {};
     const parts = ['esp32sim' + (chip ? ' --chip ' + chip : ''), '--boot rom'];
-    if (!chip || boardName === 'waveshare-c6-lcd147' || boardName === 'ttgo-tdisplay') parts.splice(1, 0, '--board ' + boardName);   // the RISC-V chips refuse --board except for their own board
+    // another chip's bare module takes no --board (the C3 refuses one); the S3's default board is the Atech, so `none` is said
+    const bare = !!chip && /^(none|esp32|esp32c3|esp32c6|esp32p4|esp32p4-rev3|esp32s31|esp32p4(-rev3)?[+-]c6)$/.test(boardName);
+    if (!bare) parts.splice(1, 0, '--board ' + boardName);
     if (f.rom) parts.push('--rom web/wasm/fw/' + f.rom);
     if (f.flash) parts.push('--flash-image web/wasm/fw/' + f.flash);
     for (const k of ['bootloader', 'ptable', 'app']) if (f[k]) parts.push('--' + k + ' web/wasm/fw/' + f[k]);
     for (const [off, u] of Object.entries(manifest.flash_at || {})) parts.push('--flash-at ' + off + '=web/wasm/fw/' + u);
     if (manifest.flash_mb) parts.push('--flash-mb ' + manifest.flash_mb);
-    if (manifest.psram_mb) parts.push('--psram-mb ' + manifest.psram_mb);
-    if (manifest.wifi) parts.push('--wifi ' + manifest.wifi);
+    if (manifest.psram_mb && chip !== 's31') parts.push('--psram-mb ' + manifest.psram_mb);   // the S31's PSRAM is the board's
+    if (manifest.imu_motion) parts.push('--imu-motion ' + manifest.imu_motion);
+    if (manifest.console) parts.push('--console ' + (manifest.console === 'term' ? 'uart0' : manifest.console));   // the console the firmware prints on
+    for (const ap of [].concat(manifest.wifi || [])) parts.push('--wifi ' + ap);
+    for (const near of [].concat(manifest.wifi_nearby || [])) parts.push('--wifi-nearby ' + near);
+    if (manifest.netmon_open) parts.push('--pcap ' + fw + '.pcap');   // the Network panel's frames, as a file
     for (const s of (manifest.stubs || []).filter((s) => !s.startsWith('c6:'))) { const [name, value] = s.split('='); const addr = (manifest.symbols || {})[name]; parts.push('--stub ' + (addr || name) + (value !== undefined ? '=' + value : '')); }
     // the co-processor: its images and its stubs (`c6:NAME`) in one --coproc
     if (manifest.coproc) {
@@ -86,7 +102,7 @@
     if (f.script) parts.push('--script web/wasm/fw/' + f.script);
     parts.push('--max-seconds ' + (manifest.seconds || 8));
     if (manifest.nodes) return '# two nodes: ' + fw + '.json lists each mote; the CLI runs one at a time\n' + parts.join(' \\\n  ');
-    if (boardName !== 'none' && !chip || boardName === 'waveshare-c6-lcd147' || boardName === 'ttgo-tdisplay') parts.push('--tft-png ' + fw + '.png');
+    if (!bare && !['none', 'xiao-esp32c6', 'ai-thinker-cam', 'waveshare-cam'].includes(boardName)) parts.push('--tft-png ' + fw + '.png');
     return parts.join(' \\\n  ');
   }
 

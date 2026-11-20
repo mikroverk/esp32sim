@@ -1,7 +1,7 @@
 #!/bin/sh
 # Everything the page's demos need that is not committed, fetched into web/ exactly as the Pages
 # workflow does (it runs this script):
-#   - the classic ESP32, ESP32-S3, C3, C6 and P4 mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs, pinned by release and
+#   - the classic ESP32, ESP32-S3, C3, C6, P4 and S31 mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs, pinned by release and
 #     SHA-256; tools/fetch-rom-elfs.sh) into web/wasm/fw/ — every demo boots from the ROM;
 #   - the ESP32-P4 and ESP32-C6 ESP-Hosted images for the P4 + C6 demo (mikroverk/esp32sim-firmware,
 #     pinned by commit and SHA-256; tools/fetch-p4-firmware.sh) into web/wasm/fw/public/;

@@ -34,13 +34,20 @@ pub struct GpSpi { pub regs: RegRam, pub w: [u32; 16], pub int_raw: u32, pub int
                    /// the controller's number in log lines: 2 (SPI2 / FSPI, the default) or 3 (the S3's SPI3 / HSPI)
                    pub host: u8,
                    /// bit length of a MOSI phase that DMA must supply, until the bus completes it
-                   pub dma_tx_pending: Option<u32>, pending: Option<GpSpiTransfer> }
+                   pub dma_tx_pending: Option<u32>, pending: Option<GpSpiTransfer>,
+                   /// MISO bytes of a finished transfer with DMA_RX_ENA: the bus scatters them through GDMA.
+                   pub dma_rx: Option<Vec<u8>>,
+                   /// The chip's bus collects `dma_rx` and scatters it through its GDMA (the S31). Off,
+                   /// MISO always lands in W0..W15 as before, whatever DMA_RX_ENA says.
+                   pub dma_rx_divert: bool }
 impl Default for GpSpi { fn default() -> Self { Self::new() } }
 
 impl GpSpi {
-    pub fn new() -> Self { GpSpi { regs: RegRam::new(), w: [0; 16], int_raw: 0, int_ena: 0, transfers: 0, log: false, host: 2, dma_tx_pending: None, pending: None } }
+    pub fn new() -> Self { GpSpi { regs: RegRam::new(), w: [0; 16], int_raw: 0, int_ena: 0, transfers: 0, log: false, host: 2, dma_tx_pending: None, pending: None, dma_rx: None, dma_rx_divert: false } }
     /// The same block as GP-SPI `host` (2 or 3), for its log lines.
     pub fn with_host(host: u8) -> Self { GpSpi { host, ..Self::new() } }
+    /// The bus collects DMA-received MISO (`dma_rx`) instead of W0..W15 (see `dma_rx_divert`).
+    pub fn diverting_dma_rx(self) -> Self { GpSpi { dma_rx_divert: true, ..self } }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
         match off {
@@ -56,6 +63,17 @@ impl GpSpi {
         match off {
             0x00 => { self.regs.write(0, v & !((1 << 23) | (1 << 24))); if v & (1 << 24) != 0 && self.pending.is_none() { self.transfer(); } }
             0x34 => self.int_ena = v, 0x38 => self.int_raw &= !v,
+            // SPI_DMA_INT_SET_REG (0x44, bit 12 SPI_TRANS_DONE_INT_SET: "the software set bit for
+            // SPI_TRANS_DONE_INT"; components/soc/esp32s3/register/soc/spi_reg.h, IDF v5.5.2) raises
+            // raw status. The IDF driver depends on it: spi_hal_init forces TRANS_DONE through
+            // spi_ll_set_int_stat (components/hal/esp32s3/include/hal/spi_ll.h,
+            // `hw->dma_int_set.trans_done_int_set = 1`) with the interrupt allocated disabled, and
+            // spi_device_queue_trans only enqueues and lets the bus lock enable the interrupt; the ISR
+            // then starts the transaction (spi_new_trans -> spi_hal_user_start,
+            // components/esp_driver_spi/src/gpspi/spi_master.c, IDF v5.5.2). Without the set bit the
+            // ISR never runs and the first queued transfer never starts; polling transfers
+            // (spi_device_polling_transmit, Arduino's SPI) set USR themselves and never noticed.
+            0x44 => self.int_raw |= v,
             0x98..=0xd4 => self.w[((off - 0x98) / 4) as usize] = v,
             _ => self.regs.write(off, v),
         }
@@ -157,9 +175,11 @@ impl GpSpi {
     /// Complete a transfer with the board's MISO response.
     pub fn finish_transfer(&mut self, transfer: GpSpiTransfer, rx: &[u8]) {
         if transfer.rx_len != 0 {
-            fill_spi_w!(self.w, transfer.rx_word_base, transfer.rx_len, rx);
+            // DMA_CONF (0x30) bit 27 DMA_RX_ENA: MISO goes to the GDMA IN channel, not W0..W15.
+            if self.dma_rx_divert && self.regs.read(0x30) & (1 << 27) != 0 { self.dma_rx = Some(rx[..transfer.rx_len.min(rx.len())].to_vec()); }
+            else { fill_spi_w!(self.w, transfer.rx_word_base, transfer.rx_len, rx); }
         }
-        if self.log { eprintln!("[spi{}] transfer tx={} rx={}: {:02x?}", self.host, transfer.tx.len(), transfer.rx_len, &transfer.tx[..transfer.tx.len().min(16)]); }
+        if self.log { eprintln!("[spi{}] transfer tx={} rx={}: {:02x?} (dma_conf {:#x}, user {:#x})", self.host, transfer.tx.len(), transfer.rx_len, &transfer.tx[..transfer.tx.len().min(16)], self.regs.read(0x30), self.regs.read(0x10)); }
         self.transfers += 1;
         self.int_raw |= 1 << 12;                                          // TRANS_DONE
     }
@@ -268,6 +288,23 @@ mod tests {
         let transfer = spi.take_transfer().expect("CPU transaction may start after abort");
         assert_eq!(transfer.tx, [0x5a]);
     }
+    /// SPI_DMA_INT_SET_REG (0x44): the ISR kick ESP-IDF's spi_master relies on. The driver sets
+    /// TRANS_DONE here at init while its interrupt is disabled, so enabling the interrupt later
+    /// enters the ISR that starts the first queued transaction.
+    #[test]
+    fn dma_int_set_raises_raw_status_and_the_interrupt() {
+        let mut spi = GpSpi::new();
+        spi.write(0x34, 1 << 12);
+        assert_eq!(spi.read(0x3c), 0);
+        assert!(!spi.irq());
+        spi.write(0x44, 1 << 12);
+        assert_eq!(spi.read(0x3c) & (1 << 12), 1 << 12, "INT_RAW shows the set bit");
+        assert_eq!(spi.read(0x40) & (1 << 12), 1 << 12, "INT_ST shows it while enabled");
+        assert!(spi.irq());
+        spi.write(0x38, 1 << 12);
+        assert_eq!(spi.read(0x3c), 0, "INT_CLR clears it again");
+        assert!(!spi.irq());
+    }
 }
 
 #[cfg(test)]
@@ -300,4 +337,17 @@ mod octal_timing_tests {
             assert_eq!(spi.wire_source_cycles(), 8);
         }
     }
+    #[test]
+    fn dma_rx_ena_keeps_miso_in_the_buffer_unless_the_bus_diverts_it() {
+        // S3/C3/C6/P4 buses do not collect `dma_rx`: their MISO must stay in W0..W15.
+        for divert in [false, true] {
+            let mut spi = GpSpi { dma_rx_divert: divert, ..GpSpi::new() };
+            spi.write(0x30, 1 << 27);                                     // DMA_RX_ENA
+            let t = GpSpiTransfer { tx: vec![0x9f], rx_len: 2, data_len: 0, rx_word_base: 0 };
+            spi.finish_transfer(t, &[0x12, 0x34]);
+            if divert { assert_eq!(spi.dma_rx.as_deref(), Some(&[0x12, 0x34][..])); }
+            else { assert_eq!(spi.dma_rx, None); assert_eq!(spi.read(0x98) & 0xffff, 0x3412); }
+        }
+    }
+
 }

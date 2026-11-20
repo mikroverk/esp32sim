@@ -1,0 +1,3 @@
+dependencies:
+  # The magnetometer driver the ESP-Mosaico BSP uses (esp-mosaico-bsp idf_component.yml).
+  espressif/bmm150: "1.1.0"

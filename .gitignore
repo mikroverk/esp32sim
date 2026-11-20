@@ -17,6 +17,10 @@ examples/hello_world-c3/managed_components/
 examples/hello_world-c6/build/
 examples/hello_world-c6/sdkconfig*
 examples/hello_world-c6/managed_components/
+examples/mosaico-board/build/
+examples/mosaico-board/sdkconfig
+examples/mosaico-board/sdkconfig.old
+examples/mosaico-board/managed_components/
 examples/hello_world-p4/build/
 examples/hello_world-p4/sdkconfig
 examples/hello_world-p4/sdkconfig.old
@@ -41,9 +45,24 @@ __pycache__/
 .DS_Store
 web/wasm/esp32sim.wasm
 
-# fetched by tools/fetch-web-vendor.sh (xterm.js for the Terminal tab), not committed
-web/vendor/
+# fetched by tools/fetch-web-vendor.sh (xterm.js for the Terminal tab), not committed;
+# dpkt-js (the Network panel's dissector) is committed
+web/vendor/*
+!web/vendor/dpkt-js/
 
 examples/hello_world-classic/.pio/
 examples/hello_world-classic/sdkconfig*
+examples/wifi-softap/build/
+examples/wifi-softap/sdkconfig
+examples/wifi-softap/sdkconfig.old
 !examples/hello_world-classic/sdkconfig.defaults
+# built by tools/fetch-s31-firmware.sh
+esp32s31/firmware/*.bin
+# the IDF v6.1 hello_world the S31 golden boots: CI has no IDF v6.1 to build it
+!esp32s31/firmware/s31-hello-*.bin
+!esp32s31/firmware/s31-hello_world.bin
+# and the WiFi station the S31 WiFi test boots (examples/c6-wifi-station, IDF v6.1)
+!esp32s31/firmware/s31-wifi-*.bin
+!esp32s31/firmware/s31-wifi_station.bin
+# and the ESP-Mosaico board test (examples/mosaico-board, IDF v6.1)
+!esp32s31/firmware/s31-mosaico-board.bin

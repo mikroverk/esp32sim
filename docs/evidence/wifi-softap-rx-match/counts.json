@@ -1,0 +1,209 @@
+{
+ "chip": "ESP32-D0WDQ6 revision v1.0",
+ "board": "WEMOS LOLIN32",
+ "esp_idf": "v5.5.4",
+ "source": "rxprobe.c",
+ "runs": [
+  {
+   "name": "softap",
+   "what": "a phone joined to the board's SoftAP; the board's station started, not connected",
+   "rows": [
+    {
+     "frame": "data",
+     "a1": "softap",
+     "a3": "softap",
+     "bits31_28": "1010",
+     "count": 3508
+    },
+    {
+     "frame": "probe-req",
+     "a1": "group",
+     "a3": "group",
+     "bits31_28": "1011",
+     "count": 2940
+    },
+    {
+     "frame": "beacon",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 913
+    },
+    {
+     "frame": "mgmt",
+     "a1": "other",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 889
+    },
+    {
+     "frame": "data",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 491
+    },
+    {
+     "frame": "data",
+     "a1": "other",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 236
+    },
+    {
+     "frame": "data",
+     "a1": "softap",
+     "a3": "group",
+     "bits31_28": "1010",
+     "count": 112
+    },
+    {
+     "frame": "probe-req",
+     "a1": "other",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 109
+    },
+    {
+     "frame": "mgmt",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 57
+    },
+    {
+     "frame": "mgmt",
+     "a1": "softap",
+     "a3": "softap",
+     "bits31_28": "1010",
+     "count": 16
+    },
+    {
+     "frame": "probe-req",
+     "a1": "softap",
+     "a3": "softap",
+     "bits31_28": "1010",
+     "count": 1
+    },
+    {
+     "frame": "data",
+     "a1": "softap",
+     "a3": "other",
+     "bits31_28": "1010",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "name": "station",
+   "what": "the board's station joined to a phone's hotspot on channel 6, sending a datagram to the gateway every 200 ms; nothing joined to the SoftAP",
+   "rows": [
+    {
+     "frame": "probe-req",
+     "a1": "group",
+     "a3": "group",
+     "bits31_28": "1011",
+     "count": 664
+    },
+    {
+     "frame": "mgmt",
+     "a1": "other",
+     "a3": "joined-bssid",
+     "bits31_28": "1000",
+     "count": 458
+    },
+    {
+     "frame": "beacon",
+     "a1": "group",
+     "a3": "joined-bssid",
+     "bits31_28": "1001",
+     "count": 432
+    },
+    {
+     "frame": "data",
+     "a1": "station",
+     "a3": "other",
+     "bits31_28": "1001",
+     "count": 423
+    },
+    {
+     "frame": "beacon",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 397
+    },
+    {
+     "frame": "mgmt",
+     "a1": "other",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 162
+    },
+    {
+     "frame": "data",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 115
+    },
+    {
+     "frame": "data",
+     "a1": "other",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 72
+    },
+    {
+     "frame": "beacon",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1001",
+     "count": 51
+    },
+    {
+     "frame": "probe-req",
+     "a1": "other",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 23
+    },
+    {
+     "frame": "mgmt",
+     "a1": "station",
+     "a3": "other",
+     "bits31_28": "1001",
+     "count": 13
+    },
+    {
+     "frame": "data",
+     "a1": "group",
+     "a3": "station",
+     "bits31_28": "1000",
+     "count": 10
+    },
+    {
+     "frame": "mgmt",
+     "a1": "station",
+     "a3": "joined-bssid",
+     "bits31_28": "1001",
+     "count": 4
+    },
+    {
+     "frame": "data",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1001",
+     "count": 2
+    },
+    {
+     "frame": "mgmt",
+     "a1": "group",
+     "a3": "other",
+     "bits31_28": "1000",
+     "count": 1
+    }
+   ]
+  }
+ ]
+}

@@ -171,6 +171,14 @@ fn adc_pins_and_raw_counts_are_host_options() {
 }
 
 #[test]
+fn hostfwd_is_repeatable_and_kept_with_wifi() {
+    let o = parse(&["esp32sim".into(), "--wifi".into(), "ssid=demo".into(),
+        "--hostfwd".into(), "tcp:127.0.0.1:0-:80".into(),
+        "--hostfwd".into(), "tcp::0-:443".into()], "s3");
+    assert_eq!(o.hostfwd, ["tcp:127.0.0.1:0-:80", "tcp::0-:443"]);
+}
+
+#[test]
 fn analog_scripts_validate_inputs_and_keep_panel_touch_separate() {
     use esp_soc::ScriptAction;
     let mut m = esp32::machine([0; 6], 4 << 20);
@@ -208,4 +216,17 @@ fn analog_scripts_reach_classic_adc_and_touch_registers() {
         assert_eq!(m.bus.read32(0x3ff4_8854).unwrap() & 0xffff, adc);
         assert_eq!(m.bus.read32(0x3ff4_8870).unwrap() >> 16, touch);
     }
+}
+
+#[test]
+fn imu_motion_reaches_the_s3_and_s31_imu_boards() {
+    let args = |board: &str| -> Vec<String> { ["esp32sim", "--board", board, "--imu-motion", "1"].map(String::from).to_vec() };
+    let o = parse(&args("waveshare-amoled18-v2"), "esp32s3");
+    assert_eq!(o.imu_motion, Some(1));
+    assert_eq!(setup_s3(&o).bus.board.imu_motion(), 1);
+    let o = parse(&args("mosaico"), "esp32s31");
+    assert_eq!(setup_s31(&o).bus.board.imu_motion(), 1);
+    // without the flag the IMU stays at rest
+    let o = parse(&["esp32sim", "--board", "mosaico"].map(String::from), "esp32s31");
+    assert_eq!(setup_s31(&o).bus.board.imu_motion(), 0);
 }

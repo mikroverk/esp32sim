@@ -126,8 +126,11 @@ comparison with a physical radio.
 
 ## In the browser
 
-The WebAssembly build runs it too, on the page's Waveshare panel. The committed CI build has no
-display, so this is a local manifest (`web/wasm/fw/` ignores everything but the public demos): copy the
+The committed CI build is a page demo: `run.html?wasm&fw=c6-wifi` (`web/wasm/fw/c6-wifi.json`)
+boots it on a bare C6 with two access points and three networks around them, its console on the
+USB-Serial/JTAG tab and the Network panel open on the station's frames. The WebAssembly build runs
+the display build too, on the page's Waveshare panel; that build is not committed, so it is a
+local manifest (`web/wasm/fw/` ignores everything but the public demos): copy the
 three parts of `build-emu` to `web/wasm/fw/local/` as `c6-wifi-bootloader.bin`,
 `c6-wifi-ptable.bin` and `c6-wifi_station.bin`, and write `web/wasm/fw/c6-wifi-station.json`:
 

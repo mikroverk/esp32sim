@@ -19,8 +19,8 @@
 //!   `RX_ACK`, arms TIMER0 for 200 ms with a NO_ACK callback, and waits for `ACK_RX_DONE`, on
 //!   which it reads the ACK from the RX buffer (`[len incl. FCS][frame][RSSI][LQI]`, as any
 //!   frame) and reports `transmit_done(frame, ack, ack_info)`. Hardware has its own
-//!   `ACK_TIMEOUT` register (0x5c, units of 16 µs, `TX_ABORT` reason `RX_ACK_TIMEOUT`); the
-//!   driver never programs it, so the 200 ms timer is what fires without an ACK.
+//!   `ACK_TIMEOUT` register (0x5c, units of 16 µs, `TX_ABORT` reason `RX_ACK_TIMEOUT`), which the
+//!   driver never programs; see [`ACK_TIMEOUT_IDF_DEFAULT`].
 //! - **receive**: the same teardown, `DMA_RX_ADDR` = a free 129-byte buffer, `RX_START`. A
 //!   frame that passes the address filter raises `RX_SFD_DONE` and then `RX_DONE`; one that
 //!   does not is dropped by hardware (`RX_ABORT` reason `FILTER_FAIL`, an event the driver does
@@ -93,6 +93,14 @@ pub const CONF_AUTO_ACK_TX: u32 = 1 << 0;
 pub const CONF_AUTO_ACK_RX: u32 = 1 << 3;
 pub const CONF_COORDINATOR: u32 = 1 << 6;
 pub const CONF_PROMISCUOUS: u32 = 1 << 7;
+
+/// `ACK_TIMEOUT` out of reset, in units of 16 µs: 1728 µs, the default that IDF v5.5.4 documents
+/// for `esp_ieee802154_set_ack_timeout` (`components/ieee802154/include/esp_ieee802154.h:204`).
+/// Nothing in IDF's 802.15.4 driver or its OpenThread port calls that setter, so a frame nobody
+/// acknowledges waits for whatever the register holds. With zero, the wait is the driver's 200 ms
+/// TIMER0 fallback. The esp-rs PAC (`esp32c6` 0.24.0) lists a raw reset value of 0 and silicon's
+/// raw value is unverified, so the model takes the documented effective default as its reset value.
+pub const ACK_TIMEOUT_IDF_DEFAULT: u32 = 108;
 
 /// 802.15.4 O-QPSK at 2.4 GHz: 250 kbit/s, 32 µs per byte.
 pub const NS_PER_BYTE: u64 = 32_000;
@@ -251,6 +259,10 @@ pub struct Ieee802154 {
     /// where each channel is drifting to, 1 dB per 100 ms
     pub target_dbm: [i8; 16],
     noise: u32, scene_acc: u64, scene_ticks: u64,
+    /// Something besides the scene may be due: an energy scan, a countdown or a radio timer.
+    /// Every entry that can arm one (a register write, `receive`, `tx_loaded`) sets it; the tick
+    /// clears it once nothing is armed, so an idle radio's tick is the scene alone.
+    live: bool,
     // ---- diagnostics
     /// `--debug ieee802154`: narrate commands, events and DMA
     pub dbg: bool,
@@ -265,7 +277,7 @@ impl Ieee802154 {
         // WiFi channels 1, 6 and 11 overlap 802.15.4 channels 11-14, 16-19 and 21-24
         let mut level_dbm = [-93i8; 16];
         for (i, l) in [(0, -68), (1, -52), (2, -49), (3, -66), (5, -63), (6, -47), (7, -45), (8, -60), (10, -74), (11, -56), (12, -58), (13, -71), (15, -90)] { level_dbm[i] = l; }
-        Ieee802154 {
+        let mut r = Ieee802154 {
             ram: RegRam::new(), state: RadioState::Idle, events: 0, event_en: 0, freq: 3, txpower: 0, duration: 0,
             dma_tx_addr: 0, dma_rx_addr: 0, rx_length: 0, rx_abort_reason: 0, tx_abort_reason: 0,
             tx_request: None, tx_frame: Vec::new(), tx_sfd: Countdown::default(), tx_done: Countdown::default(), tx_started: false, tx_count: 0,
@@ -273,9 +285,11 @@ impl Ieee802154 {
             ack_turnaround: Countdown::default(), ack_done: Countdown::default(), ack_frame: [0; 3], ack_tx_count: 0,
             rx_in_flight: None, rx_sfd: Countdown::default(), rx_done: Countdown::default(), rx_write: None, rx_count: 0, rx_dropped: 0, rx_filtered: 0,
             timer: [RadioTimer::default(); 2],
-            ed_rss: -92, ed_left: None, scans: 0, level_dbm, target_dbm: level_dbm, noise: 0x9e37_79b9, scene_acc: 0, scene_ticks: 0,
+            ed_rss: -92, ed_left: None, scans: 0, level_dbm, target_dbm: level_dbm, noise: 0x9e37_79b9, scene_acc: 0, scene_ticks: 0, live: false,
             dbg: false, log_unknown: false, seen: HashSet::new(),
-        }
+        };
+        r.ram.write(0x5c, ACK_TIMEOUT_IDF_DEFAULT);
+        r
     }
 
     /// the channel the frequency register selects: freq = 3 + 5 * (channel - 11)
@@ -361,6 +375,7 @@ impl Ieee802154 {
     /// for an ACK: only the ACK with our sequence number counts. Anything else is dropped, and
     /// counted. Returns whether the frame was taken.
     pub fn receive(&mut self, frame: &[u8], rssi: i8, lqi: u8, started_ago: Option<u64>) -> bool {
+        self.live = true;
         let header = parse_header(frame);
         let taken = match (self.state, header) {
             (RadioState::Rx, Some(h)) if frame.len() <= 125 => {
@@ -447,6 +462,7 @@ impl Ieee802154 {
     /// length byte and without the FCS (the hardware appends the CRC). Starts the air-time
     /// clock and flags the start for the host.
     pub fn tx_loaded(&mut self, psdu: Vec<u8>) {
+        self.live = true;
         self.tx_sfd.arm(air_cycles(SFD_BYTES), true);
         self.tx_done.arm(air_cycles(PHY_OVERHEAD_BYTES + psdu.len() as u64 + 2), true);
         if self.dbg { eprintln!("[802.15.4] tx {} bytes on channel {}: TX_DONE in {} cycles", psdu.len(), self.channel(), self.tx_done.remaining()); }
@@ -552,6 +568,7 @@ impl Device for Ieee802154 {
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        self.live = true;
         match off {
             0x00 => self.command(v & 0xff),
             0x48 => self.freq = v & 0x7f, 0x4c => self.txpower = v & 0x1f, 0x50 => self.duration = v & 0xff_ffff,
@@ -569,6 +586,8 @@ impl Device for Ieee802154 {
     fn tick(&mut self, cycles: u64) {
         self.scene_acc += cycles;
         while self.scene_acc >= CPU_HZ / 10 { self.scene_acc -= CPU_HZ / 10; self.scene_step(); }
+        // ed_left is public and may be armed directly without setting live.
+        if !self.live && self.ed_left.is_none() { return; }
         if let Some(left) = self.ed_left {
             if cycles >= left { self.ed_left = None; self.ed_rss = self.sample(); self.scans += 1; self.events |= EVENT_ED_DONE; if self.state == RadioState::Ed { self.state = RadioState::Idle; } } else { self.ed_left = Some(left - cycles); }
         }
@@ -579,7 +598,7 @@ impl Device for Ieee802154 {
             if self.state == RadioState::Tx {
                 let h = parse_header(&self.tx_frame).unwrap_or_default();
                 if h.ack_request && self.conf(CONF_AUTO_ACK_RX) {
-                    // wait for the acknowledgement; hardware's own timeout only if the driver set one
+                    // wait for the acknowledgement; hardware's own timeout unless ACK_TIMEOUT is zero
                     self.state = RadioState::RxAck;
                     self.ack_wait_seq = h.seq;
                     let timeout = self.ram.read(0x5c) & 0xffff;
@@ -619,6 +638,8 @@ impl Device for Ieee802154 {
         }
         if self.timer[0].tick(cycles) { self.events |= EVENT_TIMER0_OVERFLOW; }
         if self.timer[1].tick(cycles) { self.events |= EVENT_TIMER1_OVERFLOW; }
+        self.live = self.ed_left.is_some() || self.timer.iter().any(|t| t.running)
+            || [&self.tx_sfd, &self.tx_done, &self.rx_sfd, &self.rx_done, &self.ack_timeout, &self.ack_turnaround, &self.ack_done].iter().any(|c| c.armed());
     }
     fn has_deadline(&self) -> bool { true }
     /// The scene only matters to a scan in progress, so it is not a deadline on its own: an idle
@@ -877,7 +898,7 @@ mod tests {
     }
 
     /// No ACK: with ACK_TIMEOUT programmed (units of 16 µs) hardware gives up with TX_ABORT
-    /// reason RX_ACK_TIMEOUT; without it the wait lasts until the driver's own timer and STOP.
+    /// reason RX_ACK_TIMEOUT; with it zero the wait lasts until the driver's own timer and STOP.
     #[test]
     fn ar_transmit_times_out() {
         let mut r = configured(); r.write(0x5c, 54);   // 864 µs
@@ -888,7 +909,7 @@ mod tests {
         assert_eq!(r.events & EVENT_TX_ABORT, 0);
         r.tick(1);
         assert_eq!((r.events & EVENT_TX_ABORT, r.read(0x84) >> 4 & 0x1f, r.state), (EVENT_TX_ABORT, TX_ABORT_BY_RX_ACK_TIMEOUT, RadioState::Idle));
-        let mut r = configured();
+        let mut r = configured(); r.write(0x5c, 0);
         r.write(0x00, CMD_TX_START); r.tx_loaded(UNICAST_AR.to_vec()); r.tick(1); r.tick(air_cycles(6 + 17 + 2));
         r.tick(ns_cycles(300_000_000));
         assert_eq!((r.state, r.events & EVENT_TX_ABORT), (RadioState::RxAck, 0), "no hardware timeout: the driver's TIMER0 decides");
@@ -896,6 +917,21 @@ mod tests {
         assert_eq!(r.state, RadioState::Idle);
         r.write(0x00, CMD_RX_START);
         assert!(r.receive(&BROADCAST, -60, 200, None), "listening again");
+    }
+
+    /// Out of reset, with nothing written to ACK_TIMEOUT, a frame nobody acknowledges ends in
+    /// TX_ABORT reason RX_ACK_TIMEOUT 1728 µs after TX_DONE, not at the driver's 200 ms timer.
+    #[test]
+    fn an_unacknowledged_transmit_aborts_at_the_idf_default_ack_timeout() {
+        let mut r = configured();
+        assert_eq!(r.read(0x5c), 108, "ACK_TIMEOUT out of reset");
+        r.write(0x00, CMD_TX_START); r.tx_loaded(UNICAST_AR.to_vec()); r.tick(1); r.tick(air_cycles(6 + 17 + 2));
+        assert_eq!((r.events & EVENT_TX_DONE, r.state), (EVENT_TX_DONE, RadioState::RxAck));
+        assert_eq!(r.next_deadline(), Some(ns_cycles(1_728_000)));
+        r.tick(ns_cycles(1_728_000) - 1);
+        assert_eq!(r.events & EVENT_TX_ABORT, 0, "still waiting one cycle short of 1728 µs");
+        r.tick(1);
+        assert_eq!((r.events & EVENT_TX_ABORT, r.read(0x84) >> 4 & 0x1f, r.state), (EVENT_TX_ABORT, TX_ABORT_BY_RX_ACK_TIMEOUT, RadioState::Idle));
     }
 
     /// An acknowledgement still on the air when the hardware timeout fires is not ours to
@@ -994,5 +1030,61 @@ mod tests {
         assert_eq!(r.channel(), 26);
         r.write(0x48, 3);
         assert_eq!(r.channel(), 11);
+    }
+
+    /// Tick `cycles` in scheduling rounds of 64 cycles, as the machine does.
+    fn rounds(r: &mut Ieee802154, mut cycles: u64) { while cycles > 0 { let c = cycles.min(64); r.tick(c); cycles -= c; } }
+
+    /// An idle radio's tick is the scene alone: with nothing armed the tick clears `live`. A
+    /// register write, `receive` and `tx_loaded` each reopen the full tick after such a quiet
+    /// round, and the tick keeps it open while an energy scan, a radio timer or a countdown is
+    /// armed, so every event still lands on its own cycle across many rounds.
+    #[test]
+    fn a_quiet_radio_ticks_only_the_scene_and_every_arming_entry_wakes_it() {
+        // receive, after a quiet round: SFD, then RX_DONE with rx_done armed alone
+        let mut r = armed_rx();
+        r.tick(64);
+        assert!(!r.live, "listening with nothing in flight: only the scene ticks");
+        assert!(r.receive(&BROADCAST, -60, 200, Some(0)));
+        let (sfd, air) = (air_cycles(SFD_BYTES), air_cycles(6 + 19 + 2));
+        rounds(&mut r, sfd - 1);
+        assert_eq!(r.events & EVENT_RX_SFD_DONE, 0);
+        rounds(&mut r, 1);
+        assert_eq!(r.events & EVENT_RX_SFD_DONE, EVENT_RX_SFD_DONE);
+        rounds(&mut r, air - sfd - 1);
+        assert_eq!(r.events & EVENT_RX_DONE, 0);
+        rounds(&mut r, 1);
+        assert_eq!(r.events & EVENT_RX_DONE, EVENT_RX_DONE);
+        assert!(!r.live, "nothing armed after RX_DONE");
+        // tx_loaded, after a quiet round that closed the TX_START write
+        let mut r = configured();
+        r.write(0xd0, 0x4081_6150); r.write(0x00, CMD_TX_START);
+        r.tick(64);
+        assert!(!r.live && r.tx_request.take().is_some(), "a requested frame arms nothing yet");
+        r.tx_loaded(BROADCAST.to_vec());
+        r.tick(64);                                   // the round the load sat in
+        rounds(&mut r, air - 1);
+        assert_eq!(r.events & EVENT_TX_DONE, 0);
+        rounds(&mut r, 1);
+        assert_eq!((r.events & EVENT_TX_DONE, r.state), (EVENT_TX_DONE, RadioState::Idle));
+        // a register write: an energy scan of 3 symbols (48 µs) counted down over rounds
+        let mut r = configured();
+        r.tick(64);
+        assert!(!r.live);
+        r.write(0x50, 3); r.write(0x00, CMD_ED_START);
+        rounds(&mut r, 3 * 16 * 160 - 1);
+        assert_eq!(r.events & EVENT_ED_DONE, 0);
+        rounds(&mut r, 1);
+        assert_eq!((r.events & EVENT_ED_DONE, r.scans, r.state), (EVENT_ED_DONE, 1, RadioState::Idle));
+        // radio timer 1 alone
+        let mut r = configured();
+        r.tick(64);
+        r.write(0xb0, 10); r.write(0x00, CMD_TIMER1_START);
+        rounds(&mut r, 10 * 160 - 1);
+        assert_eq!(r.events & EVENT_TIMER1_OVERFLOW, 0);
+        rounds(&mut r, 1);
+        assert_eq!(r.events & EVENT_TIMER1_OVERFLOW, EVENT_TIMER1_OVERFLOW);
+        r.tick(64);
+        assert!(!r.live, "the overflow stopped the timer: quiet again");
     }
 }

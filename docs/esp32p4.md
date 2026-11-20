@@ -8,8 +8,10 @@ through the SDMMC host ("SD card" below), presents it as a USB mass-storage devi
 a host written in Rust on the high-speed USB-OTG port ("USB" below), and
 reaches WiFi through an emulated ESP32-C6 on SDIO running unmodified ESP-Hosted slave firmware,
 the two chips in lock-step in one process ("The co-processor" below). Silicon **rev ≥ 3**
-(v3.x), what a stock `idf.py set-target esp32p4` builds for, has its own model, so far up to
-hello_world on one and both cores ("Revisions" below). This page describes the chip and its
+(v3.x), what a stock `idf.py set-target esp32p4` builds for, has its own model: hello_world on
+one and both cores, ESP-Hosted WiFi through the C6, and the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5
+board with LVGL, touch and audio ("Revisions" below, and `waveshare-p4-lcd35` in [boards.md](boards.md)).
+This page describes the chip and its
 peripherals.
 
 ```sh
@@ -1060,7 +1062,7 @@ Beyond that, the ROMs and IDF's own sources are what this page is checked agains
 
 | | |
 | --- | --- |
-| CPU | two RV32IMAFC cores (`Cpu::new_esp32p4`, `misa` 0x40001125): F with the lazy FPU traps, EXT_ILL, Zicntr, CLIC mode, `mhartid`; on rev ≥ 3 the specification's CLIC CSRs (`Cpu::new_esp32p4_rev3`); core 1 held in reset until HP_SYS_CLKRST releases it. Xesppie and the hardware loops decode as illegal |
+| CPU | two RV32IMAFC cores (`Cpu::new_esp32p4`, `misa` 0x40001125): F with the lazy FPU traps, EXT_ILL, Zicntr, CLIC mode, `mhartid`; on rev ≥ 3 the specification's CLIC CSRs (`Cpu::new_esp32p4_rev3`); core 1 held in reset until HP_SYS_CLKRST releases it. The hardware loops (Xesploop) are modelled; Xesppie decodes as illegal |
 | Memory | 128 KB mask ROM at 0x4FC00000 (reset vector), 768 KB L2MEM at 0x4FF00000 and its uncached alias at 0x8FF00000, 8 KB TCM at 0x30100000, LP ROM (empty) and 32 KB LP RAM; flash (0x40000000) and PSRAM (0x48000000) windows behind two 1024-entry MMUs of 64 KB pages, reached through SPI_MEM_C / SPI_MEM_S item registers, with their uncached aliases |
 | Interrupts | both interrupt matrices (128 sources, rev < 3) and both CLIC register blocks, delivered through the cores' CLIC mode |
 | Peripherals | UART0/1, USB-Serial/JTAG, systimer (16 MHz from XTAL), TIMG0/1, SHA, efuse (v1.0 or v3.1, block v0.3, security efuses zero), the flash controller (SPI0 cache side, SPI1 commands, a GigaDevice part answering RDID), the PSRAM controller with an AP Memory x16 PSRAM, the cache controller, HP_SYSTEM (cross-core interrupts, stall status), HP_SYS_CLKRST (divider update, PLL calibration done, core 1 clock and reset), LP_SYSTEM / LP_CLKRST / LP_TIMER (reset cause, software reset, core 1 boot address, RTC counter, the SDMMC reset), the analog I2C master (regi2c read-back), ASSIST_DEBUG's saved PC, the RNG (LP_SYSTEM's RNG_DATA, and LP_TRNG's that rev ≥ 3 builds read), GPIO with the P4's register layout, the SDMMC host with its IDMAC and an SD card in the board's socket (`--sd`), the high-speed USB-OTG core as a device with buffer DMA and a host on its port (`--usb-host`), an SDIO function on slot 1 with its interrupt on DAT1 (`--coproc`: an ESP32-C6 running ESP-Hosted's slave, "The co-processor"), and for `--board waveshare-p4-lcd35` ([boards.md](boards.md)): GPSPI2 (the shared model) with transmit DMA through the AXI-GDMA, I2C1 (its clock from HP_SYS_CLKRST), I2S1 transmitting through the AHB-GDMA at 44.1 kHz, LEDC, and GPIO's pins 49–56 and its interrupt status words; everything else is register RAM, listed by `--log-periph` |

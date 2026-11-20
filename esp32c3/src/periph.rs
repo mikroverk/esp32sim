@@ -45,6 +45,8 @@ pub mod src {
 pub struct Intc {
     pub map: [u32; src::COUNT],
     pub lines: esp_periph::intmtx::Lines,
+    /// asserted sources at the last refresh, for INTR_STATUS_0/1
+    pub status: [u32; 2],
     ram: RegRam,
 }
 
@@ -52,12 +54,23 @@ impl Default for Intc { fn default() -> Self { Self::new() } }
 
 impl Intc {
     pub fn new() -> Self {
-        Intc { map: [0; src::COUNT], lines: Default::default(), ram: RegRam::new() }
+        Intc { map: [0; src::COUNT], lines: Default::default(), status: [0; 2], ram: RegRam::new() }
+    }
+
+    /// Re-derive the CPU lines from the asserted sources.
+    fn update(&mut self, st: &[u32; 4]) {
+        self.status = [st[0], st[1]];
+        self.lines.update(&self.map, st);
     }
 
     pub fn read(&self, off: u32) -> u32 {
         match off {
-            0x000..=0x0f8 => self.map.get((off / 4) as usize).copied().unwrap_or(0),
+            0x000..=0x0f4 => self.map.get((off / 4) as usize).copied().unwrap_or(0),
+            // INTERRUPT_CORE0_INTR_STATUS_0/1_REG after the 62 map registers: IDF v5.5.4
+            // components/soc/esp32c3/register/soc/interrupt_core0_reg.h (offsets checked against
+            // the esp32c3 PAC 0.33.0 SVD). esp-hal's trap handler reads them to pick the
+            // peripheral handlers to run; without them it returns with the line still asserted.
+            0x0f8 => self.status[0], 0x0fc => self.status[1],
             0x104 => self.lines.enable,
             0x108 => self.lines.int_type,
             0x110 => self.lines.level | self.lines.edge_pending,     // EIP_STATUS: raw source state
@@ -152,7 +165,7 @@ pub struct Peripherals {
     pub intc: Intc,
     pub spi0: SpiMem,
     pub spi1: SpiMem,
-    pub gdma: crate::gdma::Gdma,
+    pub gdma: esp_periph::gdma::GdmaAhb,
     pub sha: Sha,
     pub aes: Aes,
     pub rsa: Rsa,
@@ -225,7 +238,7 @@ impl DeviceSet for Peripherals {
     fn block_name(block: u32) -> &'static str { Peripherals::block_name(block) }
     fn misc(&self) -> &Misc { &self.misc }
     fn misc_mut(&mut self) -> &mut Misc { &mut self.misc }
-    fn pre_access(&mut self, block: u32, _off: u32, _write: bool) {
+    fn pre_access(&mut self, block: u32, off: u32, write: bool) {
         if block == 0x31 && self.ble_lc.enabled() {
             // IDF v5.5.5 soc/esp32c3/register/soc/{syscon,rtc_cntl}_reg.h.
             // Checked on C3 rev v0.3: pre-init BT is powered down and isolated,
@@ -239,7 +252,15 @@ impl DeviceSet for Peripherals {
         if block == 0x40 { self.adc.now_cycles = self.clock.cycles(); }
         if (0x33..=0x35).contains(&block) { self.wifi.now_cycles = self.clock.cycles(); }
         if block == 0x06 { self.fe_iq.now_cycles = self.clock.cycles(); }
-        if block == 0x26 { self.rng.now = self.clock.cycles() as u32; }
+        if block == 0x26 {
+            self.rng.now = self.clock.cycles() as u32;
+            // WIFI_RST_EN: MAC_RST is set and cleared by two read-modify-writes. This runs before the
+            // access, so the write that clears the bit is the one that still finds it set; the write
+            // that sets it and the reads in between do not reset (see `WifiMac::reset_mac`).
+            if write && off == 0x18 && self.misc.generic.get(&0x26).is_some_and(|s| s.read(0x18) & (1 << 2) != 0) {
+                self.wifi.reset_mac();
+            }
+        }
     }
 }
 
@@ -256,7 +277,7 @@ impl Peripherals {
             ble_lc: Default::default(),
             i2c: Box::new(I2c::new()), spi2: Box::new(GpSpi::new()), rmt: Box::new(RmtCompact::new(CPU_HZ)), io_mux: RegRam::new(),
             adc: esp_periph::sar_adc::SarAdc::new(false, CPU_HZ),
-            wifi: Default::default(), fe_iq: Default::default(), i2c_mst: Default::default(),
+            wifi: Box::new(crate::wifi::WifiMac::new(CPU_HZ)), fe_iq: Default::default(), i2c_mst: Default::default(),
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g.input_select = esp_soc::pins::ChipPins::C3.input_select; g }, rtc: RtcCntl::new_c3(), ledc: Ledc::new(LedcLayout::C3),
             efuse: efuse_c3(mac, 0, 4, 3), system: {
@@ -269,7 +290,7 @@ impl Peripherals {
             }, extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
-            gdma: Default::default(),
+            gdma: esp_periph::gdma::GdmaAhb::new(esp_periph::gdma::AhbLayout::C3, esp_periph::DMA_ADDR_BASE),
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
             misc: {
                 let mut m = Misc::new();
@@ -387,7 +408,7 @@ impl Peripherals {
         st[0] |= self.wifi_irq as u32;
         let changed = st != self.last_status;
         self.last_status = st;
-        self.intc.lines.update(&self.intc.map, &st);
+        self.intc.update(&st);
         changed
     }
 
@@ -396,7 +417,7 @@ impl Peripherals {
         let st = self.source_status();
         let changed = st != self.last_status;
         self.last_status = st;
-        self.intc.lines.update(&self.intc.map, &st);
+        self.intc.update(&st);
         changed
     }
 }
@@ -431,6 +452,69 @@ mod tests {
         for addr in [0x6001_3028, 0x6002_4034, 0x6001_6040] { p.write32(addr, 0); }
         assert!(p.refresh_lines());
         assert_eq!(p.last_status[0], 0);
+    }
+
+    /// A driver restart (esp-radio drops and re-creates its controller) resets the MAC through
+    /// WIFI_RST_EN, then writes a new receive ring base: the hardware must start filling that ring.
+    #[test]
+    fn mac_reset_makes_a_new_rx_ring_take_effect() {
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x6003_3088, 0x3fc9_1000);
+        assert_eq!(p.read32(0x6003_308c), 0x9_1000);
+        // Mid-ring, a rewritten base does not rewind the hardware.
+        p.wifi.rx_next = 0x9_1040;
+        p.write32(0x6003_3088, 0x3fc9_1000);
+        assert_eq!(p.read32(0x6003_308c), 0x9_1040);
+        // esp-radio `reset_wifi_mac`: set MAC_RST, then clear it (two read-modify-writes).
+        let rst = p.read32(0x6002_6018);
+        p.write32(0x6002_6018, rst | 1 << 2);
+        let rst = p.read32(0x6002_6018);
+        assert_eq!(p.wifi.rx_next, 0x9_1040, "setting the bit and reading it back do not reset");
+        p.write32(0x6002_6018, rst & !(1 << 2));
+        assert_eq!(p.wifi.rx_next, 0, "the write that clears it does");
+        p.write32(0x6003_3088, 0x3fca_2000);
+        assert_eq!(p.read32(0x6003_308c), 0xa_2000, "the new driver's ring");
+    }
+
+    /// INTR_STATUS_0/1 report the asserted sources; the map registers end before them.
+    #[test]
+    fn interrupt_status_registers_report_asserted_sources() {
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x600c_2000 + 4 * src::TG0_T0 as u32, 7);          // TG0_T0 -> CPU line 7
+        p.write32(0x6001_f070, 1);                                    // TIMG0 INT_ENA T0
+        p.timg[0].int_raw = 1;
+        p.refresh_lines();
+        assert_eq!(p.read32(0x600c_20f8), 0, "no source below 32 asserted");
+        assert_eq!(p.read32(0x600c_20fc), 1 << (src::TG0_T0 - 32));
+        assert_eq!(p.read32(0x600c_2000 + 4 * src::TG0_T0 as u32), 7, "the map register is unchanged");
+        p.write32(0x6001_f07c, 1);                                    // TIMG0 INT_CLR T0
+        p.refresh_lines();
+        assert_eq!(p.read32(0x600c_20fc), 0);
+    }
+
+    /// What an ESP32-C3 (rev v0.4) returned: a source shows in INTR_STATUS_0/1 while its peripheral
+    /// asserts it with the peripheral's own enable set, whether or not it is mapped to a CPU line.
+    #[test]
+    fn interrupt_status_follows_the_peripheral_enable_not_the_map() {
+        let mut p = Peripherals::new([0; 6]);
+        let status1 = |p: &mut Peripherals| { p.refresh_lines(); p.read32(0x600c_20fc) };
+        // TIMG0 T0 (source 32): fired, INT_ENA clear -> not shown; set -> shown, mapped or not.
+        p.timg[0].int_raw = 1;
+        assert_eq!(status1(&mut p), 0, "raw alone is not enough");
+        p.write32(0x6001_f070, 1);
+        assert_eq!(status1(&mut p), 1 << (src::TG0_T0 - 32), "unmapped");
+        p.write32(0x600c_2000 + 4 * src::TG0_T0 as u32, 8);
+        assert_eq!(status1(&mut p), 1 << (src::TG0_T0 - 32), "mapped to line 8");
+        p.write32(0x6001_f070, 0);
+        assert_eq!(status1(&mut p), 0, "INT_ENA clear again");
+        // FROM_CPU0 (source 50): shown as soon as SYSTEM_CPU_INTR_FROM_CPU_0 is set, mapped or not.
+        p.write32(0x600c_0028, 1);
+        assert_eq!(status1(&mut p), 1 << (src::FROM_CPU0 - 32), "map register at reset");
+        p.write32(0x600c_2000 + 4 * src::FROM_CPU0 as u32, 7);
+        assert_eq!(status1(&mut p), 1 << (src::FROM_CPU0 - 32), "mapped to line 7");
+        p.write32(0x600c_0028, 0);
+        assert_eq!(status1(&mut p), 0, "cleared");
+        assert_eq!(p.read32(0x600c_20f8), 0);
     }
 
     #[test]

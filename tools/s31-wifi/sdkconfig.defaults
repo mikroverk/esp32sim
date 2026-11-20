@@ -1,0 +1,13 @@
+# Pinned config for the ESP32-S31 WiFi station test (examples/c6-wifi-station on ESP-IDF v6.1,
+# --preview esp32s31): the emulator's virtual access point (the example's Kconfig defaults,
+# esp32sim / esp32sim-pass), no display, the console on USB Serial/JTAG as on the ESP-Mosaico.
+CONFIG_IDF_TARGET="esp32s31"
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+CONFIG_STATION_LCD=n
+CONFIG_APP_REPRODUCIBLE_BUILD=y
+CONFIG_APP_EXCLUDE_PROJECT_VER_VAR=n
+CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
+CONFIG_APP_PROJECT_VER="s31-wifi-1"

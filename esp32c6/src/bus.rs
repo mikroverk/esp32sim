@@ -6,7 +6,6 @@
 //! registers (item index / item content), not a memory-mapped table as on the C3.
 
 use crate::periph::{Peripherals, CPU_SUB_BASE, CPU_SUB_END, PERIPH_BASE, PERIPH_END};
-use esp_periph::read_desc;
 use riscv_rv32::bus::{Bus, Fault};
 
 /// GPIO matrix output signal of RMT TX channel 0 (soc/gpio_sig_map.h); channel n is this + n.
@@ -45,6 +44,11 @@ pub struct SocBus {
     pub last_fault: Option<(u32, bool)>,
     /// a peripheral write may have moved an interrupt line: re-derive before the next instruction
     pub irq_dirty: bool,
+    /// A UART interrupt enable was written: its level is presented after the delivery latency (see `periph_write`).
+    ena_latency: esp_periph::uart::EnaLatency,
+    /// Host input is queued on a UART or an INT_ENA latency is pending: the only time the tick and the idle
+    /// deadline look at the UARTs, so an ordinary run pays one flag test for them.
+    pub(crate) uart_busy: bool,
     /// GPIO edges for observers, while one wants them: (cycle, pin, level)
     pub gpio_events: Option<Vec<(u64, u8, bool)>>,
     pub debug: esp_soc::DebugFlags,
@@ -77,7 +81,7 @@ impl SocBus {
             flash: vec![0xff; flash_size],
             mmu: [0; MMU_ENTRIES], mmu_index: 0, mmu_power_ctrl: 0,
             periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), uart_pins: false,
-            cycles: 0, last_fault: None, irq_dirty: true, gpio_events: None, debug: Default::default(), board_edges: false,
+            cycles: 0, last_fault: None, irq_dirty: true, ena_latency: Default::default(), uart_busy: false, gpio_events: None, debug: Default::default(), board_edges: false,
         }
     }
 
@@ -123,7 +127,13 @@ impl SocBus {
             // IDF v5.5.4 components/soc/esp32c6/register/soc/usb_serial_jtag_reg.h:
             // EP1_REG (+0), SERIAL_OUT_RECV_PKT_INT_RAW (bit 2).
             self.irq_dirty |= addr & !3 == 0x6000_f000;
-            self.periph.read32(addr & !3)
+            let uart = match addr & !3 { 0x6000_0000 => Some(0), 0x6000_1000 => Some(1), _ => None };
+            let before = uart.map(|i| self.periph.uart[i].irq());
+            let w = self.periph.read32(addr & !3);
+            // RXFIFO_FULL follows the FIFO level (`Uart::read`): the mask ROM's shared UART handler reads one FIFO and
+            // never clears the interrupt, so a falling level must reach the CPU.
+            if let (Some(i), Some(before)) = (uart, before) { self.irq_dirty |= self.periph.uart[i].irq() != before; }
+            w
         };
         match size { 1 => (w >> ((addr & 3) * 8)) & 0xff, 2 => (w >> ((addr & 2) * 8)) & 0xffff, _ => w }
     }
@@ -149,7 +159,10 @@ impl SocBus {
                 _ => {}
             }
         }
-        let v = if size == 4 { v } else { merge(self.periph.read32(a)) };
+        // A sub-word store to a UART FIFO must not read (pop) a received byte to merge into.
+        let v = if size == 4 { v } else if matches!(a, 0x6000_0000 | 0x6000_1000) { merge(0) } else { merge(self.periph.read32(a)) };
+        let ena_port = match a { 0x6000_000c => Some(0), 0x6000_100c => Some(1), _ => None };
+        let old_ena = ena_port.map_or(0, |i| self.periph.uart[i].int_ena);
         let old_drive = (self.periph.gpio.enable, self.periph.gpio.out);
         self.periph.write32(a, v);
         if matches!(a & !0xfff, 0x6009_0000 | 0x6009_1000) && self.board.uses_gpio_waveform() {
@@ -173,7 +186,12 @@ impl SocBus {
         // display's D/C line is a GPIO the driver sets right before each transaction.
         if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_tx(); }
         if self.periph.spi2.has_pending_transfer() || !self.periph.gpio.changes.is_empty() { self.deliver_board_events(); }
-        self.irq_dirty = true;
+        // Interrupt delivery has latency on silicon. The mask ROM's uart_buff_switch enables a UART's interrupt just before
+        // it stores which UART its handler serves; an immediate interrupt runs the handler for the previous one.
+        match ena_port {
+            Some(i) => { if self.ena_latency.on_write(old_ena, self.periph.uart[i].int_ena) { self.irq_dirty = true; } else { self.uart_busy = true; } }
+            None => self.irq_dirty = true,
+        }
     }
 
     /// SHA DMA after a write, out of line so idle MMIO writes test only `dma_pending`.
@@ -300,7 +318,7 @@ impl SocBus {
         if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.link.drop_rx(); return; }
         let group = frame.len() >= 5 && frame[4] & 1 == 1;
         let mut words = [0u32; RX_CTRL / 4];
-        let rssi = self.periph.wifi_mac.link.ap().map_or(-40i8, |ap| ap.rx_meta(frame).1);
+        let rssi = self.periph.wifi_mac.link.rx_meta(frame).1;
         words[0] = (rssi as u8 as u32) | 1 << 28 | if group { 0 } else { 1 << 29 };   // rssi (-40 dBm for the access point), 1 Mbps legacy; match 0, and match 1 for our own address
         words[3] = now_us as u32;                                       // timestamp
         words[5] = 0xa6;                                                // noise floor -90 dBm
@@ -349,9 +367,11 @@ impl SocBus {
     /// this chip: the OUT chain is the input, the cipher is the shared model's, the result goes
     /// into the IN chain, each descriptor written back with its length, SUC_EOF on the last and
     /// the owner handed to the CPU. All of it happens in the round that set the trigger.
+    /// Both chains are read through the shared walker (`gather_out`, `GdmaInCh::receive`).
     /// A chain that leaves SRAM or is otherwise malformed ends the input where it is: the driver
     /// sees the AES done with what was delivered (as before), and GDMA reports OUT_DSCR_ERR.
-    /// A short IN chain receives the result that fits.
+    /// A malformed or short IN chain receives the result that fits and GDMA reports IN_DSCR_ERR
+    /// (with IN_DSCR_EMPTY when it ran out). Each channel stops after the transaction.
     fn aes_dma_step(&mut self) {
         self.periph.aes.dma_pending = false;
         let (out_ch, in_ch) = { let g = &self.periph.gdma.gdma; (g.out_channel_for(6), g.in_channel_for(6)) };
@@ -360,22 +380,12 @@ impl SocBus {
             self.gather_dma_out(out_ch, usize::MAX, &mut input);
 
             let output = self.periph.aes.transform_blocks(&input);
-            let (mut desc, mut pos, mut last) = (self.periph.gdma.gdma.inp[in_ch].desc, 0usize, 0);
-            for _ in 0..4096 {
-                if desc == 0 || pos >= output.len() { break; }
-                let d = read_desc(&|a| self.sram32(a), desc);
-                let n = (d.size as usize).min(output.len() - pos);
-                if n == 0 || !self.sram_store(d.buf, &output[pos..pos + n]) { break; }
-                pos += n;
-                let eof = pos == output.len();
-                let dw0 = (self.sram32(desc) & !(0xfff << 12) & !(3 << 30)) | (n as u32) << 12 | if eof { 1 << 30 } else { 0 };
-                self.sram_store(desc, &dw0.to_le_bytes());
-                last = desc;
-                desc = d.next;
+            let mut channel = self.periph.gdma.gdma.inp[in_ch];
+            let mut irq_changed = false;
+            if channel.receive(self, &output, Some(output.len() as u32), false, Self::is_periph, &mut irq_changed) {
+                channel.running = false; channel.desc = 0;
             }
-            let c = &mut self.periph.gdma.gdma.inp[in_ch];
-            c.running = false; c.desc = 0; c.eof_desc = last;
-            c.int_raw |= (1 << 0) | (1 << 1);                            // IN_DONE, IN_SUC_EOF
+            self.periph.gdma.gdma.inp[in_ch] = channel;
         }
         self.periph.aes.state = 2;                                       // DONE
         self.periph.aes.int_raw |= 1;
@@ -461,7 +471,7 @@ impl SocBus {
     #[inline(never)]
     fn parlio_dma_write(&mut self, a: u32) {
         if a >> 12 == 0x60080 {
-            let Some(off) = crate::periph::GdmaC6::map(a & 0xfff) else { return };
+            let Some(off) = crate::periph::GdmaC6::map_c6(a & 0xfff) else { return };
             let channel = (off / esp_periph::GDMA_CH_STRIDE) as usize;
             if !self.periph.gdma.gdma.out.get(channel).is_some_and(|c| c.running && c.peri_sel == 9) { return; }
         }
@@ -535,6 +545,27 @@ impl SocBus {
         if self.periph.optional.i2s0.rx_running() { self.i2s_rx_step(u64::from(cycles)); }
     }
 
+    /// Each UART's configured baud rate, for pacing queued host input.
+    fn uart_bauds(&self) -> [Option<u32>; 2] { std::array::from_fn(|port| self.periph.uart_route(port).baud) }
+    /// Release host bytes queued by `uart_input` at the configured baud rate.
+    #[cold]
+    #[inline(never)]
+    fn pace_uart_input(&mut self, cycles: u32) {
+        let bauds = self.uart_bauds();
+        self.irq_dirty |= esp_periph::uart::pace_input(self.periph.uart.iter_mut().zip(bauds), cycles as u64, crate::periph::CPU_HZ);
+        self.uart_busy = self.ena_latency.pending() || self.periph.uart.iter().any(|u| u.has_queued());
+    }
+    /// Cycles an idle core may skip before queued UART input or a pending INT_ENA level is due.
+    #[cold]
+    #[inline(never)]
+    pub(crate) fn uart_deadline(&self) -> Option<u64> {
+        if !self.uart_busy { return None; }
+        let input = if self.periph.uart.iter().any(|u| u.has_queued()) {
+            esp_periph::uart::input_deadline(self.periph.uart.iter().zip(self.uart_bauds()), crate::periph::CPU_HZ)
+        } else { None };
+        input.into_iter().chain(self.ena_latency.deadline()).min()
+    }
+
     fn devices(&mut self, cycles: u32) {
         if self.periph.work_pending { self.pending_work(cycles); }
         // Board time advances before peripheral callbacks; inputs are delivered after them.
@@ -543,6 +574,7 @@ impl SocBus {
         // optional devices. Preserve write/board/DMA invalidations and refresh only
         // when a source can have moved; time still advances on every round.
         self.irq_dirty |= esp_periph::Dispatch::tick(&mut self.periph, cycles as u64);
+        if self.uart_busy { self.pace_uart_input(cycles); }
         self.periph.gpio.input_changes.clear();
         if self.board_edges { self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
         if self.uart_pins {
@@ -605,9 +637,13 @@ impl Bus for SocBus {
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
+    /// Every instruction comes through here: inlined into the step, and one word read when the
+    /// whole window is in the buffer. The bytes past a buffer's end still read as zero.
+    #[inline(always)]
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
         match self.resolve(pc) {
             Some((b, o, _)) if o < b.len() => {
+                if let Some(w) = b.get(o..o + 4) { return Ok([w[0], w[1], w[2], w[3]]); }
                 let mut r = [0u8; 4];
                 for i in 0..4 { if o + i < b.len() { r[i] = b[o + i]; } }
                 Ok(r)
@@ -617,6 +653,7 @@ impl Bus for SocBus {
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
+        if self.uart_busy && self.ena_latency.tick(cycles as u64) { self.irq_dirty = true; }
         self.devices(cycles);
         u32::from(self.irq_dirty)
     }
@@ -845,5 +882,40 @@ mod parlio_dma_tests {
             assert_eq!(bus.periph.gdma.gdma.out[0].int_raw & 4, 4, "case {case}");
             assert!(!bus.periph.gdma.gdma.out[0].running);
         }
+    }
+}
+
+#[cfg(test)]
+mod fetch_tests {
+    use super::*;
+    use emu_core::Bus;
+
+    /// The four-byte window, whole or cut short by the end of a backing buffer.
+    #[test]
+    fn fetch_reads_the_window_and_zero_fills_past_the_buffer() {
+        let mut b = SocBus::new(0x1_0003, [0; 6]);
+        b.sram[0x100..0x106].copy_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert_eq!(b.fetch(SRAM_LOW + 0x100), Ok([1, 2, 3, 4]));
+        assert_eq!(b.fetch(SRAM_LOW + 0x102), Ok([3, 4, 5, 6]));
+        let n = b.sram.len();
+        b.sram[n - 3..].copy_from_slice(&[7, 8, 9]);
+        assert_eq!(b.fetch(SRAM_HIGH - 4), Ok([0, 7, 8, 9]));
+        assert_eq!(b.fetch(SRAM_HIGH - 3), Ok([7, 8, 9, 0]));
+        assert_eq!(b.fetch(SRAM_HIGH - 2), Ok([8, 9, 0, 0]));
+        b.rom[..4].copy_from_slice(&[0x13, 0, 0, 0]);
+        assert_eq!(b.fetch(ROM_LOW), Ok([0x13, 0, 0, 0]));
+        let r = b.rom.len();
+        b.rom[r - 1] = 0x82;
+        assert_eq!(b.fetch(ROM_HIGH - 1), Ok([0x82, 0, 0, 0]));
+        let l = b.lp_sram.len();
+        b.lp_sram[l - 2..].copy_from_slice(&[0x42, 0x73]);
+        assert_eq!(b.fetch(LP_SRAM_HIGH - 2), Ok([0x42, 0x73, 0, 0]));
+        // The flash image ends three bytes into physical page 1.
+        b.flash[0x1_0000..].copy_from_slice(&[0xa1, 0xb2, 0xc3]);
+        b.mmu[0] = MMU_VALID | 1;
+        assert_eq!(b.fetch(FLASH_LOW), Ok([0xa1, 0xb2, 0xc3, 0]));
+        assert_eq!(b.fetch(FLASH_LOW + 2), Ok([0xc3, 0, 0, 0]));
+        assert_eq!(b.fetch(FLASH_LOW + 3), Err(Fault::Unmapped));
+        assert_eq!(b.last_fault, Some((FLASH_LOW + 3, false)));
     }
 }

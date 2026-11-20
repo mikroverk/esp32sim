@@ -2,8 +2,10 @@
 
 The `esp32` crate models the dual-core LX6 classic ESP32 and loads the ECO3 mask ROM. It boots the real
 rev-3 mask ROM through the second-stage bootloader into an unchanged application.
+It reports silicon revision v3.0, the ECO3 that ROM belongs to: eFuse CHIP_VER_REV1 and REV2,
+and bit 31 of SYSCON_DATE, so an image built with `CONFIG_ESP32_REV_MIN_3` boots.
 The shared Xtensa core enables DFP context registers only for this target.
-Double-precision arithmetic and PSRAM are not modeled.
+Double-precision arithmetic is not modeled.
 
 ## Clock model
 
@@ -28,7 +30,7 @@ cargo build --release -p esp32sim
 
 `hello_world_classic` compares the ROM banner, bootloader and application output
 and interrupt totals/per-source counts against committed goldens. The ROM comes from Espressif's
-ROM ELF package; set `ESP32SIM_ROM_DIR` to its absolute directory for tests.
+ROM ELF package: ESP-IDF's copy is found by itself, otherwise set `ESP32SIM_ROM_DIR` to its absolute directory.
 The three firmware binaries were built from the existing CC0 hello_world source
 with ESP-IDF 5.5.4, the pioarduino 55.03.38-1 platform and the esp32dev board.
 See the [reproducible build recipe](../examples/hello_world-classic/README.md).
@@ -38,6 +40,8 @@ secondary-core control, eFuse, SPI flash, three UARTs, GPIO/IO_MUX, RTC control,
 and timer groups including LACT. `none` and `esp32dev` select the bare module.
 The default board option also selects the bare module for this chip.
 `ttgo-tdisplay` (alias `tdisplay`) is the LilyGO TTGO T-Display, see below.
+`ulanzi-tc001` (alias `tc001`) is the Ulanzi TC001 pixel clock, a 32×8 WS2812 matrix on RMT
+([boards.md](boards.md#ulanzi-tc001--ulanzi-tc001-pixel-clock-classic-esp32)).
 WASM accepts the `esp32` chip identifier. Boot applications through ROM.
 
 T0/T1 and LACT use 64-bit counters and the shared timer stepping logic.
@@ -65,6 +69,22 @@ Classic `--ble` uses the shared VHCI/HCI controller with an ELF containing
 controller symbols and function sizes. It installs a guest FreeRTOS task
 using the same windowed-Xtensa trampoline as S3. This is a virtual controller,
 with the shared one-link, MTU-23 and no-pairing limits; see EX228.
+`esp_bt_controller_enable` takes the mode of the config given to init, as IDF
+does (`components/bt/controller/esp32/bt.c`, v5.3.6): 1, 2 or 3 here, read at
+offset 20 of `esp_bt_controller_config_t` (IDF v4.3 to v6.0); init refuses a
+config that cannot be read or names another mode. The controller answers LE
+only, whatever the mode; a firmware that enables mode 2 (BR/EDR only) gets one
+`[ble] the virtual controller is LE-only` line on stderr.
+`esp_vhci_host_send_packet` takes a packet in internal DRAM or, with
+`--psram-mb 4`, in PSRAM at `0x3F80_0000..0x3FC0_0000`, where Bluedroid built
+with `CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST` allocates its HCI buffers
+(IDF v5.3.6 `components/bt/common/osi/include/osi/allocator.h`). Each page the
+packet touches must be mapped to the installed PSRAM and readable through the
+cache, as a load from it would be; otherwise the packet is refused with
+`[ble] rejected invalid VHCI packet pointer, length or controller state`. The
+controller BSS, which holds the receive buffer, stays in DRAM (IDF v5.3.6
+`components/bt/controller/linker_rw_bt_controller.lf`; IDF v5.5.4 moves it to
+`components/bt/linker_rw_bt_controller.lf`).
 
 Classic I2S0/1 RX accepts per-controller PCM (`i2s_input`) and pin-routed
 sources (`attach_pcm_sources`) through the shared host API from #201/#202; a
@@ -78,11 +98,21 @@ receive work. See EX229 for checks and limits.
 ## The camera: `--board ai-thinker-cam`
 
 The AI-Thinker ESP32-CAM (alias `esp32cam`) models OV2640 SCCB configuration,
-physical GPIO routing and I2S0 RX DMA into internal DRAM. Supply a BMP/PPM still
-with `--cam-image`; absent input produces black frames. Supported sensor output
-is raw RGB565 or YUV422 (grayscale requests use the YUV wire format), at a fixed
-approximate 10 FPS. JPEG+PSRAM CameraWebServer is unsupported; unsupported output
-prints one `[camera] unsupported sensor output` notice per board instance.
+physical GPIO routing and I2S0 RX DMA. Supply a BMP/PPM still with `--cam-image`;
+absent input produces black frames. Supported raw sensor output is RGB565 or
+YUV422 (grayscale requests use the YUV wire format), at a fixed approximate 10 FPS.
+Either I2C controller routed to GPIO26/27 reaches the one sensor.
+
+`PIXFORMAT_JPEG` takes host-encoded input: `--cam-image photo.jpg` (or loader
+kind 7 in the browser) with a baseline JPEG whose SOF0 size equals the sensor's
+configured output size (640 × 480 for `FRAMESIZE_VGA`). Its bytes reach
+`fb->buf` unchanged and `fb->len` is the file length; the model never encodes,
+decodes or scales. A malformed, non-baseline or wrongly sized JPEG is refused
+when supplied and the previous input stays. After `set_framesize` the host must
+supply a JPEG of the new size; until then JPEG mode delivers no frame and prints
+one `[camera] JPEG output … has no host JPEG of that size` notice. Frame buffers
+may be in internal DRAM or, with `--psram-mb 4`, in PSRAM. Other output prints one
+`[camera] unsupported sensor output` notice per board instance.
 There is no adjustable FPS, JPEG encoding, ISP fidelity or per-PCLK timing claim.
 Losing a route mid-frame raises IN_DSCR_ERR as a conservative model policy to
 prevent splicing partial frames, not as a measured hardware fault mapping.
@@ -104,6 +134,31 @@ The [build recipe](../examples/classic-camera/README.md) pins IDF and the camera
 driver. Its guest fixture uses 10 MHz XCLK / FIFO mode 1. FIFO mode 3 (normally
 selected at 20 MHz by Arduino) has exact-vector unit coverage only, not a
 20 MHz compiled-driver fixture. See [EX232](experiments.md#ex232) and its receipt.
+The JPEG fixture (20 MHz XCLK, quality 12, VGA then QVGA, DRAM and PSRAM
+framebuffers) is [EX256](experiments.md#ex256) with its
+[recipe](../examples/classic-camera/jpeg.md).
+
+## The board: `--board cyd`
+
+The ESP32-2432S028 "Cheap Yellow Display" (ESP32-WROOM-32, 4 MB flash, no PSRAM) has a 2.8"
+ILI9341 on SPI (SCLK 14, MOSI 13, MISO 12, CS 15, D/C 2, backlight GPIO 21) and an XPT2046
+resistive touch controller on a second bus (CLK 25, MOSI 32, MISO 39, CS 33, T_IRQ 36).
+`esp32/src/board/cyd.rs` tells the two apart by their chip-select GPIOs, so TFT_eSPI on HSPI or
+VSPI and a separate `SPIClass` for the touch controller all work. The panel is a
+`DcsPanel::new(240, 320)`; the frame shown (`--tft-png`, the page's panel) follows MADCTL.MV: landscape
+320×240 (the RAM transposed) when it is set, as in TFT_eSPI rotations 1 and 3, portrait 240×320 when it
+is clear (rotations 0 and 2), with red and blue exchanged unless MADCTL's BGR bit is set. Other
+"CYD" boards with an ST7789 or inverted colours (e.g. the two-USB variant) are not modelled.
+
+The XPT2046 model follows the control-byte protocol the Paul Stoffregen library uses: a byte with
+bit 7 set starts a conversion, whose 12-bit result is clocked out on the next two bytes
+(`transfer16() >> 3`). Z1/Z2 give a pressure above the library's threshold while pressed, X/Y are a
+linear map of the spot on the glass (the landscape pixel; a portrait touch is transposed onto it) to 200..3900, and GPIO 36 is pulled low while pressed
+(`BoardModel::touch_irq`) so `tirqTouched()` sees its falling edge. The raw values are not a
+calibration curve. The backlight, LDR, SD card, RGB LED and speaker are not modelled.
+
+Checked with the [`examples/cyd-touchtest`](../examples/cyd-touchtest/README.md) sketch
+(witnessmenow/ESP32-Cheap-Yellow-Display, MIT; Arduino-ESP32 2.0.x, IDF 4.4, TFT_eSPI 2.5.43).
 
 ## The board: `--board ttgo-tdisplay`
 

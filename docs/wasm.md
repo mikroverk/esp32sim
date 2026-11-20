@@ -65,7 +65,11 @@ uses and fails on a panic or a missing console line; CI runs it after the golden
 
 Every chip is in the one module: `esp32sim_new` takes a board name, and `esp32c3` or `esp32c6`
 builds the RISC-V machine instead of the Xtensa one; `esp32` or a classic board name such as
-`ttgo-tdisplay` builds the classic ESP32. The C3 has no `WebServer` of its own — it is
+`ttgo-tdisplay` builds the classic ESP32; `esp32s31` (a bare module) or `mosaico` builds the
+ESP32-S31, the Mosaico with its flash, PSRAM and eFuse as the CLI's `--board mosaico` sets them.
+`esp32sim_set_imu_motion(emu, mode)` before the first instruction selects a board's scripted IMU
+motion (`waveshare-amoled18-v2`, `mosaico`), as `--imu-motion` does; a manifest asks for it with
+`imu_motion`. The C3 has no `WebServer` of its own — it is
 console-only — so the wasm layer turns its console into the same `{"t":"serial"}` messages the
 S3 sends, and `esp32sim_cpu_hz` tells the worker which clock to pace against (240 MHz vs 160).
 
@@ -92,11 +96,12 @@ the tab falls half a second behind. `Date.now()` is passed in for the emulated S
 | **Linux 6.11 on the ESP32-S3** (svermigo/Linux-on-esp32-S3) | real time, ~4× under Node | the esp-hosted network adapter on core 0, Linux XIP from flash on core 1, cramfs root, jffs2 overlays; login and a shell typed on the page console (UART0). Needs the `wifi` spec (PHY calibration) and a stub on `nimble_port_init` — no Bluetooth baseband is modelled, so BLE provisioning is skipped |
 | Waveshare Touch-LCD-4B energy panel + SID player | **real time**, ~62 Minsn/s | LVGL at 60 fps, touch, the tune plays through WebAudio |
 | Atech 14-port synth | real time | ST7735 and WS2812 decoded, buttons/knob, scripted scenario |
-| ESP32-C3 hello_world | real time | the other chip: one RV32IMC core, console only — pick board `esp32c3` |
-| ESP32-C6 hello_world | real time | the newest chip: one RV32IMAC core, console only — pick board `esp32c6` |
+| ESP32-C3 hello_world | real time | one RV32IMC core, console only — pick board `esp32c3` |
+| ESP32-C6 hello_world | real time | one RV32IMAC core, console only — pick board `esp32c6` |
 | LilyGO TTGO T-Display spot prices (MicroPython) | real time, ~3× under Node | the classic ESP32: stock MicroPython v1.29.0 booted by the ROM from the combined image, the app from a LittleFS image in the vfs partition, the ST7789 135×240 over VSPI; demo data, no Wi-Fi — board `ttgo-tdisplay` |
 | ESP32-C6 802.15.4 energy scanner | real time | the Waveshare ESP32-C6-LCD-1.47: LVGL spectrum on the ST7789 over SPI2+GDMA, WS2812, energy detect from the MAC model's moving 2.4 GHz picture; BOOT on the page — board `waveshare-c6-lcd147` |
 | ESP32-P4 Scintilla synth (`p4-lcd35-synth`) | about a quarter of real time (one uncontrolled measurement: Chrome on an M-series Mac, 180–190 Minsn/s counted, 24–26 %) | the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5: LVGL on the ST7796 over SPI2 and the AXI-GDMA, FT5x06 touch, the ES8311's audio from I2S1; no C6, so BLE MIDI is off — board `waveshare-p4-lcd35` |
+| ESP32-S31 ESP-Mosaico compass (`s31-mosaico`) | about four fifths of real time (one uncontrolled measurement, 2026-11-15: headless Chrome 157 on an M-series Mac, two runs: 460–540 Minsn/s counted, 71–91 % once the UI is up; under Node 0.88×) | Espressif's ESP-Mosaico: `examples/mosaico-demo` through esp-mosaico-bsp, LVGL 9 on the round CO5300 480×480 over GP-SPI2 in QSPI mode with the BSP's TE-synchronised full frames, CST9220 touch, the AI button and the Boot key, the motor through LEDC, the BMI270 and both BMM150 turned by the board's scripted handling (`imu_motion` in the manifest) — board `mosaico` |
 | ESP32-C6 Contiki-NG | real time | Contiki-NG as an unmodified IDF app: its own scheduler and 802.15.4 stack over the emulated MAC |
 | …two of them on one medium | real time | a manifest with a `nodes` array boots a network through `esp32sim_net_*` instead of `esp32sim_new`: several motes, one medium, no simulator behind them |
 | …an RPL/IPv6 network | real time | rpl-udp server (the DAG root) and client: the client joins, then UDP request and reply every 10 s over 6LoWPAN, RPL Lite, CSMA and hardware ACKs |
@@ -233,6 +238,40 @@ which requests Binaryen `wasm-opt -O3` and requires that tool to be installed.
 The measured configuration used no Binaryen postprocessing. `CARGO_ENCODED_RUSTFLAGS`,
 when set, takes precedence over `RUSTFLAGS` under Cargo's usual rules.
 
+## Access points and the Network panel
+
+`esp32sim_wifi(e, ptr, len)` takes the CLI's `--wifi` spec (`ssid=`, `psk=`, `chan=`, `bssid=`,
+`epoch=`); each further line is another joinable access point on the same network, as a
+repeated `--wifi` (at most 8, the first line's `epoch` only; a later one without a `bssid` gets
+one derived from its SSID). A list the CLI would refuse is refused whole, with the reason on
+`host_log`. A manifest's `wifi` is one spec or a list of them; the Configure dialog's WiFi field
+separates them with `;`.
+
+`esp32sim_netmon(e)` gives the page the Network panel (`web/netmon.js`) that a `--web` run with
+`--wifi` has: one `{"t":"netmon","linktype":1}` message, then every Ethernet frame the station
+sends and receives as a binary message of type 5 (`[5][dir: 0 from the station, 1 to it][emulated
+µs, u64 le][frame]`, the `--pcap` frames, live). On the P4 the station is its co-processor C6.
+0, or 1 for a chip without WiFi; a second call changes nothing. The worker calls it whenever a
+WiFi spec is set, as `--web` does. A manifest's `netmon_open: true` opens the panel at once and
+`min_net_frames` makes `tools/wasm-test.mjs` require that many frames; `console` (`usb`, `uart0`,
+`term`) names the tab the firmware prints on. `c6-wifi.json` shows all of it: the committed
+station of `examples/c6-wifi-station` with two access points and three networks around them
+(`wifi_nearby`, below).
+
+## Networks around the station
+
+`esp32sim_wifi_nearby(e, ptr, len)` sets the networks around the station, the CLI's
+`--wifi-nearby`, replacing the ones there were: UTF-8 text with one of the option's specs per
+line (`ssid=`, `chan=`, `rssi=`, `secure=`, `bssid=`; blank lines are skipped, no lines means
+none), at most 32. A scan lists them with their channel, signal and security, and joining one
+fails as out of reach ([EX237](evidence/wifi-nearby/README.md)). A manifest lists them as
+`wifi_nearby`, one spec each. Call it after `esp32sim_wifi`,
+before or after boot; a new `esp32sim_wifi` starts with none around. The P4 with its C6 gives
+them to the C6's access point. A network with the access point's own SSID or BSSID is left out,
+as the option leaves it out, and `host_log` says why. 0, or 1 without the access point or for
+text the option would refuse (an unknown key, two networks on one BSSID, more than 32), with the
+reason on `host_log` and the networks unchanged ([EX267](evidence/wifi-nearby-wasm/README.md)).
+
 ## Host Ethernet relay
 
 S3, C3 and C6 provide an optional Ethernet transport behind their virtual AP.
@@ -267,6 +306,39 @@ batch remains readable until the next `ethernet_take` or emulator deletion.
 The [Arduino relay check](evidence/ethernet-c3-2026-10-02/relay.mjs) shows the ABI
 with a host DHCP responder.
 
+## NAT through the page
+
+The other way to give the guest the real network keeps `VirtualNet` and its NAT in the emulator
+and hands the page only socket operations, one level above the Ethernet relay: the page relays
+connects, bytes and closes per flow (a WebSocket per flow, say), not frames, and DHCP, ARP and the
+guest's TCP stay here. Configure the AP with `esp32sim_wifi`, then call `esp32sim_nat_relay(e,
+flags)`, before or after boot (S3, C3, C6, the classic ESP32, and the P4's C6). The NAT runs over
+`esp_soc::nat::QueueTransport`; after each run slice take the records and answer with events
+before the next one.
+
+| Export | Contract |
+| --- | --- |
+| `esp32sim_nat_relay(e, flags)` | bit 0: on (off: no NAT, as before); bit 1: the page resolves A / AAAA (`RESOLVE`), else DNS goes out as UDP to 10.0.2.3:53; bit 2: SNTP answered here from the network clock. 0, or 1 without an access point. |
+| `esp32sim_nat_take(e)` | The records queued since the last take: their byte length, the bytes at `esp32sim_nat_ptr(e)`. |
+| `esp32sim_nat_event(e, kind, id, arg, ptr, len)` | One event; 1 applied (or the bytes taken), 0 for a flow or lookup not waiting for it. |
+
+Records are `u8 op, u8 flags, u16 port, u32 id, u32 len` and `len` bytes, little-endian, each
+padded to a multiple of 4: 1 TCP_CONNECT (port, IPv4[4]), 2 TCP_DATA, 3 TCP_SHUTDOWN, 4 TCP_CLOSE
+(flags bit 0 abort), 5 UDP_OPEN (port, IPv4[4]), 6 UDP_DATA, 7 UDP_CLOSE, 8 RESOLVE (id = query,
+port = qtype, the name). Events are 1 CONNECTED (`arg` = bytes the page takes before its first
+TX_CREDIT), 2 FAILED (`arg` 1 refused, 2 unreachable, 3 policy, 4 offline), 3 TCP_DATA (returns
+the bytes taken; offer the rest again after the next run), 4 TCP_EOF, 5 TCP_RESET, 6 TX_CREDIT
+(`arg` bytes written), 7 UDP_DATA, 8 RESOLVED (`id` = query, `arg` = TTL, n × IPv4[4]),
+9 UNRESOLVED (`arg` = rcode 2 or 3). Bounds per emulator: 16 TCP flows (a 17th SYN waits for its
+retransmission), 64 KiB waiting for the guest per flow, 256 KiB of untaken data, 16 datagrams per
+UDP flow. A chip reset aborts the open flows (TCP_CLOSE with abort), and so does switching the
+relay off or on again, or a new `esp32sim_wifi`, which also drops the relay: the next take hands
+over the old queue's records, those closes last, before any new ones. Take between switches: from
+the first of a replaced queue's records that would bring the waiting ones past 256 KiB, only its
+closes (TCP_CLOSE, UDP_CLOSE) are kept, so a close can name a flow whose earlier records the page
+never got. [EX268](evidence/nat-relay/README.md) runs an Arduino station through it with Node's
+sockets in place of a page.
+
 Camera frames use `esp32sim_in_bin` type 3: `[3, width u16le, height u16le, RGBA...]`.
 The entire message must fit 8 MiB, with nonzero dimensions and exact pixel length.
 The receiver copies the message before returning and applies it at the next run
@@ -292,3 +364,29 @@ success or 1 for invalid commands/state/chip. Reads use the guest ATT server.
 The central models one unencrypted 1M CSA#1 connection with a 30 ms interval,
 2 s supervision timeout and ATT MTU 23. See [EX213](evidence/ble-c3-connection/README.md)
 for model limits and the production-module reconnect test.
+
+### Virtual BLE controller and its peer
+
+The CLI's `--ble` (the VHCI controller and its virtual central, [cli.md](cli.md)) on the S3, C3,
+C6 and classic ESP32. Load the images, then call `esp32sim_ble_virtual(emu, elf_ptr, elf_len)`
+with the application ELF before boot: its symbols locate the guest's controller functions. It
+returns 0, or 1 after boot, for a bad ELF, a chip without the controller or an ELF it cannot use;
+the reason goes to `host_log`. `esp32sim_ble_virtual_command(emu, ptr, len)` gives the peer one of
+the CLI script's `ble` commands (`connect`, `discover`, `read HANDLE`, `write HANDLE HEX`,
+`subscribe CCC_HANDLE`) at the current emulated time; 0, or 1 with the reason on `host_log`.
+The controller's `[ble]` lines (`t=<s>s ...`: advertising, discovery, reads, writes,
+notifications) are kept rather than printed: after each run slice call
+`esp32sim_ble_virtual_take(emu)` until it returns zero. Each nonzero return is the UTF-8 byte
+length at `esp32sim_ble_ptr(emu)`, valid until the next take or emulator deletion. At most 1024
+lines wait; lines lost to the bound come first as `dropped=N`. A line's time is when the
+controller hands it over, so it can differ by microseconds from the CLI's, which slices
+differently; the lines and their order are the same ([EX264](evidence/ble-wasm-api/README.md)).
+
+`esp32sim_ble_nearby(emu, ptr, len)` sets the devices around the station, the CLI's
+`--ble-nearby`, replacing the ones there were: UTF-8 text with one of the option's specs per line
+(`name=`, `adv=` / `rsp=` hex, `addr=`, `type=`, `rssi=`; blank lines are skipped, no lines means
+none), at most 32. After `esp32sim_ble_virtual`, before or after boot: the guest's scans report
+them from then on, a running scan at once, as the option's devices ([EX246](evidence/ble-nearby/README.md)).
+0, or 1 without the virtual controller or for text the option would refuse (an unknown key, two
+devices on one address, more than 32), with the reason on `host_log` and the devices unchanged
+([EX266](evidence/ble-nearby-wasm/README.md)).
