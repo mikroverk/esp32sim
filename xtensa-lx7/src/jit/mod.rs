@@ -530,6 +530,28 @@ mod native {
                     }
                 }
 
+                Retw | RetwN => {
+                    let (slow, done) = (g.a.label(), g.a.label());
+                    let ps_off = std::mem::offset_of!(Cpu, ps) as u32;
+                    g.a.ldr(9, CPU, ps_off); g.a.tbz(9, 18, slow);
+                    g.ld_ar(10, 0); g.a.lsr_imm(11, 10, 30); g.a.cbz(11, slow);
+                    g.a.ldr(12, CPU, OFF_WB); g.a.sub(13, 12, 11); g.a.and_mask(13, 13, 4, 0);
+                    g.a.ldr(14, CPU, OFF_WS); g.a.lsrv(15, 14, 13); g.a.tbz(15, 0, slow);
+                    g.a.movz(15, 1, 0); g.a.lslv(15, 15, 12); g.a.bic(14, 14, 15); g.a.str(14, CPU, OFF_WS);
+                    g.a.str(13, CPU, OFF_WB);
+                    g.a.mov32(15, !crate::state::ps::CALLINC_MASK); g.a.and(9, 9, 15);
+                    g.a.orr_lsl(9, 9, 11, crate::state::ps::CALLINC_SHIFT); g.a.str(9, CPU, ps_off);
+                    g.a.and_mask(9, 10, 30, 0); g.a.mov32(10, pc & 0xc000_0000); g.a.orr(9, 9, 10);
+                    g.a.str(9, CPU, OFF_PC); g.a.mov32(10, next); g.a.cmp(9, 10); g.a.b_cond(Cond::Ne, g.exit_left);
+                    g.a.b(done);
+                    g.a.bind(slow);
+                    g.a.mov_x(0, CPU); g.a.mov_x(1, BUS); g.a.mov64(2, (&raw const *block_insn) as u64); g.a.mov32(3, pc);
+                    g.call(H_EXEC); g.a.tbnz(0, 0, g.exit_trap); g.a.lsr_imm(12, 0, 1);
+                    g.reload_after_helper(); g.a.ldr(9, CPU, OFF_PC); g.a.mov32(10, next); g.a.cmp(9, 10);
+                    g.a.b_cond(Cond::Ne, g.exit_left); g.a.cbnz(12, g.exit_left);
+                    g.a.bind(done); fell_through = false; checked_w = 0;
+                }
+
                 // ---- everything else: the interpreter
                 _ => {
                     g.a.mov_x(0, CPU); g.a.mov_x(1, BUS);
