@@ -24,6 +24,9 @@
 //!
 //! Backends: AArch64 on macOS and Linux, WebAssembly with the `wasm-jit` feature (the page
 //! compiles the modules). Elsewhere [`AVAILABLE`] is false.
+// Without a backend (x86-64, wasm without a page to compile for) only the shared front end is
+// built, and nothing calls it.
+#![cfg_attr(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", any(feature = "wasm-jit", feature = "wasm-jit-host")))), allow(dead_code))]
 use crate::block::{decode_block, Decoded};
 use crate::bus::Bus;
 use crate::decode::{Insn, Op};
