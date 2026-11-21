@@ -21,6 +21,8 @@ esp32 = { path = "../esp32" }
 esp32c6 = { path = "../esp32c6" }
 esp32p4 = { path = "../esp32p4" }
 esp32s31 = { path = "../esp32s31" }
+# the RV32 cores' JIT to WebAssembly, installed by web/wasm/jit.mjs
+riscv-rv32 = { path = "../riscv-rv32", features = ["wasm-jit-host"] }
 esp32sim-wasm-jit = { path = "../wasm-jit" }
 xtensa-lx7 = { path = "../xtensa-lx7" }
 

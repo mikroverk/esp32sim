@@ -41,6 +41,9 @@ const NO_PAGE: u32 = u32::MAX;
 #[derive(Clone, Copy)]
 struct Entry {
     pc: u32,
+    /// the physical address `pc` fetched from when the block was built (= `pc` untranslated):
+    /// a lookup translates `pc` again and only takes the block if it still lands here
+    phys: u32,
     start: u32,
     n: u8,
     /// arena slots this entry owns from `start` (>= n)
@@ -52,8 +55,14 @@ struct Entry {
     plain_end: bool,
     vidx: [u32; 2],
     ver: [u32; 2],
+    /// the compiled block's code offset (`jit`), `NOT_COMPILED` or `UNCOMPILABLE`
+    code: u32,
+    /// whole runs of the block not yet compiled, up to `Blocks::jit_hot`
+    hits: u16,
 }
-const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, cap: 0, writes: 0, plain_end: false, vidx: [0; 2], ver: [0; 2] };
+const NOT_COMPILED: u32 = u32::MAX;
+const UNCOMPILABLE: u32 = u32::MAX - 1;
+const EMPTY: Entry = Entry { pc: 1, phys: 1, start: 0, n: 0, cap: 0, writes: 0, plain_end: false, vidx: [0; 2], ver: [0; 2], code: NOT_COMPILED, hits: 0 };
 
 /// The core's decoded-block cache. Empty until used: `Cpu::new` stays cheap.
 pub struct Blocks {
@@ -65,17 +74,34 @@ pub struct Blocks {
     isa: u32,
     pub builds: u64,
     pub flushes: u64,
+    /// compile blocks to host code (`jit`) where there is a backend; `RV32_JIT=0` turns it off
+    pub jit_on: bool,
+    /// whole runs of a block before it is compiled
+    pub jit_hot: u16,
+    /// blocks compiled, and code-cache resets
+    pub compiled: u64,
+    pub jit_resets: u64,
+    pub(crate) jit: Option<Box<crate::jit::Jit>>,
+    /// every compiled block's code by (pc << 32 | physical address): (code, length, code pages,
+    /// versions), so a block inside a compiled region is entered there
+    regions: std::collections::HashMap<u64, (u32, usize, [u32; 2], [u32; 2])>,
 }
 
 impl Default for Blocks {
-    fn default() -> Self { Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0 } }
+    fn default() -> Self {
+        let jit_on = crate::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0");
+        let jit_hot = std::env::var("RV32_JIT_HOT").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::jit::HOT);
+        Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0, jit_on, jit_hot, compiled: 0, jit_resets: 0, jit: None, regions: Default::default() }
+    }
 }
 
 impl Blocks {
-    /// Forget every block (a reset, new boundaries, `--no-jit`).
+    /// Forget every block (a reset, new boundaries, `--no-jit`), and their code.
     pub fn flush(&mut self) {
         if !self.entries.is_empty() { self.entries.iter_mut().for_each(|e| *e = EMPTY); self.flushes += 1; }
         self.arena.clear();
+        if let Some(j) = self.jit.as_mut() { j.reset(); }
+        self.regions.clear();
     }
 }
 
@@ -90,6 +116,9 @@ fn may_write(op: Op) -> bool {
 /// interrupt test before the next instruction decides (CSR writes, `mret`, `wfi`, traps). A CSR
 /// read (`csrrs`/`csrrc` from x0, or with a zero immediate) writes nothing (`exec_insn`) and
 /// `read_csr` has no side effects, so a delay loop that polls the cycle counter stays one block.
+#[inline(always)]
+pub(crate) fn ends_block_pub(i: &Insn) -> bool { ends_block(i) }
+
 #[inline(always)]
 fn ends_block(i: &Insn) -> bool {
     use Op::*;
@@ -117,70 +146,151 @@ impl Cpu {
 #[inline(always)]
 fn lookup<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32) -> Option<Entry> {
     if cpu.blocks.entries.is_empty() { cpu.blocks.entries = vec![EMPTY; ENTRIES]; }
+    // untranslated: the block is fetched where it runs
+    let (translated, phys) = (false, pc);
     let ei = (pc >> 1) as usize & (ENTRIES - 1);
     let e = cpu.blocks.entries[ei];
-    if e.pc == pc {
+    if e.pc == pc && e.phys == phys {
         let pv = bus.page_versions();
         if pv.get(e.vidx[0] as usize) == Some(&e.ver[0]) && pv.get(e.vidx[1] as usize) == Some(&e.ver[1]) { return Some(e); }
     }
-    build(cpu, bus, pc, ei)
+    build(cpu, bus, pc, phys, translated, ei)
 }
 
-#[cold]
-#[inline(never)]
-fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32, ei: usize) -> Option<Entry> {
+/// A decoded block before it is stored: what `build` keeps, and what the JIT's regions use for
+/// the blocks around a hot one.
+pub(crate) struct Decoded {
+    pub insns: [Insn; MAX_LEN],
+    pub n: usize,
+    pub writes: u32,
+    pub plain_end: bool,
+    pub vidx: [u32; 2],
+    pub ver: [u32; 2],
+}
+
+/// Decode the block at `pc` (fetched at `phys`), as `build` stores it: up to `MAX_LEN`
+/// instructions, at most two version pages, in front of a boundary, through its terminator;
+/// on `pc`'s virtual page when `translated`. The pages are watched before their versions are
+/// read (EX110). `None` where there is no block to run.
+pub(crate) fn decode_block<B: Bus>(cpu: &Cpu, bus: &mut B, pc: u32, phys: u32, translated: bool) -> Option<Decoded> {
     let isa = cpu.isa();
-    let b = &mut cpu.blocks;
-    if b.isa != isa || b.arena.len() + MAX_LEN > ARENA_CAP { b.flush(); b.isa = isa; }
-    let v0 = bus.code_page(pc);
+    // the physical address of virtual `at` (the block keeps to `pc`'s virtual page when translated)
+    let pa = |at: u32| phys.wrapping_add(at.wrapping_sub(pc));
+    let v0 = bus.code_page(phys);
     if v0 == NO_PAGE { return None; }
     let mut v1 = v0;
     const NOP: Insn = Insn { op: Op::Illegal, rd: 0, rs1: 0, rs2: 0, imm: 0, len: 4, comp: Comp::None, raw: 0 };
-    let mut buf = [NOP; MAX_LEN];
-    let mut n = 0;
-    let mut writes = 0u32;
-    let mut plain_end = true;
+    let mut d = Decoded { insns: [NOP; MAX_LEN], n: 0, writes: 0, plain_end: true, vidx: [v0, v0], ver: [0; 2] };
     let mut at = pc;
-    for (k, slot) in buf.iter_mut().enumerate() {
+    for k in 0..MAX_LEN {
         if k > 0 && cpu.boundary_bloom & pc_bit(at) != 0 { break; }
-        let Some(bytes) = bus.fetch_ahead(at) else { break; };
+        let Some(bytes) = bus.fetch_ahead(pa(at)) else { break; };
         let i = decode_for(isa, at, bytes);
         let last = at.wrapping_add(i.len as u32 - 1);
+        // translated: the whole instruction on `pc`'s virtual page (a 32-bit one in its last
+        // halfword is fetched from two translations: the interpreter's)
+        if translated && last >> 12 != pc >> 12 { break; }
         // both ends of the instruction must lie on the block's (at most two) pages
-        let (pa, pb) = (bus.code_page(at), bus.code_page(last));
+        let (pa, pb) = (bus.code_page(pa(at)), bus.code_page(pa(last)));
         if pa == NO_PAGE || pb == NO_PAGE { break; }
         let mut fits = true;
         for p in [pa, pb] {
             if p != v0 && p != v1 { if v1 == v0 { v1 = p; } else { fits = false; } }
         }
         if !fits { break; }
-        if may_write(i.op) { writes |= 1 << k; }
-        *slot = i;
-        n = k + 1;
+        if may_write(i.op) { d.writes |= 1 << k; }
+        d.insns[k] = i;
+        d.n = k + 1;
         if ends_block(&i) {
-            plain_end = matches!(i.op, Op::Jal | Op::Jalr | Op::Beq | Op::Bne | Op::Blt | Op::Bge | Op::Bltu | Op::Bgeu | Op::CmPopret | Op::CmPopretz);
+            d.plain_end = matches!(i.op, Op::Jal | Op::Jalr | Op::Beq | Op::Bne | Op::Blt | Op::Bge | Op::Bltu | Op::Bgeu | Op::CmPopret | Op::CmPopretz);
             break;
         }
         at = at.wrapping_add(i.len as u32);
     }
-    if n == 0 { return None; }
+    if d.n == 0 { return None; }
     // EX110's order: watch the pages, then read the versions the block will compare.
     bus.note_code_page(v0);
     if v1 != v0 { bus.note_code_page(v1); }
     let pv = bus.page_versions();
     let (Some(&ver0), Some(&ver1)) = (pv.get(v0 as usize), pv.get(v1 as usize)) else { return None; };
+    d.vidx = [v0, v1];
+    d.ver = [ver0, ver1];
+    Some(d)
+}
+
+#[cold]
+#[inline(never)]
+fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32, phys: u32, translated: bool, ei: usize) -> Option<Entry> {
+    let isa = cpu.isa();
+    let b = &mut cpu.blocks;
+    if b.isa != isa || b.arena.len() + MAX_LEN > ARENA_CAP { b.flush(); b.isa = isa; }
+    let d = decode_block(cpu, bus, pc, phys, translated)?;
+    let b = &mut cpu.blocks;
+    let n = d.n;
     // the evicted block's slots, if they are enough; nothing else refers to them
     let old = b.entries[ei];
     let (start, cap) = if old.pc != EMPTY.pc && old.cap as usize >= n { (old.start as usize, old.cap) } else {
         let start = b.arena.len();
-        b.arena.extend_from_slice(&buf[..n]);
+        b.arena.extend_from_slice(&d.insns[..n]);
         (start, n as u8)
     };
-    b.arena[start..start + n].copy_from_slice(&buf[..n]);
-    let e = Entry { pc, start: start as u32, n: n as u8, cap, writes, plain_end, vidx: [v0, v1], ver: [ver0, ver1] };
+    b.arena[start..start + n].copy_from_slice(&d.insns[..n]);
+    let e = Entry { pc, phys, start: start as u32, n: n as u8, cap, writes: d.writes, plain_end: d.plain_end, vidx: d.vidx, ver: d.ver, code: NOT_COMPILED, hits: 0 };
     b.entries[ei] = e;
     b.builds += 1;
     Some(e)
+}
+
+/// The compiled region of the block in slot `ei`, compiling it once the block is hot.
+#[inline(always)]
+fn jit_code<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<u32> {
+    let b = &mut cpu.blocks;
+    // another core's JIT discarded all compiled code (wasm): forget this core's
+    if let Some(j) = b.jit.as_mut() {
+        if !j.valid() { j.adopt_epoch(); b.entries.iter_mut().for_each(|x| { x.code = NOT_COMPILED; x.hits = 0; }); b.regions.clear(); }
+    }
+    let e = &mut b.entries[ei];
+    if e.code < UNCOMPILABLE { return Some(e.code); }
+    if e.code == UNCOMPILABLE { return None; }
+    e.hits += 1;
+    if e.hits < b.jit_hot { return None; }
+    // inside a region compiled already, from the same bytes (versions) and as long
+    let key = (e.pc as u64) << 32 | e.phys as u64;
+    if let Some(&(code, n, vidx, ver)) = b.regions.get(&key) {
+        if n == e.n as usize && vidx == e.vidx && ver == e.ver { e.code = code; return Some(code); }
+    }
+    jit_compile(cpu, bus, ei)
+}
+
+#[cold]
+#[inline(never)]
+fn jit_compile<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<u32> {
+    if cpu.blocks.jit.is_none() {
+        cpu.blocks.jit = crate::jit::Jit::new();
+        if cpu.blocks.jit.is_none() { cpu.blocks.jit_on = false; return None; }
+    }
+    let e = cpu.blocks.entries[ei];
+    let insns = cpu.blocks.arena[e.start as usize..e.start as usize + e.n as usize].to_vec();
+    let region = crate::jit::region(cpu, bus, e.pc, e.phys, &insns, e.vidx, e.ver);
+    let b = &mut cpu.blocks;
+    let jit = b.jit.as_mut()?;
+    let codes = match jit.compile::<B>(&region) {
+        Some(c) => c,
+        None => {
+            // the cache is full: start again, every block's code with it
+            jit.reset();
+            b.jit_resets += 1;
+            b.regions.clear();
+            b.entries.iter_mut().for_each(|x| { x.code = NOT_COMPILED; x.hits = 0; });
+            match jit.compile::<B>(&region) { Some(c) => c, None => { b.entries[ei].code = UNCOMPILABLE; return None; } }
+        }
+    };
+    for ((pc, phys, n, vidx, ver), &code) in region.members().zip(&codes) {
+        b.regions.insert((pc as u64) << 32 | phys as u64, (code, n, vidx, ver));
+    }
+    b.entries[ei].code = codes[0];
+    b.compiled += 1;
+    Some(codes[0])
 }
 
 /// One instruction through the interpreter, with `Core::run`'s stop tests.
@@ -207,6 +317,28 @@ pub fn run<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap
             }
         };
         let n = (e.n as u32).min(budget - used);
+        // a whole block, no hardware loop counting, no break pending: its compiled code
+        if n == e.n as u32 && cpu.blocks.jit_on && cpu.hwlp_count[0] | cpu.hwlp_count[1] == 0 && !bus.block_break() {
+            let ei = (e.pc >> 1) as usize & (ENTRIES - 1);
+            if let Some(code) = jit_code(cpu, bus, ei) {
+                let mut ctx = crate::jit::Ctx::new(cpu, bus, e.pc);
+                let jit: *const crate::jit::Jit = cpu.blocks.jit.as_deref().expect("compiled code without a JIT");
+                // SAFETY: `code` belongs to this JIT (entries forget their code whenever it is
+                // reset) and the entry block's versions were just checked by `lookup`. The JIT
+                // is not touched while its code runs: helpers never compile or flush.
+                let r = unsafe { (*jit).call(code, cpu, bus, &mut ctx, budget - used) };
+                let (done, status) = (r as u32, (r >> 32) as u32);
+                bus.note_pc(ctx.last_pc);
+                match status {
+                    crate::jit::TRAP => return (used + done, ctx.trap),
+                    crate::jit::STOP => return (used + done, None),
+                    _ => {}
+                }
+                used += done;
+                if cpu.boundary_bloom != 0 && cpu.boundary_bloom & pc_bit(cpu.pc) != 0 { return (used, None); }
+                continue;
+            }
+        }
         let mut done = 0;
         while done < n {
             let i = cpu.blocks.arena[(e.start + done) as usize];

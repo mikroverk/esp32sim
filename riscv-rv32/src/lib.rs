@@ -23,6 +23,7 @@ pub mod exec;
 mod fpu;
 pub mod pie;
 pub mod hwlp;
+pub mod jit;
 pub mod softfloat;
 pub mod state;
 
