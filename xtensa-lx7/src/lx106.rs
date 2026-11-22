@@ -4,6 +4,7 @@
 //! libraries/GDBStub/src/xtensa/config/core-isa.h, checked against PlatformIO
 //! toolchain-xtensa 2.100300.220621 (GCC 10.3.0), include/xtensa/config/core-isa.h.
 //! This adapter intentionally never enters the LX6/LX7 block caches or either JIT.
+//! No chip selects it yet; the ESP8266 machine (issue #214) is the follow-up that wires it in.
 use crate::{decode, disasm, exec, Bus, Core, Cpu, Insn, Op, Trap};
 use crate::state::{exc, ps, sr};
 use emu_core::{StepKind, StepOutcome};
@@ -19,6 +20,9 @@ const LITBASE: u32 = 5;
 
 /// Whether a decoded instruction belongs to the LX106 ISA (core-isa.h:49-94).
 /// A positive list prevents future extensions from silently becoming LX106 instructions.
+/// Every op is in the LX106 opcode table, QEMU v10.1.0 target/xtensa/core-lx106/
+/// xtensa-modules.c.inc opcodes[] (lines 5823-6435); tests/lx106.rs pins this list to it
+/// in both directions (docs/evidence/lx106-core/isa-membership.json).
 pub fn supports(i: &Insn) -> bool {
     use Op::*;
     match i.op {
@@ -179,8 +183,13 @@ impl Lx106 {
                 return Ok(());
             }
             Op::Break | Op::BreakN => {
+                // QEMU v10.1.0 target/xtensa: BREAK sets DEBUGCAUSE.BI, BREAK.N .BN (cpu.h:193-194,
+                // translate.c:2938-2946); taken only while CINTLEVEL < DEBUGLEVEL, else a no-op
+                // (cpu.c:98-100, translate.c:1032, exc_helper.c:77-82). CINTLEVEL is
+                // max(PS.INTLEVEL, EXCM ? EXCM_LEVEL 1 : 0) (cpu.h:660-667); DEBUGLEVEL is 2.
                 let c = &mut self.cpu;
-                c.debugcause = 1 << 3;
+                if c.intlevel().max(c.excm() as u32) >= 2 { c.pc = next; return Ok(()); }
+                c.debugcause = if i.op == Op::BreakN { 1 << 4 } else { 1 << 3 };
                 c.epc[2] = c.pc; c.eps[2] = c.ps;
                 c.ps = (c.ps & !ps::INTLEVEL_MASK) | 2 | ps::EXCM;
                 c.pc = c.vecbase + 0x10;

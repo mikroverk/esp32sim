@@ -3,7 +3,7 @@ esp-periph/src/ledc.rs in a scratch worktree, runs the esp-periph library tests,
 ESP32 LEDC library tests and the S3/C3/C6 PWM integration tests, and counts as killed only when a
 test FAILS at run time (crates run in order and stop at the first failing one; a compile error is reported as such, never as a kill). Sources are
 restored after each case.
-usage: mutate.py <mutation-worktree> <out-dir>   (DRY=1: print anchor counts only)"""
+usage: mutate.py <mutation-worktree> <out-dir>   (DRY=1: print anchor counts only; the cargo on PATH runs)"""
 import subprocess, sys, json, os
 from pathlib import Path
 tree, out = Path(sys.argv[1]), Path(sys.argv[2]); out.mkdir(parents=True, exist_ok=True)
@@ -47,7 +47,7 @@ for name, old, new in cases:
     log, failed, compiled, rc = '', [], True, 0
     try:
         for args, crate in T:
-            r = subprocess.run(['nice', '-n', '10', 'cargo', '+1.99.0', 'test', '--release', '-j2', '--no-fail-fast'] + args, cwd=tree, env=env, capture_output=True, text=True, timeout=1800)
+            r = subprocess.run(['nice', '-n', '10', 'cargo', 'test', '--release', '-j2', '--no-fail-fast'] + args, cwd=tree, env=env, capture_output=True, text=True, timeout=1800)
             log += f'== {crate}\n' + r.stdout + r.stderr
             rc |= r.returncode
             compiled &= 'error[E' not in r.stderr and 'could not compile' not in r.stderr

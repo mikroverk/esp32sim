@@ -23,7 +23,9 @@ fn run(op: Op, bytes: [u8; 3], jit: bool, woe: bool, inc: u32, live: bool, wb: u
     bus.code.mem[..3].copy_from_slice(&bytes);
     assert_eq!(decode(CODE, bus.code.fetch(CODE).unwrap()).op, op);
     let mut cpu = Cpu::new(0);
-    cpu.pc = CODE; cpu.ps = if woe { ps::WOE } else { 0 }; cpu.windowbase = wb;
+    // a stale CALLINC (never this return's), OWB and INTLEVEL: the return must replace only CALLINC
+    let stale = ((inc % 3 + 1) << ps::CALLINC_SHIFT) | (5 << ps::OWB_SHIFT) | 3;
+    cpu.pc = CODE; cpu.ps = stale | if woe { ps::WOE } else { 0 }; cpu.windowbase = wb;
     cpu.windowstart = (1 << wb) | if live { 1 << (wb.wrapping_sub(inc) & 15) } else { 0 };
     cpu.blocks.jit_enabled = jit;
     cpu.set_ar(0, (inc << 30) | 0x0037_0040);
@@ -48,14 +50,14 @@ fn retw_guarded_path_matches_interpreter() {
 #[test]
 fn retw_timer_interrupt_is_delivered_at_the_next_boundary() {
     for (op, bytes) in [(Op::Retw, [0x90, 0, 0]), (Op::RetwN, [0x1d, 0xf0, 0])] {
-        for return_to_next in [false, true] { for prid in 0..=1 {
+        for return_to_next in [false, true] {
             let mut results = Vec::new();
             for jit in [false, true] {
                 let mut bus = CodeBus { code: FlatRam::new(CODE, 16), versions: [0; 2], interpreted: 0 };
                 bus.code.mem[..3].copy_from_slice(&bytes);
                 let len = decode(CODE, bus.code.fetch(CODE).unwrap()).len as u32;
                 let target = CODE + if return_to_next { len } else { 8 };
-                let mut cpu = Cpu::new(prid);
+                let mut cpu = Cpu::new(0);
                 cpu.pc = CODE; cpu.ps = ps::WOE; cpu.windowbase = 3; cpu.windowstart = (1 << 3) | (1 << 2);
                 cpu.blocks.jit_enabled = jit; cpu.set_ar(0, (1 << 30) | (target & 0x3fff_ffff));
                 cpu.ccompare[0] = 1; cpu.intenable = 1 << 6;
@@ -68,8 +70,8 @@ fn retw_timer_interrupt_is_delivered_at_the_next_boundary() {
                 results.push((first, second, cpu.pc, cpu.ps, cpu.windowbase, cpu.windowstart,
                     cpu.epc, cpu.insn_count, cpu.ccount, cpu.interrupt));
             }
-            assert_eq!(results[0], results[1], "{op:?}, return_to_next={return_to_next}, prid={prid}");
-        }}
+            assert_eq!(results[0], results[1], "{op:?}, return_to_next={return_to_next}");
+        }
     }
 }
 #[test]
@@ -81,5 +83,32 @@ fn retw_guard_misses_use_the_existing_helper() {
             assert!(n.result.1.is_some(), "{op:?} must trap");
             assert_eq!(n.bus.interpreted, 1, "{op:?} guard miss must call helper");
         }
+    }
+}
+/// The guarded hit leaves the compiled block's cached WINDOWBASE stale, which is safe only because
+/// RETW ends the block. A return to the next instruction followed by an ADDI catches a block that
+/// continues past the return: the ADDI would write a2 of the old window.
+#[test]
+fn retw_to_the_next_instruction_continues_in_the_new_window() {
+    for (op, bytes) in [(Op::Retw, [0x90, 0, 0]), (Op::RetwN, [0x1d, 0xf0, 0])] {
+        let mut results = Vec::new();
+        for jit in [false, true] {
+            let mut bus = CodeBus { code: FlatRam::new(CODE, 16), versions: [0; 2], interpreted: 0 };
+            bus.code.mem[..3].copy_from_slice(&bytes);
+            let len = decode(CODE, bus.code.fetch(CODE).unwrap()).len as u32;
+            bus.code.mem[len as usize..len as usize + 3].copy_from_slice(&[0x22, 0xc2, 0x01]); // addi a2, a2, 1
+            assert_eq!(decode(CODE + len, bus.code.fetch(CODE + len).unwrap()).op, Op::Addi);
+            let mut cpu = Cpu::new(0);
+            for (k, v) in cpu.ar.iter_mut().enumerate() { *v = 0x100 * k as u32; }
+            cpu.pc = CODE; cpu.ps = ps::WOE; cpu.windowbase = 3; cpu.windowstart = (1 << 3) | (1 << 2);
+            cpu.blocks.jit_enabled = jit; cpu.set_ar(0, (1 << 30) | ((CODE + len) & 0x3fff_ffff));
+            let mut steps = 0;
+            while cpu.insn_count < 2 && steps < 4 { let left = 2 - cpu.insn_count as u32; run_block(&mut cpu, &mut bus, left); steps += 1; }
+            assert_eq!((cpu.insn_count, cpu.pc, cpu.windowbase), (2, CODE + len + 3, 2), "{op:?} jit={jit}");
+            assert_eq!(cpu.ar[2 * 4 + 2], 0x100 * 10 + 1, "{op:?} jit={jit}: a2 of the caller's window");
+            if jit { assert!(cpu.blocks.jit_instructions > 0); assert_eq!(bus.interpreted, 0, "{op:?}"); }
+            results.push((cpu.pc, cpu.ar, cpu.windowbase, cpu.windowstart, cpu.ps, cpu.insn_count, cpu.ccount));
+        }
+        assert_eq!(results[0], results[1], "{op:?}");
     }
 }

@@ -1,6 +1,6 @@
 //! Hermetic LX106 corpus, generated with the pinned toolchains in corpus/build-lx106.py.
 use emu_core::{Bus, Core, StepKind};
-use xtensa_lx7::{decode, lx106::supports, state::{exc, ps, sr}, FlatRam, Lx106, Trap};
+use xtensa_lx7::{decode, lx106::supports, state::{exc, ps, sr}, FlatRam, Lx106, Op, Trap};
 #[allow(dead_code)]
 mod corpus { include!("corpus/lx106-generated.rs"); }
 const BASE: u32 = 0x4010_0000;
@@ -64,10 +64,134 @@ fn pc_relative_and_absolute_literals() {
     assert_eq!(c.read_sr(5), Some(BASE + 0x2001));
 }
 
+/// One instance of every LX106 opcode the profile executes: (QEMU line, mnemonic, op, bytes).
+/// Membership: QEMU v10.1.0 target/xtensa/core-lx106/xtensa-modules.c.inc, the opcodes[]
+/// table at the given line (docs/evidence/lx106-core/isa-membership.json pins the file).
+/// Bytes: GNU as 2.43.1 (esp-14.2.0_20260121) with xtensa_esp8266.so, linked at 0x40100100,
+/// except rer/wer (that config gives them no operand fields) and l32r (displacement -4),
+/// which are hand-encoded from the Xtensa ISA formats. The `mov` alias decodes as OR.
+const LX106_OPS: &[(u32, &str, Op, &[u8])] = &[
+    (6037, "nop", Op::Nop, &[0xf0, 0x20, 0x00]), (5863, "nop.n", Op::NopN, &[0x3d, 0xf0]),
+    (6289, "break 1, 2", Op::Break, &[0x20, 0x41, 0x00]), (6292, "break.n 1", Op::BreakN, &[0x2d, 0xf1]),
+    (5833, "syscall", Op::Syscall, &[0x00, 0x50, 0x00]), (6268, "waiti 0", Op::Waiti, &[0x00, 0x70, 0x00]),
+    (6106, "rsil a2, 1", Op::Rsil, &[0x20, 0x61, 0x00]), (6094, "isync", Op::Isync, &[0x00, 0x20, 0x00]),
+    (6097, "rsync", Op::Rsync, &[0x10, 0x20, 0x00]), (6100, "esync", Op::Esync, &[0x20, 0x20, 0x00]),
+    (6103, "dsync", Op::Dsync, &[0x30, 0x20, 0x00]), (5824, "excw", Op::Excw, &[0x80, 0x20, 0x00]),
+    (6088, "memw", Op::Memw, &[0xc0, 0x20, 0x00]), (6091, "extw", Op::Extw, &[0xd0, 0x20, 0x00]),
+    (5995, "j .+3", Op::J, &[0xc6, 0xff, 0xff]), (5998, "jx a3", Op::Jx, &[0xa0, 0x03, 0x00]),
+    (5983, "call0 .+8", Op::Call0, &[0x45, 0x00, 0x00]), (5986, "callx0 a3", Op::Callx0, &[0xc0, 0x03, 0x00]),
+    (6040, "ret", Op::Ret, &[0x80, 0x00, 0x00]), (5866, "ret.n", Op::RetN, &[0x0d, 0xf0]),
+    (5827, "rfe", Op::Rfe, &[0x00, 0x30, 0x00]), (5830, "rfde", Op::Rfde, &[0x00, 0x32, 0x00]),
+    (6265, "rfi 2", Op::Rfi, &[0x10, 0x32, 0x00]), (6265, "rfi 3", Op::Rfi, &[0x10, 0x33, 0x00]),
+    (5971, "beqz a2, .+3", Op::Beqz, &[0x16, 0xf2, 0xff]), (5974, "bnez a2, .+3", Op::Bnez, &[0x56, 0xf2, 0xff]),
+    (5980, "bltz a2, .+3", Op::Bltz, &[0x96, 0xf2, 0xff]), (5977, "bgez a2, .+3", Op::Bgez, &[0xd6, 0xf2, 0xff]),
+    (5845, "beqz.n a2, .+4", Op::BeqzN, &[0x8c, 0x02]), (5848, "bnez.n a2, .+4", Op::BnezN, &[0xcc, 0x02]),
+    (5911, "beqi a2, 1, .+3", Op::Beqi, &[0x26, 0x12, 0xff]), (5914, "bnei a2, 1, .+3", Op::Bnei, &[0x66, 0x12, 0xff]),
+    (5920, "blti a2, 1, .+3", Op::Blti, &[0xa6, 0x12, 0xff]), (5917, "bgei a2, 1, .+3", Op::Bgei, &[0xe6, 0x12, 0xff]),
+    (5932, "bltui a2, 2, .+3", Op::Bltui, &[0xb6, 0x22, 0xff]), (5929, "bgeui a2, 2, .+3", Op::Bgeui, &[0xf6, 0x22, 0xff]),
+    (5956, "bnone a2, a3, .+3", Op::Bnone, &[0x37, 0x02, 0xff]), (5935, "beq a2, a3, .+3", Op::Beq, &[0x37, 0x12, 0xff]),
+    (5944, "blt a2, a3, .+3", Op::Blt, &[0x37, 0x22, 0xff]), (5950, "bltu a2, a3, .+3", Op::Bltu, &[0x37, 0x32, 0xff]),
+    (5959, "ball a2, a3, .+3", Op::Ball, &[0x37, 0x42, 0xff]), (5965, "bbc a2, a3, .+3", Op::Bbc, &[0x37, 0x52, 0xff]),
+    (5923, "bbci a2, 5, .+3", Op::Bbci, &[0x57, 0x62, 0xff]), (5953, "bany a2, a3, .+3", Op::Bany, &[0x37, 0x82, 0xff]),
+    (5938, "bne a2, a3, .+3", Op::Bne, &[0x37, 0x92, 0xff]), (5941, "bge a2, a3, .+3", Op::Bge, &[0x37, 0xa2, 0xff]),
+    (5947, "bgeu a2, a3, .+3", Op::Bgeu, &[0x37, 0xb2, 0xff]), (5962, "bnall a2, a3, .+3", Op::Bnall, &[0x37, 0xc2, 0xff]),
+    (5968, "bbs a2, a3, .+3", Op::Bbs, &[0x37, 0xd2, 0xff]), (5926, "bbsi a2, 5, .+3", Op::Bbsi, &[0x57, 0xe2, 0xff]),
+    (6013, "l8ui a2, a3, 1", Op::L8ui, &[0x22, 0x03, 0x01]), (6001, "l16ui a2, a3, 2", Op::L16ui, &[0x22, 0x13, 0x01]),
+    (6004, "l16si a2, a3, 2", Op::L16si, &[0x22, 0x93, 0x01]), (6007, "l32i a2, a3, 4", Op::L32i, &[0x22, 0x23, 0x01]),
+    (5854, "l32i.n a2, a3, 4", Op::L32iN, &[0x28, 0x13]), (6010, "l32r a2, .-4", Op::L32r, &[0x21, 0xff, 0xff]),
+    (6049, "s8i a2, a3, 1", Op::S8i, &[0x22, 0x43, 0x01]), (6043, "s16i a2, a3, 2", Op::S16i, &[0x22, 0x53, 0x01]),
+    (6046, "s32i a2, a3, 4", Op::S32i, &[0x22, 0x63, 0x01]), (5869, "s32i.n a2, a3, 4", Op::S32iN, &[0x29, 0x13]),
+    (6016, "movi a2, 100", Op::Movi, &[0x22, 0xa0, 0x64]), (5860, "movi.n a2, 10", Op::MoviN, &[0x0c, 0xa2]),
+    (5857, "mov.n a2, a3", Op::MovN, &[0x2d, 0x03]), (5878, "add a2, a3, a4", Op::Add, &[0x40, 0x23, 0x80]),
+    (5839, "add.n a2, a3, a4", Op::AddN, &[0x4a, 0x23]), (5872, "addi a2, a3, 5", Op::Addi, &[0x22, 0xc3, 0x05]),
+    (5842, "addi.n a2, a3, 5", Op::AddiN, &[0x5b, 0x23]), (5875, "addmi a2, a3, 0x100", Op::Addmi, &[0x22, 0xd3, 0x01]),
+    (5881, "sub a2, a3, a4", Op::Sub, &[0x40, 0x23, 0xc0]), (5884, "addx2 a2, a3, a4", Op::Addx2, &[0x40, 0x23, 0x90]),
+    (5887, "addx4 a2, a3, a4", Op::Addx4, &[0x40, 0x23, 0xa0]), (5890, "addx8 a2, a3, a4", Op::Addx8, &[0x40, 0x23, 0xb0]),
+    (5893, "subx2 a2, a3, a4", Op::Subx2, &[0x40, 0x23, 0xd0]), (5896, "subx4 a2, a3, a4", Op::Subx4, &[0x40, 0x23, 0xe0]),
+    (5899, "subx8 a2, a3, a4", Op::Subx8, &[0x40, 0x23, 0xf0]), (5902, "and a2, a3, a4", Op::And, &[0x40, 0x23, 0x10]),
+    (5905, "or a2, a3, a4", Op::Or, &[0x40, 0x23, 0x20]), (5908, "xor a2, a3, a4", Op::Xor, &[0x40, 0x23, 0x30]),
+    (6031, "neg a2, a3", Op::Neg, &[0x30, 0x20, 0x60]), (6034, "abs a2, a3", Op::Abs, &[0x30, 0x21, 0x60]),
+    (5989, "extui a2, a3, 4, 8", Op::Extui, &[0x30, 0x24, 0x74]), (6019, "moveqz a2, a3, a4", Op::Moveqz, &[0x40, 0x23, 0x83]),
+    (6022, "movnez a2, a3, a4", Op::Movnez, &[0x40, 0x23, 0x93]), (6025, "movltz a2, a3, a4", Op::Movltz, &[0x40, 0x23, 0xa3]),
+    (6028, "movgez a2, a3, a4", Op::Movgez, &[0x40, 0x23, 0xb3]), (6079, "slli a2, a3, 5", Op::Slli, &[0xb0, 0x23, 0x11]),
+    (6082, "srai a2, a3, 5", Op::Srai, &[0x30, 0x25, 0x21]), (6085, "srli a2, a3, 5", Op::Srli, &[0x30, 0x25, 0x41]),
+    (6067, "sll a2, a3", Op::Sll, &[0x00, 0x23, 0xa1]), (6073, "srl a2, a3", Op::Srl, &[0x30, 0x20, 0x91]),
+    (6076, "sra a2, a3", Op::Sra, &[0x30, 0x20, 0xb1]), (6070, "src a2, a3, a4", Op::Src, &[0x40, 0x23, 0x81]),
+    (6052, "ssr a3", Op::Ssr, &[0x00, 0x03, 0x40]), (6055, "ssl a3", Op::Ssl, &[0x00, 0x13, 0x40]),
+    (6058, "ssa8l a3", Op::Ssa8l, &[0x00, 0x23, 0x40]), (6061, "ssa8b a3", Op::Ssa8b, &[0x00, 0x33, 0x40]),
+    (6064, "ssai 5", Op::Ssai, &[0x00, 0x45, 0x40]), (6424, "nsa a2, a3", Op::Nsa, &[0x20, 0xe3, 0x40]),
+    (6427, "nsau a2, a3", Op::Nsau, &[0x20, 0xf3, 0x40]), (6262, "mull a2, a3, a4", Op::Mull, &[0x40, 0x23, 0x82]),
+    (6256, "mul16u a2, a3, a4", Op::Mul16u, &[0x40, 0x23, 0xc1]), (6259, "mul16s a2, a3, a4", Op::Mul16s, &[0x40, 0x23, 0xd1]),
+    (6430, "rer a2, a3", Op::Rer, &[0x20, 0x63, 0x40]), (6433, "wer a2, a3", Op::Wer, &[0x20, 0x73, 0x40]),
+    (6415, "ritlb0 a2, a3", Op::Ritlb0, &[0x20, 0x33, 0x50]), (6409, "iitlb a3", Op::Iitlb, &[0x00, 0x43, 0x50]),
+    (6412, "pitlb a2, a3", Op::Pitlb, &[0x20, 0x53, 0x50]), (6421, "witlb a2, a3", Op::Witlb, &[0x20, 0x63, 0x50]),
+    (6418, "ritlb1 a2, a3", Op::Ritlb1, &[0x20, 0x73, 0x50]), (6400, "rdtlb0 a2, a3", Op::Rdtlb0, &[0x20, 0xb3, 0x50]),
+    (6394, "idtlb a3", Op::Idtlb, &[0x00, 0xc3, 0x50]), (6397, "pdtlb a2, a3", Op::Pdtlb, &[0x20, 0xd3, 0x50]),
+    (6406, "wdtlb a2, a3", Op::Wdtlb, &[0x20, 0xe3, 0x50]), (6403, "rdtlb1 a2, a3", Op::Rdtlb1, &[0x20, 0xf3, 0x50]),
+    (6109, "rsr.sar a2", Op::Rsr, &[0x20, 0x03, 0x03]), (6112, "wsr.sar a2", Op::Wsr, &[0x20, 0x03, 0x13]),
+    (6115, "xsr.sar a2", Op::Xsr, &[0x20, 0x03, 0x61]),
+];
+
+/// Instructions the shared decoder knows but the LX106 opcode table lacks (cache ops, SALT,
+/// MAC16, PIE), plus SIMCALL: in the table, but QEMU makes it illegal on hardware before
+/// RE.3 (translate.c:2240-2253; LX106 XCHAL_HW_VERSION 230001). Bytes: mula.dd.ll from
+/// GNU as 2.43.1 with xtensa_esp32.so; salt, saltu and ee.vadds.s8 with xtensa_esp32s3.so;
+/// dhi, ihi and dpfr hand-encoded from the ISA CACHE format (no config here has caches).
+/// xtensa_esp8266.so rejects all of them except simcall.
+const EXTRA_FORBIDDEN: &[(&str, Op, &[u8])] = &[
+    ("mula.dd.ll m0, m2", Op::Mac16, &[0x04, 0x00, 0x28]), ("dhi a2, 0", Op::Dhi, &[0x62, 0x72, 0x00]),
+    ("ihi a2, 0", Op::Ihi, &[0xe2, 0x72, 0x00]), ("dpfr a2, 0", Op::Dpfr, &[0x02, 0x72, 0x00]),
+    ("salt a2, a3, a4", Op::Salt, &[0x40, 0x23, 0x72]), ("saltu a2, a3, a4", Op::Saltu, &[0x40, 0x23, 0x62]),
+    ("simcall", Op::Simcall, &[0x00, 0x51, 0x00]), ("ee.vadds.s8 q0, q1, q2", Op::Pie, &[0x84, 0x11, 0x8e]),
+];
+
+fn word(raw: &[u8]) -> [u8; 4] { let mut b = [0; 4]; b[..raw.len()].copy_from_slice(raw); b }
+
+#[test]
+fn every_lx106_opcode_is_supported_and_executes() {
+    // Deleting an op from supports() makes its instance trap IllegalInstruction here.
+    let at = BASE + 0x100;
+    for &(_, name, op, raw) in LX106_OPS {
+        let i = decode(at, word(raw));
+        assert_eq!((i.op, i.len as usize), (op, raw.len()), "{name}");
+        assert!(supports(&i), "{name}");
+        let (mut c, mut b) = machine(at);
+        b.mem[0x100..0x100 + raw.len()].copy_from_slice(raw);
+        for n in 0..16 { c.set_ar(n, BASE + 0x200); }
+        let expected = match op {
+            Op::Syscall => Err(Trap::Exception(exc::SYSCALL)),
+            Op::Break | Op::BreakN => Err(Trap::Exception(0x108)),
+            Op::Rer | Op::Wer => Err(Trap::Unimplemented(at, i.raw)),
+            _ => Ok(()),
+        };
+        assert_eq!(c.step(&mut b).result(), expected, "{name}");
+    }
+}
+
+#[test]
+fn supported_encodings_are_only_lx106_opcodes() {
+    // Every 24-bit word (narrow forms included): supports() accepts no op outside the table,
+    // so a new decoder op cannot silently become an LX106 instruction.
+    let (mut table, mut seen) = ([false; 1024], [false; 1024]);
+    for e in LX106_OPS { table[e.2 as usize] = true; }
+    for w in 0..1u32 << 24 {
+        let i = decode(BASE, [w as u8, (w >> 8) as u8, (w >> 16) as u8, 0]);
+        if supports(&i) {
+            assert!(table[i.op as usize], "{:?} accepted ({w:06x})", i.op);
+            seen[i.op as usize] = true;
+        }
+    }
+    assert_eq!(seen, table);
+}
+
 #[test]
 fn forbidden_options_raise_illegal_before_any_effect() {
-    for &(name, raw) in corpus::FORBIDDEN {
-        for mask in [0, ps::UM, ps::EXCM, ps::WOE | (3 << ps::CALLINC_SHIFT)] {
+    for &(name, op, raw) in EXTRA_FORBIDDEN {
+        assert_eq!(decode(BASE, word(raw)).op, op, "{name}");
+    }
+    let extra = EXTRA_FORBIDDEN.iter().map(|&(name, _, raw)| (name, raw));
+    for (name, raw) in corpus::FORBIDDEN.iter().copied().chain(extra) {
+        for mask in [0, ps::UM, ps::EXCM] {
             let (mut c, mut b) = machine(BASE);
             b.mem[..4].fill(0); b.mem[..raw.len()].copy_from_slice(raw);
             c.write_sr(sr::PS, mask).unwrap();
@@ -201,6 +325,31 @@ fn debug_uses_level_two_and_never_s3_level_six() {
     assert_eq!((c.pc(), c.state().epc[2], c.state().eps[2]),
         (0x40000010, corpus::DEBUG_BREAK, 0));
     assert_eq!(c.state().epc[6], 0);
+    assert_eq!(c.state().debugcause, 1 << 3); // BI
+}
+
+#[test]
+fn break_n_cause_and_break_masked_at_debug_level() {
+    // break 1, 2 and break.n 1 (Xtensa ISA RRR/RRRN encodings).
+    for (raw, cause) in [(&[0x20u8, 0x41, 0x00][..], 1u32 << 3), (&[0x2d, 0xf1][..], 1 << 4)] {
+        for (ps, taken) in [(0, true), (1, true), (ps::EXCM, true), (ps::EXCM | 1, true), (2, false), (3, false), (15, false), (ps::EXCM | 2, false)] {
+            let (mut c, mut b) = machine(BASE);
+            b.mem[..raw.len()].copy_from_slice(raw);
+            c.write_sr(sr::PS, ps).unwrap();
+            let out = c.step(&mut b);
+            if taken {
+                assert_eq!(out.trap(), Some(Trap::Exception(0x108)), "PS {ps:#x}");
+                assert_eq!((c.pc(), c.state().debugcause, c.state().epc[2], c.state().eps[2]),
+                    (0x40000010, cause, BASE, ps), "PS {ps:#x}");
+                assert_eq!(c.state().ps, (ps & !ps::INTLEVEL_MASK) | ps::EXCM | 2);
+            } else {
+                // A BREAK at or above DEBUGLEVEL retires as a no-op: no debug state changes.
+                assert_eq!(out.kind, StepKind::Retired, "PS {ps:#x}");
+                assert_eq!((c.pc(), c.state().ps, c.state().debugcause, c.state().epc[2], c.state().eps[2]),
+                    (BASE + raw.len() as u32, ps, 0, 0, 0), "PS {ps:#x}");
+            }
+        }
+    }
 }
 
 #[test]
@@ -300,5 +449,18 @@ fn unaligned_word_access_has_lx106_alignment_exception() {
         assert_eq!(c.pc(), 0x40000030);
         assert_eq!(c.state().epc[1], pc);
         assert_eq!(c.state().excvaddr, BASE + 0x8001 + if pc == corpus::LEAF { 0 } else { 28 });
+    }
+}
+
+#[test]
+fn rer_wer_trap_unimplemented_without_effect() {
+    // rer a2, a3 and wer a2, a3 (Xtensa ISA RRR: op2 4, r 6/7). The SoC must supply
+    // these; the generic executor's read-zero/no-op must not leak into the profile.
+    for raw in [[0x20u8, 0x63, 0x40], [0x20, 0x73, 0x40]] {
+        let (mut c, mut b) = machine(BASE);
+        b.mem[..3].copy_from_slice(&raw);
+        c.set_ar(2, 0x1234); c.set_ar(3, 0x5678);
+        assert_eq!(c.step(&mut b).trap(), Some(Trap::Unimplemented(BASE, decode(BASE, [raw[0], raw[1], raw[2], 0]).raw)));
+        assert_eq!((c.pc(), c.get_ar(2), c.get_ar(3)), (BASE, 0x1234, 0x5678));
     }
 }
