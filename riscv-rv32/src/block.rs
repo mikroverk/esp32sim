@@ -130,7 +130,7 @@ impl Blocks {
 
 /// Instructions after which the rest of a block may be stale: anything that can store.
 #[inline(always)]
-fn may_write(op: Op) -> bool {
+pub(crate) fn may_write(op: Op) -> bool {
     use Op::*;
     matches!(op, Sb | Sh | Sw | ScW | AmoSwapW | AmoAddW | AmoXorW | AmoAndW | AmoOrW | AmoMinW | AmoMaxW | AmoMinuW | AmoMaxuW | CmPush | Fsw) || op.is_pie()
 }
@@ -140,10 +140,7 @@ fn may_write(op: Op) -> bool {
 /// read (`csrrs`/`csrrc` from x0, or with a zero immediate) writes nothing (`exec_insn`) and
 /// `read_csr` has no side effects, so a delay loop that polls the cycle counter stays one block.
 #[inline(always)]
-pub(crate) fn ends_block_pub(i: &Insn) -> bool { ends_block(i) }
-
-#[inline(always)]
-fn ends_block(i: &Insn) -> bool {
+pub(crate) fn ends_block(i: &Insn) -> bool {
     use Op::*;
     match i.op {
         Csrrs | Csrrc | Csrrsi | Csrrci => i.rs1 != 0,

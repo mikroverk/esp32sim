@@ -28,7 +28,7 @@
 // Without a backend (x86-64, wasm without a page to compile for) only the shared front end is
 // built, and nothing calls it.
 #![cfg_attr(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", feature = "wasm-jit-host"))), allow(dead_code))]
-use crate::block::{decode_block, Decoded};
+use crate::block::{decode_block, ends_block, Decoded};
 use crate::bus::Bus;
 use crate::decode::{Insn, Op};
 use crate::state::{exc, Cpu};
@@ -144,12 +144,6 @@ fn kind(op: Op) -> Kind {
     }
 }
 
-/// Instructions after which the rest of a block may be stale (`block::may_write`).
-fn may_write(op: Op) -> bool {
-    use Op::*;
-    matches!(op, Sb | Sh | Sw | ScW | AmoSwapW | AmoAddW | AmoXorW | AmoAndW | AmoOrW | AmoMinW | AmoMaxW | AmoMinuW | AmoMaxuW | CmPush | Fsw) || op.is_pie()
-}
-
 /// Where execution goes after a block.
 #[derive(Clone, Copy)]
 enum Succ {
@@ -171,7 +165,7 @@ impl RBlock {
         let succ = match last.op {
             Op::Jal => Succ::To(last.imm as u32),
             Op::Beq | Op::Bne | Op::Blt | Op::Bge | Op::Bltu | Op::Bgeu => Succ::Branch { op: last.op, rs1: last.rs1, rs2: last.rs2, taken: last.imm as u32, not: next },
-            _ if kind(last.op) == Kind::Exec && crate::block::ends_block_pub(&last) => Succ::Gone,
+            _ if kind(last.op) == Kind::Exec && ends_block(&last) => Succ::Gone,
             Op::Jalr => Succ::Gone,
             _ => Succ::To(next),
         };
@@ -246,6 +240,7 @@ struct Pending { insns: u32, retired: u32 }
 #[cfg(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")))]
 mod a64 {
     use super::*;
+    use crate::block::may_write;
     use emu_core::jit_a64::{Asm, Cond, Label, Reg, SP, ZR};
     use std::ffi::{c_int, c_void};
     use std::mem::offset_of;
@@ -644,6 +639,7 @@ mod wasm {
     //! pointer, which in wasm is its table index. Helpers are called the same way. The blocks sit
     //! in a `loop` around a `br_table` on the next block's index.
     use super::*;
+    use crate::block::may_write;
     use std::mem::offset_of;
 
     pub const AVAILABLE: bool = true;
