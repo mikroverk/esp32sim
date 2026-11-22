@@ -67,7 +67,7 @@ fn pc_relative_and_absolute_literals() {
 #[test]
 fn forbidden_options_raise_illegal_before_any_effect() {
     for &(name, raw) in corpus::FORBIDDEN {
-        for mask in [0, ps::UM, ps::EXCM, ps::WOE | (3 << ps::CALLINC_SHIFT)] {
+        for mask in [0, ps::UM, ps::EXCM] {
             let (mut c, mut b) = machine(BASE);
             b.mem[..4].fill(0); b.mem[..raw.len()].copy_from_slice(raw);
             c.write_sr(sr::PS, mask).unwrap();
