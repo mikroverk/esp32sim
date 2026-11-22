@@ -222,6 +222,7 @@ mod none {
         pub fn new() -> Option<Box<Jit>> { None }
         pub fn compile<B: Bus>(&mut self, _r: &Region) -> Option<Vec<u32>> { None }
         pub fn reset(&mut self) {}
+        pub fn bytes(&self) -> usize { 0 }
         pub fn entry(&self, code: u32) -> Code { Code(code as usize as *const u8) }
         /// # Safety
         /// Never called: no code exists.
@@ -288,6 +289,7 @@ mod a64 {
         }
         /// Forget all code (the caller forgets every block that refers to it).
         pub fn reset(&mut self) { self.used = 0; self.tables.clear(); }
+        pub fn bytes(&self) -> usize { self.used }
 
         fn write(&mut self, words: &[u32]) -> Option<u32> {
             let bytes = words.len() * 4;
@@ -653,16 +655,19 @@ mod wasm {
     /// Modules before this core's are all discarded.
     const MAX_MODULES: usize = 16384;
 
-    pub struct Jit { tables: Vec<Box<[Insn]>>, slots: Vec<u32> }
+    /// This core's modules, their size, and the instruction tables `h_exec` reads.
+    pub struct Jit { tables: Vec<Box<[Insn]>>, slots: Vec<u32>, bytes: usize }
 
     impl Jit {
-        pub fn new() -> Option<Box<Jit>> { Some(Box::new(Jit { tables: Vec::new(), slots: Vec::new() })) }
+        pub fn new() -> Option<Box<Jit>> { Some(Box::new(Jit { tables: Vec::new(), slots: Vec::new(), bytes: 0 })) }
         /// Forget all code (the caller forgets every block that refers to it).
         pub fn reset(&mut self) {
             // SAFETY: each slot came from `host_jit_compile` and is released once
             for s in self.slots.drain(..) { unsafe { host_jit_release(s) } }
             self.tables.clear();
+            self.bytes = 0;
         }
+        pub fn bytes(&self) -> usize { self.bytes }
 
         /// The block's code `compile` returned as `code`: its module's table index times 32 plus
         /// the block.
@@ -686,6 +691,7 @@ mod wasm {
             let idx = unsafe { host_jit_compile(module.as_ptr(), module.len()) };
             if idx == 0 { return None; }
             self.slots.push(idx);
+            self.bytes += module.len();
             self.tables.extend(tables);
             Some((0..r.blocks.len() as u32).map(|k| idx << 5 | k).collect())
         }

@@ -29,7 +29,7 @@ impl emu_core::Core for Cpu {
     fn flush_caches(&mut self) { self.blocks.flush(); }
     /// `--no-jit`: the interpreter alone, the oracle for the blocks.
     fn set_jit(&mut self, on: bool) { self.blocks.on = on; self.blocks.flush(); }
-    fn code_cache_stats(&self) -> Option<(u64, u64, u64, usize)> { Some((self.blocks.builds, self.blocks.flushes, 0, 0)) }
+    fn code_cache_stats(&self) -> Option<(u64, u64, u64, usize)> { Some((self.blocks.builds, self.blocks.flushes, self.blocks.compiled(), self.blocks.code_bytes())) }
     /// One instruction at a time, but like a block: stop when the bus reports that an interrupt
     /// line may have moved, so the machine re-derives the core's input before the next instruction,
     /// and at a pc the machine wants to see first (a stub or a probe), so it is exact there too.

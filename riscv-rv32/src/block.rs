@@ -134,6 +134,8 @@ impl Blocks {
     pub fn set_jit_hot(&mut self, runs: u16) { if let Some(j) = self.jit.as_mut() { j.hot = runs; } }
     /// Regions compiled.
     pub fn compiled(&self) -> u64 { self.jit.as_ref().map_or(0, |j| j.compiled) }
+    /// Bytes of compiled code held.
+    pub fn code_bytes(&self) -> usize { self.jit.as_ref().and_then(|j| j.code.as_ref()).map_or(0, |c| c.bytes()) }
 }
 
 /// Instructions after which the rest of a block may be stale: anything that can store.
