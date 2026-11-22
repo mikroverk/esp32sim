@@ -82,7 +82,7 @@ New tests in `esp-periph/src/ledc.rs`: `each_timer_alone_counts_wraps_and_latche
 | active-never-cleared | configuration write only sets `active` bits | killed | idle_clock_and_large_batches_match_exact_phase, each_timer_alone_counts_wraps_and_latches_its_channel |
 | active-never-set | configuration write only clears `active` bits | killed | static_duty_latches_at_wrap_and_preserves_fractional_divider, idle_clock_and_large_batches_match_exact_phase, p4_channel_seven_and_its_gamma_ram |
 
-## Host instructions and daytime smoke (the claim; the smoke is not a CPU table)
+## Host instructions
 
 Retired host instructions (`ir.py 10 <base> <candidate>`, `/usr/bin/time -l`, one run each; load-independent to about ±0.05%) ([host-insns.json](host-insns.json)):
 
@@ -107,38 +107,40 @@ Re-run on a rebuild of the same sources (byte-identical binaries), with the S3 h
 
 Screening ablation (host instructions, c6-contiki 10 s, one run each, same build command): the timer skip alone −2.43%, the cold wrap alone −1.26%, both −4.72%; each part carries part of the gain.
 
-User CPU from `wait4`, 10 guest seconds, 1 warmup pair + 3 alternating pairs; the 1-minute load (other work on the machine) is in the last column ([smoke.json](smoke.json)):
-
-| Fixture | Base median s | Candidate median s | Change | Candidate slower | Load |
-| --- | ---: | ---: | ---: | ---: | --- |
-| c6-contiki | 2.607 | 2.325 | -10.8% | 0/3 | 14–16 |
-| c6-energy-scan | 18.102 | 18.116 | +0.1% | 2/3 | 15–21 |
-| c6-hello | 1.148 | 1.138 | -0.8% | 0/3 | 19–20 |
-
-A/A control, main against itself, same procedure, right after ([smoke-aa.json](smoke-aa.json)):
-
-| Fixture | Base median s | Base (2nd arm) median s | Change | 2nd arm slower | Load |
-| --- | ---: | ---: | ---: | ---: | --- |
-| c6-contiki | 2.635 | 2.493 | -5.4% | 0/3 | 19–23 |
-| c6-energy-scan | 18.220 | 17.848 | -2.0% | 0/3 | 23–31 |
-| c6-hello | 1.078 | 1.032 | -4.3% | 0/3 | 23–26 |
-
-The A/A arms differ by up to 5%, so user CPU alone does not resolve this change at this load. Host counters on c6-contiki (`smoke_hw.py`, `/usr/bin/time -l`, 1 warmup + 3 alternating pairs, load 20–23, [smoke-hw.json](smoke-hw.json)): user CPU 2.71 → 2.59 s (-4.4%, 0/3 higher), retired host instructions -4.74% (0/3 higher), elapsed host cycles -3.89% (0/3 higher).
+Host counters on c6-contiki (`smoke_hw.py`, `/usr/bin/time -l`, main `104d7bd1`, 1 warmup + 3 alternating pairs, load 20–23, [smoke-hw.json](smoke-hw.json)): user CPU 2.71 → 2.59 s (-4.4%, 0/3 higher), retired host instructions -4.74% (0/3 higher), elapsed host cycles -3.89% (0/3 higher). Two daytime user-CPU smokes, with an A/A control that moved by up to 5.4% at load 19–31, are superseded by the table below; their files are in the PR head `5cfee516`.
 
 ## CPU (maintainers' run)
 
-Run by the maintainers, not by the author of the change: `smoke_hw.py` from this folder, base main `d043ff1d`, new the PR head merged into it (`686305aa`), each built with `cargo build --release --bins` in its own worktree, the two paths of equal length. One warmup pair and seven alternating pairs per fixture, 30 guest seconds: the S3 `hello`, `c3-hello`, `c6-hello` and c6-contiki (the one that configures the LEDC). From the new tree's root:
+Run by the maintainers, not by the author of the change, on November 22, 2026: `smoke_hw.py` from this folder, base main `d043ff1d`, new the PR head `5cfee516` merged into it (`686305aa`; the run's tree was `550fb5cf`, which adds only files under `docs/`), rustc 1.100.0, aarch64-apple-darwin, Apple M5 Max (18 cores), macOS 27.2.1. Each tree was built with `cargo build --release --bins` in its own worktree, the two paths of equal length. One warmup pair, then alternating pairs, 30 guest seconds. The instruction counts (stop lines) and console are identical in every run of every file. From the new tree's root:
 
 ```sh
 ESP32SIM_ROM_DIR=<roms> FIXTURES='hello c3-hello c6-hello c6-contiki' \
-  python3 -I docs/evidence/c6-ledc-tick/smoke_hw.py docs/evidence/c6-ledc-tick/cpu-pairs.json 30 7 <base-tree>/target/release target/release
+  python3 -I docs/evidence/c6-ledc-tick/smoke_hw.py <out.json> 30 <pairs> <base-tree>/target/release target/release
 ```
 
-<!-- CPU TABLE -->
+Medians of user CPU; ranges are over the measured pairs.
+
+| New arm | Fixture | Pairs | Base median s (range) | New median s (range) | User CPU | New slower | Host insns (higher) | Host cycles (higher) | 1-min load |
+| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | --- |
+| this change ([json](cpu-pairs-first.json)) | hello | 7 | 0.246 (0.245–0.250) | 0.250 (0.248–0.252) | +1.55% | 6/7 | +0.05% (7/7) | +2.14% (6/7) | 6.1–6.4 |
+| this change ([json](cpu-pairs-first.json)) | c3-hello | 7 | 2.521 (2.491–2.708) | 2.536 (2.479–2.637) | +0.59% | 3/7 | +0.00% (5/7) | +0.49% (3/7) | 4.4–6.1 |
+| this change ([json](cpu-pairs-first.json)) | c6-hello | 7 | 1.559 (1.543–1.585) | 1.579 (1.566–1.609) | +1.30% | 6/7 | -0.00% (2/7) | +1.33% (6/7) | 4.0–4.4 |
+| this change ([json](cpu-pairs-first.json)) | c6-contiki | 7 | 3.426 (3.416–3.483) | 3.302 (3.242–3.349) | -3.64% | 0/7 | -4.96% (0/7) | -3.71% (0/7) | 3.1–3.9 |
+| this change, repeat ([json](cpu-pairs-first-repeat.json)) | hello | 11 | 0.236 (0.231–0.244) | 0.240 (0.238–0.245) | +1.81% | 9/11 | +0.05% (11/11) | +2.07% (10/11) | 1.3–1.3 |
+| this change, repeat ([json](cpu-pairs-first-repeat.json)) | c6-hello | 11 | 1.509 (1.492–1.642) | 1.505 (1.469–1.520) | -0.29% | 4/11 | -0.00% (4/11) | -1.09% (4/11) | 1.2–1.4 |
+| A/A control: main `d043ff1d` again ([json](cpu-pairs-aa.json)) | hello | 11 | 0.237 (0.233–0.247) | 0.238 (0.234–0.245) | +0.30% | 5/11 | -0.00% (4/11) | +0.38% (6/11) | 1.0–1.0 |
+| A/A control: main `d043ff1d` again ([json](cpu-pairs-aa.json)) | c6-hello | 11 | 1.476 (1.460–1.504) | 1.484 (1.449–1.562) | +0.55% | 6/11 | -0.00% (3/11) | +0.47% (6/11) | 1.0–1.4 |
+| this change ([json](cpu-pairs-first-pocket-tank.json)) | pocket-tank | 7 | 38.255 (38.147–38.665) | 38.200 (38.007–38.971) | -0.14% | 3/7 | -0.00% (2/7) | +0.10% (3/7) | 1.3–2.1 |
+
+c6-contiki is the fixture here that configures the LEDC, and the only one that runs the changed code (the probe above): −3.64%, slower in 0 of 7 pairs, host instructions −4.96%.
+
+The S3 hello is slower, and that reproduced: +1.55% (6/7), then +1.81% (9/11), host cycles +2.07% (10/11), against an A/A control of +0.30% (5/11). That is about 4 ms of 0.24 s. The LEDC tick never runs on that fixture, so this is not executed LEDC code; the cause is not established. Code layout is possible and not demonstrated, and the 0.05% more host instructions in every 30 s pair (7/7 and 11/11) are unexplained. c6-hello's +1.30% (6/7) did not repeat (−0.29%, 4/11; A/A +0.55%, 6/11). c3-hello is +0.59% (3/7), with overlapping ranges and no A/A control of its own. pocket-tank is flat, −0.14% (3/7).
+
+A variant with an early return on `active == 0` was also built and measured (1 warmup + 11 pairs: S3 hello +0.65%, 6/11; c6-contiki −3.55%, 1/11); it was not adopted, because the tick is never called on the S3 hello, so the early return cannot explain the S3 hello difference.
 
 ## Limits
 
-The speed claim is the retired host instruction count: c6-contiki −4.74% (−4.55% on `d043ff1d` with rustc 1.100.0), c6-energy-scan −0.89% (−0.81%), and no change on the fixtures that never configure the LEDC (c6-hello, the display starter, c3-hello; the S3 `hello` and pocket-tank never touch the LEDC either), which do not run the changed code. The daytime user-CPU smokes ran on a shared, heavily loaded machine whose A/A control moved up to 5.4%, so they are not a CPU claim; user CPU is the maintainers' run above. A firmware whose LEDC timer wraps on nearly every round (a PWM period of a few dozen APB cycles) now pays a call per wrap; no fixture here does. Native only, not a browser or hardware claim.
+The claim is c6-contiki: user CPU −3.64% (0/7 slower, main `d043ff1d` against the PR head merged into it, rustc 1.100.0), retired host instructions −4.55% in one 10 s run (−4.74% on `104d7bd1`) and c6-energy-scan −0.81% (−0.89%). The S3 hello is slower by +1.81% (9/11) for a reason not established, see above; it and the other fixtures in the table do not run the changed code. c6-energy-scan, the P4 and the classic are not in the CPU table. One machine. A firmware whose LEDC timer wraps on nearly every round (a PWM period of a few dozen APB cycles) now pays a call per wrap; no fixture here does. Native only, not a browser or hardware claim.
 
 ## Checks
 
