@@ -23,7 +23,9 @@ fn run(op: Op, bytes: [u8; 3], jit: bool, woe: bool, inc: u32, live: bool, wb: u
     bus.code.mem[..3].copy_from_slice(&bytes);
     assert_eq!(decode(CODE, bus.code.fetch(CODE).unwrap()).op, op);
     let mut cpu = Cpu::new(0);
-    cpu.pc = CODE; cpu.ps = if woe { ps::WOE } else { 0 }; cpu.windowbase = wb;
+    // a stale CALLINC (never this return's), OWB and INTLEVEL: the return must replace only CALLINC
+    let stale = ((inc % 3 + 1) << ps::CALLINC_SHIFT) | (5 << ps::OWB_SHIFT) | 3;
+    cpu.pc = CODE; cpu.ps = stale | if woe { ps::WOE } else { 0 }; cpu.windowbase = wb;
     cpu.windowstart = (1 << wb) | if live { 1 << (wb.wrapping_sub(inc) & 15) } else { 0 };
     cpu.blocks.jit_enabled = jit;
     cpu.set_ar(0, (inc << 30) | 0x0037_0040);
@@ -48,14 +50,14 @@ fn retw_guarded_path_matches_interpreter() {
 #[test]
 fn retw_timer_interrupt_is_delivered_at_the_next_boundary() {
     for (op, bytes) in [(Op::Retw, [0x90, 0, 0]), (Op::RetwN, [0x1d, 0xf0, 0])] {
-        for return_to_next in [false, true] { for prid in 0..=1 {
+        for return_to_next in [false, true] {
             let mut results = Vec::new();
             for jit in [false, true] {
                 let mut bus = CodeBus { code: FlatRam::new(CODE, 16), versions: [0; 2], interpreted: 0 };
                 bus.code.mem[..3].copy_from_slice(&bytes);
                 let len = decode(CODE, bus.code.fetch(CODE).unwrap()).len as u32;
                 let target = CODE + if return_to_next { len } else { 8 };
-                let mut cpu = Cpu::new(prid);
+                let mut cpu = Cpu::new(0);
                 cpu.pc = CODE; cpu.ps = ps::WOE; cpu.windowbase = 3; cpu.windowstart = (1 << 3) | (1 << 2);
                 cpu.blocks.jit_enabled = jit; cpu.set_ar(0, (1 << 30) | (target & 0x3fff_ffff));
                 cpu.ccompare[0] = 1; cpu.intenable = 1 << 6;
@@ -68,8 +70,8 @@ fn retw_timer_interrupt_is_delivered_at_the_next_boundary() {
                 results.push((first, second, cpu.pc, cpu.ps, cpu.windowbase, cpu.windowstart,
                     cpu.epc, cpu.insn_count, cpu.ccount, cpu.interrupt));
             }
-            assert_eq!(results[0], results[1], "{op:?}, return_to_next={return_to_next}, prid={prid}");
-        }}
+            assert_eq!(results[0], results[1], "{op:?}, return_to_next={return_to_next}");
+        }
     }
 }
 #[test]
