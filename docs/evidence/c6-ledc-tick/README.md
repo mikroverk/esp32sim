@@ -1,4 +1,6 @@
-# EX204 follow-up: the LEDC tick skips unconfigured timers and moves wraps out of line
+# EX252: the LEDC tick skips unconfigured timers and moves wraps out of line
+
+[EX252](../../experiments.md#ex252), PR #301. It started as a follow-up to [EX204](../../experiments.md#ex204) (the LEDC register model and its idle dispatch) and has its own row: this is the hot path while a timer is configured.
 
 Base: main `104d7bd1`. Toolchain 1.99.0, release profile unchanged. ARM64 macOS host.
 
