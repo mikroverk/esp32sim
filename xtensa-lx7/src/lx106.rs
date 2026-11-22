@@ -19,6 +19,9 @@ const LITBASE: u32 = 5;
 
 /// Whether a decoded instruction belongs to the LX106 ISA (core-isa.h:49-94).
 /// A positive list prevents future extensions from silently becoming LX106 instructions.
+/// Every op is in the LX106 opcode table, QEMU v10.1.0 target/xtensa/core-lx106/
+/// xtensa-modules.c.inc opcodes[] (lines 5823-6435); tests/lx106.rs pins this list to it
+/// in both directions (docs/evidence/lx106-core/isa-membership.json).
 pub fn supports(i: &Insn) -> bool {
     use Op::*;
     match i.op {

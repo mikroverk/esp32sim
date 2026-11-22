@@ -46,11 +46,29 @@ python3 xtensa-lx7/tests/corpus/build-lx106.py --lx106-prefix "$LX106_PREFIX" --
 nice -n 10 cargo +1.99.0 test --release -p xtensa-lx7 --test lx106
 ```
 
-The 15 tests cover arithmetic, call0, literals, interrupt and exception entry,
-timer and WAITI behavior, alignment, unsupported instructions, and a 256-register
-by three-direction matrix. The latter checks illegal raw instructions preserve
-register state before exception effects. The tests also check that JIT requests
-cannot bypass the interpreter profile.
+The 19 tests cover arithmetic, call0, literals, interrupt and exception entry,
+timer and WAITI behavior, BREAK/BREAK.N debug causes and masking, alignment,
+unsupported instructions, RER/WER traps, and a 256-register by three-direction
+matrix. The latter checks illegal raw instructions preserve register state before
+exception effects. The tests also check that JIT requests cannot bypass the
+interpreter profile.
+
+## ISA membership
+
+The positive list in `supports()` is checked against the LX106 opcode table that
+QEMU v10.1.0 ships (`target/xtensa/core-lx106/xtensa-modules.c.inc`, `opcodes[]`
+lines 5823–6435). `LX106_OPS` in `tests/lx106.rs` holds one encoded instance of
+every listed op with its table line; one test decodes and steps each without
+IllegalInstruction, and another decodes all 2^24 three-byte words and fails if
+`supports()` accepts an op outside the table. EXTW, the LX3-era suspect, is in the
+table (line 6091). The bytes come from GNU as 2.43.1 with the `xtensa_esp8266.so`
+configuration of Espressif's esp-14.2.0 multi-config toolchain, assembled from
+[isa-membership.S](isa-membership.S); the same assembler rejects the extra
+negatives (MAC16 `mula.dd.ll`, `dhi`, `ihi`, `dpfr`, `salt`, `saltu`, PIE
+`ee.vadds.s8`), which are hand-encoded raw bytes in the test because the pinned
+corpus toolchains are not available to regenerate `lx106-forbidden.S`. SIMCALL is
+in the table but illegal on pre-RE.3 hardware. Sources, hashes, commands and the
+table opcodes the profile leaves out are in [isa-membership.json](isa-membership.json).
 
 ## Mutations and static code generation
 
