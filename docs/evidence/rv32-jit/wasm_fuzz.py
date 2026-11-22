@@ -4,9 +4,9 @@ under Node with web/wasm/jit.mjs as the host (EX269).
 
     wasm_fuzz.py TREE OUT_DIR [FIRST SEEDS]      (seeds 0..300: 2,400 programs)
 
-Writes a cdylib crate around the test's `one` and its two region tests to OUT_DIR (a new directory)
+Writes a cdylib crate around the test's `one` and its three region tests to OUT_DIR (a new directory)
 and runs it. Needs the wasm32-unknown-unknown target; on macOS DYLD_FALLBACK_LIBRARY_PATH at the
-toolchain's lib.
+toolchain's lib. REFUSE=N makes the host refuse every Nth module.
 """
 import os, subprocess, sys
 tree, out = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
@@ -18,7 +18,7 @@ s = s[:s.index('/// Compiled code that overruns its budget may never return')] +
 s = '\n'.join(l for l in s.split('\n') if not l.startswith('//!')) + '''
 #[link(wasm_import_module = "env")] extern "C" { fn say(p: *const u8, n: usize); }
 #[no_mangle] pub extern "C" fn setup() { std::panic::set_hook(Box::new(|i| { let t = i.to_string(); unsafe { say(t.as_ptr(), t.len()) } })); }
-#[no_mangle] pub extern "C" fn directed() { a_store_into_the_next_block_of_a_region_takes_effect(); a_region_never_runs_past_its_budget(); }
+#[no_mangle] pub extern "C" fn directed() { a_store_into_the_next_block_of_a_region_takes_effect(); a_store_into_a_blocks_second_page_takes_effect(); a_region_never_runs_past_its_budget(); }
 #[no_mangle] pub extern "C" fn fuzz(seed: u32, kind: u32, loops: u32) -> f64 { one(seed as u64 * 4 + kind as u64, kind, loops != 0).2 as f64 }
 #[no_mangle] pub extern "C" fn compiled() -> f64 { COMPILED.load(Relaxed) as f64 }
 #[no_mangle] pub extern "C" fn runs() -> f64 { RUNS.load(Relaxed) as f64 }
@@ -39,11 +39,13 @@ open(f'{out}/run.mjs', 'w').write(f'''import {{ readFileSync }} from 'node:fs';
 import {{ createJitHost }} from '{tree}/web/wasm/jit.mjs';
 let w; const jit = createJitHost(() => w);
 const say = (p, n) => console.error(new TextDecoder().decode(new Uint8Array(w.memory.buffer, p, n)));
-const {{ instance }} = await WebAssembly.instantiate(readFileSync(process.argv[2]), {{ env: {{ ...jit.imports, say }} }});
+const every = Number(process.env.REFUSE || 0); let asked = 0;
+const host_jit_compile = (p, n) => ++asked % every === 0 ? 0 : jit.imports.host_jit_compile(p, n);
+const {{ instance }} = await WebAssembly.instantiate(readFileSync(process.argv[2]), {{ env: {{ ...jit.imports, host_jit_compile, say }} }});
 w = instance.exports; w.setup(); w.directed();
 const first = Number(process.argv[3]), seeds = Number(process.argv[4]), insns = [0, 0]; let programs = 0;
 for (let s = first; s < first + seeds; s++) for (let k = 0; k < 4; k++) for (const l of [0, 1]) {{ insns[l] += w.fuzz(s, k, l); programs++; }}
-console.log(JSON.stringify({{ programs, runs: w.runs(), compiled: w.compiled(), insns, stats: jit.stats }}));
+console.log(JSON.stringify({{ programs, runs: w.runs(), compiled: w.compiled(), asked, insns, stats: jit.stats }}));
 ''')
 env = dict(os.environ, RUSTFLAGS='-Clink-arg=--export-table -Clink-arg=--growable-table')
 subprocess.run(['cargo', 'build', '--release', '--target', 'wasm32-unknown-unknown'], cwd=out, env=env, check=True)

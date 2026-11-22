@@ -11,7 +11,7 @@ controls here, they do not run the JIT.
 | Name | Commit | What |
 | --- | --- | --- |
 | main, main-again | `3f49dad8` | the base, built in two checkouts (the A/A control: two binaries of one source) |
-| on, off | `ef299b26` | the JIT as it ends up, `off` with `RV32_JIT=0`; later commits change tests, CI, docs and this folder only |
+| on, off | `ef299b26` | the JIT as it ends up, `off` with `RV32_JIT=0`; later commits change tests, CI, docs, this folder and, in `eaaf051f`, the cold compile path (`jit_compile`: a refused module no longer discards other code), which was not timed again |
 | off-before | `830696f2` | the JIT as first proposed (`2c6bc4aa`) with the same main merged, `RV32_JIT=0` |
 | v2-off, v2-on | `ef299b26` + `separate-loop.patch` (`git apply --unidiff-zero`) | not adopted: the block loop compiled twice, with and without the JIT |
 
@@ -63,8 +63,17 @@ control and is withdrawn. v2 (a loop of its own without the JIT) retired 1.46% m
 main and was no faster, so it was not adopted.
 
 **Node** (`node_pairs.py`, Node v26.0.0, `tools/wasm-test.mjs s31-mosaico`, 5 pairs, load < 3): wall
--10.45% (0/5 slower), same instruction, console and frame counts; main and new modules' SHA-256 in
+-10.45% (0/5 slower; one more pair discarded for its load, listed), same instruction, console and frame counts; main and new modules' SHA-256 in
 `node-pairs.json`. Not measured in a browser.
+
+**Memory** (`/usr/bin/time -l`, `ef299b26`, s31-mosaico): maximum RSS 85 MB with `RV32_JIT=0`; 143 MB on
+at 7.5 s (13,142 regions, 46 MB of code in the two cores) and 149 MB at 20 s (22,334 regions compiled,
+43 MB held, so a 32 MiB cache has started again). Replaced code is freed only by that restart. The
+instruction tables helpers read (16 bytes per instruction) are outside the code caps.
+
+**Refused modules** (`wasm_fuzz.py`, seeds 0-39, 320 programs; compile attempts, before and after
+`eaaf051f`): `REFUSE=1` 1,161,634 and 48,143; `REFUSE=3` 181,261 and 39,964, all programs equal to the
+interpreter. Before it, every refusal discarded all of the core's code and its marks.
 
 **Not usable:** `pairs-loaded.json` is a series whose s31 rounds ran at load up to 5.1 (runs were
 checked only before a round); it is kept, and not used above. Two further series were stopped unfinished while the
@@ -82,7 +91,7 @@ machine was busy and their numbers not kept. The figures of the first version of
   difference; every module released at the end. With the byte cap lowered to 20,000 (scratch) the
   cap was never exceeded (peak 19,996 bytes) and results did not change.
 - With the AArch64 code cache lowered to 48 KiB (scratch) the differential passes too: full caches.
-- `mutate.py`: 38 of 39 mutants of the AArch64 backend and the dispatch are killed (`mutants.txt`).
+- `mutate.py`: 42 of 43 mutants of the AArch64 backend and the dispatch are killed (`mutants.txt`).
   The one that survives, region reuse that ignores a block's length, is equivalent on a bus that keeps
   the version contract. 5 of 5 mutants of the wasm backend were killed (scratch).
 - The workspace tests, the S31, C3, C6 and P4 goldens and the P4/C6 co-simulation pass, with and
