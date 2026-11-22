@@ -4,7 +4,7 @@
 
 Base: main `104d7bd1`. Toolchain 1.99.0, release profile unchanged. ARM64 macOS host.
 
-Rebased onto main `2e36224d` with code range-diff `=`; the numbers below were measured on `104d7bd1` unless marked. The disassembly, the checks, a second exact-work run (with the S3 fixtures) and a host-instruction re-check were redone on main `d043ff1d` against the PR head merged into it (`686305aa`), rustc 1.100.0 (0ef1bc386 2026-11-09); binary hashes in [inputs.json](inputs.json) (`rebased_d043ff1d`).
+Rebased onto main `2e36224d` with code range-diff `=`; the numbers below were measured on `104d7bd1` unless marked. The disassembly, the mutations, the checks, a second exact-work run (with the S3 fixtures) and a host-instruction re-check were redone on main `d043ff1d` against the PR head merged into it (`686305aa`), rustc 1.100.0 (0ef1bc386 2026-11-09); binary hashes in [inputs.json](inputs.json) (`rebased_d043ff1d`).
 
 ## What
 
@@ -37,7 +37,9 @@ Again on the rebased pair (main `d043ff1d` against the PR head merged into it, r
 | hello (S3) | core0 3969318 + core1 2257786 insns, 2010 interrupts | 2599f69b42a1… | True |
 | pocket-tank (S3) | core0 1403266693 + core1 1423609803 insns, 33067 interrupts | ca5f687faeba… | True |
 
-Neither S3 fixture configures an LEDC timer. Run with `--debug mmio` for 30 emulated seconds (hello as `web/wasm/fw/hello.json`: `--board none --flash-mb 8 --psram-mb 2`; pocket-tank as `web/wasm/fw/pocket-tank.json`, model from `tools/fetch-pocket-tank.sh`, pinned by SHA-256), neither reads or writes any `LEDC` register, so the S3 LEDC never ticks there and the changed S3 code does not run: these two rows show that the rest of the S3 build is unaffected, not that the S3 tick is right. The same check on c6-contiki (3 s) shows the start-up write to timer 0's configuration (`LEDC+0x0a0`). The classic ESP32's tick changes too; no classic fixture was run here.
+Neither S3 fixture configures an LEDC timer. Run with `--debug mmio` for 30 emulated seconds (hello as `web/wasm/fw/hello.json`: `--board none --flash-mb 8 --psram-mb 2`; pocket-tank as `web/wasm/fw/pocket-tank.json`, model from `tools/fetch-pocket-tank.sh`, pinned by SHA-256), neither reads or writes any `LEDC` register, and the probe below finds no call, so the changed S3 code does not run: these two rows show that the rest of the S3 build is unaffected, not that the S3 tick is right. The same check on c6-contiki (3 s) shows the start-up write to timer 0's configuration (`LEDC+0x0a0`). The classic ESP32's tick changes too; no classic fixture that configures the LEDC was run.
+
+[tick-probe.patch](tick-probe.patch) answers which fixtures execute the changed code at all: a throwaway counter at the top of `tick_with_source`, the function every LEDC tick goes through, that prints at each power of two (it applies to `5cfee516` and later trees with the same `ledc.rs`; never committed as code). Ten guest seconds on this `ledc.rs`: no call on the S3 hello, pocket-tank, c3-hello, c6-hello, p4-hello and the classic hello; at least 2^24 (16,777,216) calls on c6-contiki and on c6-energy-scan, none with `active` 0.
 
 What the identical rows show: c6-contiki and c6-energy-scan keep timer 0 configured for the backlight (about 33k wraps in 16.7M ticks, counted with an instrumented build in the 10-28 review of PR #301), and nothing in their console depends on the LEDC phase. So identical hashes there show the change has no side effects, not that the LEDC counts right; the unit tests below carry that. The end-to-end check is the `scintilla_p4_lcd35` golden (`cli/tests/goldens.rs`): the P4 synth keeps timer 1 configured (about 15k wraps in 33.5M ticks, same review) and the golden compares the WAV it writes; it passes on this tree (Checks).
 
@@ -54,11 +56,11 @@ What the identical rows show: c6-contiki and c6-energy-scan keep timer 0 configu
 
 On `104d7bd1`, rustc 1.99.0 (2854 symbols per binary), the same four symbols: 186 → 450, 433 → 567, and 90 for each `wrap_timer`.
 
-`Ledc::tick` grows because the four-timer loop is now unrolled; the path through it shrinks: the frame is 48 bytes with two saved pairs (was 160 and six), each unconfigured timer costs a bit test and a branch, and a configured timer that does not wrap costs one register read, the field decode, a multiply-add and a store. The remaining differing symbols (on `d043ff1d`: 35 in `esp32sim` and `esp32sim-p4`, 38 in `esp32sim-c3` and `esp32sim-c6`; on `104d7bd1`: 25 in `esp32sim-c6`, 26 in each other binary) only call local symbols whose numeric suffix moved (the two new functions shift the numbering), are those renamed local symbols themselves, or differ in a data page offset that is 0 on one side. The classic LEDC tick is the only Xtensa-chip code that changes.
+`Ledc::tick` grows because the four-timer loop is now unrolled; the path through it shrinks: the frame is 48 bytes with two saved pairs (was 160 and six), each unconfigured timer costs a bit test and a branch, and a configured timer that does not wrap costs one register read, the field decode, a multiply-add and a store. The remaining differing symbols (on `d043ff1d`: 35 in `esp32sim` and `esp32sim-p4`, 38 in `esp32sim-c3` and `esp32sim-c6`; on `104d7bd1`: 25 in `esp32sim-c6`, 26 in each other binary) only call local symbols whose numeric suffix moved (the two new functions shift the numbering), are those renamed local symbols themselves, or differ in a data page offset that is 0 on one side. Of the symbols `codegen_nop.py` attributes to the Xtensa chip crates (on `d043ff1d` 4 differ in `esp32sim` and `esp32sim-p4`, 12 in `esp32sim-c3` and `esp32sim-c6`), only the classic LEDC tick is in class `code`; the S3's tick is the shared `Ledc` one. The others are `renumbered` or `pageoff` (S3 and classic `run`, `run_unmodeled`, `run_modeled` and `block::build` among them in some binaries): data they address moved.
 
 ## Mutations
 
-`mutate.py <scratch-worktree> <out>`: each mutant edits one changed (or now load-bearing) line; the esp-periph library tests run first, then the classic ESP32 LEDC tests and the S3/C3/C6 PWM integration tests, stopping at the first crate with a failing test ([mutations.json](mutations.json)). 13 of 13 non-equivalent mutants killed by failing assertions (none by compile errors); the unmutated control passes, and `active-check-removed` survives as expected: without the skip, `timer(n)` rejects the same timers, so it only costs time (equivalent).
+`mutate.py <scratch-worktree> <out>`: each mutant edits one changed (or now load-bearing) line; the esp-periph library tests run first, then the classic ESP32 LEDC tests and the S3/C3/C6 PWM integration tests, stopping at the first crate with a failing test ([mutations.json](mutations.json)). On `d043ff1d`, rustc 1.100.0 (and before on `104d7bd1`, 1.99.0, same result): 13 of 13 non-equivalent mutants killed by failing assertions (none by compile errors); the unmutated control passes, and `active-check-removed` survives as expected: without the skip, `timer(n)` rejects the same timers, so it only costs time (equivalent).
 
 New tests in `esp-periph/src/ledc.rs`: `each_timer_alone_counts_wraps_and_latches_its_channel` (for S3, C3, C6 and a classic group: each timer configured alone with a pending duty on channel `n + 1`; counter before and at the wrap, raw bits, duty latch, several wraps in one tick, the other timers' phases stay 0, pause and resume, a second timer with twice the period beside it) and `a_tick_that_ends_exactly_on_the_period_wraps`. Both pass on main as well (`tests_on_base.py`: base production code + new tests, 6/6 LEDC tests pass).
 
@@ -66,19 +68,19 @@ New tests in `esp-periph/src/ledc.rs`: `each_timer_alone_counts_wraps_and_latche
 | --- | --- | --- | --- |
 | control-unmutated | none | control: passes |  |
 | active-inverted | skip test `== 0` → `!= 0` | killed | a_tick_that_ends_exactly_on_the_period_wraps, c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, each_timer_alone_counts_wraps_and_latches_its_channel |
-| active-timer0-bit | test bit 0 for every timer | killed | a_tick_that_ends_exactly_on_the_period_wraps, each_timer_alone_counts_wraps_and_latches_its_channel |
-| active-next-bit | test bit `n + 1` | killed | a_tick_that_ends_exactly_on_the_period_wraps, c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, each_timer_alone_counts_wraps_and_latches_its_channel |
+| active-timer0-bit | test bit 0 for every timer | killed | each_timer_alone_counts_wraps_and_latches_its_channel, a_tick_that_ends_exactly_on_the_period_wraps |
+| active-next-bit | test bit `n + 1` | killed | a_tick_that_ends_exactly_on_the_period_wraps, c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, idle_clock_and_large_batches_match_exact_phase |
 | active-break | `continue` → `break` (stop at the first unconfigured timer) | killed | a_tick_that_ends_exactly_on_the_period_wraps, each_timer_alone_counts_wraps_and_latches_its_channel |
 | active-check-removed | skip test deleted | equivalent: passes |  |
-| fast-le | stay-below test `<` → `<=` | killed | a_tick_that_ends_exactly_on_the_period_wraps, static_duty_latches_at_wrap_and_preserves_fractional_divider, each_timer_alone_counts_wraps_and_latches_its_channel |
-| fast-no-store | below the period, phase not stored | killed | a_tick_that_ends_exactly_on_the_period_wraps, each_timer_alone_counts_wraps_and_latches_its_channel, static_duty_latches_at_wrap_and_preserves_fractional_divider |
+| fast-le | stay-below test `<` → `<=` | killed | a_tick_that_ends_exactly_on_the_period_wraps, each_timer_alone_counts_wraps_and_latches_its_channel, static_duty_latches_at_wrap_and_preserves_fractional_divider |
+| fast-no-store | below the period, phase not stored | killed | each_timer_alone_counts_wraps_and_latches_its_channel, a_tick_that_ends_exactly_on_the_period_wraps, idle_clock_and_large_batches_match_exact_phase |
 | fast-never | every tick takes the wrap path | killed | each_timer_alone_counts_wraps_and_latches_its_channel, static_duty_latches_at_wrap_and_preserves_fractional_divider |
-| wrap-subtract | `total % modulus` → `total - modulus` | killed | each_timer_alone_counts_wraps_and_latches_its_channel, c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow |
+| wrap-subtract | `total % modulus` → `total - modulus` | killed | c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, each_timer_alone_counts_wraps_and_latches_its_channel |
 | wrap-overflow-zero | u64 overflow path returns 0 | killed | idle_clock_and_large_batches_match_exact_phase |
-| wrap-no-raw | wrap does not set the timer raw bit | killed | a_tick_that_ends_exactly_on_the_period_wraps, each_timer_alone_counts_wraps_and_latches_its_channel |
-| wrap-channel-timer-ne | latch channels on the other timers | killed | each_timer_alone_counts_wraps_and_latches_its_channel, c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, static_duty_latches_at_wrap_and_preserves_fractional_divider |
-| active-never-cleared | configuration write only sets `active` bits | killed | each_timer_alone_counts_wraps_and_latches_its_channel, idle_clock_and_large_batches_match_exact_phase |
-| active-never-set | configuration write only clears `active` bits | killed | c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, static_duty_latches_at_wrap_and_preserves_fractional_divider, idle_clock_and_large_batches_match_exact_phase |
+| wrap-no-raw | wrap does not set the timer raw bit | killed | each_timer_alone_counts_wraps_and_latches_its_channel, a_tick_that_ends_exactly_on_the_period_wraps |
+| wrap-channel-timer-ne | latch channels on the other timers | killed | c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, p4_channel_seven_and_its_gamma_ram, each_timer_alone_counts_wraps_and_latches_its_channel |
+| active-never-cleared | configuration write only sets `active` bits | killed | idle_clock_and_large_batches_match_exact_phase, each_timer_alone_counts_wraps_and_latches_its_channel |
+| active-never-set | configuration write only clears `active` bits | killed | static_duty_latches_at_wrap_and_preserves_fractional_divider, idle_clock_and_large_batches_match_exact_phase, p4_channel_seven_and_its_gamma_ram |
 
 ## Host instructions and daytime smoke (the claim; the smoke is not a CPU table)
 
@@ -100,6 +102,8 @@ Re-check on `d043ff1d`, rustc 1.100.0 (`ir.py 10 bins/base bins/cand`, one run e
 | c6-contiki | 39,977,309,021 | 38,156,427,967 | -4.55% |
 | c6-energy-scan | 227,345,065,743 | 225,497,997,805 | -0.81% |
 | c3-hello | 27,470,992,855 | 27,470,580,102 | -0.00% |
+
+Re-run on a rebuild of the same sources (byte-identical binaries), with the S3 hello added (`rerun` in that file): c6-contiki −4.56%, c6-energy-scan −0.80%, c6-hello −0.00%, c3-hello +0.00%, S3 hello −0.01% (2,499,123,158 → 2,498,785,451).
 
 Screening ablation (host instructions, c6-contiki 10 s, one run each, same build command): the timer skip alone −2.43%, the cold wrap alone −1.26%, both −4.72%; each part carries part of the gain.
 
