@@ -62,5 +62,36 @@
  },
  "build": "cargo +1.99.0 build --release --bins",
  "base_commit": "104d7bd1",
- "candidate_code_commit": "044e7be6"
+ "candidate_code_commit": "044e7be6",
+ "rebased_d043ff1d": {
+  "base_commit": "d043ff1d",
+  "candidate_commit": "686305aa (PR head 5cfee516 merged with d043ff1d)",
+  "build": "cargo build --release --bins, rustc 1.100.0 (0ef1bc386 2026-11-09)",
+  "roms": "ESP32SIM_ROM_DIR (tools/fetch-rom-elfs.sh); same C3/C6/P4 ROM hashes as above",
+  "firmware_added": {
+   "public/hello-bootloader.bin": "7efecb4df4463ece11ab286068a505ecd174f66fd4aacc53d887fcb9c18f0579",
+   "public/hello-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+   "public/hello_world.bin": "d9142e72453e8b71f6903f4dd869a4ee09c34d94cfafcb4f4309f8d2bf9040c9",
+   "public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+   "public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+   "public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+   "local/model_q4.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+   "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  "fetched_by": "tools/fetch-pocket-tank.sh (model_q4.bin)",
+  "binaries": {
+   "base": {
+    "esp32sim": "c9e1ef66dae0f1bfc231008d91e062860b7d6ce5a60a60f0f39fab3fdcbd1060",
+    "esp32sim-c3": "51c23106cc6ab5d2354033cd36991f8dd95daaeb1e77223b000d4cada331912c",
+    "esp32sim-c6": "21965dae39328c0f7066f4ac54837b7438c57d1f0cca7bc0663f223b525fed94",
+    "esp32sim-p4": "1afa3f6bc8527247a64648b642004296904503a1ff99b13916a7983a039c4e19"
+   },
+   "cand": {
+    "esp32sim": "10aa9a77222145e22163cd1aad79bc91771a80078570e4282762e4c08c495414",
+    "esp32sim-c3": "e4489527412aa58f77dee6b585935fd73629acc104e41eca7e249351d787bfdf",
+    "esp32sim-c6": "2c919efb05fef79198c6e83133a33aae5b088dca9cec0e63331e0b25fbd2d70e",
+    "esp32sim-p4": "cf4130b8f6fc50d65ef8b818321f737fc200529a900f2ca728d8015c89637a6f"
+   }
+  }
+ }
 }

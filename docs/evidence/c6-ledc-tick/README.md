@@ -4,7 +4,7 @@
 
 Base: main `104d7bd1`. Toolchain 1.99.0, release profile unchanged. ARM64 macOS host.
 
-Rebased onto main `2e36224d` with code range-diff `=`; the numbers below were measured on `104d7bd1`.
+Rebased onto main `2e36224d` with code range-diff `=`; the numbers below were measured on `104d7bd1` unless marked. The disassembly, the checks, a second exact-work run (with the S3 fixtures) and a host-instruction re-check were redone on main `d043ff1d` against the PR head merged into it (`686305aa`), rustc 1.100.0 (0ef1bc386 2026-11-09); binary hashes in [inputs.json](inputs.json) (`rebased_d043ff1d`).
 
 ## What
 
@@ -43,16 +43,18 @@ What the identical rows show: c6-contiki and c6-energy-scan keep timer 0 configu
 
 ## Hot-path disassembly
 
-`codegen_nop.py <base-bins> <candidate-bins> <out>` then `classify.py` ([codegen-classes.json](codegen-classes.json)): every text symbol of the four release binaries (2854 each), normalized for addresses, data pages, import stubs and alignment nops, v0 impl-block ordinals dropped from names. In each binary exactly four symbols change code:
+`codegen_nop.py <base-bins> <candidate-bins> <out>` then `classify.py` ([codegen-classes.json](codegen-classes.json), the class counts and the code rows per binary; `classify.py` lists every differing symbol on stdout): every text symbol of the four release binaries, normalized for addresses, data pages, import stubs and alignment nops, v0 impl-block ordinals dropped from names. In each binary exactly four symbols change code. On `d043ff1d`, rustc 1.100.0 (3515 symbols per binary):
 
 | Symbol | Base insns | Candidate insns |
 | --- | ---: | ---: |
-| `<Ledc as Device>::tick` (S3/C3/C6) | 186 | 450 |
-| `<ClassicLedc as Device>::tick` (classic ESP32, inlines `tick_with_source`) | 433 | 567 |
-| `Ledc::wrap_timer` (new, cold) | — | 90 |
-| `Ledc<true>::wrap_timer` (new, cold) | — | 90 |
+| `<Ledc as Device>::tick` (S3/C3/C6/P4) | 187 | 457 |
+| `<ClassicLedc as Device>::tick` (classic ESP32, inlines `tick_with_source`) | 434 | 567 |
+| `Ledc::wrap_timer` (new, cold) | — | 92 |
+| `Ledc<true>::wrap_timer` (new, cold) | — | 91 |
 
-`Ledc::tick` grows because the four-timer loop is now unrolled; the path through it shrinks: the frame is 48 bytes with two saved pairs (was 160 and six), each unconfigured timer costs a bit test and a branch, and a configured timer that does not wrap costs one register read, the field decode, a multiply-add and a store. The remaining differing symbols (25 in `esp32sim-c6`, 26 in each other binary) only call local symbols whose numeric suffix moved by two (`.591` → `.593`; the two new functions shift the numbering), are those renamed local symbols themselves, or differ in a data page offset that is 0 on one side. The classic LEDC tick is the only Xtensa-chip code that changes.
+On `104d7bd1`, rustc 1.99.0 (2854 symbols per binary), the same four symbols: 186 → 450, 433 → 567, and 90 for each `wrap_timer`.
+
+`Ledc::tick` grows because the four-timer loop is now unrolled; the path through it shrinks: the frame is 48 bytes with two saved pairs (was 160 and six), each unconfigured timer costs a bit test and a branch, and a configured timer that does not wrap costs one register read, the field decode, a multiply-add and a store. The remaining differing symbols (on `d043ff1d`: 35 in `esp32sim` and `esp32sim-p4`, 38 in `esp32sim-c3` and `esp32sim-c6`; on `104d7bd1`: 25 in `esp32sim-c6`, 26 in each other binary) only call local symbols whose numeric suffix moved (the two new functions shift the numbering), are those renamed local symbols themselves, or differ in a data page offset that is 0 on one side. The classic LEDC tick is the only Xtensa-chip code that changes.
 
 ## Mutations
 
@@ -89,6 +91,15 @@ Retired host instructions (`ir.py 10 <base> <candidate>`, `/usr/bin/time -l`, on
 | c6-energy-scan | 232,687,481,951 | 230,625,533,933 | -0.89% |
 | public-display-starter | 114,011,878,042 | 114,016,114,097 | +0.00% |
 | c3-hello | 24,753,723,202 | 24,754,290,262 | +0.00% |
+
+Re-check on `d043ff1d`, rustc 1.100.0 (`ir.py 10 bins/base bins/cand`, one run each, same stop line and console as the base on every row; user CPU and cycles left out of the file) ([host-insns-d043ff1d.json](host-insns-d043ff1d.json)):
+
+| Fixture | Base | Candidate | Change |
+| --- | ---: | ---: | ---: |
+| c6-hello | 17,669,311,936 | 17,667,409,721 | -0.01% |
+| c6-contiki | 39,977,309,021 | 38,156,427,967 | -4.55% |
+| c6-energy-scan | 227,345,065,743 | 225,497,997,805 | -0.81% |
+| c3-hello | 27,470,992,855 | 27,470,580,102 | -0.00% |
 
 Screening ablation (host instructions, c6-contiki 10 s, one run each, same build command): the timer skip alone −2.43%, the cold wrap alone −1.26%, both −4.72%; each part carries part of the gain.
 
