@@ -652,11 +652,15 @@ mod wasm {
         fn host_jit_release(slot: u32);
     }
 
-    /// Modules before this core's are all discarded.
+    /// Modules, and bytes of them, before this core's are all discarded (the Xtensa JIT's
+    /// `RETAIN_BLOCKS` and `RETAIN_BYTES`).
     const MAX_MODULES: usize = 16384;
+    const MAX_BYTES: usize = 64 << 20;
 
     /// This core's modules, their size, and the instruction tables `h_exec` reads.
     pub struct Jit { tables: Vec<Box<[Insn]>>, slots: Vec<u32>, bytes: usize }
+
+    impl Drop for Jit { fn drop(&mut self) { self.reset(); } }
 
     impl Jit {
         pub fn new() -> Option<Box<Jit>> { Some(Box::new(Jit { tables: Vec::new(), slots: Vec::new(), bytes: 0 })) }
@@ -687,6 +691,7 @@ mod wasm {
             if self.slots.len() >= MAX_MODULES || r.blocks.len() > 32 { return None; }
             let tables: Vec<Box<[Insn]>> = r.blocks.iter().map(|b| b.insns.clone().into_boxed_slice()).collect();
             let module = emit::<B>(r, &tables);
+            if self.bytes + module.len() > MAX_BYTES { return None; }
             // SAFETY: the import reads `len` bytes of the module; 0 is its failure
             let idx = unsafe { host_jit_compile(module.as_ptr(), module.len()) };
             if idx == 0 { return None; }
