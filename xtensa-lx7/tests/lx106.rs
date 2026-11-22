@@ -201,6 +201,31 @@ fn debug_uses_level_two_and_never_s3_level_six() {
     assert_eq!((c.pc(), c.state().epc[2], c.state().eps[2]),
         (0x40000010, corpus::DEBUG_BREAK, 0));
     assert_eq!(c.state().epc[6], 0);
+    assert_eq!(c.state().debugcause, 1 << 3); // BI
+}
+
+#[test]
+fn break_n_cause_and_break_masked_at_debug_level() {
+    // break 1, 2 and break.n 1 (Xtensa ISA RRR/RRRN encodings).
+    for (raw, cause) in [(&[0x20u8, 0x41, 0x00][..], 1u32 << 3), (&[0x2d, 0xf1][..], 1 << 4)] {
+        for (ps, taken) in [(0, true), (1, true), (ps::EXCM, true), (ps::EXCM | 1, true), (2, false), (3, false), (15, false), (ps::EXCM | 2, false)] {
+            let (mut c, mut b) = machine(BASE);
+            b.mem[..raw.len()].copy_from_slice(raw);
+            c.write_sr(sr::PS, ps).unwrap();
+            let out = c.step(&mut b);
+            if taken {
+                assert_eq!(out.trap(), Some(Trap::Exception(0x108)), "PS {ps:#x}");
+                assert_eq!((c.pc(), c.state().debugcause, c.state().epc[2], c.state().eps[2]),
+                    (0x40000010, cause, BASE, ps), "PS {ps:#x}");
+                assert_eq!(c.state().ps, (ps & !ps::INTLEVEL_MASK) | ps::EXCM | 2);
+            } else {
+                // A BREAK at or above DEBUGLEVEL retires as a no-op: no debug state changes.
+                assert_eq!(out.kind, StepKind::Retired, "PS {ps:#x}");
+                assert_eq!((c.pc(), c.state().ps, c.state().debugcause, c.state().epc[2], c.state().eps[2]),
+                    (BASE + raw.len() as u32, ps, 0, 0, 0), "PS {ps:#x}");
+            }
+        }
+    }
 }
 
 #[test]

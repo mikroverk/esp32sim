@@ -179,8 +179,13 @@ impl Lx106 {
                 return Ok(());
             }
             Op::Break | Op::BreakN => {
+                // QEMU v10.1.0 target/xtensa: BREAK sets DEBUGCAUSE.BI, BREAK.N .BN (cpu.h:193-194,
+                // translate.c:2938-2946); taken only while CINTLEVEL < DEBUGLEVEL, else a no-op
+                // (cpu.c:98-100, translate.c:1032, exc_helper.c:77-82). CINTLEVEL is
+                // max(PS.INTLEVEL, EXCM ? EXCM_LEVEL 1 : 0) (cpu.h:660-667); DEBUGLEVEL is 2.
                 let c = &mut self.cpu;
-                c.debugcause = 1 << 3;
+                if c.intlevel().max(c.excm() as u32) >= 2 { c.pc = next; return Ok(()); }
+                c.debugcause = if i.op == Op::BreakN { 1 << 4 } else { 1 << 3 };
                 c.epc[2] = c.pc; c.eps[2] = c.ps;
                 c.ps = (c.ps & !ps::INTLEVEL_MASK) | 2 | ps::EXCM;
                 c.pc = c.vecbase + 0x10;
