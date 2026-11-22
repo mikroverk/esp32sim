@@ -80,7 +80,7 @@ New tests in `esp-periph/src/ledc.rs`: `each_timer_alone_counts_wraps_and_latche
 | active-never-cleared | configuration write only sets `active` bits | killed | each_timer_alone_counts_wraps_and_latches_its_channel, idle_clock_and_large_batches_match_exact_phase |
 | active-never-set | configuration write only clears `active` bits | killed | c6_twenty_bit_timer_and_duty_do_not_truncate_or_overflow, static_duty_latches_at_wrap_and_preserves_fractional_divider, idle_clock_and_large_batches_match_exact_phase |
 
-## Host instructions and daytime smoke (not a CPU table)
+## Host instructions and daytime smoke (the claim; the smoke is not a CPU table)
 
 Retired host instructions (`ir.py 10 <base> <candidate>`, `/usr/bin/time -l`, one run each; load-independent to about ±0.05%) ([host-insns.json](host-insns.json)):
 
@@ -121,10 +121,23 @@ A/A control, main against itself, same procedure, right after ([smoke-aa.json](s
 
 The A/A arms differ by up to 5%, so user CPU alone does not resolve this change at this load. Host counters on c6-contiki (`smoke_hw.py`, `/usr/bin/time -l`, 1 warmup + 3 alternating pairs, load 20–23, [smoke-hw.json](smoke-hw.json)): user CPU 2.71 → 2.59 s (-4.4%, 0/3 higher), retired host instructions -4.74% (0/3 higher), elapsed host cycles -3.89% (0/3 higher).
 
+## CPU (maintainers' run)
+
+Run by the maintainers, not by the author of the change: `smoke_hw.py` from this folder, base main `d043ff1d`, new the PR head merged into it (`686305aa`), each built with `cargo build --release --bins` in its own worktree, the two paths of equal length. One warmup pair and seven alternating pairs per fixture, 30 guest seconds: the S3 `hello`, `c3-hello`, `c6-hello` and c6-contiki (the one that configures the LEDC). From the new tree's root:
+
+```sh
+ESP32SIM_ROM_DIR=<roms> FIXTURES='hello c3-hello c6-hello c6-contiki' \
+  python3 -I docs/evidence/c6-ledc-tick/smoke_hw.py docs/evidence/c6-ledc-tick/cpu-pairs.json 30 7 <base-tree>/target/release target/release
+```
+
+<!-- CPU TABLE -->
+
 ## Limits
 
-Daytime smokes on a shared, heavily loaded machine; the CPU table (1 warmup + 7 pairs, quiet machine) is pending. Fixtures that never configure the LEDC (c6-hello, the display starter, c3-hello) do not run the changed code. A firmware whose LEDC timer wraps on nearly every round (a PWM period of a few dozen APB cycles) now pays a call per wrap; no fixture here does. Native timing only, not a browser or hardware claim.
+The speed claim is the retired host instruction count: c6-contiki −4.74% (−4.55% on `d043ff1d` with rustc 1.100.0), c6-energy-scan −0.89% (−0.81%), and no change on the fixtures that never configure the LEDC (c6-hello, the display starter, c3-hello; the S3 `hello` and pocket-tank never touch the LEDC either), which do not run the changed code. The daytime user-CPU smokes ran on a shared, heavily loaded machine whose A/A control moved up to 5.4%, so they are not a CPU claim; user CPU is the maintainers' run above. A firmware whose LEDC timer wraps on nearly every round (a PWM period of a few dozen APB cycles) now pays a call per wrap; no fixture here does. Native only, not a browser or hardware claim.
 
 ## Checks
 
-At the code commit: `cargo +1.99.0 clippy --workspace --all-targets -- -D warnings` and the wasm32 `esp32sim-wasm --features jit-tests` clippy pass; `ESP32SIM_ROM_DIR=… cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_` 1371 passed, 0 failed (empty `HOME`); plain `cargo +1.99.0 test --release --workspace` 1315 passed, 0 failed, 86 ignored; `tools/wasm-build.sh` + `node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel` ok; `node tools/check-evidence-privacy.mjs` pass; `git diff --check` clean. No goldens changed.
+On `686305aa` (the PR head merged into main `d043ff1d`), rustc 1.100.0: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings` pass; `ESP32SIM_ROM_DIR=… cargo test --release --workspace --no-fail-fast -- --include-ignored --skip external_` 1809 passed, 0 failed, including the `scintilla_p4_lcd35` golden; `node tools/check-evidence-privacy.mjs` pass; `git diff --check` clean. No goldens changed.
+
+At the code commit, on `104d7bd1`: `cargo +1.99.0 clippy --workspace --all-targets -- -D warnings` and the wasm32 `esp32sim-wasm --features jit-tests` clippy pass; `ESP32SIM_ROM_DIR=… cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_` 1371 passed, 0 failed (empty `HOME`); plain `cargo +1.99.0 test --release --workspace` 1315 passed, 0 failed, 86 ignored; `tools/wasm-build.sh` + `node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel` ok; `node tools/check-evidence-privacy.mjs` pass; `git diff --check` clean. No goldens changed.
