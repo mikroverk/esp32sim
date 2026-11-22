@@ -106,11 +106,19 @@ impl State {
     }
 }
 
+/// `RV32_JIT` and `RV32_JIT_HOT`, read once (docs/cli.md): the whole runs before a block is
+/// compiled, none for no JIT.
+fn settings() -> Option<u16> {
+    static SETTINGS: std::sync::OnceLock<Option<u16>> = std::sync::OnceLock::new();
+    *SETTINGS.get_or_init(|| {
+        let on = crate::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0");
+        on.then(|| std::env::var("RV32_JIT_HOT").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::jit::HOT))
+    })
+}
+
 impl Default for Blocks {
     fn default() -> Self {
-        let jit_on = crate::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0");
-        let hot = std::env::var("RV32_JIT_HOT").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::jit::HOT);
-        let jit = jit_on.then(|| Box::new(State { hot, compiled: 0, code: None, slots: Vec::new(), regions: Default::default() }));
+        let jit = settings().map(|hot| Box::new(State { hot, compiled: 0, code: None, slots: Vec::new(), regions: Default::default() }));
         Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0, jit }
     }
 }
