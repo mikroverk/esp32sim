@@ -30,6 +30,17 @@ The classic speed groups use the same `tick_with_source` and get the same code. 
 | c3-hello | 1600000000 insns, 1009 interrupts | 6dd87f0ce7e0… | True |
 | p4-hello | core0 3600000000 + core1 0 insns | db6c8bcfa9ae… | True |
 
+Again on the rebased pair (main `d043ff1d` against the PR head merged into it, rustc 1.100.0, binaries in `inputs.json`), `FIXTURES='c6-hello c6-contiki c6-energy-scan c3-hello p4-hello hello pocket-tank' exact.py <out> 10 bins/base bins/cand` with `ESP32SIM_ROM_DIR` set ([exact-work-d043ff1d.json](exact-work-d043ff1d.json)): every fixture above except the starter (its images were not at hand) gives the same stop line and console hash as before, and the S3 `hello` and pocket-tank are identical as well:
+
+| Fixture | Stop | Console SHA-256 | Identical |
+| --- | --- | --- | --- |
+| hello (S3) | core0 3969318 + core1 2257786 insns, 2010 interrupts | 2599f69b42a1… | True |
+| pocket-tank (S3) | core0 1403266693 + core1 1423609803 insns, 33067 interrupts | ca5f687faeba… | True |
+
+Neither S3 fixture configures an LEDC timer. Run with `--debug mmio` for 30 emulated seconds (hello as `web/wasm/fw/hello.json`: `--board none --flash-mb 8 --psram-mb 2`; pocket-tank as `web/wasm/fw/pocket-tank.json`, model from `tools/fetch-pocket-tank.sh`, pinned by SHA-256), neither reads or writes any `LEDC` register, so the S3 LEDC never ticks there and the changed S3 code does not run: these two rows show that the rest of the S3 build is unaffected, not that the S3 tick is right. The same check on c6-contiki (3 s) shows the start-up write to timer 0's configuration (`LEDC+0x0a0`). The classic ESP32's tick changes too; no classic fixture was run here.
+
+What the identical rows show: c6-contiki and c6-energy-scan keep timer 0 configured for the backlight (about 33k wraps in 16.7M ticks, counted with an instrumented build in the 10-28 review of PR #301), and nothing in their console depends on the LEDC phase. So identical hashes there show the change has no side effects, not that the LEDC counts right; the unit tests below carry that. The end-to-end check is the `scintilla_p4_lcd35` golden (`cli/tests/goldens.rs`): the P4 synth keeps timer 1 configured (about 15k wraps in 33.5M ticks, same review) and the golden compares the WAV it writes; it passes on this tree (Checks).
+
 ## Hot-path disassembly
 
 `codegen_nop.py <base-bins> <candidate-bins> <out>` then `classify.py` ([codegen-classes.json](codegen-classes.json)): every text symbol of the four release binaries (2854 each), normalized for addresses, data pages, import stubs and alignment nops, v0 impl-block ordinals dropped from names. In each binary exactly four symbols change code:
