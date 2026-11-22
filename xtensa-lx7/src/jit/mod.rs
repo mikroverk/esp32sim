@@ -317,8 +317,8 @@ mod native {
         // windows already verified free within this block (reset when a helper may have rotated them)
         let mut checked_w: u32 = 0;
 
-        let mut pc = pc0;
-        for block_insn in insns.iter_mut() {
+        let (mut pc, last_ix) = (pc0, insns.len().saturating_sub(1));
+        for (ix, block_insn) in insns.iter_mut().enumerate() {
             let i = block_insn.insn;
             let max_ar = block_insn.max_ar;
             let next = pc.wrapping_add(i.len as u32);
@@ -528,6 +528,32 @@ mod native {
                         Bbci | Bbsi => { g.ld_ar(9, s); if i.op == Bbci { g.a.tbz(9, imm2 as u32, tk); } else { g.a.tbnz(9, imm2 as u32, tk); } }
                         _ => { g.a.ldr(9, CPU, OFF_BR); if i.op == Bf { g.a.tbz(9, s as u32, tk); } else { g.a.tbnz(9, s as u32, tk); } }
                     }
+                }
+
+                // The hit path rotates the window but leaves WB4 stale (no reload_after_helper): only
+                // the fall-off tail may follow `done`, because RETW ends the decoded block
+                // (block::ends_block). tests/jit_retw.rs fails if it stops doing so.
+                Retw | RetwN => {
+                    debug_assert!(ix == last_ix, "windowed returns must terminate the block");
+                    let (slow, done) = (g.a.label(), g.a.label());
+                    let ps_off = std::mem::offset_of!(Cpu, ps) as u32;
+                    g.a.ldr(9, CPU, ps_off); g.a.tbz(9, crate::state::ps::WOE.trailing_zeros(), slow);
+                    g.ld_ar(10, 0); g.a.lsr_imm(11, 10, 30); g.a.cbz(11, slow);
+                    g.a.ldr(12, CPU, OFF_WB); g.a.sub(13, 12, 11); g.a.and_mask(13, 13, 4, 0);
+                    g.a.ldr(14, CPU, OFF_WS); g.a.lsrv(15, 14, 13); g.a.tbz(15, 0, slow);
+                    g.a.movz(15, 1, 0); g.a.lslv(15, 15, 12); g.a.bic(14, 14, 15); g.a.str(14, CPU, OFF_WS);
+                    g.a.str(13, CPU, OFF_WB);
+                    g.a.mov32(15, !crate::state::ps::CALLINC_MASK); g.a.and(9, 9, 15);
+                    g.a.orr_lsl(9, 9, 11, crate::state::ps::CALLINC_SHIFT); g.a.str(9, CPU, ps_off);
+                    g.a.and_mask(9, 10, 30, 0); g.a.mov32(10, pc & 0xc000_0000); g.a.orr(9, 9, 10);
+                    g.a.str(9, CPU, OFF_PC); g.a.mov32(10, next); g.a.cmp(9, 10); g.a.b_cond(Cond::Ne, g.exit_left);
+                    g.a.b(done);
+                    g.a.bind(slow);
+                    g.a.mov_x(0, CPU); g.a.mov_x(1, BUS); g.a.mov64(2, (&raw const *block_insn) as u64); g.a.mov32(3, pc);
+                    g.call(H_EXEC); g.a.tbnz(0, 0, g.exit_trap); g.a.lsr_imm(12, 0, 1);
+                    g.reload_after_helper(); g.a.ldr(9, CPU, OFF_PC); g.a.mov32(10, next); g.a.cmp(9, 10);
+                    g.a.b_cond(Cond::Ne, g.exit_left); g.a.cbnz(12, g.exit_left);
+                    g.a.bind(done); fell_through = false; checked_w = 0;
                 }
 
                 // ---- everything else: the interpreter

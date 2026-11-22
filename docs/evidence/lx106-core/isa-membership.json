@@ -1,0 +1,60 @@
+{
+  "claim": "Every op in lx106::supports() is in the LX106 configuration's opcode table, and no other decoder op is accepted. tests/lx106.rs LX106_OPS holds one instance per op with its opcodes[] line; every_lx106_opcode_is_supported_and_executes and supported_encodings_are_only_lx106_opcodes pin the list in both directions.",
+  "opcode_table": {
+    "repository": "https://github.com/qemu/qemu",
+    "tag": "v10.1.0",
+    "commit": "f8b2f64e2336a28bf0d50b6ef8a7d8c013e9bcf3",
+    "path": "target/xtensa/core-lx106/xtensa-modules.c.inc",
+    "sha256": "93d7e5c031fbf31effe0f2da20a5fddae5c41c3c527722996de26fb279e124d5",
+    "opcodes_lines": "5823-6435",
+    "core_isa_h_sha256": "0abfe93ea1da99bd4db56be9ba9ad9d7d997dddefcaaec280f82d91f6fb7d6e2",
+    "core_isa_h_note": "Same option values as the Arduino 3.1.2 header in sources.json; differs only by a customer-ID comment and commented-out ROM/reset-vector lines."
+  },
+  "table_ops_not_in_profile": {
+    "simcall": "Illegal on hardware before RE.3: QEMU translate.c:2240-2253 (hw_version <= 250002); LX106 XCHAL_HW_VERSION is 230001 (core-isa.h:131).",
+    "ill, ill.n": "Illegal by definition (translate.c:3131-3133).",
+    "rfdo, rfdd": "XTENSA_OP_ILL in QEMU (translate.c:3673-3674, 3680-3681); OCD halt mode is not modelled.",
+    "wsr.mmid": "Needs XTENSA_OPTION_TRACE_PORT (translate.c:5297-5304), which no QEMU core overlay enables (overlay_tool.h).",
+    "wsr.176 (CONFIGID0)": "XTENSA_OP_ILL (translate.c:4740-4741); see sr-direction-audit.md.",
+    "mov": "Assembler alias of OR; the decoder returns Op::Or, so Op::Mov in supports() is unreachable from bytes."
+  },
+  "qemu_semantics_files": {
+    "translate.c": "38163c10b0311c42061ef6d892596223b959ae68b291f83783b9a3c80185cae6",
+    "cpu.c": "7095434a02c64cb1f8829d87b0b9d76c2259d32424a0d20c62adc1bedcc27e23",
+    "cpu.h": "9d2d3daae31898f93a18c80ccaac57d4ed3e887fef3badcd6c33fa4bafd0d990",
+    "exc_helper.c": "714d79409c435f198092daffd4868456eeed864c2008a3134eed022bbd6df078",
+    "overlay_tool.h": "5b05fbe146961b046bbeb57ef5a79636ca97590f586951b6e66c5c08ba959c41",
+    "core-dc233c/xtensa-modules.c.inc": "c258f098905b38d11e7bf8362901ea8336087ec6216002297d904efa235c882f"
+  },
+  "assembler": {
+    "package": "Espressif crosstool-NG esp-14.2.0_20260121 (xtensa-esp-elf, multi-config)",
+    "as": "GNU assembler 2.43.1",
+    "configs_sha256": {
+      "xtensa_esp8266.so": "b932a740df2c3a54ff9962d4890a706f852cd6d2817ad2af3aa077349546430f",
+      "xtensa_esp32.so": "3c635b3e5b66fb7b8b8cf711f5a77fe0b837f51a301d85f8e47f0b261657529c",
+      "xtensa_esp32s3.so": "c1496016e467a0b045678c485182fc5e769e14c92d6101c4416b0839869bce1e"
+    },
+    "commands": [
+      "export XTENSA_GNU_CONFIG=\"$TOOLCHAIN/lib/xtensa_esp8266.so\"",
+      "xtensa-esp-elf-as docs/evidence/lx106-core/isa-membership.S -o \"$SCRATCH/m.o\"",
+      "xtensa-esp-elf-ld --no-relax -e 0 -Ttext=0x40100100 -o \"$SCRATCH/m.elf\" \"$SCRATCH/m.o\"",
+      "xtensa-esp-elf-objdump -d \"$SCRATCH/m.elf\""
+    ],
+    "input": "isa-membership.S",
+    "input_sha256": "2fd4d3db25874af93b0b2bc63bb607ae7cb6566d1b298eeeeaf31dd3f316d177",
+    "text_bytes": 354,
+    "text_sha256": "217386a55879642a475be6f4a51d6d62025a43f55bdb08ef1c6d201eac93cdde",
+    "differences_from_test_bytes": "rer/wer: this config's table gives them no operands (opcodes 0x406000/0x407000); the test sets t=a2, s=a3 per the ISA RRR format. l32r: the test uses displacement -4 instead of the linked literal."
+  },
+  "negatives": {
+    "note": "Each line assembled alone with each config (exit status of xtensa-esp-elf-as).",
+    "mula.dd.ll m0, m2": {"esp8266": "rejected", "esp32": "280004", "esp32s3": "280004", "in_lx106_table": false},
+    "dhi a2, 0": {"esp8266": "rejected", "esp32": "rejected", "esp32s3": "rejected", "in_lx106_table": false, "encoding": "ISA CACHE format; dc233c table line 9179 (0x7062 with s=0)"},
+    "ihi a2, 0": {"esp8266": "rejected", "esp32": "rejected", "esp32s3": "rejected", "in_lx106_table": false, "encoding": "ISA CACHE format; dc233c table line 9101 (0x70e2 with s=0)"},
+    "dpfr a2, 0": {"esp8266": "rejected", "esp32": "rejected", "esp32s3": "rejected", "in_lx106_table": false, "encoding": "ISA CACHE format; dc233c table line 9191 (0x7002 with s=0)"},
+    "salt a2, a3, a4": {"esp8266": "rejected", "esp32": "rejected", "esp32s3": "722340", "in_lx106_table": false},
+    "saltu a2, a3, a4": {"esp8266": "rejected", "esp32": "rejected", "esp32s3": "622340", "in_lx106_table": false},
+    "simcall": {"esp8266": "005100", "esp32": "005100", "esp32s3": "005100", "in_lx106_table": true, "why_illegal": "see table_ops_not_in_profile"},
+    "ee.vadds.s8 q0, q1, q2": {"esp8266": "rejected", "esp32": "rejected", "esp32s3": "8e1184", "in_lx106_table": false}
+  }
+}

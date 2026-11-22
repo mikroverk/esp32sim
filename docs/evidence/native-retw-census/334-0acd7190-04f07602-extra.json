@@ -1,0 +1,503 @@
+{
+ "started": "2026-11-01T23:25:23+0100",
+ "pairs": 7,
+ "workloads": {
+  "atech-script1": {
+   "command": [
+    "esp32sim",
+    "--rom",
+    "$ESP32SIM_ROM_DIR/esp32s3_rev0_rom.elf",
+    "--board",
+    "atech14",
+    "--boot",
+    "rom",
+    "--no-dump",
+    "--console",
+    "none",
+    "--bootloader",
+    "web/wasm/fw/public/atech-bootloader.bin",
+    "--ptable",
+    "web/wasm/fw/public/atech-ptable.bin",
+    "--app",
+    "web/wasm/fw/public/atech-firmware.bin",
+    "--script",
+    "web/wasm/fw/public/atech-script1.txt",
+    "--max-seconds",
+    "5"
+   ],
+   "load_before": [
+    4.5517578125,
+    5.35888671875,
+    6.72216796875
+   ],
+   "runs": [
+    {
+     "user_s": 1.55,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "warmup",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.61,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "warmup",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.6,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair1",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.58,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair1",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.56,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair2",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.63,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair2",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.62,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair3",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.58,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair3",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.57,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair4",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.59,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair4",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.61,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair5",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.56,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair5",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.57,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair6",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.59,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair6",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.63,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair7",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.58,
+     "insns": [
+      12343701,
+      307272276
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair7",
+     "order": "B->N"
+    }
+   ],
+   "load_after": [
+    4.361328125,
+    5.24853515625,
+    6.64208984375
+   ],
+   "summary": {
+    "base_median_s": 1.61,
+    "new_median_s": 1.57,
+    "change_pct": -2.48,
+    "base_range_s": [
+     1.59,
+     1.63
+    ],
+    "new_range_s": [
+     1.56,
+     1.58
+    ],
+    "new_slower_pairs": 0,
+    "identical_work_and_console": true,
+    "insns": [
+     12343701,
+     307272276
+    ],
+    "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   }
+  },
+  "atech-sid": {
+   "command": [
+    "esp32sim",
+    "--rom",
+    "$ESP32SIM_ROM_DIR/esp32s3_rev0_rom.elf",
+    "--board",
+    "atech14",
+    "--boot",
+    "rom",
+    "--no-dump",
+    "--console",
+    "none",
+    "--bootloader",
+    "web/wasm/fw/public/atech-bootloader.bin",
+    "--ptable",
+    "web/wasm/fw/public/atech-ptable.bin",
+    "--app",
+    "web/wasm/fw/public/atech-firmware.bin",
+    "--script",
+    "web/wasm/fw/public/atech-sid.txt",
+    "--max-seconds",
+    "6"
+   ],
+   "load_before": [
+    4.361328125,
+    5.24853515625,
+    6.64208984375
+   ],
+   "runs": [
+    {
+     "user_s": 1.5,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "warmup",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.52,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "warmup",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.53,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair1",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.52,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair1",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.51,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair2",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.53,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair2",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.51,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair3",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.5,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair3",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.51,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair4",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.54,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair4",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.53,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair5",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.49,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair5",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.5,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair6",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.55,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair6",
+     "order": "N->B"
+    },
+    {
+     "user_s": 1.51,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "base",
+     "pair": "pair7",
+     "order": "B->N"
+    },
+    {
+     "user_s": 1.51,
+     "insns": [
+      13886889,
+      324586849
+     ],
+     "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "exit": 0,
+     "side": "new",
+     "pair": "pair7",
+     "order": "B->N"
+    }
+   ],
+   "load_after": [
+    4.970703125,
+    5.33544921875,
+    6.6337890625
+   ],
+   "summary": {
+    "base_median_s": 1.53,
+    "new_median_s": 1.51,
+    "change_pct": -1.31,
+    "base_range_s": [
+     1.51,
+     1.55
+    ],
+    "new_range_s": [
+     1.49,
+     1.52
+    ],
+    "new_slower_pairs": 0,
+    "identical_work_and_console": true,
+    "insns": [
+     13886889,
+     324586849
+    ],
+    "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   }
+  }
+ },
+ "finished": "2026-11-01T23:26:13+0100"
+}

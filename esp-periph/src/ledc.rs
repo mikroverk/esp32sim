@@ -123,28 +123,34 @@ impl Ledc<$classic> {
     #[inline(always)]
     pub fn tick_with_source(&mut self, ticks: u64, source: impl Fn(usize, u32) -> u64) {
         for n in 0..4 {
+            // `active` bit n is `timer(n).is_some()`, recomputed on every timer configuration write.
+            if self.active & (1 << n) == 0 { continue; }
             let Some((period, divider)) = self.timer(n) else { continue; };
             let hz = source(n, self.timer_params[n]);
             let modulus = (APB_HZ / 256) * divider * period;
-            let (phase, wrapped) = match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
-                Some(total) => (if total < modulus { total } else { total % modulus }, total >= modulus),
-                None => {
-                    let total = self.phase[n] as u128 + ticks as u128 * hz as u128;
-                    ((total % modulus as u128) as u64, total >= modulus as u128)
-                }
-            };
-            self.phase[n] = phase;
-            if !wrapped { continue; }
-            self.raw |= 1 << n;
-            for ch in 0..self.channels() {
-                let off = ch as u32 * 0x14;
-                if self.pending[ch] && self.regs.read(off) & 3 == n as u32 {
-                    self.duty[ch] = self.regs.read(off + 8);
-                    self.pending[ch] = false;
-                    let conf = self.regs.read(off + 12);
-                    self.regs.write(off + 12, conf & !(1 << 31));
-                    self.raw |= 1 << (4 + ch);
-                }
+            match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
+                Some(total) if total < modulus => self.phase[n] = total,
+                _ => self.wrap_timer(n, ticks, hz, modulus),
+            }
+        }
+    }
+    /// The rest of `tick_with_source` for a timer whose phase reaches `modulus` (or overflows) now.
+    #[cold]
+    #[inline(never)]
+    fn wrap_timer(&mut self, n: usize, ticks: u64, hz: u64, modulus: u64) {
+        self.phase[n] = match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
+            Some(total) => total % modulus,
+            None => ((self.phase[n] as u128 + ticks as u128 * hz as u128) % modulus as u128) as u64,
+        };
+        self.raw |= 1 << n;
+        for ch in 0..self.channels() {
+            let off = ch as u32 * 0x14;
+            if self.pending[ch] && self.regs.read(off) & 3 == n as u32 {
+                self.duty[ch] = self.regs.read(off + 8);
+                self.pending[ch] = false;
+                let conf = self.regs.read(off + 12);
+                self.regs.write(off + 12, conf & !(1 << 31));
+                self.raw |= 1 << (4 + ch);
             }
         }
     }
@@ -330,6 +336,79 @@ mod tests {
         assert!(ledc.output(&gpio, 0).is_none());
         assert_eq!(ledc.read(0xc0) & (1 << 4), 0);
         assert_ne!(ledc.read(12) & (1 << 31), 0);
+    }
+
+    /// One configured timer `n` (8-bit, divider 1.0, so it wraps every 256 ticks) with channel
+    /// `n + 1` waiting for a duty update on it; every other timer is unconfigured.
+    fn check_each_timer_alone<const C: bool>(make: impl Fn() -> Ledc<C>, shift: u32)
+    where Ledc<C>: Device {
+        for n in 0..4u32 {
+            let mut ledc = make();
+            let conf = 8 | (256 << (4 + shift));
+            ledc.write(0xa0 + n * 8, conf | (1 << (25 + shift)));
+            let ch = n + 1;
+            ledc.write(ch * 0x14 + 8, 77 << 4);
+            ledc.write(ch * 0x14 + 12, 1 << 31);
+            ledc.write(ch * 0x14, n | 4 | (1 << 4));
+            let counter = |l: &mut Ledc<C>, t: u32| l.read(0xa4 + t * 8);
+            ledc.tick(255);
+            assert_eq!(counter(&mut ledc, n), 255, "timer {n}");
+            assert_eq!(ledc.read(0xc0), 0, "timer {n}");
+            assert_eq!(ledc.read(ch * 0x14 + 0x10), 0, "timer {n}");
+            ledc.tick(1);
+            assert_eq!(counter(&mut ledc, n), 0, "timer {n}");
+            assert_eq!(ledc.read(0xc0), (1 << n) | (1 << (4 + ch)), "timer {n}");
+            assert_eq!(ledc.read(ch * 0x14 + 0x10), 77 << 4, "timer {n}");
+            assert_eq!(ledc.read(ch * 0x14 + 12) >> 31, 0, "timer {n}");
+            ledc.tick(256 * 3 + 40);
+            assert_eq!(counter(&mut ledc, n), 40, "timer {n}");
+            for t in (0..4).filter(|&t| t != n) { assert_eq!(ledc.phase[t as usize], 0, "timer {t} beside {n}"); }
+            // Paused, the timer stops; resumed, it counts on from where it stopped.
+            ledc.write(0xa0 + n * 8, conf | (1 << (22 + shift)));
+            assert_eq!(ledc.clock(), None, "timer {n}");
+            ledc.tick(100);
+            assert_eq!(counter(&mut ledc, n), 40, "timer {n}");
+            ledc.write(0xa0 + n * 8, conf);
+            ledc.tick(10);
+            assert_eq!(counter(&mut ledc, n), 50, "timer {n}");
+            // A second timer with twice the period counts independently.
+            let other = 3 - n;
+            ledc.write(0xa0 + other * 8, 9 | (256 << (4 + shift)) | (1 << (25 + shift)));
+            ledc.write(0xcc, u32::MAX);
+            ledc.tick(300);
+            assert_eq!(counter(&mut ledc, n), (50 + 300) % 256, "timer {n}");
+            assert_eq!(counter(&mut ledc, other), 300, "timer {other} beside {n}");
+            assert_eq!(ledc.read(0xc0), 1 << n, "timer {n}");
+            ledc.tick(212);
+            assert_eq!(counter(&mut ledc, other), 0, "timer {other} beside {n}");
+            assert_eq!(ledc.read(0xc0), (1 << n) | (1 << other), "timer {n}");
+        }
+    }
+
+    #[test]
+    fn each_timer_alone_counts_wraps_and_latches_its_channel() {
+        for (layout, shift) in [(LedcLayout::S3, 0), (LedcLayout::C3, 0), (LedcLayout::C6, 1)] {
+            check_each_timer_alone(|| {
+                let mut ledc = Ledc::new(layout);
+                if matches!(layout, LedcLayout::C6) { ledc.external_clock_hz = APB_HZ; } else { ledc.write(0xd0, 1); }
+                ledc
+            }, shift);
+        }
+        check_each_timer_alone(|| { let mut ledc = Ledc::new_classic(); ledc.write(0xd0, 1); ledc }, 1);
+    }
+
+    #[test]
+    fn a_tick_that_ends_exactly_on_the_period_wraps() {
+        let mut ledc = Ledc::new(LedcLayout::C3);
+        ledc.write(0xd0, 1);
+        ledc.write(0xa8, 8 | (256 << 4) | (1 << 25));
+        ledc.tick(256);
+        assert_eq!((ledc.phase[1], ledc.read(0xc0)), (0, 2));
+        ledc.tick(255);
+        assert_eq!((ledc.phase[1], ledc.read(0xc0)), (255 * APB_HZ, 2));
+        ledc.write(0xcc, 2);
+        ledc.tick(1);
+        assert_eq!((ledc.phase[1], ledc.read(0xc0)), (0, 2));
     }
 
 }
