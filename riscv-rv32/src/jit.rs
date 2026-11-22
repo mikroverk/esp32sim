@@ -1,20 +1,21 @@
-//! Block JIT: decoded blocks (`block.rs`) compiled to host code, in regions. A region is a hot
-//! block and the blocks its branches, jumps and fall-throughs reach on the same virtual page;
-//! compiled code goes from one to the next itself. Each block is the block loop of `block::run`
-//! unrolled, with the same exit rules, so the block interpreter (and below it `exec::step`)
-//! stays the oracle and the two must leave bit-identical machine state:
+//! Block JIT: decoded blocks (`block.rs`) compiled to host code, in regions. It runs where blocks
+//! run, so on a bus that versions its code: the ESP32-S31's; the C3, C6 and P4 buses have no code
+//! versions and keep the interpreter. A region is a hot block and the blocks its branches, jumps
+//! and fall-throughs reach on the same 4 KiB page; compiled code goes from one to the next
+//! itself. Each block is the block loop of `block::run` unrolled, with the same exit rules, so
+//! the block interpreter (and below it `exec::step`) stays the oracle and the two must leave
+//! bit-identical machine state:
 //!
 //! - The dispatch loop enters a region only for a whole block, with no hardware loop counting
 //!   and no break pending. Inside, going to the next block re-checks what the loop's `lookup`
-//!   would: that the block fits the budget whole (else the loop runs it partly), that its code
-//!   versions have not moved, and, translated, that the TLB still holds the page with fetch
-//!   permission for the current mode (else the loop's `translate` walks again). Boundaries
-//!   (`boundary_bloom`) are not entered: a region only goes to blocks outside the bloom. The
-//!   interrupt test is not repeated: its inputs only change through the instructions that end a
-//!   region (CSR writes, `mret`, `sret`, `wfi`, traps), and the SoC moves `irq` only between runs.
+//!   would: that the block fits the budget whole (else the loop runs it partly) and that its code
+//!   versions have not moved. Boundaries (`boundary_bloom`) are not entered: a region only goes
+//!   to blocks outside the bloom. The interrupt test is not repeated: its inputs only change
+//!   through the instructions that end a region (CSR writes, `mret`, `wfi`, traps), and the SoC
+//!   moves `irq` only between runs.
 //! - Integer, multiply/divide, bit-manipulation and control-transfer instructions are host code.
-//!   Loads and stores call `h_load`/`h_store`, which make the interpreter's translation, bus
-//!   access and trap exactly; everything else calls `h_exec` (`exec::exec_insn`). The region ends
+//!   Loads and stores call `h_load`/`h_store`, which make the interpreter's bus access and trap
+//!   exactly; everything else calls `h_exec` (`exec::exec_insn`). The region ends
 //!   after a helper as the loop would end it: on a trap, on `block_break`, after a hardware-loop
 //!   instruction, and (checked in the compiled code) after a store that moved its block's code
 //!   versions with instructions left in the block.
@@ -22,11 +23,11 @@
 //!   `h_exec` (which may read them) and at every exit. `note_pc` is made before every access (in
 //!   the helpers) and for the last instruction at exit (`Ctx::last_pc`).
 //!
-//! Backends: AArch64 on macOS and Linux, WebAssembly with the `wasm-jit` feature (the page
+//! Backends: AArch64 on macOS and Linux, WebAssembly with the `wasm-jit-host` feature (the page
 //! compiles the modules). Elsewhere [`AVAILABLE`] is false.
 // Without a backend (x86-64, wasm without a page to compile for) only the shared front end is
 // built, and nothing calls it.
-#![cfg_attr(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", any(feature = "wasm-jit", feature = "wasm-jit-host")))), allow(dead_code))]
+#![cfg_attr(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", feature = "wasm-jit-host"))), allow(dead_code))]
 use crate::block::{decode_block, Decoded};
 use crate::bus::Bus;
 use crate::decode::{Insn, Op};
@@ -48,31 +49,19 @@ pub const LEAVE: u32 = 3;
 pub const HOT: u16 = if cfg!(target_arch = "wasm32") { 256 } else { 32 };
 /// Blocks per region.
 const MAX_BLOCKS: usize = 24;
-/// Sv32 PTE bits a TLB slot must have for a fetch (X, and U in U mode). These cores fetch
-/// untranslated, so `Ctx::tlb` is always null and the check is never made; the code generators
-/// stay those of the core with S and U (sbc-emu's ESP32-S31 Linux profile).
-const PTE_X: u32 = 8;
-const PTE_U: u32 = 16;
 
 /// What compiled code and its helpers share for one call.
 #[repr(C)]
 pub struct Ctx {
     /// the pc of the last instruction used (`note_pc` at exit)
     pub last_pc: u32,
-    /// fetch permission the TLB entry must give in the current mode: X, and U in U mode
-    pub need: u32,
     /// the bus's code versions (`Bus::page_versions`)
     pub pv: *const u32,
-    /// the TLB slot of the region's page while fetches are translated, else null
-    pub tlb: *const u32,
     pub trap: Option<Trap>,
 }
 
 impl Ctx {
-    /// These cores fetch untranslated (M mode only): no TLB slot to check.
-    pub fn new<B: Bus>(_cpu: &Cpu, bus: &B, _pc: u32) -> Ctx {
-        Ctx { last_pc: 0, need: PTE_X, pv: bus.page_versions().as_ptr(), tlb: std::ptr::null(), trap: None }
-    }
+    pub fn new<B: Bus>(bus: &B) -> Ctx { Ctx { last_pc: 0, pv: bus.page_versions().as_ptr(), trap: None } }
 }
 
 // ---------------------------------------------------------------- helpers called from compiled code
@@ -99,13 +88,12 @@ extern "C" fn h_load<B: Bus>(cpu: *mut Cpu, bus: *mut B, ctx: *mut Ctx, va: u32,
     // SAFETY: as `h_exec`.
     let (cpu, bus, ctx) = unsafe { (&mut *cpu, &mut *bus, &mut *ctx) };
     bus.note_pc(pc);
-    let pa = va;
     let r = match kind {
-        0 => bus.read8(pa).map(|v| v as i8 as i32 as u32),
-        1 => bus.read16(pa).map(|v| v as i16 as i32 as u32),
-        2 => bus.read32(pa),
-        3 => bus.read8(pa).map(|v| v as u32),
-        _ => bus.read16(pa).map(|v| v as u32),
+        0 => bus.read8(va).map(|v| v as i8 as i32 as u32),
+        1 => bus.read16(va).map(|v| v as i16 as i32 as u32),
+        2 => bus.read32(va),
+        3 => bus.read8(va).map(|v| v as u32),
+        _ => bus.read16(va).map(|v| v as u32),
     };
     match r {
         Ok(v) => { cpu.retired_count += 1; v as u64 | if bus.block_break() { (STOP as u64) << 32 } else { 0 } }
@@ -121,8 +109,7 @@ extern "C" fn h_store<B: Bus>(cpu: *mut Cpu, bus: *mut B, ctx: *mut Ctx, va: u32
     // SAFETY: as `h_exec`.
     let (cpu, bus, ctx) = unsafe { (&mut *cpu, &mut *bus, &mut *ctx) };
     bus.note_pc(pc);
-    let pa = va;
-    let r = match kind { 0 => bus.write8(pa, v as u8), 1 => bus.write16(pa, v as u16), _ => bus.write32(pa, v) };
+    let r = match kind { 0 => bus.write8(va, v as u8), 1 => bus.write16(va, v as u16), _ => bus.write32(va, v) };
     if r.is_err() {
         let c = exc::STORE_ACCESS_FAULT;
         cpu.trap(c, va, pc); ctx.trap = Some(Trap::Exception(c)); return TRAP;
@@ -192,14 +179,13 @@ impl RBlock {
     fn last_pc(&self) -> u32 { self.insns[..self.insns.len() - 1].iter().fold(self.pc, |p, i| p.wrapping_add(i.len as u32)) }
 }
 
-/// A hot block and the blocks reachable from it on its virtual page; `phys_page` is the physical
-/// page the entry was fetched from.
-pub struct Region { blocks: Vec<RBlock>, vpn: u32, phys_page: u32, bloom: u64 }
+/// A hot block and the blocks reachable from it on its 4 KiB page.
+pub struct Region { blocks: Vec<RBlock>, bloom: u64 }
 
 impl Region {
-    /// Each block's (pc, physical address, length, code pages, versions), in entry order.
-    pub(crate) fn members(&self) -> impl Iterator<Item = (u32, u32, usize, [u32; 2], [u32; 2])> + '_ {
-        self.blocks.iter().map(|b| (b.pc, (self.phys_page | (b.pc & 0xfff)), b.insns.len(), b.vidx, b.ver))
+    /// Each block's (pc, length, code pages, versions), in entry order.
+    pub(crate) fn members(&self) -> impl Iterator<Item = (u32, usize, [u32; 2], [u32; 2])> + '_ {
+        self.blocks.iter().map(|b| (b.pc, b.insns.len(), b.vidx, b.ver))
     }
     fn index(&self, pc: u32) -> Option<usize> { self.blocks.iter().position(|b| b.pc == pc) }
     /// The block a transition to `pc` may enter: none at a boundary (the dispatch loop stops
@@ -207,15 +193,15 @@ impl Region {
     fn target(&self, pc: u32) -> Option<usize> { if self.bloom & pc_bit(pc) != 0 { None } else { self.index(pc) } }
 }
 
-/// Build the region of the block at `pc` (fetched from `phys`): its instructions, code pages
-/// and versions, and the blocks it reaches on its virtual page.
-pub(crate) fn region<B: Bus>(cpu: &Cpu, bus: &mut B, pc: u32, phys: u32, insns: &[Insn], vidx: [u32; 2], ver: [u32; 2]) -> Region {
-    let mut r = Region { blocks: vec![RBlock::new(pc, insns, vidx, ver)], vpn: pc >> 12, phys_page: phys & !0xfff, bloom: cpu.boundary_bloom };
+/// Build the region of the block at `pc`: its instructions, code pages and versions, and the
+/// blocks it reaches on its 4 KiB page.
+pub(crate) fn region<B: Bus>(cpu: &Cpu, bus: &mut B, pc: u32, insns: &[Insn], vidx: [u32; 2], ver: [u32; 2]) -> Region {
+    let mut r = Region { blocks: vec![RBlock::new(pc, insns, vidx, ver)], bloom: cpu.boundary_bloom };
     let mut work = r.blocks[0].targets();
     while let Some(t) = work.pop() {
         if r.blocks.len() >= MAX_BLOCKS { break; }
         if t >> 12 != pc >> 12 || cpu.boundary_bloom & pc_bit(t) != 0 || r.index(t).is_some() { continue; }
-        let Some(Decoded { insns, n, vidx, ver, .. }) = decode_block(cpu, bus, t, phys.wrapping_add(t.wrapping_sub(pc)), true) else { continue };
+        let Some(Decoded { insns, n, vidx, ver, .. }) = decode_block(cpu, bus, t) else { continue };
         let b = RBlock::new(t, &insns[..n], vidx, ver);
         work.extend(b.targets());
         r.blocks.push(b);
@@ -225,10 +211,10 @@ pub(crate) fn region<B: Bus>(cpu: &Cpu, bus: &mut B, pc: u32, phys: u32, insns: 
 
 #[cfg(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")))]
 pub use a64::{Jit, AVAILABLE};
-#[cfg(all(target_arch = "wasm32", any(feature = "wasm-jit", feature = "wasm-jit-host")))]
+#[cfg(all(target_arch = "wasm32", feature = "wasm-jit-host"))]
 pub use wasm::{Jit, AVAILABLE};
 
-#[cfg(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", any(feature = "wasm-jit", feature = "wasm-jit-host")))))]
+#[cfg(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", feature = "wasm-jit-host"))))]
 mod none {
     use super::*;
     pub const AVAILABLE: bool = false;
@@ -238,14 +224,12 @@ mod none {
         pub fn new() -> Option<Box<Jit>> { None }
         pub fn compile<B: Bus>(&mut self, _r: &Region) -> Option<Vec<u32>> { None }
         pub fn reset(&mut self) {}
-        pub fn valid(&self) -> bool { true }
-        pub fn adopt_epoch(&mut self) {}
         /// # Safety
         /// Never called: no code exists.
         pub unsafe fn call<B: Bus>(&self, _code: u32, _cpu: &mut Cpu, _bus: &mut B, _ctx: &mut Ctx, _budget: u32) -> u64 { unreachable!() }
     }
 }
-#[cfg(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", any(feature = "wasm-jit", feature = "wasm-jit-host")))))]
+#[cfg(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", feature = "wasm-jit-host"))))]
 pub use none::{Jit, AVAILABLE};
 
 /// Counts not yet added to the Cpu: instructions (`insn_count`, `cycle_count`) and those retired
@@ -304,9 +288,6 @@ mod a64 {
         }
         /// Forget all code (the caller forgets every block that refers to it).
         pub fn reset(&mut self) { self.used = 0; self.tables.clear(); }
-        /// Code stays valid until `reset`.
-        pub fn valid(&self) -> bool { true }
-        pub fn adopt_epoch(&mut self) {}
 
         fn write(&mut self, words: &[u32]) -> Option<u32> {
             let bytes = words.len() * 4;
@@ -358,9 +339,8 @@ mod a64 {
     const DONE: Reg = 23;
     /// budget left at the current block's start
     const REM: Reg = 24;
-    /// the code versions and the TLB slot (`Ctx`)
+    /// the code versions (`Ctx::pv`)
     const PV: Reg = 25;
-    const TLB: Reg = 26;
     /// a helper's status, from its return to the exit
     const STATUS: Reg = 11;
 
@@ -374,8 +354,6 @@ mod a64 {
     fn rev(a: &mut Asm, d: Reg, n: Reg) { raw(a, 0x5ac0_0800 | n << 5 | d); }
     fn rorv(a: &mut Asm, d: Reg, n: Reg, m: Reg) { raw(a, 0x1ac0_2c00 | m << 16 | n << 5 | d); }
     fn ror_imm(a: &mut Asm, d: Reg, n: Reg, sh: u32) { raw(a, 0x1380_0000 | n << 16 | (sh & 31) << 10 | n << 5 | d); }
-    /// `cbz xt, label`
-    fn cbz_x(a: &mut Asm, rt: Reg, l: Label) { let at = a.here(); a.cbz(rt, l); a.code[at] |= 1 << 31; }
     fn set_pc(a: &mut Asm, v: u32) { a.mov32(10, v); a.str(10, CPU, offset_of!(Cpu, pc) as u32); }
     fn set_last(a: &mut Asm, v: u32) { a.mov32(10, v); a.str(10, CTX, offset_of!(Ctx, last_pc) as u32); }
 
@@ -423,10 +401,9 @@ mod a64 {
             a.stp(CPU, BUS, SP, 16);
             a.stp(HLP, CTX, SP, 32);
             a.stp(DONE, REM, SP, 48);
-            a.stp(PV, TLB, SP, 64);
+            a.str_x(PV, SP, 64);
             a.mov_x(CPU, 0); a.mov_x(BUS, 1); a.mov_x(HLP, 2); a.mov_x(CTX, 3); a.mov(REM, 4); a.mov(DONE, ZR);
             a.ldr_x(PV, CTX, offset_of!(Ctx, pv) as u32);
-            a.ldr_x(TLB, CTX, offset_of!(Ctx, tlb) as u32);
             a.b(l);
         }
         let mut exits: Vec<Exit> = Vec::new();
@@ -447,7 +424,7 @@ mod a64 {
             a.b(epilogue);
         }
         a.bind(epilogue);
-        a.ldp(PV, TLB, SP, 64);
+        a.ldr_x(PV, SP, 64);
         a.ldp(DONE, REM, SP, 48);
         a.ldp(HLP, CTX, SP, 32);
         a.ldp(CPU, BUS, SP, 16);
@@ -553,14 +530,6 @@ mod a64 {
             let out = a.label();
             a.cmp_imm(REM, b.insns.len() as u32); a.b_cond(Cond::Lo, out);
             check_versions(a, b, out);
-            // translated: the TLB slot must still map the page, executable in this mode
-            let ok = a.label();
-            cbz_x(a, TLB, ok);
-            a.ldr(9, TLB, 0); a.mov32(10, r.vpn + 1); a.cmp(9, 10); a.b_cond(Cond::Ne, out);
-            a.ldr(9, TLB, 4); a.mov32(10, r.phys_page); a.cmp(9, 10); a.b_cond(Cond::Ne, out);
-            a.ldr(9, TLB, 8); a.mov32(10, PTE_X | PTE_U); a.and(9, 9, 10);
-            a.ldr(10, CTX, offset_of!(Ctx, need) as u32); a.cmp(9, 10); a.b_cond(Cond::Ne, out);
-            a.bind(ok);
             a.b(labels[m]);
             a.bind(out);
         }
@@ -660,81 +629,40 @@ mod a64 {
     }
 }
 
-#[cfg(all(target_arch = "wasm32", any(feature = "wasm-jit", feature = "wasm-jit-host")))]
+#[cfg(all(target_arch = "wasm32", feature = "wasm-jit-host"))]
 mod wasm {
     //! Each region is a module with one function `(cpu, bus, ctx, budget: i32) -> i64` that
     //! imports the emulator's memory and function table; the page compiles it and installs it in
-    //! the table (`sbc_jit_compile`, as for the other cores), and Rust calls it through a function
+    //! the table (`host_jit_compile`, as for the Xtensa cores), and Rust calls it through a function
     //! pointer, which in wasm is its table index. Helpers are called the same way. The blocks sit
     //! in a `loop` around a `br_table` on the next block's index.
     use super::*;
     use std::mem::offset_of;
-    use std::sync::atomic::{AtomicU32, Ordering};
 
     pub const AVAILABLE: bool = true;
 
-    /// The page's side: esp32sim's (`web/wasm/jit.mjs`: a slot per module, released one by one)
-    /// with `wasm-jit-host`, sbc-emu's (`web/worker.js`: one reset for everything) otherwise.
-    #[cfg(feature = "wasm-jit-host")]
-    mod host {
-        #[link(wasm_import_module = "env")]
-        extern "C" {
-            fn host_jit_compile(ptr: *const u8, len: usize) -> u32;
-            fn host_jit_release(slot: u32);
-        }
-        pub const EXPORT: &[u8] = b"run";
-        /// A reset only discards this core's modules.
-        pub const SHARED_RESET: bool = false;
-        // SAFETY: the import reads `len` bytes of the module; 0 is its failure
-        pub fn compile(m: &[u8]) -> Option<u32> { let s = unsafe { host_jit_compile(m.as_ptr(), m.len()) }; (s != 0).then_some(s) }
-        // SAFETY: each slot came from `compile` and is released once
-        pub fn release(slots: &[u32]) { for &s in slots { unsafe { host_jit_release(s) } } }
-    }
-    #[cfg(not(feature = "wasm-jit-host"))]
-    mod host {
-        #[link(wasm_import_module = "env")]
-        extern "C" {
-            fn sbc_jit_compile(ptr: *const u8, len: usize) -> i32;
-            fn sbc_jit_reset();
-        }
-        pub const EXPORT: &[u8] = b"f";
-        /// A reset discards every core's modules (`EPOCH`).
-        pub const SHARED_RESET: bool = true;
-        // SAFETY: the import reads `len` bytes of the module; negative is its failure
-        pub fn compile(m: &[u8]) -> Option<u32> { let s = unsafe { sbc_jit_compile(m.as_ptr(), m.len()) }; (s >= 0).then_some(s as u32) }
-        // SAFETY: the import takes no arguments
-        pub fn release(_slots: &[u32]) { unsafe { sbc_jit_reset() } }
+    #[link(wasm_import_module = "env")]
+    extern "C" {
+        fn host_jit_compile(ptr: *const u8, len: usize) -> u32;
+        fn host_jit_release(slot: u32);
     }
 
-    /// Bumped whenever the page discards every compiled module (`host::SHARED_RESET`): a core
-    /// whose JIT saw an older value must forget its blocks' code.
-    static EPOCH: AtomicU32 = AtomicU32::new(0);
-    /// Modules before everything is discarded (the page's table only grows).
-    const MAX_MODULES: u32 = 16384;
-    static MODULES: AtomicU32 = AtomicU32::new(0);
+    /// Modules before this core's are all discarded.
+    const MAX_MODULES: usize = 16384;
 
-    pub struct Jit { epoch: u32, tables: Vec<Box<[Insn]>>, slots: Vec<u32> }
+    pub struct Jit { tables: Vec<Box<[Insn]>>, slots: Vec<u32> }
 
     impl Jit {
-        pub fn new() -> Option<Box<Jit>> { Some(Box::new(Jit { epoch: EPOCH.load(Ordering::Relaxed), tables: Vec::new(), slots: Vec::new() })) }
-        /// Discard this core's compiled code (every core's where the page can only reset all).
+        pub fn new() -> Option<Box<Jit>> { Some(Box::new(Jit { tables: Vec::new(), slots: Vec::new() })) }
+        /// Forget all code (the caller forgets every block that refers to it).
         pub fn reset(&mut self) {
-            host::release(&self.slots);
-            if host::SHARED_RESET {
-                MODULES.store(0, Ordering::Relaxed);
-                self.epoch = EPOCH.fetch_add(1, Ordering::Relaxed) + 1;
-            } else {
-                MODULES.fetch_sub(self.slots.len() as u32, Ordering::Relaxed);
-            }
-            self.slots.clear();
+            // SAFETY: each slot came from `host_jit_compile` and is released once
+            for s in self.slots.drain(..) { unsafe { host_jit_release(s) } }
             self.tables.clear();
         }
-        /// False once any core has discarded the compiled code: forget it (`Blocks::code`).
-        pub fn valid(&self) -> bool { self.epoch == EPOCH.load(Ordering::Relaxed) }
-        pub fn adopt_epoch(&mut self) { self.epoch = EPOCH.load(Ordering::Relaxed); self.tables.clear(); self.slots.clear(); }
 
         /// # Safety
-        /// `code` must come from `compile` in the current epoch (the module's table index
+        /// `code` must come from `compile` since the last `reset` (the module's table index
         /// times 32 plus the block), for a block that is still the one in memory.
         pub unsafe fn call<B: Bus>(&self, code: u32, cpu: &mut Cpu, bus: &mut B, ctx: &mut Ctx, budget: u32) -> u64 {
             type F<B> = unsafe extern "C" fn(*mut Cpu, *mut B, *mut Ctx, u32, u32) -> u64;
@@ -744,11 +672,12 @@ mod wasm {
 
         /// Compile a region: the code of each of its blocks as an entry (`Region::members`).
         pub fn compile<B: Bus>(&mut self, r: &Region) -> Option<Vec<u32>> {
-            if MODULES.load(Ordering::Relaxed) >= MAX_MODULES || r.blocks.len() > 32 { return None; }
+            if self.slots.len() >= MAX_MODULES || r.blocks.len() > 32 { return None; }
             let tables: Vec<Box<[Insn]>> = r.blocks.iter().map(|b| b.insns.clone().into_boxed_slice()).collect();
             let module = emit::<B>(r, &tables);
-            let idx = host::compile(&module)?;
-            MODULES.fetch_add(1, Ordering::Relaxed);
+            // SAFETY: the import reads `len` bytes of the module; 0 is its failure
+            let idx = unsafe { host_jit_compile(module.as_ptr(), module.len()) };
+            if idx == 0 { return None; }
             self.slots.push(idx);
             self.tables.extend(tables);
             Some((0..r.blocks.len() as u32).map(|k| idx << 5 | k).collect())
@@ -768,7 +697,7 @@ mod wasm {
     }
 
     // params cpu, bus, ctx, budget left (REM), the block to start with (IDX); locals: status,
-    // DONE, the code versions, the TLB slot, a load's result
+    // DONE, the code versions, a load's result
     const CPU: u32 = 0;
     const BUS: u32 = 1;
     const CTX: u32 = 2;
@@ -777,8 +706,7 @@ mod wasm {
     const ST: u32 = 5;
     const DONE: u32 = 6;
     const PV: u32 = 7;
-    const TLB: u32 = 8;
-    const V64: u32 = 9;
+    const V64: u32 = 8;
     // types: 0 the region, 1 h_exec, 2 h_load, 3 h_store
     const T_EXEC: u32 = 1;
     const T_LOAD: u32 = 2;
@@ -839,7 +767,6 @@ mod wasm {
         let mut w = W { c: Vec::with_capacity(4096), h_exec: h_exec::<B> as *const () as usize, h_load: h_load::<B> as *const () as usize, h_store: h_store::<B> as *const () as usize, nest: 0 };
         w.i32c(0); w.lset(DONE);
         w.lget(CTX); w.mem(0x28, 2, offset_of!(Ctx, pv) as u32); w.lset(PV);
-        w.lget(CTX); w.mem(0x28, 2, offset_of!(Ctx, tlb) as u32); w.lset(TLB);
         let nb = r.blocks.len() as u32;
         // loop $top; block $b(nb-1) .. block $b0; br_table on IDX
         w.op(0x03); w.op(0x40);
@@ -927,15 +854,9 @@ mod wasm {
     fn transition(w: &mut W, r: &Region, t: u32, last: u32, depth: u32) {
         if let Some(m) = r.target(t) {
             let b = &r.blocks[m];
-            // REM >= n && versions && (no TLB || (tag, page, fetch permission))
+            // REM >= n && versions
             w.lget(REM); w.i32c(b.insns.len() as u32); w.op(0x4f);
             w.versions_ok(b); w.op(0x71);
-            w.lget(TLB); w.op(0x45);
-            w.lget(TLB); w.mem(0x28, 2, 0); w.i32c(r.vpn + 1); w.op(0x46);
-            w.lget(TLB); w.mem(0x28, 2, 4); w.i32c(r.phys_page); w.op(0x46); w.op(0x71);
-            w.lget(TLB); w.mem(0x28, 2, 8); w.i32c(PTE_X | PTE_U); w.op(0x71);
-            w.lget(CTX); w.mem(0x28, 2, offset_of!(Ctx, need) as u32); w.op(0x46); w.op(0x71);
-            w.op(0x72); w.op(0x71);
             w.if_();
             w.i32c(m as u32); w.lset(IDX);
             w.op(0x0c); uleb(&mut w.c, (depth + w.nest - 1 + 1) as u64);
@@ -1051,7 +972,7 @@ mod wasm {
         }
     }
 
-    /// The module: types, imports (env.memory, env.table), one function exported as "f".
+    /// The module: types, imports (env.memory, env.table), one function exported as "run".
     fn assemble(body: &[u8]) -> Vec<u8> {
         let mut m = b"\0asm\x01\0\0\0".to_vec();
         let section = |m: &mut Vec<u8>, id: u8, payload: &[u8]| { m.push(id); uleb(m, payload.len() as u64); m.extend_from_slice(payload); };
@@ -1068,12 +989,9 @@ mod wasm {
         }
         section(&mut m, 2, &imp);
         section(&mut m, 3, &[1, 0]);
-        let mut exp = vec![1, host::EXPORT.len() as u8];
-        exp.extend_from_slice(host::EXPORT);
-        exp.extend_from_slice(&[0x00, 0]);
-        section(&mut m, 7, &exp);
-        // locals after the 5 params: ST, DONE, PV, TLB (i32), V64 (i64)
-        let mut f = vec![2, 4, I, 1, L];
+        section(&mut m, 7, b"\x01\x03run\x00\x00");
+        // locals after the 5 params: ST, DONE, PV (i32), V64 (i64)
+        let mut f = vec![2, 3, I, 1, L];
         f.extend_from_slice(body);
         let mut code = vec![1];
         uleb(&mut code, f.len() as u64);

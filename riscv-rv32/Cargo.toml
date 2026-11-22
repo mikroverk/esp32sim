@@ -6,10 +6,8 @@ license.workspace = true
 description = "RV32IMC(A)(F)(Zb*, Zcb, Zcmp) interpreter for the ESP32-C3, C6 and P4 RISC-V cores"
 
 [features]
-# The WebAssembly JIT backend: sbc-emu's page (`env.sbc_jit_compile`, `env.sbc_jit_reset`) with
-# `wasm-jit`, this repository's (`web/wasm/jit.mjs`: `env.host_jit_compile`,
-# `env.host_jit_release`) with `wasm-jit-host`
-wasm-jit = []
+# The JIT's WebAssembly backend, for a page that provides `env.host_jit_compile` and
+# `env.host_jit_release` (`web/wasm/jit.mjs`)
 wasm-jit-host = []
 
 [dependencies]
