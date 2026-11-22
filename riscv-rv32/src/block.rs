@@ -23,7 +23,7 @@
 use crate::bus::Bus;
 use crate::decode::{decode_for, Comp, Insn, Op};
 use crate::exec::{exec_insn_inline, step_outcome, Trap};
-use crate::jit::{Code, Ctx, Jit, STOP, TRAP};
+use crate::jit::{Code, Ctx, Jit, NoCode, STOP, TRAP};
 use crate::state::Cpu;
 use emu_core::core::pc_bit;
 
@@ -301,12 +301,12 @@ fn jit_compile<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<Code> {
         if j.code.is_none() { cpu.blocks.jit = None; return None; }
     }
     let mut codes = j.code.as_mut()?.compile::<B>(&region);
-    if codes.is_none() {
-        // the cache is full: start again, every block's code with it
+    if codes == Err(NoCode::Full) {
+        // start again, every block's code with it
         j.forget();
         codes = j.code.as_mut()?.compile::<B>(&region);
     }
-    let Some(codes) = codes else { j.slots[ei].code = UNCOMPILABLE; return None; };
+    let Ok(codes) = codes else { j.slots[ei].code = UNCOMPILABLE; return None; };
     for ((pc, n, vidx, ver), &code) in region.members().zip(&codes) { j.regions.insert(pc, (code, n, vidx, ver)); }
     j.slots[ei].code = codes[0];
     j.compiled += 1;
@@ -343,7 +343,8 @@ pub fn run<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap
                 let mut ctx = Ctx::new(bus);
                 // SAFETY: the code is this core's (slots forget theirs whenever it is reset) and
                 // the entry block's versions were just checked by `lookup`. Nothing compiles or
-                // discards code while it runs: the helpers never reach `build` or `flush`.
+                // discards code while it runs: the helpers never reach `build` or `flush`. Code is
+                // made for one bus: a core always runs on the same one, whose versions never shrink.
                 let r = unsafe { Jit::call(code, cpu, bus, &mut ctx, budget - used) };
                 let (done, status) = (r as u32, (r >> 32) as u32);
                 bus.note_pc(ctx.last_pc);

@@ -13,7 +13,8 @@
 //!   to blocks outside the bloom. The interrupt test is not repeated: its inputs only change
 //!   through the instructions that end a region (CSR writes, `mret`, `wfi`, traps), and the SoC
 //!   moves `irq` only between runs.
-//! - Integer, multiply/divide, bit-manipulation and control-transfer instructions are host code.
+//! - Integer, multiply/divide, bit-manipulation and control-transfer instructions are host code
+//!   (`mulhsu`, `cpop` and `orc.b` excepted).
 //!   Loads and stores call `h_load`/`h_store`, which make the interpreter's bus access and trap
 //!   exactly; everything else calls `h_exec` (`exec::exec_insn`). The region ends
 //!   after a helper as the loop would end it: on a trap, on `block_break`, after a hardware-loop
@@ -34,6 +35,11 @@ use crate::decode::{Insn, Op};
 use crate::state::{exc, Cpu};
 use emu_core::core::pc_bit;
 use emu_core::Trap;
+
+/// Why `Jit::compile` made no code: no room left (the caller discards all of it and tries again),
+/// or this region cannot be compiled, or the page refused its module (its block stays interpreted).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum NoCode { Full, Refused }
 
 /// How compiled code ended (the high word of its result; the low word is the instructions it
 /// used, a trapping one included).
@@ -220,7 +226,7 @@ mod none {
     pub struct Jit;
     impl Jit {
         pub fn new() -> Option<Box<Jit>> { None }
-        pub fn compile<B: Bus>(&mut self, _r: &Region) -> Option<Vec<u32>> { None }
+        pub fn compile<B: Bus>(&mut self, _r: &Region) -> Result<Vec<u32>, NoCode> { Err(NoCode::Refused) }
         pub fn reset(&mut self) {}
         pub fn bytes(&self) -> usize { 0 }
         pub fn entry(&self, code: u32) -> Code { Code(code as usize as *const u8) }
@@ -323,14 +329,13 @@ mod a64 {
         }
 
         /// Compile a region: the code of each of its blocks as an entry (`Region::members`
-        /// order); `None` when the code cache is full (the caller resets it) or the layout does
-        /// not fit the encodings used.
-        pub fn compile<B: Bus>(&mut self, r: &Region) -> Option<Vec<u32>> {
+        /// order). Refused when the layout does not fit the encodings used.
+        pub fn compile<B: Bus>(&mut self, r: &Region) -> Result<Vec<u32>, NoCode> {
             let tables: Vec<Box<[Insn]>> = r.blocks.iter().map(|b| b.insns.clone().into_boxed_slice()).collect();
-            let (words, entries) = emit(r, &tables)?;
-            let off = self.write(&words)?;
+            let (words, entries) = emit(r, &tables).ok_or(NoCode::Refused)?;
+            let off = self.write(&words).ok_or(NoCode::Full)?;
             self.tables.extend(tables);
-            Some(entries.into_iter().map(|w| off + 4 * w as u32).collect())
+            Ok(entries.into_iter().map(|w| off + 4 * w as u32).collect())
         }
     }
 
@@ -635,7 +640,7 @@ mod a64 {
 
 #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-host"))]
 mod wasm {
-    //! Each region is a module with one function `(cpu, bus, ctx, budget: i32) -> i64` that
+    //! Each region is a module with one function `(cpu, bus, ctx, budget, block: i32) -> i64` that
     //! imports the emulator's memory and function table; the page compiles it and installs it in
     //! the table (`host_jit_compile`, as for the Xtensa cores), and Rust calls it through a function
     //! pointer, which in wasm is its table index. Helpers are called the same way. The blocks sit
@@ -687,18 +692,19 @@ mod wasm {
         }
 
         /// Compile a region: the code of each of its blocks as an entry (`Region::members`).
-        pub fn compile<B: Bus>(&mut self, r: &Region) -> Option<Vec<u32>> {
-            if self.slots.len() >= MAX_MODULES || r.blocks.len() > 32 { return None; }
+        pub fn compile<B: Bus>(&mut self, r: &Region) -> Result<Vec<u32>, NoCode> {
+            if r.blocks.len() > 32 { return Err(NoCode::Refused); }
+            if self.slots.len() >= MAX_MODULES { return Err(NoCode::Full); }
             let tables: Vec<Box<[Insn]>> = r.blocks.iter().map(|b| b.insns.clone().into_boxed_slice()).collect();
             let module = emit::<B>(r, &tables);
-            if self.bytes + module.len() > MAX_BYTES { return None; }
+            if self.bytes + module.len() > MAX_BYTES { return Err(NoCode::Full); }
             // SAFETY: the import reads `len` bytes of the module; 0 is its failure
             let idx = unsafe { host_jit_compile(module.as_ptr(), module.len()) };
-            if idx == 0 { return None; }
+            if idx == 0 { return Err(NoCode::Refused); }
             self.slots.push(idx);
             self.bytes += module.len();
             self.tables.extend(tables);
-            Some((0..r.blocks.len() as u32).map(|k| idx << 5 | k).collect())
+            Ok((0..r.blocks.len() as u32).map(|k| idx << 5 | k).collect())
         }
     }
 
