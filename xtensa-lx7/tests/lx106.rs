@@ -327,3 +327,16 @@ fn unaligned_word_access_has_lx106_alignment_exception() {
         assert_eq!(c.state().excvaddr, BASE + 0x8001 + if pc == corpus::LEAF { 0 } else { 28 });
     }
 }
+
+#[test]
+fn rer_wer_trap_unimplemented_without_effect() {
+    // rer a2, a3 and wer a2, a3 (Xtensa ISA RRR: op2 4, r 6/7). The SoC must supply
+    // these; the generic executor's read-zero/no-op must not leak into the profile.
+    for raw in [[0x20u8, 0x63, 0x40], [0x20, 0x73, 0x40]] {
+        let (mut c, mut b) = machine(BASE);
+        b.mem[..3].copy_from_slice(&raw);
+        c.set_ar(2, 0x1234); c.set_ar(3, 0x5678);
+        assert_eq!(c.step(&mut b).trap(), Some(Trap::Unimplemented(BASE, decode(BASE, [raw[0], raw[1], raw[2], 0]).raw)));
+        assert_eq!((c.pc(), c.get_ar(2), c.get_ar(3)), (BASE, 0x1234, 0x5678));
+    }
+}
