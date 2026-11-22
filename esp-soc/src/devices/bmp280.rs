@@ -18,8 +18,10 @@ const REG_CALIB: u8 = 0x88;
 const REG_ID: u8 = 0xD0;
 const REG_STATUS: u8 = 0xF3;
 const REG_CTRL_MEAS: u8 = 0xF4;
+const REG_CONFIG: u8 = 0xF5;
 const REG_PRESS: u8 = 0xF7;
 const REG_TEMP: u8 = 0xFA;
+const REG_RESET: u8 = 0xE0;
 
 /// Datasheet worked-example calibration: T1,T2,T3 then P1..P9 at 0x88, one little-endian word each.
 /// The signed entries are stored as their 16-bit two's complement, exactly as the sensor holds them.
@@ -56,16 +58,26 @@ impl Default for Bmp280 { fn default() -> Self { Self::new() } }
 
 impl Bmp280 {
     pub fn new() -> Self {
-        let mut regs = [0u8; 256];
+        let mut d = Bmp280 {
+            regs: [0u8; 256], ptr: 0, first: true,
+            raw_t: ADC_T, raw_p: ADC_P, reads: 0,
+        };
+        d.reset();
+        d
+    }
+
+    /// Power-on / soft-reset state (datasheet 4.3.2): calibration and chip ID restored,
+    /// control and status cleared, and the default worked-example sample published so a
+    /// fixed-delay driver still reads a sane value before its first forced measurement.
+    fn reset(&mut self) {
+        self.regs = [0u8; 256];
         for (i, &w) in CALIBRATION.iter().enumerate() {
             let r = REG_CALIB as usize + 2 * i;
-            regs[r] = w as u8;
-            regs[r + 1] = (w >> 8) as u8;
+            self.regs[r] = w as u8;
+            self.regs[r + 1] = (w >> 8) as u8;
         }
-        regs[REG_ID as usize] = CHIP_ID;
-        let mut d = Bmp280 { regs, ptr: 0, first: true, raw_t: ADC_T, raw_p: ADC_P, reads: 0 };
-        d.publish();
-        d
+        self.regs[REG_ID as usize] = CHIP_ID;
+        self.publish();
     }
 
     /// Replace what the next forced measurement reports. `publish` makes it visible immediately,
@@ -153,27 +165,46 @@ impl I2cDevice for Bmp280 {
             self.first = false;
             return true;
         }
+
         let r = self.ptr;
-        self.regs[r as usize] = b;
-        if r == REG_CTRL_MEAS && b != 0 {
-            // Forced-mode trigger: measuring until a driver looks at status. The conversion is not
-            // timed (a 2 ms wait would only pin the run to wall clock); the first status read
-            // finishes it and publishes the samples.
-            self.regs[REG_STATUS as usize] |= 0x08;
+        match r {
+            REG_CTRL_MEAS => {
+                self.regs[r as usize] = b;
+                let mode = b & 0x03;
+                if mode != 0 {
+                    // A device model completes a command when the guest issues it: publish
+                    // the sample on the write, not on a later status read (decisions.md).
+                    self.publish();
+                }
+                if mode == 0x01 || mode == 0x02 {
+                    // Forced mode returns to sleep when conversion finishes (datasheet 3.6.2).
+                    // esp-idf-lib's is_measuring() polls (ctrl & 3) == FORCED, so leaving the
+                    // mode bits set would hang it forever. status stays clear throughout.
+                    self.regs[r as usize] = b & !0x03;
+                }
+                // mode 0x11 (normal) keeps its mode bits; mode 0x00 does nothing above.
+            }
+            REG_CONFIG => self.regs[r as usize] = b,
+            // Datasheet 4.3.2: 0xB6 triggers a full power-on reset; other values ignored.
+            REG_RESET if b == 0xB6 => self.reset(),
+            REG_RESET => {}
+            // Table 18: calibration, chip ID, status and data registers are read-only.
+            // A writable calibration lets a guest make the integer compensation overflow.
+            _ => {}
         }
-        self.ptr = r.wrapping_add(1);
+
+        // Multiple-byte writes on this part are address/data *pairs* (datasheet 5.2.1),
+        // not a start address followed by a run of data. After each data byte the bus
+        // expects an address again; ptr stays put so a following read starts at this register.
+        self.ptr = r;
+        self.first = true;
         true
     }
+
     fn read(&mut self) -> u8 {
         let r = self.ptr;
         let v = self.regs[r as usize];
-        if r == REG_STATUS {
-            self.reads += 1;
-            if v & 0x08 != 0 {
-                self.regs[REG_STATUS as usize] &= !0x08;
-                self.publish();
-            }
-        }
+        if r == REG_STATUS { self.reads += 1; }
         self.ptr = r.wrapping_add(1);
         v
     }
@@ -206,17 +237,60 @@ mod tests {
     }
 
     #[test]
-    fn status_poll_finishes_measurement_then_data_is_contiguous() {
+    fn forced_measurement_completes_on_write_and_data_is_contiguous() {
         let mut d = Bmp280::new();
-        // Forced mode, oversampling x1, as esp-idf-lib writes it.
-        d.start(false); d.write(REG_CTRL_MEAS); d.write(0b0110_0001);
-        assert_eq!(read_at(&mut d, REG_STATUS, 1)[0] & 0x08, 0x08);
-        assert_eq!(read_at(&mut d, REG_STATUS, 1)[0] & 0x08, 0x00);
+        // esp-idf-lib writes 0x6C at init and 0x6D to force (osrs x3/x3, mode 01).
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
+        // The measurement is finished by the write: mode bits return to 00, status stays clear.
+        assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0], 0x6C);
+        assert_eq!(read_at(&mut d, REG_STATUS, 1)[0] & 0x08, 0);
         // The driver reads six bytes from 0xF7 and splits them pressure 0..3 / temperature 3..6.
         let six = read_at(&mut d, REG_PRESS, 6);
         let p = ((six[0] as i32) << 12) | ((six[1] as i32) << 4) | ((six[2] as i32) >> 4);
         let t = ((six[3] as i32) << 12) | ((six[4] as i32) << 4) | ((six[5] as i32) >> 4);
         assert_eq!((t, p), (ADC_T as i32, ADC_P as i32));
+    }
+
+    /// esp-idf-lib's `bmp280_is_measuring` sends [0xF3, 0xF4] before a two-byte read.
+    /// With pair-wise writes that is a write to read-only status, then a read at 0xF3,
+    /// yielding status and ctrl — never the old "status overwritten with 0xF4" bug.
+    #[test]
+    fn esp_idf_lib_is_measuring_never_reports_busy() {
+        let mut d = Bmp280::new();
+        d.start(false);
+        d.write(REG_RESET);   d.write(0xB6);   // init soft reset
+        d.write(REG_CTRL_MEAS); d.write(0x6C); // init normal config, mode 00
+        d.write(REG_CTRL_MEAS); d.write(0x6D); // forced
+        d.write(REG_STATUS);  d.write(REG_CTRL_MEAS); // the [0xF3, 0xF4] pair
+        d.start(true);
+        let status = d.read();
+        let ctrl = d.read();
+        assert_eq!(status & 0x08, 0, "status must not report busy");
+        assert_eq!(ctrl & 0x03, 0, "forced mode must have returned to sleep");
+    }
+
+    #[test]
+    fn read_only_registers_ignore_writes_and_soft_reset_restores() {
+        let mut d = Bmp280::new();
+        d.start(false); d.write(REG_ID); d.write(0x00);
+        assert_eq!(read_at(&mut d, REG_ID, 1)[0], CHIP_ID);
+
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
+        assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0], 0x6C);
+
+        d.start(false); d.write(REG_RESET); d.write(0xB6);
+        assert_eq!(read_at(&mut d, REG_ID, 1)[0], CHIP_ID);
+        assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0], 0x00);
+    }
+
+    #[test]
+    fn interleaved_config_and_ctrl_writes_land_in_their_own_registers() {
+        let mut d = Bmp280::new();
+        d.start(false);
+        d.write(REG_CTRL_MEAS); d.write(0x6D);
+        d.write(REG_CONFIG); d.write(0xA0);
+        assert_eq!(read_at(&mut d, REG_CONFIG, 1)[0], 0xA0);
+        assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0] & 0x03, 0);
     }
 
     #[test]
