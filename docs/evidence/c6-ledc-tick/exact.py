@@ -1,16 +1,16 @@
 """Exact-work comparison: run each fixture (FIXTURES, default the four C6 ones) for N guest seconds on each binary; compare
 retired count, scheduler work, interrupt report and console hash.
-usage: exact.py <out-dir> <seconds> <bin>...  (first bin is the reference)"""
+usage: exact.py <out-dir> <seconds> <bin>...  (first bin is the reference; a bin may be a build directory, fixtures.binary)"""
 import subprocess, sys, hashlib, json, re
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from fixtures import fixture_args, FIXTURES
+from fixtures import fixture_args, binary, FIXTURES
 out, secs, bins = Path(sys.argv[1]), sys.argv[2], [Path(b) for b in sys.argv[3:]]
 out.mkdir(parents=True, exist_ok=True)
 rows, ok = [], True
 for n in FIXTURES:
     ref = None
-    for b in bins:
+    for b in (binary(b, n) for b in bins):
         r = subprocess.run(['nice', '-n', '10', str(b)] + fixture_args(n) + ['--max-seconds', secs], capture_output=True)
         (out / f'{n}-{b.parent.name}-{b.name}.stdout').write_bytes(r.stdout); (out / f'{n}-{b.parent.name}-{b.name}.stderr').write_bytes(r.stderr)
         err = r.stderr.decode(errors='replace')
