@@ -854,7 +854,7 @@ impl StationLink {
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
     pub fn set_relay(&mut self, enabled: bool) {
         if self.relay != enabled { self.eth_tx.clear(); self.eth_rx.clear(); self.relay = enabled; }
-        if let Some(s) = &mut self.sta { s.host = !enabled; }
+        if let Some(s) = &mut self.sta { s.set_host(!enabled); }
     }
 
     /// The frames the station sent since the last call, in relay mode.

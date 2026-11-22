@@ -1,0 +1,51 @@
+{
+  "base_revision": "04f07602dba76eb6704b8901c989c9c9c1f8b42a",
+  "method": "EX230 asmcmp normalizer; linked native release; no timing",
+  "results": [
+    {
+      "binary": "esp32sim",
+      "artifacts": [
+        {
+          "label": "base",
+          "sha256": "f7ecd69ad7155f16155cca58888a2506cced3f08e1770bed6775ba88ea9a189c"
+        },
+        {
+          "label": "head",
+          "sha256": "546fdcd2ce737ac2f77b632eda996004d02d7557eb2be983017d3b9e370f4353"
+        }
+      ],
+      "selected": 126,
+      "same": 126
+    },
+    {
+      "binary": "esp32sim-c3",
+      "artifacts": [
+        {
+          "label": "base",
+          "sha256": "1c3db4e223670daa308ae94e1f3ac43b5bb39848131d48724d8bde038733ae7a"
+        },
+        {
+          "label": "head",
+          "sha256": "b42e7f1b41c790802eb348951c00175e8700d5d90405ddbaf51aa2eb9502d65e"
+        }
+      ],
+      "selected": 126,
+      "same": 126
+    },
+    {
+      "binary": "esp32sim-c6",
+      "artifacts": [
+        {
+          "label": "base",
+          "sha256": "da0e0bbc14040505d1dd366ff4c1a609a528ec237711e1d523f493c2040fc609"
+        },
+        {
+          "label": "head",
+          "sha256": "8c098e5a4f9d9360d5fab53581e8dfa920b85eaf97eab8173d96a547c87c09c6"
+        }
+      ],
+      "selected": 126,
+      "same": 126
+    }
+  ]
+}

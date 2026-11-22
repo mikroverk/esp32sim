@@ -1,0 +1,14 @@
+diff --git a/esp-periph/src/ledc.rs b/esp-periph/src/ledc.rs
+index 4fd06704..dc0151fa 100644
+--- a/esp-periph/src/ledc.rs
++++ b/esp-periph/src/ledc.rs
+@@ -122,6 +122,9 @@ impl Ledc<$classic> {
+     /// Advance the timers, each clocked at `source(timer, timer_conf)` Hz.
+     #[inline(always)]
+     pub fn tick_with_source(&mut self, ticks: u64, source: impl Fn(usize, u32) -> u64) {
++        { use std::sync::atomic::{AtomicU64, Ordering::Relaxed}; static A: AtomicU64 = AtomicU64::new(0); static Z: AtomicU64 = AtomicU64::new(0);
++          let a = A.fetch_add(1, Relaxed) + 1; if self.active == 0 { let z = Z.fetch_add(1, Relaxed) + 1; if z.is_power_of_two() { eprintln!("[probe] inactive {z}"); } }
++          if a.is_power_of_two() { eprintln!("[probe] calls {a}"); } }
+         for n in 0..4 {
+             // `active` bit n is `timer(n).is_some()`, recomputed on every timer configuration write.
+             if self.active & (1 << n) == 0 { continue; }

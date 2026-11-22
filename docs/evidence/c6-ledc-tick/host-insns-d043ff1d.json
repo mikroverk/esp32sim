@@ -1,0 +1,193 @@
+{
+ "command": "ir.py 10 bins/base bins/cand (FIXTURES=\"c6-hello c6-contiki c6-energy-scan c3-hello\"), one run each; user CPU and host cycles dropped from this file (shared machine, not a CPU claim)",
+ "base_commit": "d043ff1d",
+ "candidate_commit": "686305aa (PR head 5cfee516 merged with d043ff1d)",
+ "rustc": "1.100.0 (0ef1bc386 2026-11-09)",
+ "rows": [
+  {
+   "fixture": "c6-hello",
+   "bin": "base/esp32sim-c6",
+   "rc": 0,
+   "host_insns": 17669311936,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+   "console": "d5d1f41f315b",
+   "insn_pct": 0.0,
+   "same_work": true
+  },
+  {
+   "fixture": "c6-hello",
+   "bin": "cand/esp32sim-c6",
+   "rc": 0,
+   "host_insns": 17667409721,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+   "console": "d5d1f41f315b",
+   "insn_pct": -0.01,
+   "same_work": true
+  },
+  {
+   "fixture": "c6-contiki",
+   "bin": "base/esp32sim-c6",
+   "rc": 0,
+   "host_insns": 39977309021,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+   "console": "101f1060911f",
+   "insn_pct": 0.0,
+   "same_work": true
+  },
+  {
+   "fixture": "c6-contiki",
+   "bin": "cand/esp32sim-c6",
+   "rc": 0,
+   "host_insns": 38156427967,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+   "console": "101f1060911f",
+   "insn_pct": -4.55,
+   "same_work": true
+  },
+  {
+   "fixture": "c6-energy-scan",
+   "bin": "base/esp32sim-c6",
+   "rc": 0,
+   "host_insns": 227345065743,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+   "console": "720c0e65fa18",
+   "insn_pct": 0.0,
+   "same_work": true
+  },
+  {
+   "fixture": "c6-energy-scan",
+   "bin": "cand/esp32sim-c6",
+   "rc": 0,
+   "host_insns": 225497997805,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+   "console": "720c0e65fa18",
+   "insn_pct": -0.81,
+   "same_work": true
+  },
+  {
+   "fixture": "c3-hello",
+   "bin": "base/esp32sim-c3",
+   "rc": 0,
+   "host_insns": 27470992855,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+   "console": "6dd87f0ce7e0",
+   "insn_pct": 0.0,
+   "same_work": true
+  },
+  {
+   "fixture": "c3-hello",
+   "bin": "cand/esp32sim-c3",
+   "rc": 0,
+   "host_insns": 27470580102,
+   "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+   "console": "6dd87f0ce7e0",
+   "insn_pct": -0.0,
+   "same_work": true
+  }
+ ],
+ "rerun": {
+  "command": "the same on a rebuild of the same sources (byte-identical binaries), with the S3 hello added",
+  "rows": [
+   {
+    "fixture": "c6-hello",
+    "bin": "base/esp32sim-c6",
+    "rc": 0,
+    "host_insns": 17666201623,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+    "console": "d5d1f41f315b",
+    "insn_pct": 0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "c6-hello",
+    "bin": "cand/esp32sim-c6",
+    "rc": 0,
+    "host_insns": 17666025613,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+    "console": "d5d1f41f315b",
+    "insn_pct": -0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "c6-contiki",
+    "bin": "base/esp32sim-c6",
+    "rc": 0,
+    "host_insns": 39975695570,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+    "console": "101f1060911f",
+    "insn_pct": 0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "c6-contiki",
+    "bin": "cand/esp32sim-c6",
+    "rc": 0,
+    "host_insns": 38153968939,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+    "console": "101f1060911f",
+    "insn_pct": -4.56,
+    "same_work": true
+   },
+   {
+    "fixture": "c6-energy-scan",
+    "bin": "base/esp32sim-c6",
+    "rc": 0,
+    "host_insns": 227320478822,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+    "console": "720c0e65fa18",
+    "insn_pct": 0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "c6-energy-scan",
+    "bin": "cand/esp32sim-c6",
+    "rc": 0,
+    "host_insns": 225497800232,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+    "console": "720c0e65fa18",
+    "insn_pct": -0.8,
+    "same_work": true
+   },
+   {
+    "fixture": "c3-hello",
+    "bin": "base/esp32sim-c3",
+    "rc": 0,
+    "host_insns": 27471175299,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+    "console": "6dd87f0ce7e0",
+    "insn_pct": 0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "c3-hello",
+    "bin": "cand/esp32sim-c3",
+    "rc": 0,
+    "host_insns": 27471242305,
+    "stop": "[emu] stop: Halted — 1600000000 insns; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+    "console": "6dd87f0ce7e0",
+    "insn_pct": 0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "hello",
+    "bin": "base/esp32sim",
+    "rc": 0,
+    "host_insns": 2499123158,
+    "stop": "[emu] stop: Halted — core0 3969318 + core1 2257786 insns; emulated 10.000s (2400000000 cycles); 9023 exceptions, 2010 interrupts",
+    "console": "2599f69b42a1",
+    "insn_pct": 0.0,
+    "same_work": true
+   },
+   {
+    "fixture": "hello",
+    "bin": "cand/esp32sim",
+    "rc": 0,
+    "host_insns": 2498785451,
+    "stop": "[emu] stop: Halted — core0 3969318 + core1 2257786 insns; emulated 10.000s (2400000000 cycles); 9023 exceptions, 2010 interrupts",
+    "console": "2599f69b42a1",
+    "insn_pct": -0.01,
+    "same_work": true
+   }
+  ]
+ }
+}

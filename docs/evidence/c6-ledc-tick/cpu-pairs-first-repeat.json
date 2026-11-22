@@ -1,0 +1,676 @@
+{
+ "seconds": "30",
+ "pairs": 11,
+ "base": "../b301/target/release",
+ "cand": "target/release",
+ "fixtures": {
+  "hello": {
+   "runs": [
+    {
+     "base": {
+      "user_s": 0.23546099999999998,
+      "host_insns": 7235454663,
+      "host_cycles": 1081589838,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "cand": {
+      "user_s": 0.235387,
+      "host_insns": 7244864585,
+      "host_cycles": 1087370951,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": true,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 0.239709,
+      "host_insns": 7234679403,
+      "host_cycles": 1102481456,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "base": {
+      "user_s": 0.23973499999999992,
+      "host_insns": 7233478371,
+      "host_cycles": 1092699461,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 0.23078600000000016,
+      "host_insns": 7235388086,
+      "host_cycles": 1054170418,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "cand": {
+      "user_s": 0.24526399999999993,
+      "host_insns": 7238033716,
+      "host_cycles": 1130454381,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 0.24277700000000002,
+      "host_insns": 7236186829,
+      "host_cycles": 1116329179,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "base": {
+      "user_s": 0.2309969999999999,
+      "host_insns": 7233085052,
+      "host_cycles": 1061745810,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 0.23833700000000024,
+      "host_insns": 7232382572,
+      "host_cycles": 1095007117,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "cand": {
+      "user_s": 0.2401279999999999,
+      "host_insns": 7235206417,
+      "host_cycles": 1105551404,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 0.23811399999999994,
+      "host_insns": 7237322010,
+      "host_cycles": 1095285076,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "base": {
+      "user_s": 0.23754700000000017,
+      "host_insns": 7232966275,
+      "host_cycles": 1087756887,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 0.243633,
+      "host_insns": 7231698476,
+      "host_cycles": 1113834737,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "cand": {
+      "user_s": 0.23921199999999976,
+      "host_insns": 7235732486,
+      "host_cycles": 1100055552,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 0.24053499999999994,
+      "host_insns": 7237984711,
+      "host_cycles": 1106269299,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "base": {
+      "user_s": 0.2358570000000002,
+      "host_insns": 7231740809,
+      "host_cycles": 1083168370,
+      "rc": 0,
+      "load1": 1.283203125,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 0.23543700000000012,
+      "host_insns": 7232742879,
+      "host_cycles": 1077832093,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "cand": {
+      "user_s": 0.24058400000000013,
+      "host_insns": 7235709749,
+      "host_cycles": 1107080001,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 0.23918399999999984,
+      "host_insns": 7236225364,
+      "host_cycles": 1098625935,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "base": {
+      "user_s": 0.2355229999999997,
+      "host_insns": 7231936123,
+      "host_cycles": 1080522488,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 0.23339900000000036,
+      "host_insns": 7233124005,
+      "host_cycles": 1071405451,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "cand": {
+      "user_s": 0.23762799999999995,
+      "host_insns": 7236308044,
+      "host_cycles": 1093385809,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 0.24262499999999942,
+      "host_insns": 7236893306,
+      "host_cycles": 1113973889,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "base": {
+      "user_s": 0.23722300000000018,
+      "host_insns": 7231930145,
+      "host_cycles": 1087046524,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 core0 11934783 + core1 6775776 insns; emulated 30.000s (7200000000 cycles); 27229 exceptions, 6032 interrupts",
+      "console_sha256": "fd9dc186fba25898e9442c249f8f6d82e8bdf8d0951f32d7dae91aa5c1b065ef"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    }
+   ],
+   "metrics": {
+    "user_s": {
+     "base_median": 0.2358570000000002,
+     "cand_median": 0.2401279999999999,
+     "median_change_pct": 1.8108430108072726,
+     "cand_higher_pairs": 9,
+     "pairs": 11
+    },
+    "host_insns": {
+     "base_median": 7232742879,
+     "cand_median": 7236225364,
+     "median_change_pct": 0.04814888429272024,
+     "cand_higher_pairs": 11,
+     "pairs": 11
+    },
+    "host_cycles": {
+     "base_median": 1083168370,
+     "cand_median": 1105551404,
+     "median_change_pct": 2.066440880285314,
+     "cand_higher_pairs": 10,
+     "pairs": 11
+    }
+   },
+   "console_identical": true,
+   "stop_identical": true,
+   "all_rc0": true,
+   "load1_range": [
+    1.26025390625,
+    1.283203125
+   ]
+  },
+  "c6-hello": {
+   "runs": [
+    {
+     "base": {
+      "user_s": 1.4641890000000002,
+      "host_insns": 52760056273,
+      "host_cycles": 6565042285,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "cand": {
+      "user_s": 1.476553000000001,
+      "host_insns": 52768847914,
+      "host_cycles": 6645566700,
+      "rc": 0,
+      "load1": 1.26025390625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": true,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 1.4738149999999983,
+      "host_insns": 52759878135,
+      "host_cycles": 6618822779,
+      "rc": 0,
+      "load1": 1.2392578125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "base": {
+      "user_s": 1.5079890000000002,
+      "host_insns": 52760310291,
+      "host_cycles": 6766264348,
+      "rc": 0,
+      "load1": 1.2392578125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 1.4977230000000006,
+      "host_insns": 52760308267,
+      "host_cycles": 6721137895,
+      "rc": 0,
+      "load1": 1.2392578125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "cand": {
+      "user_s": 1.4688999999999997,
+      "host_insns": 52759911448,
+      "host_cycles": 6586265607,
+      "rc": 0,
+      "load1": 1.2392578125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 1.5091769999999993,
+      "host_insns": 52760108899,
+      "host_cycles": 6767298273,
+      "rc": 0,
+      "load1": 1.2197265625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "base": {
+      "user_s": 1.5092770000000009,
+      "host_insns": 52760063696,
+      "host_cycles": 6781280122,
+      "rc": 0,
+      "load1": 1.2197265625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 1.5149669999999986,
+      "host_insns": 52760026199,
+      "host_cycles": 6790833437,
+      "rc": 0,
+      "load1": 1.2197265625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "cand": {
+      "user_s": 1.519827000000003,
+      "host_insns": 52759874016,
+      "host_cycles": 6814996844,
+      "rc": 0,
+      "load1": 1.44189453125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 1.5049080000000004,
+      "host_insns": 52759737317,
+      "host_cycles": 6694822803,
+      "rc": 0,
+      "load1": 1.44189453125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "base": {
+      "user_s": 1.4919959999999968,
+      "host_insns": 52760915828,
+      "host_cycles": 6655872608,
+      "rc": 0,
+      "load1": 1.44189453125,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 1.6416830000000004,
+      "host_insns": 52761113217,
+      "host_cycles": 7410657319,
+      "rc": 0,
+      "load1": 1.40625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "cand": {
+      "user_s": 1.4809640000000002,
+      "host_insns": 52759883879,
+      "host_cycles": 6602499468,
+      "rc": 0,
+      "load1": 1.40625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 1.4994080000000025,
+      "host_insns": 52759928289,
+      "host_cycles": 6707200764,
+      "rc": 0,
+      "load1": 1.40625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "base": {
+      "user_s": 1.5376839999999987,
+      "host_insns": 52761057059,
+      "host_cycles": 6899287191,
+      "rc": 0,
+      "load1": 1.40625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 1.492843999999998,
+      "host_insns": 52760087281,
+      "host_cycles": 6658829647,
+      "rc": 0,
+      "load1": 1.37353515625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "cand": {
+      "user_s": 1.513853000000001,
+      "host_insns": 52760226129,
+      "host_cycles": 6756914278,
+      "rc": 0,
+      "load1": 1.37353515625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 1.5062580000000025,
+      "host_insns": 52760107356,
+      "host_cycles": 6730425129,
+      "rc": 0,
+      "load1": 1.37353515625,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "base": {
+      "user_s": 1.5267769999999956,
+      "host_insns": 52760062714,
+      "host_cycles": 6822013810,
+      "rc": 0,
+      "load1": 1.34326171875,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    },
+    {
+     "base": {
+      "user_s": 1.5316180000000017,
+      "host_insns": 52760023362,
+      "host_cycles": 6861919721,
+      "rc": 0,
+      "load1": 1.34326171875,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "cand": {
+      "user_s": 1.4974679999999978,
+      "host_insns": 52760509557,
+      "host_cycles": 6673192697,
+      "rc": 0,
+      "load1": 1.34326171875,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "base",
+      "cand"
+     ]
+    },
+    {
+     "cand": {
+      "user_s": 1.505510000000001,
+      "host_insns": 52759916715,
+      "host_cycles": 6716875107,
+      "rc": 0,
+      "load1": 1.3154296875,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "base": {
+      "user_s": 1.504294999999999,
+      "host_insns": 52760043478,
+      "host_cycles": 6687960075,
+      "rc": 0,
+      "load1": 1.3154296875,
+      "stop": "[emu] stop: Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+      "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad"
+     },
+     "warmup": false,
+     "order": [
+      "cand",
+      "base"
+     ]
+    }
+   ],
+   "metrics": {
+    "user_s": {
+     "base_median": 1.5092770000000009,
+     "cand_median": 1.5049080000000004,
+     "median_change_pct": -0.2894763519221799,
+     "cand_higher_pairs": 4,
+     "pairs": 11
+    },
+    "host_insns": {
+     "base_median": 52760087281,
+     "cand_median": 52759916715,
+     "median_change_pct": -0.00032328604593345744,
+     "cand_higher_pairs": 4,
+     "pairs": 11
+    },
+    "host_cycles": {
+     "base_median": 6781280122,
+     "cand_median": 6707200764,
+     "median_change_pct": -1.0924096434192454,
+     "cand_higher_pairs": 4,
+     "pairs": 11
+    }
+   },
+   "console_identical": true,
+   "stop_identical": true,
+   "all_rc0": true,
+   "load1_range": [
+    1.2197265625,
+    1.44189453125
+   ]
+  }
+ }
+}
