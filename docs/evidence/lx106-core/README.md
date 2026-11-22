@@ -8,6 +8,15 @@ External-register operations return an unimplemented trap; protection/TLB operat
 retain the existing executor's identity/no-effect behavior. Full debug watchpoints
 and hardware validation are outside this slice.
 
+Nothing selects `Lx106` yet. The follow-up that wires it into a machine is the
+ESP8266 machine of [issue #214](https://github.com/mikroverk/esp32sim/issues/214):
+bus, ROM boot and a CLI chip. That machine also needs a way for bus errors to raise
+LoadStoreError (EXCCAUSE 3), which the Arduino core's `core_esp8266_non32xfer.cpp`
+relies on for byte and halfword IRAM accesses (the shared load/store path raises
+LoadProhibited/StoreProhibited), and a register dump without the LX6/LX7 `wb`, `ws`
+and `lcount` fields that `regs`, `trace_regs`, `regtrace_line` and `dump` now
+inherit from `Cpu`.
+
 ## Sources and rules
 
 The configuration comes from Arduino ESP8266 3.1.2, revision
@@ -43,7 +52,7 @@ prefixes supplied by the caller:
 
 ```sh
 python3 xtensa-lx7/tests/corpus/build-lx106.py --lx106-prefix "$LX106_PREFIX" --s3-prefix "$S3_PREFIX" --out "$SCRATCH/asm"
-nice -n 10 cargo +1.99.0 test --release -p xtensa-lx7 --test lx106
+nice -n 10 cargo test --release -p xtensa-lx7 --test lx106
 ```
 
 The 19 tests cover arithmetic, call0, literals, interrupt and exception entry,

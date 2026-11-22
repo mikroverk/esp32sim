@@ -4,6 +4,7 @@
 //! libraries/GDBStub/src/xtensa/config/core-isa.h, checked against PlatformIO
 //! toolchain-xtensa 2.100300.220621 (GCC 10.3.0), include/xtensa/config/core-isa.h.
 //! This adapter intentionally never enters the LX6/LX7 block caches or either JIT.
+//! No chip selects it yet; the ESP8266 machine (issue #214) is the follow-up that wires it in.
 use crate::{decode, disasm, exec, Bus, Core, Cpu, Insn, Op, Trap};
 use crate::state::{exc, ps, sr};
 use emu_core::{StepKind, StepOutcome};
