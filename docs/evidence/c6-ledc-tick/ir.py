@@ -4,11 +4,11 @@ Also checks the emulator's retired count and console hash against the reference.
 import subprocess, sys, re, json, hashlib
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from fixtures import fixture_args, FIXTURES
+from fixtures import fixture_args, binary, FIXTURES
 secs, bins = sys.argv[1], sys.argv[2:]
 for n in FIXTURES:
     ref = None
-    for b in bins:
+    for b in (str(binary(b, n)) for b in bins):
         r = subprocess.run(['/usr/bin/time', '-l', b] + fixture_args(n) + ['--max-seconds', secs], capture_output=True)
         e = r.stderr.decode(errors='replace')
         rec = {'fixture': n, 'bin': b.split('/bins/')[-1], 'rc': r.returncode,

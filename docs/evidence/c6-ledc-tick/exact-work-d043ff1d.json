@@ -1,0 +1,146 @@
+{
+ "seconds": "10",
+ "all_identical": true,
+ "rows": [
+  {
+   "fixture": "c6-hello",
+   "bin": "base/esp32sim-c6",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+   "console_sha256": "d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0",
+   "stderr_sha256": "56bbef0e191022d9437e0acc940cb2344aa37ed4f06aedc528c474063328f05e",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c6-hello",
+   "bin": "cand/esp32sim-c6",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 1010 interrupts",
+   "console_sha256": "d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0",
+   "stderr_sha256": "56bbef0e191022d9437e0acc940cb2344aa37ed4f06aedc528c474063328f05e",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c6-contiki",
+   "bin": "base/esp32sim-c6",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+   "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0",
+   "stderr_sha256": "7af24e7a199c3b71d6cc9a223dd0617af3aff06547b56875f4483a774b59d650",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c6-contiki",
+   "bin": "cand/esp32sim-c6",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 12994 interrupts",
+   "console_sha256": "101f1060911fb208120cefce32af35f97adab466bff3a9388fd7f7b03a476cd0",
+   "stderr_sha256": "7af24e7a199c3b71d6cc9a223dd0617af3aff06547b56875f4483a774b59d650",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c6-energy-scan",
+   "bin": "base/esp32sim-c6",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+   "console_sha256": "720c0e65fa187c920b2bef254d711dc784659d3602c8a476c086bb637d8264c3",
+   "stderr_sha256": "0074d8ed6c118d9086b9f95766e55bba8ed701865ccfa555f9142cbe937b6383",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c6-energy-scan",
+   "bin": "cand/esp32sim-c6",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 28722 interrupts",
+   "console_sha256": "720c0e65fa187c920b2bef254d711dc784659d3602c8a476c086bb637d8264c3",
+   "stderr_sha256": "0074d8ed6c118d9086b9f95766e55bba8ed701865ccfa555f9142cbe937b6383",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c3-hello",
+   "bin": "base/esp32sim-c3",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+   "console_sha256": "6dd87f0ce7e0bbefdf2ddbf2347caf26066d82fa03f942985413a1156320458a",
+   "stderr_sha256": "48e532c83531c87f1ce518fad9c5430a80401e2cdbcfab62e8a94d625318e5d0",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "c3-hello",
+   "bin": "cand/esp32sim-c3",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 1600000000 insns in <wall>; emulated 10.000s (1600000000 cycles); 0 exceptions, 1009 interrupts",
+   "console_sha256": "6dd87f0ce7e0bbefdf2ddbf2347caf26066d82fa03f942985413a1156320458a",
+   "stderr_sha256": "48e532c83531c87f1ce518fad9c5430a80401e2cdbcfab62e8a94d625318e5d0",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "p4-hello",
+   "bin": "base/esp32sim-p4",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 core0 3600000000 + core1 0 insns in <wall>; emulated 10.000s (3600000000 cycles); 0 exceptions, 1011 interrupts",
+   "console_sha256": "db6c8bcfa9ae5e7fdaeaddab3b1bb91a0f0e01f859fb66cefb73eeee07549fa3",
+   "stderr_sha256": "b03aa247d64701ee1cea6b8c0c2051cbe102828c32575124d5faf24a70b94ff3",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "p4-hello",
+   "bin": "cand/esp32sim-p4",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 core0 3600000000 + core1 0 insns in <wall>; emulated 10.000s (3600000000 cycles); 0 exceptions, 1011 interrupts",
+   "console_sha256": "db6c8bcfa9ae5e7fdaeaddab3b1bb91a0f0e01f859fb66cefb73eeee07549fa3",
+   "stderr_sha256": "b03aa247d64701ee1cea6b8c0c2051cbe102828c32575124d5faf24a70b94ff3",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "hello",
+   "bin": "base/esp32sim",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 core0 3969318 + core1 2257786 insns in <wall>; emulated 10.000s (2400000000 cycles); 9023 exceptions, 2010 interrupts",
+   "console_sha256": "2599f69b42a190550a0848539606065900e7b1b30185d45415ac206e3be5bd77",
+   "stderr_sha256": "9f908db4e1ea4e6e2e2dd55f673d0843e0fafc68a3512409f7c2aad06feebf50",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "hello",
+   "bin": "cand/esp32sim",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 core0 3969318 + core1 2257786 insns in <wall>; emulated 10.000s (2400000000 cycles); 9023 exceptions, 2010 interrupts",
+   "console_sha256": "2599f69b42a190550a0848539606065900e7b1b30185d45415ac206e3be5bd77",
+   "stderr_sha256": "9f908db4e1ea4e6e2e2dd55f673d0843e0fafc68a3512409f7c2aad06feebf50",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "pocket-tank",
+   "bin": "base/esp32sim",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 core0 1403266693 + core1 1423609803 insns in <wall>; emulated 10.000s (2400000000 cycles); 353711 exceptions, 33067 interrupts",
+   "console_sha256": "ca5f687faebad45e6c2197b9ba10933165092d579c843babf72cff9ef0501155",
+   "stderr_sha256": "1f6cbc433d8b01ed1cbfa2f2e8d71305a24e1e446c5fc930d0f9159186335df9",
+   "same_as_ref": true
+  },
+  {
+   "fixture": "pocket-tank",
+   "bin": "cand/esp32sim",
+   "rc": 0,
+   "retired": null,
+   "stop": "[emu] stop: Halted \u2014 core0 1403266693 + core1 1423609803 insns in <wall>; emulated 10.000s (2400000000 cycles); 353711 exceptions, 33067 interrupts",
+   "console_sha256": "ca5f687faebad45e6c2197b9ba10933165092d579c843babf72cff9ef0501155",
+   "stderr_sha256": "1f6cbc433d8b01ed1cbfa2f2e8d71305a24e1e446c5fc930d0f9159186335df9",
+   "same_as_ref": true
+  }
+ ]
+}
