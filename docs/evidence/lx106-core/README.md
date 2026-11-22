@@ -86,4 +86,38 @@ or identifying environment data are retained in this evidence directory.
 
 ## CPU comparison
 
-PENDING.
+The primary evidence that the existing chips are unaffected is static: outside the
+new module the only change is `exec::control_event` becoming `pub(crate)`, and
+[codegen.json](codegen.json) finds all 126 normalized hot symbols identical in
+esp32sim, esp32sim-c3 and esp32sim-c6 (base `04f07602`, head `3c976953`). No binary
+instantiates `Lx106`; later commits on this profile touch only `lx106.rs`, its tests
+and this directory.
+
+The maintainers also ran the usual CPU pairs and posted them in
+[the PR #337 review](https://github.com/mikroverk/esp32sim/pull/337#issuecomment-6599264805);
+these are their measurements, not a rerun. `cpu_pairs.py` from `docs/evidence/p4-cpu`
+as on `04f07602`, plus a `classic-hello` workload (`--chip esp32 --board esp32dev`
+with the repository's classic hello images; script SHA-256 prefix `c9e8ca4b…`).
+New = `3c976953` (this PR's head), base = `04f07602` (its base). Both trees were
+extracted with `git archive` into sibling directories with paths of the same length
+and built with `cargo build --release --bins`, rustc 1.99.1 (58cf8f9c3 2026-10-13),
+aarch64-apple-darwin. Machine: Apple M5 Max (18 cores), macOS 27.0.1. Each workload
+started with the 1-minute load below 5 and nothing building. ROMs: esp-rom-elfs
+20260528 (`tools/fetch-rom-elfs.sh`). One warmup pair, then 7 alternating pairs per
+workload, from the base tree's root. User CPU comes from rusage at 0.01 s
+resolution, so one tick is 2.5–4% of these workloads.
+
+| workload | base median (range) | new median (range) | change | new slower | instructions, console | load before → after |
+| --- | --- | --- | --- | --- | --- | --- |
+| s3-hello (30 s) | 0.250 s (0.240–0.250) | 0.250 s (0.240–0.260) | +0.0% | 3/7 | identical in all 16 runs | 4.30 → 4.35 |
+| classic-hello (30 s) | 0.390 s (0.380–0.390) | 0.380 s (0.380–0.390) | -2.6% | 3/7 | identical in all 16 runs | 4.35 → 4.41 |
+
+Nothing is flagged (the flag is new slower in at least 6 of 7 pairs, or ranges that
+do not overlap). Instruction counts and console hashes are identical in every run.
+
+The [posted JSON](337-3c976953-04f07602.json) is preserved byte for byte as posted,
+without a final newline: SHA-256
+`d17c5e14adce7cee40d8eb5fed1fec0604ecde4051c882e8fc985704148b7638`, matching the
+sanitized prefix `d17c5e14…` in the review. The only redaction is the ROM directory,
+written as `$ESP32SIM_ROM_DIR`; the review gives the raw file's SHA-256 prefix as
+`209e04a7…`. The redaction does not change measured values.
