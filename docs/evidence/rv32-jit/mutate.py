@@ -52,6 +52,10 @@ M = [
  one("andn-as-and", J, "Andn => { rr(a); a.bic(2, 0, 1); }", "Andn => { rr(a); a.and(2, 0, 1); }"),
  one("rebuild-keeps-slot", B, "        j.slots[ei] = NO_SLOT;\n", ""),
  one("flush-keeps-code-refs", B, "        self.regions.clear();\n        self.slots.fill(NO_SLOT);\n", ""),
+ one("versions-first-page-only", J, "let n = if b.vidx[0] == b.vidx[1] { 1 } else { 2 };\n        for v in 0..n {\n            a.mov32", "let n = 1;\n        for v in 0..n {\n            a.mov32"),
+ one("exec-no-note-pc", J, "    bus.note_pc(pc);\n    if let Err(t)", "    if let Err(t)"),
+ one("load-no-note-pc", J, "    bus.note_pc(pc);\n    let r = match kind {\n        0 => bus.read8(va).map(|v| v as i8", "    let r = match kind {\n        0 => bus.read8(va).map(|v| v as i8"),
+ one("store-no-note-pc", J, "    bus.note_pc(pc);\n    let r = match kind { 0 => bus.write8", "    let r = match kind { 0 => bus.write8"),
  one("run-no-bloom-after-region", B, "                used += done;\n                if cpu.boundary_bloom != 0 && cpu.boundary_bloom & pc_bit(cpu.pc) != 0 { return (used, None); }\n                continue;", "                used += done;\n                continue;"),
 ]
 only = sys.argv[2:]

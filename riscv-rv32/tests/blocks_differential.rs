@@ -4,9 +4,10 @@
 //! compressed forms, loads and stores into their own code (self-modifying code), device reads
 //! with side effects, device writes that end a dispatch (`block_break`), traps, interrupts
 //! presented between runs, budget cuts and machine boundaries. After every run the iterations,
-//! the trap, the last noted pc and the whole architectural state (and memory) must agree. Where
-//! the host has a JIT backend (EX269) every block is also compiled on its first whole run; a
-//! second set of programs, mostly valid loops, keeps regions chaining from block to block.
+//! the trap, the pc noted at each memory access and last, and the whole architectural state (and
+//! memory) must agree. Where the host has a JIT backend (EX269) every block is also compiled on
+//! its first whole run; a second set of programs, mostly valid loops, keeps regions chaining from
+//! block to block.
 use emu_core::{Bus, Core, Fault, Trap};
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use riscv_rv32::Cpu;
@@ -22,21 +23,25 @@ const DATA: u32 = RAM + 0x2000;
 /// RAM with a code version per 256-byte page, read-ahead, and a device page whose reads count
 /// and whose writes end the dispatch, as a SoC bus does; so does a read of its last register.
 #[derive(Clone)]
-struct TestBus { ram: Vec<u8>, ver: Vec<u32>, reads: u32, regs: [u32; 4], brk: bool, versions: bool, last_pc: u32 }
+struct TestBus { ram: Vec<u8>, ver: Vec<u32>, reads: u32, regs: [u32; 4], brk: bool, versions: bool, last_pc: u32, accesses: u64 }
 
 impl TestBus {
-    fn new() -> Self { TestBus { ram: vec![0; RAM_SIZE], ver: vec![0; RAM_SIZE >> 8], reads: 0, regs: [0; 4], brk: false, versions: true, last_pc: 0 } }
+    fn new() -> Self { TestBus { ram: vec![0; RAM_SIZE], ver: vec![0; RAM_SIZE >> 8], reads: 0, regs: [0; 4], brk: false, versions: true, last_pc: 0, accesses: 0 } }
     fn off(&self, a: u32, n: usize) -> Option<usize> {
         let o = a.wrapping_sub(RAM) as usize;
         (o.checked_add(n)? <= RAM_SIZE).then_some(o)
     }
     fn mmio(a: u32, n: usize) -> Option<usize> { (a >= MMIO && a as u64 + n as u64 <= MMIO as u64 + 16).then(|| ((a - MMIO) / 4) as usize) }
+    /// A hash of every access, in order: the pc noted when it is made and its address.
+    fn access(&mut self, a: u32) { self.accesses = (self.accesses.rotate_left(7) ^ (self.last_pc as u64) << 32 ^ a as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15); }
     fn read(&mut self, a: u32, n: usize) -> Result<u32, Fault> {
+        self.access(a);
         if let Some(o) = self.off(a, n) { let mut b = [0; 4]; b[..n].copy_from_slice(&self.ram[o..o + n]); return Ok(u32::from_le_bytes(b)); }
         if let Some(r) = Self::mmio(a, n) { self.reads = self.reads.wrapping_add(1); self.brk |= r == 3; return Ok(self.regs[r] ^ self.reads); }
         Err(Fault::Unmapped)
     }
     fn write(&mut self, a: u32, v: u32, n: usize) -> Result<(), Fault> {
+        self.access(a);
         if let Some(o) = self.off(a, n) {
             self.ram[o..o + n].copy_from_slice(&v.to_le_bytes()[..n]);
             let first = o.saturating_sub(3) >> 8;
@@ -228,8 +233,8 @@ fn one(seed: u64, kind: u32, loops: bool) -> (u64, u64, u64) {
         calls += 1;
         RUNS.fetch_add(1, Relaxed);
         let (sa, sb) = (state(&a), state(&b));
-        if ra != rb || sa != sb || bus.ram != bus_b.ram || bus.regs != bus_b.regs || bus.reads != bus_b.reads || bus.brk != bus_b.brk || bus.last_pc != bus_b.last_pc {
-            panic!("seed {seed} kind {kind} call {calls}: blocks {ra:?} vs interpreter {rb:?}\nblocks      {sa}\ninterpreter {sb}\nram same {} last pc {:08x} vs {:08x}", bus.ram == bus_b.ram, bus.last_pc, bus_b.last_pc);
+        if ra != rb || sa != sb || bus.ram != bus_b.ram || bus.regs != bus_b.regs || bus.reads != bus_b.reads || bus.brk != bus_b.brk || bus.last_pc != bus_b.last_pc || bus.accesses != bus_b.accesses {
+            panic!("seed {seed} kind {kind} call {calls}: blocks {ra:?} vs interpreter {rb:?}\nblocks      {sa}\ninterpreter {sb}\nram same {} last pc {:08x} vs {:08x} accesses same {}", bus.ram == bus_b.ram, bus.last_pc, bus_b.last_pc, bus.accesses == bus_b.accesses);
         }
         // the interpreter oracle must not have been using blocks
         assert_eq!(b.blocks.builds, 0);
@@ -293,6 +298,30 @@ fn a_store_into_the_next_block_of_a_region_takes_effect() {
         let (used, trap) = c.run(&mut bus, 100);
         assert!(trap.is_some() && used == 4, "{used} {trap:?}");
         assert_eq!(c.x[1], 100, "kind {kind}: the stored instruction ran");
+    }
+}
+
+/// A block across two version pages, and a store into its second page: from the block itself, and
+/// from the block before it in the region. What was stored must run.
+#[test]
+fn a_store_into_a_blocks_second_page_takes_effect() {
+    for kind in 0..4 {
+        for (start, target) in [(CODE + 0xf0, CODE + 0x108), (CODE, CODE + 0x308)] {
+            let mut bus = TestBus::new();
+            let put = |bus: &mut TestBus, at: u32, w: u32| bus.ram[(at - RAM) as usize..][..4].copy_from_slice(&w.to_le_bytes());
+            for k in 0..0x100 { put(&mut bus, CODE + 4 * k, 0x13); }                  // nops
+            put(&mut bus, start, s_type(2, 8, 6, 0));                                 // sw t1, 0(s0)
+            if start == CODE { put(&mut bus, CODE + 4, j_type(0, 0x2ec)); }           // to a block across CODE + 0x300
+            put(&mut bus, target, i_type(0x13, 0, 1, 1, 1));                          // addi ra, ra, 1 (becomes addi ra, ra, 100)
+            put(&mut bus, target + 8, 0x0010_0073);
+            let mut bus_b = bus.clone();
+            let (mut a, mut b) = (core(kind), core(kind));
+            for c in [&mut a, &mut b] { c.pc = start; c.mtvec = HANDLER; c.x[8] = target; c.x[6] = i_type(0x13, 0, 1, 1, 100); }
+            a.blocks.set_jit_hot(1); b.set_jit(false);
+            let (ra, rb) = (a.run(&mut bus, 100), b.run(&mut bus_b, 100));
+            assert_eq!(b.x[1], 100);
+            assert_eq!((ra, state(&a)), (rb, state(&b)), "kind {kind} start {start:08x}");
+        }
     }
 }
 
