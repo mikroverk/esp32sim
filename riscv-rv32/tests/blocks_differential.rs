@@ -160,7 +160,7 @@ fn one(seed: u64, kind: u32) -> (u64, u64, u64) {
     a.x = regs; b.x = regs;
     b.set_jit(false);
     // compile every block on its first whole run (the JIT, where the host has a backend)
-    a.blocks.jit_hot = 1;
+    a.blocks.set_jit_hot(1);
     let mut bus_b = bus.clone();
     let mut calls = 0;
     for _ in 0..300 {
@@ -183,7 +183,7 @@ fn one(seed: u64, kind: u32) -> (u64, u64, u64) {
         // the interpreter oracle must not have been using blocks
         assert_eq!(b.blocks.builds, 0);
     }
-    COMPILED.fetch_add(a.blocks.compiled, std::sync::atomic::Ordering::Relaxed);
+    COMPILED.fetch_add(a.blocks.compiled(), std::sync::atomic::Ordering::Relaxed);
     (calls, a.blocks.builds, a.insn_count)
 }
 

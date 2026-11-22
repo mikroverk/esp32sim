@@ -44,11 +44,15 @@ pub const STOP: u32 = 2;
 /// The rest of the block must not run (stale code, a hardware loop): look up `pc` again.
 pub const LEAVE: u32 = 3;
 
-/// Whole runs of a block before its region is compiled (`Blocks::jit_hot`); compiling a wasm
+/// Whole runs of a block before its region is compiled (`Blocks::set_jit_hot`); compiling a wasm
 /// module costs the page far more than a native region.
 pub const HOT: u16 = if cfg!(target_arch = "wasm32") { 256 } else { 32 };
 /// Blocks per region.
 const MAX_BLOCKS: usize = 24;
+
+/// Compiled code to enter (`Jit::entry`): its address, or in wasm its module and block.
+#[derive(Clone, Copy)]
+pub struct Code(*const u8);
 
 /// What compiled code and its helpers share for one call.
 #[repr(C)]
@@ -224,9 +228,10 @@ mod none {
         pub fn new() -> Option<Box<Jit>> { None }
         pub fn compile<B: Bus>(&mut self, _r: &Region) -> Option<Vec<u32>> { None }
         pub fn reset(&mut self) {}
+        pub fn entry(&self, code: u32) -> Code { Code(code as usize as *const u8) }
         /// # Safety
         /// Never called: no code exists.
-        pub unsafe fn call<B: Bus>(&self, _code: u32, _cpu: &mut Cpu, _bus: &mut B, _ctx: &mut Ctx, _budget: u32) -> u64 { unreachable!() }
+        pub unsafe fn call<B: Bus>(_code: Code, _cpu: &mut Cpu, _bus: &mut B, _ctx: &mut Ctx, _budget: u32) -> u64 { unreachable!() }
     }
 }
 #[cfg(not(any(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")), all(target_arch = "wasm32", feature = "wasm-jit-host"))))]
@@ -306,15 +311,17 @@ mod a64 {
             Some(off as u32)
         }
 
-        /// Run the region compiled at `code` with `budget` instructions left (at least its
-        /// entry block's).
+        /// The block's code `compile` returned as `code`.
+        pub fn entry(&self, code: u32) -> Code { Code(self.base.wrapping_add(code as usize)) }
+
+        /// Run the region at `code` with `budget` instructions left (at least its entry block's).
         /// # Safety
-        /// `code` must come from `compile` on this `Jit` since its last `reset`, for a region
-        /// whose entry block is still the one in memory (the caller's version check).
-        pub unsafe fn call<B: Bus>(&self, code: u32, cpu: &mut Cpu, bus: &mut B, ctx: &mut Ctx, budget: u32) -> u64 {
+        /// `code` must come from `entry` of a live `Jit` since its last `reset`, for a block that
+        /// is still the one in memory (the caller's version check).
+        pub unsafe fn call<B: Bus>(code: Code, cpu: &mut Cpu, bus: &mut B, ctx: &mut Ctx, budget: u32) -> u64 {
             let h = Helpers::new::<B>();
             type F<B> = unsafe extern "C" fn(*mut Cpu, *mut B, *const Helpers, *mut Ctx, u32) -> u64;
-            let f: F<B> = std::mem::transmute(self.base.add(code as usize));
+            let f: F<B> = std::mem::transmute::<*const u8, F<B>>(code.0);
             f(cpu, bus, &h, ctx, budget)
         }
 
@@ -661,13 +668,17 @@ mod wasm {
             self.tables.clear();
         }
 
+        /// The block's code `compile` returned as `code`: its module's table index times 32 plus
+        /// the block.
+        pub fn entry(&self, code: u32) -> Code { Code(code as usize as *const u8) }
+
         /// # Safety
-        /// `code` must come from `compile` since the last `reset` (the module's table index
-        /// times 32 plus the block), for a block that is still the one in memory.
-        pub unsafe fn call<B: Bus>(&self, code: u32, cpu: &mut Cpu, bus: &mut B, ctx: &mut Ctx, budget: u32) -> u64 {
+        /// `code` must come from `entry` of a live `Jit` since its last `reset`, for a block that
+        /// is still the one in memory.
+        pub unsafe fn call<B: Bus>(code: Code, cpu: &mut Cpu, bus: &mut B, ctx: &mut Ctx, budget: u32) -> u64 {
             type F<B> = unsafe extern "C" fn(*mut Cpu, *mut B, *mut Ctx, u32, u32) -> u64;
-            let f: F<B> = std::mem::transmute::<usize, F<B>>((code >> 5) as usize);
-            f(cpu, bus, ctx, budget, code & 31)
+            let f: F<B> = std::mem::transmute::<usize, F<B>>(code.0 as usize >> 5);
+            f(cpu, bus, ctx, budget, code.0 as u32 & 31)
         }
 
         /// Compile a region: the code of each of its blocks as an entry (`Region::members`).

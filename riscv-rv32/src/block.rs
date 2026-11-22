@@ -23,6 +23,7 @@
 use crate::bus::Bus;
 use crate::decode::{decode_for, Comp, Insn, Op};
 use crate::exec::{exec_insn_inline, step_outcome, Trap};
+use crate::jit::{Code, Ctx, Jit, STOP, TRAP};
 use crate::state::Cpu;
 use emu_core::core::pc_bit;
 
@@ -52,14 +53,8 @@ struct Entry {
     plain_end: bool,
     vidx: [u32; 2],
     ver: [u32; 2],
-    /// the compiled block's code offset (`jit`), `NOT_COMPILED` or `UNCOMPILABLE`
-    code: u32,
-    /// whole runs of the block not yet compiled, up to `Blocks::jit_hot`
-    hits: u16,
 }
-const NOT_COMPILED: u32 = u32::MAX;
-const UNCOMPILABLE: u32 = u32::MAX - 1;
-const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, cap: 0, writes: 0, plain_end: false, vidx: [0; 2], ver: [0; 2], code: NOT_COMPILED, hits: 0 };
+const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, cap: 0, writes: 0, plain_end: false, vidx: [0; 2], ver: [0; 2] };
 
 /// The core's decoded-block cache. Empty until used: `Cpu::new` stays cheap.
 pub struct Blocks {
@@ -71,24 +66,52 @@ pub struct Blocks {
     isa: u32,
     pub builds: u64,
     pub flushes: u64,
-    /// compile blocks to host code (`jit`) where there is a backend; `RV32_JIT=0` turns it off
-    pub jit_on: bool,
+    /// the JIT's state, behind a pointer so that blocks without it are laid out as before it:
+    /// none where there is no backend, or with `RV32_JIT=0`
+    jit: Option<Box<State>>,
+}
+
+/// What the JIT keeps per block table (EX269).
+struct State {
     /// whole runs of a block before it is compiled
-    pub jit_hot: u16,
-    /// blocks compiled, and code-cache resets
-    pub compiled: u64,
-    pub jit_resets: u64,
-    pub(crate) jit: Option<Box<crate::jit::Jit>>,
+    hot: u16,
+    /// regions compiled
+    compiled: u64,
+    /// the compiled code, once there is any
+    code: Option<Box<Jit>>,
+    /// per block entry; empty until the first block is built
+    slots: Vec<Slot>,
     /// every compiled block's code by pc: (code, length, code pages, versions), so a block
     /// inside a compiled region is entered there
     regions: std::collections::HashMap<u32, (u32, usize, [u32; 2], [u32; 2])>,
 }
 
+#[derive(Clone, Copy)]
+struct Slot {
+    /// the compiled block's code (`Jit::compile`), `NOT_COMPILED` or `UNCOMPILABLE`
+    code: u32,
+    /// whole runs of the block not yet compiled, up to `State::hot`
+    hits: u16,
+}
+const NOT_COMPILED: u32 = u32::MAX;
+const UNCOMPILABLE: u32 = u32::MAX - 1;
+const NO_SLOT: Slot = Slot { code: NOT_COMPILED, hits: 0 };
+
+impl State {
+    /// Discard the compiled code and everything that refers to it.
+    fn forget(&mut self) {
+        if let Some(c) = self.code.as_mut() { c.reset(); }
+        self.regions.clear();
+        self.slots.fill(NO_SLOT);
+    }
+}
+
 impl Default for Blocks {
     fn default() -> Self {
         let jit_on = crate::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0");
-        let jit_hot = std::env::var("RV32_JIT_HOT").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::jit::HOT);
-        Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0, jit_on, jit_hot, compiled: 0, jit_resets: 0, jit: None, regions: Default::default() }
+        let hot = std::env::var("RV32_JIT_HOT").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::jit::HOT);
+        let jit = jit_on.then(|| Box::new(State { hot, compiled: 0, code: None, slots: Vec::new(), regions: Default::default() }));
+        Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0, jit }
     }
 }
 
@@ -97,9 +120,12 @@ impl Blocks {
     pub fn flush(&mut self) {
         if !self.entries.is_empty() { self.entries.iter_mut().for_each(|e| *e = EMPTY); self.flushes += 1; }
         self.arena.clear();
-        if let Some(j) = self.jit.as_mut() { j.reset(); }
-        self.regions.clear();
+        if let Some(j) = self.jit.as_mut() { j.forget(); }
     }
+    /// Compile a block after `runs` whole runs of it (`RV32_JIT_HOT`).
+    pub fn set_jit_hot(&mut self, runs: u16) { if let Some(j) = self.jit.as_mut() { j.hot = runs; } }
+    /// Regions compiled.
+    pub fn compiled(&self) -> u64 { self.jit.as_ref().map_or(0, |j| j.compiled) }
 }
 
 /// Instructions after which the rest of a block may be stale: anything that can store.
@@ -224,57 +250,60 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32, ei: usize) -> Option<Entry
         (start, n as u8)
     };
     b.arena[start..start + n].copy_from_slice(&d.insns[..n]);
-    let e = Entry { pc, start: start as u32, n: n as u8, cap, writes: d.writes, plain_end: d.plain_end, vidx: d.vidx, ver: d.ver, code: NOT_COMPILED, hits: 0 };
+    let e = Entry { pc, start: start as u32, n: n as u8, cap, writes: d.writes, plain_end: d.plain_end, vidx: d.vidx, ver: d.ver };
     b.entries[ei] = e;
+    if let Some(j) = b.jit.as_mut() {
+        if j.slots.is_empty() { j.slots = vec![NO_SLOT; ENTRIES]; }
+        j.slots[ei] = NO_SLOT;
+    }
     b.builds += 1;
     Some(e)
 }
 
-/// The compiled region of the block in slot `ei`, compiling it once the block is hot.
+/// The compiled code of the block in entry `ei`, compiling its region once the block is hot.
 #[inline(always)]
-fn jit_code<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<u32> {
+fn jit_code<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<Code> {
     let b = &mut cpu.blocks;
-    let e = &mut b.entries[ei];
-    if e.code < UNCOMPILABLE { return Some(e.code); }
-    if e.code == UNCOMPILABLE { return None; }
-    e.hits += 1;
-    if e.hits < b.jit_hot { return None; }
-    // inside a region compiled already, from the same bytes (versions) and as long
-    if let Some(&(code, n, vidx, ver)) = b.regions.get(&e.pc) {
-        if n == e.n as usize && vidx == e.vidx && ver == e.ver { e.code = code; return Some(code); }
+    let j = b.jit.as_deref_mut()?;
+    let s = j.slots.get_mut(ei)?;
+    if s.code >= UNCOMPILABLE {
+        if s.code == UNCOMPILABLE { return None; }
+        s.hits = s.hits.saturating_add(1);
+        if s.hits < j.hot { return None; }
+        // inside a region compiled already, from the same bytes (versions) and as long
+        let e = &b.entries[ei];
+        match j.regions.get(&e.pc) {
+            Some(&(code, n, vidx, ver)) if n == e.n as usize && vidx == e.vidx && ver == e.ver => s.code = code,
+            _ => return jit_compile(cpu, bus, ei),
+        }
     }
-    jit_compile(cpu, bus, ei)
+    let code = s.code;
+    j.code.as_ref().map(|c| c.entry(code))
 }
 
 #[cold]
 #[inline(never)]
-fn jit_compile<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<u32> {
-    if cpu.blocks.jit.is_none() {
-        cpu.blocks.jit = crate::jit::Jit::new();
-        if cpu.blocks.jit.is_none() { cpu.blocks.jit_on = false; return None; }
-    }
+fn jit_compile<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<Code> {
     let e = cpu.blocks.entries[ei];
     let insns = cpu.blocks.arena[e.start as usize..e.start as usize + e.n as usize].to_vec();
     let region = crate::jit::region(cpu, bus, e.pc, &insns, e.vidx, e.ver);
-    let b = &mut cpu.blocks;
-    let jit = b.jit.as_mut()?;
-    let codes = match jit.compile::<B>(&region) {
-        Some(c) => c,
-        None => {
-            // the cache is full: start again, every block's code with it
-            jit.reset();
-            b.jit_resets += 1;
-            b.regions.clear();
-            b.entries.iter_mut().for_each(|x| { x.code = NOT_COMPILED; x.hits = 0; });
-            match jit.compile::<B>(&region) { Some(c) => c, None => { b.entries[ei].code = UNCOMPILABLE; return None; } }
-        }
-    };
-    for ((pc, n, vidx, ver), &code) in region.members().zip(&codes) {
-        b.regions.insert(pc, (code, n, vidx, ver));
+    let j = cpu.blocks.jit.as_deref_mut()?;
+    if j.code.is_none() {
+        j.code = Jit::new();
+        // the host gives no executable memory: blocks stay interpreted
+        if j.code.is_none() { cpu.blocks.jit = None; return None; }
     }
-    b.entries[ei].code = codes[0];
-    b.compiled += 1;
-    Some(codes[0])
+    let mut codes = j.code.as_mut()?.compile::<B>(&region);
+    if codes.is_none() {
+        // the cache is full: start again, every block's code with it
+        j.forget();
+        codes = j.code.as_mut()?.compile::<B>(&region);
+    }
+    let Some(codes) = codes else { j.slots[ei].code = UNCOMPILABLE; return None; };
+    for ((pc, n, vidx, ver), &code) in region.members().zip(&codes) { j.regions.insert(pc, (code, n, vidx, ver)); }
+    j.slots[ei].code = codes[0];
+    j.compiled += 1;
+    j.code.as_ref().map(|c| c.entry(codes[0]))
 }
 
 /// One instruction through the interpreter, with `Core::run`'s stop tests.
@@ -302,20 +331,18 @@ pub fn run<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap
         };
         let n = (e.n as u32).min(budget - used);
         // a whole block, no hardware loop counting, no break pending: its compiled code
-        if n == e.n as u32 && cpu.blocks.jit_on && cpu.hwlp_count[0] | cpu.hwlp_count[1] == 0 && !bus.block_break() {
-            let ei = (e.pc >> 1) as usize & (ENTRIES - 1);
-            if let Some(code) = jit_code(cpu, bus, ei) {
-                let mut ctx = crate::jit::Ctx::new(bus);
-                let jit: *const crate::jit::Jit = cpu.blocks.jit.as_deref().expect("compiled code without a JIT");
-                // SAFETY: `code` belongs to this JIT (entries forget their code whenever it is
-                // reset) and the entry block's versions were just checked by `lookup`. The JIT
-                // is not touched while its code runs: helpers never compile or flush.
-                let r = unsafe { (*jit).call(code, cpu, bus, &mut ctx, budget - used) };
+        if cpu.blocks.jit.is_some() && n == e.n as u32 && cpu.hwlp_count[0] | cpu.hwlp_count[1] == 0 && !bus.block_break() {
+            if let Some(code) = jit_code(cpu, bus, (e.pc >> 1) as usize & (ENTRIES - 1)) {
+                let mut ctx = Ctx::new(bus);
+                // SAFETY: the code is this core's (slots forget theirs whenever it is reset) and
+                // the entry block's versions were just checked by `lookup`. Nothing compiles or
+                // discards code while it runs: the helpers never reach `build` or `flush`.
+                let r = unsafe { Jit::call(code, cpu, bus, &mut ctx, budget - used) };
                 let (done, status) = (r as u32, (r >> 32) as u32);
                 bus.note_pc(ctx.last_pc);
                 match status {
-                    crate::jit::TRAP => return (used + done, ctx.trap),
-                    crate::jit::STOP => return (used + done, None),
+                    TRAP => return (used + done, ctx.trap),
+                    STOP => return (used + done, None),
                     _ => {}
                 }
                 used += done;
