@@ -317,8 +317,8 @@ mod native {
         // windows already verified free within this block (reset when a helper may have rotated them)
         let mut checked_w: u32 = 0;
 
-        let mut pc = pc0;
-        for block_insn in insns.iter_mut() {
+        let (mut pc, last_ix) = (pc0, insns.len().saturating_sub(1));
+        for (ix, block_insn) in insns.iter_mut().enumerate() {
             let i = block_insn.insn;
             let max_ar = block_insn.max_ar;
             let next = pc.wrapping_add(i.len as u32);
@@ -530,10 +530,14 @@ mod native {
                     }
                 }
 
+                // The hit path rotates the window but leaves WB4 stale (no reload_after_helper): only
+                // the fall-off tail may follow `done`, because RETW ends the decoded block
+                // (block::ends_block). tests/jit_retw.rs fails if it stops doing so.
                 Retw | RetwN => {
+                    debug_assert!(ix == last_ix, "windowed returns must terminate the block");
                     let (slow, done) = (g.a.label(), g.a.label());
                     let ps_off = std::mem::offset_of!(Cpu, ps) as u32;
-                    g.a.ldr(9, CPU, ps_off); g.a.tbz(9, 18, slow);
+                    g.a.ldr(9, CPU, ps_off); g.a.tbz(9, crate::state::ps::WOE.trailing_zeros(), slow);
                     g.ld_ar(10, 0); g.a.lsr_imm(11, 10, 30); g.a.cbz(11, slow);
                     g.a.ldr(12, CPU, OFF_WB); g.a.sub(13, 12, 11); g.a.and_mask(13, 13, 4, 0);
                     g.a.ldr(14, CPU, OFF_WS); g.a.lsrv(15, 14, 13); g.a.tbz(15, 0, slow);
