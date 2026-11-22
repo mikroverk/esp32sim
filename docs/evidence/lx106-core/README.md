@@ -81,8 +81,14 @@ table opcodes the profile leaves out are in [isa-membership.json](isa-membership
 
 ## Mutations and static code generation
 
-`mutations.json` lists 33 compile-valid mutants with the first failing test and
-assertion; each was killed. Reproduce in a disposable worktree and target directory:
+`mutations.json` lists 42 compile-valid mutants, each with the first failing test
+in name order (one test thread), the source line of its failing assertion, the panic
+message and every failing test; each was killed. Besides the forbidden-option, SR,
+vector, interrupt and alignment mutants, five remove ops from the positive list (EXTW,
+BBCI, L8UI, SYSCALL, NSA), one adds SALT, two undo the BREAK.N cause and debug-level
+masking, and one lets RER/WER fall back to the generic executor. The file is the
+script's unedited output for this tree's `lx106.rs` and tests, with rustc 1.100.0. Reproduce in a disposable
+worktree and target directory:
 
 ```sh
 CARGO_TARGET_DIR="$TARGET" python3 docs/evidence/lx106-core/mutate.py "$SCRATCH/mutations"
