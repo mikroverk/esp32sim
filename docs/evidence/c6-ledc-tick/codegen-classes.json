@@ -1,0 +1,605 @@
+{
+ "esp32sim": {
+  "__RINvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB6_7Printer26print_quoted_escaped_charsINtNtNtNtCsjIpoRzUjyHQ_4core4iter7sources4once4OncecEEB8_": {
+   "class": "renumbered",
+   "base_insns": 65,
+   "cand_insns": 65
+  },
+  "__RINvNtNtNtNtCs1SSuMAdGM58_3std3sys12thread_local6native5eager7destroyINtNtCsjIpoRzUjyHQ_4core4cell4CellNtNtNtBa_6thread9spawnhook10SpawnHooksEEBa_": {
+   "class": "renumbered",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNCNCNvNtNtCs1SSuMAdGM58_3std3sys9backtrace10__print_fmts_00B9_": {
+   "class": "renumbered",
+   "base_insns": 151,
+   "cand_insns": 151
+  },
+  "__RNvCs57IZVKZUxM5_8esp32sim7run_cli": {
+   "class": "pageoff",
+   "base_insns": 12247,
+   "cand_insns": 12247
+  },
+  "__RNvCs6thXTpflXIc_14rustc_demangle12try_demangle": {
+   "class": "renumbered",
+   "base_insns": 587,
+   "cand_insns": 587
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc11is_assigned.N": {
+   "class": "suffix-only",
+   "base_insns": 31,
+   "cand_insns": 31
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext": {
+   "class": "pageoff",
+   "base_insns": 209,
+   "cand_insns": 209
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext.N": {
+   "class": "pageoff",
+   "base_insns": 146,
+   "cand_insns": 146
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_10HexNibbles14try_parse_uint": {
+   "class": "renumbered",
+   "base_insns": 83,
+   "cand_insns": 83
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_7Printer23print_const_str_literal": {
+   "class": "renumbered",
+   "base_insns": 142,
+   "cand_insns": 142
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc3natNtB5_3Nat6tcp_in": {
+   "class": "renumbered",
+   "base_insns": 788,
+   "cand_insns": 788
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink7next_rx": {
+   "class": "renumbered",
+   "base_insns": 541,
+   "cand_insns": 541
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink8net_step": {
+   "class": "renumbered",
+   "base_insns": 2476,
+   "cand_insns": 2476
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB5_7Session10advance_to": {
+   "class": "renumbered",
+   "base_insns": 1632,
+   "cand_insns": 1632
+  },
+  "__RNvNtCs6zY7rJBZy9D_5alloc5boxed14box_new_uninit.N": {
+   "class": "suffix-only",
+   "base_insns": 12,
+   "cand_insns": 12
+  },
+  "__RNvNtCsiSxE2bj03SK_10xtensa_lx76disasm8operands": {
+   "class": "renumbered",
+   "base_insns": 2084,
+   "cand_insns": 2084
+  },
+  "__RNvNtNtNtCsjIpoRzUjyHQ_4core7unicode12unicode_data11white_space6lookup.N": {
+   "class": "suffix-only",
+   "base_insns": 28,
+   "cand_insns": 28
+  },
+  "__RNvXNvNtNtCs1SSuMAdGM58_3std3sys12thread_local20abort_on_dtor_unwindNtB2_15DtorUnwindGuardNtNtNtCsjIpoRzUjyHQ_4core3ops4drop4Drop4drop.N": {
+   "class": "suffix-only",
+   "base_insns": 10,
+   "cand_insns": 10
+  },
+  "__RNvXsK_NtCsjIpoRzUjyHQ_4core3fmtNtB5_5ErrorNtB5_5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 6,
+   "cand_insns": 6
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write10write_char.N": {
+   "class": "suffix-only",
+   "base_insns": 70,
+   "cand_insns": 70
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write9write_str.N": {
+   "class": "suffix-only",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNvXs_NtCs4kJXs6KrLV7_5esp324ledcNtB5_11ClassicLedcNtNtCsewoq7l1tWy2_10esp_periph6device6Device4tick": {
+   "class": "code",
+   "base_insns": 433,
+   "cand_insns": 567
+  },
+  "__RNvXs_NtCs9YEi0b6xRah_7esp_soc3bleNtB5_10ControllerNtB5_13HciController7send_h4": {
+   "class": "renumbered",
+   "base_insns": 1223,
+   "cand_insns": 1223
+  },
+  "__RNvXs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+   "class": "code",
+   "base_insns": 186,
+   "cand_insns": 450
+  },
+  "__RNvXs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB4_7CommandNtNtNtCsjIpoRzUjyHQ_4core3str6traits7FromStr8from_str": {
+   "class": "renumbered",
+   "base_insns": 421,
+   "cand_insns": 421
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3num5errorNtB5_13ParseIntErrorNtNtB9_3fmt5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 19,
+   "cand_insns": 19
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternNtB5_11StrSearcherNtB5_8Searcher4next.N": {
+   "class": "suffix-only",
+   "base_insns": 198,
+   "cand_insns": 198
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternReNtB5_7Pattern15is_contained_in.N": {
+   "class": "suffix-only",
+   "base_insns": 463,
+   "cand_insns": 463
+  }
+ },
+ "esp32sim-c3": {
+  "__RINvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB6_7Printer26print_quoted_escaped_charsINtNtNtNtCsjIpoRzUjyHQ_4core4iter7sources4once4OncecEEB8_": {
+   "class": "renumbered",
+   "base_insns": 65,
+   "cand_insns": 65
+  },
+  "__RINvNtNtNtNtCs1SSuMAdGM58_3std3sys12thread_local6native5eager7destroyINtNtCsjIpoRzUjyHQ_4core4cell4CellNtNtNtBa_6thread9spawnhook10SpawnHooksEEBa_": {
+   "class": "renumbered",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNCNCNvNtNtCs1SSuMAdGM58_3std3sys9backtrace10__print_fmts_00B9_": {
+   "class": "renumbered",
+   "base_insns": 151,
+   "cand_insns": 151
+  },
+  "__RNvCs57IZVKZUxM5_8esp32sim7run_cli": {
+   "class": "pageoff",
+   "base_insns": 12247,
+   "cand_insns": 12247
+  },
+  "__RNvCs6thXTpflXIc_14rustc_demangle12try_demangle": {
+   "class": "renumbered",
+   "base_insns": 587,
+   "cand_insns": 587
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc11is_assigned.N": {
+   "class": "suffix-only",
+   "base_insns": 31,
+   "cand_insns": 31
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext": {
+   "class": "pageoff",
+   "base_insns": 209,
+   "cand_insns": 209
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext.N": {
+   "class": "pageoff",
+   "base_insns": 146,
+   "cand_insns": 146
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_10HexNibbles14try_parse_uint": {
+   "class": "renumbered",
+   "base_insns": 83,
+   "cand_insns": 83
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_7Printer23print_const_str_literal": {
+   "class": "renumbered",
+   "base_insns": 142,
+   "cand_insns": 142
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc3natNtB5_3Nat6tcp_in": {
+   "class": "renumbered",
+   "base_insns": 788,
+   "cand_insns": 788
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink7next_rx": {
+   "class": "renumbered",
+   "base_insns": 541,
+   "cand_insns": 541
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink8net_step": {
+   "class": "renumbered",
+   "base_insns": 2476,
+   "cand_insns": 2476
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB5_7Session10advance_to": {
+   "class": "renumbered",
+   "base_insns": 1632,
+   "cand_insns": 1632
+  },
+  "__RNvNtCs6zY7rJBZy9D_5alloc5boxed14box_new_uninit.N": {
+   "class": "suffix-only",
+   "base_insns": 12,
+   "cand_insns": 12
+  },
+  "__RNvNtCsiSxE2bj03SK_10xtensa_lx76disasm8operands": {
+   "class": "renumbered",
+   "base_insns": 2084,
+   "cand_insns": 2084
+  },
+  "__RNvNtNtNtCsjIpoRzUjyHQ_4core7unicode12unicode_data11white_space6lookup.N": {
+   "class": "suffix-only",
+   "base_insns": 28,
+   "cand_insns": 28
+  },
+  "__RNvXNvNtNtCs1SSuMAdGM58_3std3sys12thread_local20abort_on_dtor_unwindNtB2_15DtorUnwindGuardNtNtNtCsjIpoRzUjyHQ_4core3ops4drop4Drop4drop.N": {
+   "class": "suffix-only",
+   "base_insns": 10,
+   "cand_insns": 10
+  },
+  "__RNvXsK_NtCsjIpoRzUjyHQ_4core3fmtNtB5_5ErrorNtB5_5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 6,
+   "cand_insns": 6
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write10write_char.N": {
+   "class": "suffix-only",
+   "base_insns": 70,
+   "cand_insns": 70
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write9write_str.N": {
+   "class": "suffix-only",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNvXs_NtCs4kJXs6KrLV7_5esp324ledcNtB5_11ClassicLedcNtNtCsewoq7l1tWy2_10esp_periph6device6Device4tick": {
+   "class": "code",
+   "base_insns": 433,
+   "cand_insns": 567
+  },
+  "__RNvXs_NtCs9YEi0b6xRah_7esp_soc3bleNtB5_10ControllerNtB5_13HciController7send_h4": {
+   "class": "renumbered",
+   "base_insns": 1223,
+   "cand_insns": 1223
+  },
+  "__RNvXs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+   "class": "code",
+   "base_insns": 186,
+   "cand_insns": 450
+  },
+  "__RNvXs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB4_7CommandNtNtNtCsjIpoRzUjyHQ_4core3str6traits7FromStr8from_str": {
+   "class": "renumbered",
+   "base_insns": 421,
+   "cand_insns": 421
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3num5errorNtB5_13ParseIntErrorNtNtB9_3fmt5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 19,
+   "cand_insns": 19
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternNtB5_11StrSearcherNtB5_8Searcher4next.N": {
+   "class": "suffix-only",
+   "base_insns": 198,
+   "cand_insns": 198
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternReNtB5_7Pattern15is_contained_in.N": {
+   "class": "suffix-only",
+   "base_insns": 463,
+   "cand_insns": 463
+  }
+ },
+ "esp32sim-c6": {
+  "__RINvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB6_7Printer26print_quoted_escaped_charsINtNtNtNtCsjIpoRzUjyHQ_4core4iter7sources4once4OncecEEB8_": {
+   "class": "renumbered",
+   "base_insns": 65,
+   "cand_insns": 65
+  },
+  "__RINvNtNtNtNtCs1SSuMAdGM58_3std3sys12thread_local6native5eager7destroyINtNtCsjIpoRzUjyHQ_4core4cell4CellNtNtNtBa_6thread9spawnhook10SpawnHooksEEBa_": {
+   "class": "renumbered",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNCNCNvNtNtCs1SSuMAdGM58_3std3sys9backtrace10__print_fmts_00B9_": {
+   "class": "renumbered",
+   "base_insns": 151,
+   "cand_insns": 151
+  },
+  "__RNvCs57IZVKZUxM5_8esp32sim7run_cli": {
+   "class": "pageoff",
+   "base_insns": 12247,
+   "cand_insns": 12247
+  },
+  "__RNvCs6thXTpflXIc_14rustc_demangle12try_demangle": {
+   "class": "renumbered",
+   "base_insns": 587,
+   "cand_insns": 587
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc11is_assigned.N": {
+   "class": "suffix-only",
+   "base_insns": 31,
+   "cand_insns": 31
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext.N": {
+   "class": "suffix-only",
+   "base_insns": 146,
+   "cand_insns": 146
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_10HexNibbles14try_parse_uint": {
+   "class": "renumbered",
+   "base_insns": 83,
+   "cand_insns": 83
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_7Printer23print_const_str_literal": {
+   "class": "renumbered",
+   "base_insns": 142,
+   "cand_insns": 142
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc3natNtB5_3Nat6tcp_in": {
+   "class": "renumbered",
+   "base_insns": 788,
+   "cand_insns": 788
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink7next_rx": {
+   "class": "renumbered",
+   "base_insns": 541,
+   "cand_insns": 541
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink8net_step": {
+   "class": "renumbered",
+   "base_insns": 2476,
+   "cand_insns": 2476
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB5_7Session10advance_to": {
+   "class": "renumbered",
+   "base_insns": 1632,
+   "cand_insns": 1632
+  },
+  "__RNvNtCs6zY7rJBZy9D_5alloc5boxed14box_new_uninit.N": {
+   "class": "suffix-only",
+   "base_insns": 12,
+   "cand_insns": 12
+  },
+  "__RNvNtCsiSxE2bj03SK_10xtensa_lx76disasm8operands": {
+   "class": "renumbered",
+   "base_insns": 2084,
+   "cand_insns": 2084
+  },
+  "__RNvNtNtNtCsjIpoRzUjyHQ_4core7unicode12unicode_data11white_space6lookup.N": {
+   "class": "suffix-only",
+   "base_insns": 28,
+   "cand_insns": 28
+  },
+  "__RNvXNvNtNtCs1SSuMAdGM58_3std3sys12thread_local20abort_on_dtor_unwindNtB2_15DtorUnwindGuardNtNtNtCsjIpoRzUjyHQ_4core3ops4drop4Drop4drop.N": {
+   "class": "suffix-only",
+   "base_insns": 10,
+   "cand_insns": 10
+  },
+  "__RNvXsK_NtCsjIpoRzUjyHQ_4core3fmtNtB5_5ErrorNtB5_5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 6,
+   "cand_insns": 6
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write10write_char.N": {
+   "class": "suffix-only",
+   "base_insns": 70,
+   "cand_insns": 70
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write9write_str.N": {
+   "class": "suffix-only",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNvXs_NtCs4kJXs6KrLV7_5esp324ledcNtB5_11ClassicLedcNtNtCsewoq7l1tWy2_10esp_periph6device6Device4tick": {
+   "class": "code",
+   "base_insns": 433,
+   "cand_insns": 567
+  },
+  "__RNvXs_NtCs9YEi0b6xRah_7esp_soc3bleNtB5_10ControllerNtB5_13HciController7send_h4": {
+   "class": "renumbered",
+   "base_insns": 1223,
+   "cand_insns": 1223
+  },
+  "__RNvXs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+   "class": "code",
+   "base_insns": 186,
+   "cand_insns": 450
+  },
+  "__RNvXs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB4_7CommandNtNtNtCsjIpoRzUjyHQ_4core3str6traits7FromStr8from_str": {
+   "class": "renumbered",
+   "base_insns": 421,
+   "cand_insns": 421
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3num5errorNtB5_13ParseIntErrorNtNtB9_3fmt5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 19,
+   "cand_insns": 19
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternNtB5_11StrSearcherNtB5_8Searcher4next.N": {
+   "class": "suffix-only",
+   "base_insns": 198,
+   "cand_insns": 198
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternReNtB5_7Pattern15is_contained_in.N": {
+   "class": "suffix-only",
+   "base_insns": 463,
+   "cand_insns": 463
+  }
+ },
+ "esp32sim-p4": {
+  "__RINvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB6_7Printer26print_quoted_escaped_charsINtNtNtNtCsjIpoRzUjyHQ_4core4iter7sources4once4OncecEEB8_": {
+   "class": "renumbered",
+   "base_insns": 65,
+   "cand_insns": 65
+  },
+  "__RINvNtNtNtNtCs1SSuMAdGM58_3std3sys12thread_local6native5eager7destroyINtNtCsjIpoRzUjyHQ_4core4cell4CellNtNtNtBa_6thread9spawnhook10SpawnHooksEEBa_": {
+   "class": "renumbered",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNCNCNvNtNtCs1SSuMAdGM58_3std3sys9backtrace10__print_fmts_00B9_": {
+   "class": "renumbered",
+   "base_insns": 151,
+   "cand_insns": 151
+  },
+  "__RNvCs57IZVKZUxM5_8esp32sim7run_cli": {
+   "class": "pageoff",
+   "base_insns": 12247,
+   "cand_insns": 12247
+  },
+  "__RNvCs6thXTpflXIc_14rustc_demangle12try_demangle": {
+   "class": "renumbered",
+   "base_insns": 587,
+   "cand_insns": 587
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc11is_assigned.N": {
+   "class": "suffix-only",
+   "base_insns": 31,
+   "cand_insns": 31
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext": {
+   "class": "pageoff",
+   "base_insns": 209,
+   "cand_insns": 209
+  },
+  "__RNvMNtNtCsjIpoRzUjyHQ_4core4char7methodsc16escape_debug_ext.N": {
+   "class": "pageoff",
+   "base_insns": 146,
+   "cand_insns": 146
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_10HexNibbles14try_parse_uint": {
+   "class": "renumbered",
+   "base_insns": 83,
+   "cand_insns": 83
+  },
+  "__RNvMs_NtCs6thXTpflXIc_14rustc_demangle2v0NtB5_7Printer23print_const_str_literal": {
+   "class": "renumbered",
+   "base_insns": 142,
+   "cand_insns": 142
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc3natNtB5_3Nat6tcp_in": {
+   "class": "renumbered",
+   "base_insns": 788,
+   "cand_insns": 788
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink7next_rx": {
+   "class": "renumbered",
+   "base_insns": 541,
+   "cand_insns": 541
+  },
+  "__RNvMs_NtCs9YEi0b6xRah_7esp_soc4wifiNtB5_11StationLink8net_step": {
+   "class": "renumbered",
+   "base_insns": 2476,
+   "cand_insns": 2476
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+   "class": "code",
+   "base_insns": null,
+   "cand_insns": 90
+  },
+  "__RNvMs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB5_7Session10advance_to": {
+   "class": "renumbered",
+   "base_insns": 1632,
+   "cand_insns": 1632
+  },
+  "__RNvNtCs6zY7rJBZy9D_5alloc5boxed14box_new_uninit.N": {
+   "class": "suffix-only",
+   "base_insns": 12,
+   "cand_insns": 12
+  },
+  "__RNvNtCsiSxE2bj03SK_10xtensa_lx76disasm8operands": {
+   "class": "renumbered",
+   "base_insns": 2084,
+   "cand_insns": 2084
+  },
+  "__RNvNtNtNtCsjIpoRzUjyHQ_4core7unicode12unicode_data11white_space6lookup.N": {
+   "class": "suffix-only",
+   "base_insns": 28,
+   "cand_insns": 28
+  },
+  "__RNvXNvNtNtCs1SSuMAdGM58_3std3sys12thread_local20abort_on_dtor_unwindNtB2_15DtorUnwindGuardNtNtNtCsjIpoRzUjyHQ_4core3ops4drop4Drop4drop.N": {
+   "class": "suffix-only",
+   "base_insns": 10,
+   "cand_insns": 10
+  },
+  "__RNvXsK_NtCsjIpoRzUjyHQ_4core3fmtNtB5_5ErrorNtB5_5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 6,
+   "cand_insns": 6
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write10write_char.N": {
+   "class": "suffix-only",
+   "base_insns": 70,
+   "cand_insns": 70
+  },
+  "__RNvXsZ_NtCs6zY7rJBZy9D_5alloc6stringNtB5_6StringNtNtCsjIpoRzUjyHQ_4core3fmt5Write9write_str.N": {
+   "class": "suffix-only",
+   "base_insns": 33,
+   "cand_insns": 33
+  },
+  "__RNvXs_NtCs4kJXs6KrLV7_5esp324ledcNtB5_11ClassicLedcNtNtCsewoq7l1tWy2_10esp_periph6device6Device4tick": {
+   "class": "code",
+   "base_insns": 433,
+   "cand_insns": 567
+  },
+  "__RNvXs_NtCs9YEi0b6xRah_7esp_soc3bleNtB5_10ControllerNtB5_13HciController7send_h4": {
+   "class": "renumbered",
+   "base_insns": 1223,
+   "cand_insns": 1223
+  },
+  "__RNvXs_NtCsewoq7l1tWy2_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+   "class": "code",
+   "base_insns": 186,
+   "cand_insns": 450
+  },
+  "__RNvXs_NtNtCs9YEi0b6xRah_7esp_soc3ble4peerNtB4_7CommandNtNtNtCsjIpoRzUjyHQ_4core3str6traits7FromStr8from_str": {
+   "class": "renumbered",
+   "base_insns": 421,
+   "cand_insns": 421
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3num5errorNtB5_13ParseIntErrorNtNtB9_3fmt5Debug3fmt.N": {
+   "class": "suffix-only",
+   "base_insns": 19,
+   "cand_insns": 19
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternNtB5_11StrSearcherNtB5_8Searcher4next.N": {
+   "class": "suffix-only",
+   "base_insns": 198,
+   "cand_insns": 198
+  },
+  "__RNvXs_NtNtCsjIpoRzUjyHQ_4core3str7patternReNtB5_7Pattern15is_contained_in.N": {
+   "class": "suffix-only",
+   "base_insns": 463,
+   "cand_insns": 463
+  }
+ }
+}
