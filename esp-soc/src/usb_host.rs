@@ -266,7 +266,11 @@ impl<'p> UsbHost<'p> {
         self.speed = Some(speed);
         self.address = 0;
         self.config = None;
-        self.mps0 = if speed == Speed::High { 64 } else { 8 };
+        // EP0's packet size until the device descriptor gives it: 64 at high speed (fixed) and,
+        // as a first guess, at full speed too, where the first GET_DESCRIPTOR(64) reads
+        // bMaxPacketSize0 (Linux v6.12 drivers/usb/core/hub.c, hub_port_init). With 8 a device
+        // whose EP0 takes 64 sends its 18-byte descriptor in one packet, more than the host takes.
+        self.mps0 = 64;
         Ok(speed)
     }
 
