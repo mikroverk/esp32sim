@@ -1438,7 +1438,7 @@ fn bare_gpio_toggle_loop_keeps_quiet_cadence_and_no_pcnt_work() {
             bus.tick(1);
         }
     }
-    assert_eq!(bus.periph.pcnt.cnt, [0; 4]);
+    assert_eq!(bus.periph.pcnt.cnt, [0; 8]);
     assert_eq!(bus.periph.gpio.input_changes.capacity(), 0);
 }
 

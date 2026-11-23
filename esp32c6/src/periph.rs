@@ -35,6 +35,8 @@ pub mod src {
     pub const TG1_T0: usize = 54; pub const TG1_T1: usize = 55; pub const TG1_WDT: usize = 56;
     pub const SYSTIMER_T0: usize = 57; pub const SYSTIMER_T1: usize = 58; pub const SYSTIMER_T2: usize = 59;
     pub const MCPWM0: usize = 61;
+    // IDF v5.5.4 components/soc/esp32c6/include/soc/interrupts.h, ETS_PCNT_INTR_SOURCE.
+    pub const PCNT: usize = 62;
     // IDF v5.5.4 components/soc/esp32c6/include/soc/interrupts.h:83-85.
     pub const PARLIO: usize = 63;
     // IDF v5.5.3 components/soc/esp32c6/include/soc/interrupts.h:86, ETS_SLC0_INTR_SOURCE.
@@ -371,6 +373,8 @@ pub struct Peripherals {
     clock: ClockTree<4>,
     pub ledc: Ledc,
     pub mcpwm: Mcpwm,
+    /// PCNT at 0x6001_2000 (IDF v5.5.4 soc/esp32c6/register/soc/reg_base.h DR_REG_PCNT_BASE).
+    pub pcnt: esp_periph::Pcnt,
     /// Boxed: these devices are cold unless firmware configures them.
     pub optional: Box<OptionalPeripherals>,
     /// SPI command or I2S RX pending, refreshed only when either changes.
@@ -399,6 +403,7 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x0f "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x10 "INTMTX" (intmtx) => [];
     0x14 "MCPWM" optional (mcpwm) => [src::MCPWM0];
+    0x12 "PCNT" (pcnt) => [src::PCNT];
     // three channels; the model numbers its sources out 0..4 then in 0..4
     0x80 "GDMA" (gdma) => [src::DMA_OUT_CH0, src::DMA_OUT_CH0 + 1, src::DMA_OUT_CH0 + 2, NO_SOURCE, NO_SOURCE, src::DMA_IN_CH0, src::DMA_IN_CH0 + 1, src::DMA_IN_CH0 + 2, NO_SOURCE, NO_SOURCE];
     0x81 "SPI2" (spi2) => [src::GPSPI2];
@@ -449,7 +454,7 @@ impl Peripherals {
         Peripherals {
             adc: esp_periph::sar_adc::SarAdc::new(true, CPU_HZ),
             uart: [Uart::new(UartLayout::C6), Uart::new(UartLayout::C6)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87, 8),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: { let mut g = Gpio::new(); g.func_out_sel.fill(128); g }, io_mux: RegRam::new(), i2c: esp_periph::i2c::I2c::new(), ledc: Ledc::new(LedcLayout::C6), mcpwm: Mcpwm::new(87, 8), pcnt: esp_periph::Pcnt::new(esp_periph::PcntLayout::C6),
             efuse: efuse_c6(mac, 0, 1, 1, 0, 3),
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6

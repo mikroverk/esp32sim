@@ -474,6 +474,15 @@ impl SocBus {
         input.into_iter().chain(self.ena_latency.deadline()).min()
     }
 
+    /// GPIO input edges reach the pulse counter; its interrupt is cached like any optional device's.
+    #[cold]
+    #[inline(never)]
+    fn pcnt_edges(&mut self) {
+        let before = self.periph.pcnt.irq();
+        self.periph.pcnt.matrix_edges(&mut self.periph.gpio.g);
+        if before != self.periph.pcnt.irq() { esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x500c9); self.irq_dirty = true; }
+    }
+
     fn devices(&mut self, cycles: u32) {
         if self.periph.spi_exec { self.run_spi(); }
         // board time first, its input edges after the peripherals (as the S3 bus does)
@@ -481,6 +490,7 @@ impl SocBus {
         if edges { self.board.advance_to(self.cycles); }
         self.periph.tick(cycles as u64);
         if self.uart_busy { self.pace_uart_input(cycles); }
+        if !self.periph.gpio.g.input_changes.is_empty() { self.pcnt_edges(); }
         if edges { self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio.g, &mut self.gpio_events, self.cycles); }
         if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_tx(); }
         if self.periph.spi2.has_pending_transfer() || !self.periph.gpio.g.changes.is_empty() { self.deliver_board_events(); }

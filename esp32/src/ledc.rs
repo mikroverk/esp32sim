@@ -54,12 +54,18 @@ impl Device for ClassicLedc {
             let reg = o % 0x14;
             if reg == 16 { return WriteEffect::NONE; }
             let value = value & match reg { 0 => 0x8000001f, 4 => 0xfffff, 8 => 0x1ffffff, _ => u32::MAX };
+            // An HS channel has no PARA_UP: setting DUTY_START starts an update and clearing it
+            // cancels one. Other writes take effect at once but start nothing: ESP32's
+            // `ledc_ll_set_duty_start` spins while DUTY_START is set, so IDF rewrites CONF1 and CONF0
+            // while an update is still pending (IDF v5.5.4 hal/esp32/include/hal/ledc_ll.h:483-489).
+            let start = g == 0 && reg == 12 && (self.regs.read(off) ^ value) & (1 << 31) != 0;
             self.regs.write(off, value);
             if g == 0 || reg == 0 && value & 16 != 0 {
                 let base = off - reg;
                 let local = o - reg;
                 for r in [4, 8, 12] { self.groups[g].write(local + r, self.regs.read(base + r)); }
-                self.groups[g].write(local, self.regs.read(base) | 16);
+                let para_up = if g == 1 || start { 16 } else { 0 };
+                self.groups[g].write(local, self.regs.read(base) | para_up);
                 self.regs.write(base, self.regs.read(base) & !16);
                 self.dirty |= 1 << (g * 8 + local as usize / 0x14);
             }
@@ -88,9 +94,13 @@ impl Device for ClassicLedc {
         for (g, group) in self.groups.iter_mut().enumerate() {
             let apb = g == 0 || self.regs.read(0x190) & 1 != 0;
             let before: [u32; 8] = std::array::from_fn(|ch| group.read(ch as u32 * 0x14 + 12));
+            // A fade moves the duty between its start and its end: a step to or from 0 flips the level.
+            let fading = group.fading();
+            let duty: [u32; 8] = if fading { std::array::from_fn(|ch| group.read(ch as u32 * 0x14 + 16)) } else { [0; 8] };
             group.tick_with_source(ticks, |_, conf| Self::source(apb, conf));
             for ch in 0..8 {
                 let base = g as u32 * 0xa0 + ch * 0x14;
+                if fading && group.read(ch * 0x14 + 16) != duty[ch as usize] { self.dirty |= 1 << (g * 8 + ch as usize); }
                 if before[ch as usize] & (1 << 31) != 0 && group.read(ch * 0x14 + 12) & (1 << 31) == 0 {
                     self.regs.write(base + 12, self.regs.read(base + 12) & !(1 << 31));
                     self.dirty |= 1 << (g * 8 + ch as usize);
@@ -213,6 +223,69 @@ mod tests {
         assert_eq!(ledc.pwm(79).unwrap().0, 531.25);
         ledc.write(0x160, 8 | (16000 << 5) | (1 << 26));
         assert_eq!(ledc.pwm(79).unwrap().0, 62.5);
+    }
+
+    /// An HS fade (`ledc_set_fade_with_step`: DUTY_START written last, no PARA_UP on the HS group)
+    /// steps the duty every DUTY_CYCLE periods and raises DUTY_CHNG_END_HSCH0 (INT_RAW bit 8).
+    #[test]
+    fn high_speed_fade_steps_and_ends_with_the_interrupt() {
+        let mut ledc = ClassicLedc::new();
+        ledc.clock_enabled = true;
+        ledc.write(0x140, 8 | (16000 << 5) | (1 << 25));          // 5 kHz from APB: 16000 ticks a period
+        ledc.write(0x188, 1 << 8);
+        ledc.write(0x08, 0);
+        ledc.write(0x0c, (1 << 30) | (3 << 20) | (2 << 10) | 10);   // up 3 x 10, every 2 periods
+        ledc.write(0x00, 4);
+        ledc.write(0x0c, (1 << 31) | (1 << 30) | (3 << 20) | (2 << 10) | 10);
+        assert_eq!(ledc.next_deadline(), Some(16000));
+        ledc.tick(16000);
+        assert_eq!(ledc.read(0x10), 0);
+        ledc.take_signal_updates();
+        ledc.tick(2 * 16000);
+        assert_eq!(ledc.read(0x10), 10 << 4);
+        assert_eq!(ledc.take_signal_updates(), 1);
+        assert_eq!(ledc.pwm(71).unwrap().1, (160 * 65535 + 2048) / 4096);
+        ledc.tick(3 * 16000);
+        assert_eq!((ledc.read(0x10), ledc.irq_sources()), (20 << 4, 0));
+        ledc.tick(16000);
+        assert_eq!((ledc.read(0x10), ledc.irq_sources()), (30 << 4, 1));
+        assert_eq!(ledc.read(0x0c) >> 31, 0);
+        assert_eq!(ledc.next_deadline(), None);
+    }
+
+    /// IDF writes the fade parameters with a read-modify-write of CONF1 while the plain update that
+    /// `ledc_channel_config` started still holds DUTY_START, then spins until it clears: the plain
+    /// update completes at its wrap, and only the next DUTY_START starts the fade.
+    #[test]
+    fn conf1_rewritten_with_duty_start_held_does_not_restart() {
+        let mut ledc = ClassicLedc::new();
+        ledc.clock_enabled = true;
+        ledc.write(0x140, 8 | (16000 << 5) | (1 << 25));
+        ledc.write(0x0c, (1 << 31) | (1 << 30) | (1 << 20) | (1 << 10));  // plain update of duty 0
+        ledc.write(0x00, 4);
+        ledc.write(0x08, 0);
+        ledc.write(0x0c, (1 << 31) | (1 << 30) | (3 << 20) | (1 << 10) | 10);
+        assert_eq!(ledc.read(0x0c) >> 31, 1);
+        ledc.tick(16000);
+        assert_eq!((ledc.read(0x0c) >> 31, ledc.read(0x10)), (0, 0), "the plain update ends, no fade ran");
+        ledc.write(0x0c, (1 << 31) | (1 << 30) | (3 << 20) | (1 << 10) | 10);
+        ledc.tick(4 * 16000);
+        assert_eq!((ledc.read(0x0c) >> 31, ledc.read(0x10)), (0, 30 << 4));
+    }
+
+    /// The HS timer 0 overflow interrupt asks for each wrap; shrinking the timer leaves its phase
+    /// past the new period, so the next wrap is one tick away, not an underflow.
+    #[test]
+    fn shrinking_a_timer_past_its_phase_wraps_at_the_next_tick() {
+        let mut ledc = ClassicLedc::new();
+        ledc.clock_enabled = true;
+        ledc.write(0x140, 14 | (256 << 5) | (1 << 25));          // 14-bit, divider 1, APB
+        ledc.write(0x188, 1);
+        ledc.tick(10_000);
+        ledc.write(0x140, 1 | (256 << 5) | (1 << 25));
+        assert_eq!(ledc.next_deadline(), Some(1));
+        ledc.tick(1);
+        assert!(ledc.read(0x144) < 2, "the counter is back inside the period");
     }
 
     #[test]

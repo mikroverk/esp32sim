@@ -1,0 +1,1148 @@
+{
+ "experiment": "EX252 follow-up: PR #381 (LEDC fades) and the optional deadline scan",
+ "toolchain": "rustc 1.100.0 (0ef1bc386 2026-11-09), aarch64-apple-darwin, cargo build --release --bins, each tree in its own worktree",
+ "revisions": {
+  "base": "3f49dad8 (merge base of PR #381)",
+  "head": "308f533b (PR #381 before this follow-up)",
+  "final": "4203d1d7 (this follow-up; binary rebuilt from the commit is byte-identical to the measured one)"
+ },
+ "command": "ESP32SIM_ROM_DIR=<roms> python3 -I docs/evidence/c6-ledc-tick/ir_rounds.py <rounds> 5 '<fixtures>' bins/base bins/<arm>... from the candidate tree's root; host instructions retired from /usr/bin/time -l; stop line and console SHA-256 compared with the base run of the same round",
+ "binary_sha256": {
+  "base": {
+   "esp32sim": "86922cf8b58da03b819094fa6205618c69a2305fecb8b6a100ef8d4ae1d5a067",
+   "esp32sim-c3": "b94d489724d1039ddd296b933de6773d2c00b776ab4431fbf91a97779add5917",
+   "esp32sim-c6": "8db7133fd49dbd7fd1a1689f4a72b58b950d4381640edecd03ce2bd6f936af86",
+   "esp32sim-p4": "608ad4e7617141cc8e66ac2edfdefe2c353e1586e064c8e1cc7289b0283df0eb"
+  },
+  "head": {
+   "esp32sim": "d3fb1a576b2691ce0d3040b6311ef09692e6978ad3f7a877fad39c87690653e0",
+   "esp32sim-c3": "090035c933c076bbcfe37c7c666d3b0815ee88cad7eff4e4cbfaeb005987858c",
+   "esp32sim-c6": "bdcb4a7b0504a194de659c78b1c6d114fa865b58f21ee2c01f0f4dd1888c8604",
+   "esp32sim-p4": "2a8313dd5ba01ca17cf65b14de7f9d5743c1badc8093b8c16809c55937bf47f5"
+  },
+  "final": {
+   "esp32sim": "f56b88023f72235a7f71664bc77735b09df8e21a23763c15c5d2da5e00e04f71",
+   "esp32sim-c3": "e25b0f8acf5fdea881ef43f2a84364c8e4c5663f81fe87e94eddfafde10b3f7b",
+   "esp32sim-c6": "d7d95750425c8dd4524df8f2165e8ecd40f3fba929b9899a8d020681e4033b33",
+   "esp32sim-p4": "59c5699561415002f10bf1028e5bbbefcdfb1e1475e6d463987526a71bc5312e"
+  },
+  "screening esp32sim-c6": {
+   "A": "ba6987de572088e70a299a925330bdd5fc07652cfdddffe871f190ab39f9b56d",
+   "B": "2fe1372cc23a6017ca722df82a9b396af58adfce31b5d70d506a5a2a0a0a7d4c",
+   "C": "8dafee8bd7b0c2bb77ba6aca9dffaa3bf71f0302f2239ac7d444e5bcf424cc94",
+   "C-nopcnt": "6faf0df181b8b257565c8decbe5939aa225dc80a157c86f923dcd86084bb718e",
+   "D": "ffafbac9add8cf818ae84af1db77741afc23903231257c017953b617f70dcee2",
+   "final-noedges": "914724a50a15a22a1367a423b6bdfb19036a1e7666e4363b977204d16b715e44"
+  }
+ },
+ "final_rounds": {
+  "note": "5 rounds x 5 fixtures x 3 binaries, 5 guest seconds; all rc 0, all same_work true",
+  "records": [
+   {
+    "round": 0,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21108081861,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-contiki",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 21578196047,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 2.227,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21127315702,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.091,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9160666448,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 9173069060,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.135,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9181195004,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.224,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c3-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 14072800966,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c3-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 14051925504,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": -0.148,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c3-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 14050962999,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": -0.155,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "p4-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 66761488448,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "p4-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 66889262455,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.191,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "p4-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 66729757942,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": -0.048,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 1648906307,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 1643697177,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.316,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 1647667963,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.075,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21139860593,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-contiki",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 21645854842,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 2.394,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21148218080,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.04,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9194121569,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 9201906494,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.085,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9190770087,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": -0.036,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c3-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 14081388017,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c3-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 14092771756,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.081,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c3-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 14088256549,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.049,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "p4-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 66881437800,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "p4-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 67012299370,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.196,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "p4-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 66867165185,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": -0.021,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 1658349838,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 1654613733,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.225,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 1655426269,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.176,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21156912740,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-contiki",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 21643770025,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 2.301,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21163006478,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.029,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9169465677,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 9188226754,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.205,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9186593932,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.187,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c3-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 14090560321,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c3-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 14094568175,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.028,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c3-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 14095420270,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.034,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "p4-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 67020497179,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "p4-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 67165017611,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.216,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "p4-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 66908172850,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": -0.168,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 1660752044,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 1654200004,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.395,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 1656423243,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.261,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21159636442,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c6-contiki",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 21643207452,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 2.285,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21181086086,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.101,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9186797881,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c6-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 9190273690,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.038,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9193175263,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.069,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c3-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 14088878660,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c3-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 14097508956,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.061,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "c3-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 14089456226,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.004,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "p4-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 67005322413,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "p4-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 67152995030,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.22,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "p4-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 66979585066,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": -0.038,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 1657869147,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 1653850375,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.242,
+    "same_work": true
+   },
+   {
+    "round": 3,
+    "fixture": "hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 1659058260,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": 0.072,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21157283324,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c6-contiki",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 21632231456,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 2.245,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21195615715,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.181,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9177736729,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c6-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 9191916636,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.155,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9191058301,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.145,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c3-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 14107345143,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c3-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 14090386703,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": -0.12,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "c3-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 14077008649,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 504 interrupts",
+    "console": "64381dc71371",
+    "pct": -0.215,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "p4-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 66952245989,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "p4-hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 67099362738,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": 0.22,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "p4-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 66946066255,
+    "stop": "[emu] stop: Halted — core0 1800000000 + core1 0 insns; emulated 5.000s (1800000000 cycles); 0 exceptions, 506 interrupts",
+    "console": "c2b91e32264f",
+    "pct": -0.009,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 1663961239,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "hello",
+    "bin": "head",
+    "rc": 0,
+    "host_insns": 1653457935,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.631,
+    "same_work": true
+   },
+   {
+    "round": 4,
+    "fixture": "hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 1653335918,
+    "stop": "[emu] stop: Halted — core0 3241048 + core1 1605786 insns; emulated 5.000s (1200000000 cycles); 4903 exceptions, 1005 interrupts",
+    "console": "251b9c6e2ae9",
+    "pct": -0.639,
+    "same_work": true
+   }
+  ]
+ },
+ "attribution_noedges": {
+  "note": "3 rounds; final-noedges = final with the C6 per-round queued-PCNT-edge test replaced by the merge base's unconditional clear (attribution only: PCNT edges are dropped)",
+  "records": [
+   {
+    "round": 0,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9167964976,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9184735889,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.183,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-hello",
+    "bin": "final-noedges",
+    "rc": 0,
+    "host_insns": 9163315601,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": -0.051,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21109637396,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21124038076,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.068,
+    "same_work": true
+   },
+   {
+    "round": 0,
+    "fixture": "c6-contiki",
+    "bin": "final-noedges",
+    "rc": 0,
+    "host_insns": 21113798879,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.02,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9158244432,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9170965647,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.139,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-hello",
+    "bin": "final-noedges",
+    "rc": 0,
+    "host_insns": 9158437878,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.002,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21109918400,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21123278768,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.063,
+    "same_work": true
+   },
+   {
+    "round": 1,
+    "fixture": "c6-contiki",
+    "bin": "final-noedges",
+    "rc": 0,
+    "host_insns": 21111329055,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.007,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-hello",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 9157758510,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-hello",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 9170848087,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.143,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-hello",
+    "bin": "final-noedges",
+    "rc": 0,
+    "host_insns": 9158346074,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 505 interrupts",
+    "console": "5f25484fff6f",
+    "pct": 0.006,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-contiki",
+    "bin": "base",
+    "rc": 0,
+    "host_insns": 21107517078,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.0,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-contiki",
+    "bin": "final",
+    "rc": 0,
+    "host_insns": 21124162996,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.079,
+    "same_work": true
+   },
+   {
+    "round": 2,
+    "fixture": "c6-contiki",
+    "bin": "final-noedges",
+    "rc": 0,
+    "host_insns": 21112000332,
+    "stop": "[emu] stop: Halted — 800000000 insns; emulated 5.000s (800000000 cycles); 0 exceptions, 6282 interrupts",
+    "console": "aa9ec2db8037",
+    "pct": 0.021,
+    "same_work": true
+   }
+  ]
+ },
+ "screening": {
+  "note": "c6-contiki (and c6-hello where given), 5 s, one run per arm per round, in the order listed; host instructions retired; every run had the base's stop line and console. A: underflow fix + LEDC has_deadline = a fade runs, its deadline #[cold] out of line. B: A + two-pass optional_deadline in device_set!. C: B + tick_unit field. C-nopcnt: C without the C6 PCNT table entry (attribution only). D: C + C6 PCNT as a static entry. final: D + the PCNT SIG_IN_SEL change (cold path only).",
+  "c6-contiki": [
+   {
+    "base": 21141134764,
+    "head": 21584923869,
+    "A": 21431234976
+   },
+   {
+    "base": 21137419091,
+    "head": 21602312530,
+    "A": 21466182990,
+    "B": 21250162498
+   },
+   {
+    "base": 21129398424,
+    "head": 21608606185,
+    "A": 21454468649,
+    "B": 21252127676
+   },
+   {
+    "base": 21158831156,
+    "B": 21272248458,
+    "C": 21230729298
+   },
+   {
+    "base": 21133365657,
+    "B": 21263771610,
+    "C": 21209044435
+   },
+   {
+    "base": 21109365172,
+    "C": 21182380941,
+    "C-nopcnt": 21125244951
+   },
+   {
+    "base": 21108389516,
+    "C": 21181686114,
+    "C-nopcnt": 21121136058
+   },
+   {
+    "base": 21113083277,
+    "C": 21192204515,
+    "D": 21137509130
+   },
+   {
+    "base": 21108890381,
+    "C": 21180647037,
+    "D": 21122097270
+   }
+  ],
+  "c6-hello": [
+   {
+    "base": 9161987931,
+    "C": 9172863141,
+    "D": 9171242562
+   },
+   {
+    "base": 9159178041,
+    "C": 9170722595,
+    "D": 9170438538
+   },
+   {
+    "base": 9159753342,
+    "head": 9180843017,
+    "C-nopcnt": 9171163274,
+    "D": 9171403996
+   },
+   {
+    "base": 9158427190,
+    "head": 9171004776,
+    "C-nopcnt": 9170739323,
+    "D": 9171317134
+   }
+  ]
+ },
+ "limits": "One machine, native only, heavily loaded (CPU time not usable; host instructions are load-independent to about +-0.1% between paired runs, and drift by up to 0.4% across a 5-run arm). The base tree's path differs in length from the candidate's (debug info only). No CPU-time claim."
+}

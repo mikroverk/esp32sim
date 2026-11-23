@@ -263,6 +263,7 @@ impl esp_soc::SocBus for SocBus {
         self.uart_busy = true;
         self.irq_dirty |= before != u.irq();
     }
+    fn pwm_output(&self, pin: u8) -> Option<(f64, u32)> { self.periph.ledc.output(&self.periph.gpio.g, pin).or_else(|| self.periph.mcpwm.iter().find_map(|pwm| pwm.output(&self.periph.gpio.g, pin))) }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         self.irq_dirty |= self.periph.gpio.g.set_input(pin, level);
         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }

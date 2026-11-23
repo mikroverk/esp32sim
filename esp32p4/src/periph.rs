@@ -26,6 +26,10 @@ pub mod src {
     pub const GPSPI2: usize = 25;
     pub const I2C1: usize = 45;
     pub const LEDC: usize = 52;
+    /// IDF v5.5.4 components/soc/esp32p4/include/soc/interrupts.h, ETS_PCNT_INTR_SOURCE.
+    pub const PCNT: usize = 111;
+    /// ETS_PWM0_INTR_SOURCE, ETS_PWM1_INTR_SOURCE (same header).
+    pub const PWM0: usize = 38;
     pub const I2S1: usize = 28;
     /// ETS_AHB_PDMA_IN_CH0..2 (56-58) and OUT_CH0..2 (59-61)
     pub const AHB_DMA_IN_CH0: usize = 56;
@@ -564,6 +568,13 @@ pub struct Peripherals {
     pub i2s1: esp_periph::I2s,
     /// LEDC (0x500D3000); its clock is HP_SYS_CLKRST PERI_CLK_CTRL22's (`ledc_clock`)
     pub ledc: Ledc,
+    /// PCNT at 0x500C_9000 (IDF v5.5.4 soc/esp32p4/register/hw_ver3/soc/reg_base.h DR_REG_PCNT_BASE;
+    /// hw_ver1 has the same registers).
+    pub pcnt: esp_periph::Pcnt,
+    /// MCPWM0/1 at 0x500C_0000/1000 (reg_base.h DR_REG_MCPWM0_BASE/MCPWM1_BASE; register/hw_ver3 and
+    /// hw_ver1 soc/mcpwm_reg.h have the S3's offsets), output signals PWM0_CH0_A_PAD_OUT_IDX 89 and
+    /// PWM1_CH0_A_PAD_OUT_IDX 95 (gpio_sig_map.h); their clock is PERI_CLK_CTRL20's (`mcpwm_clock`).
+    pub mcpwm: [esp_periph::Mcpwm; 2],
     pub assist_debug: AssistDebug,
     /// WDEV_RND_REG: LP_SYSTEM_REG_RNG_DATA (0x501101A4) on rev < 3, LP_TRNG's RNG_DATA
     /// (0x50126004) on rev >= 3 (IDF v5.5.4 register/hw_ver1/soc/wdev_reg.h:16,
@@ -610,6 +621,9 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Xtal, 9), (Cloc
     0x500d0 "SPI2" (spi2) => [src::GPSPI2];
     0x500d2 "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x500d3 "LEDC" (ledc) => [src::LEDC];
+    0x500c9 "PCNT" optional (pcnt) => [src::PCNT];
+    0x500c0 "MCPWM0" optional (mcpwm[0]) => [src::PWM0];
+    0x500c1 "MCPWM1" optional (mcpwm[1]) => [src::PWM0 + 1];
     0x500d6 "INTMTX" (intmtx) => [];
     0x500e0 "GPIO" (gpio) => [src::GPIO_INTR0];
     0x500e1 "IO_MUX" (io_mux) => [];
@@ -667,7 +681,7 @@ impl Peripherals {
             spi0: MspiCache(flash_controller(false)), psram0: MspiCache(RegRam::new()), spi1: flash_controller(true), psram1: psram_controller(),
             sha: Sha::new(), intmtx: IntMatrix::new(), clic: Clic::default(), cache: Cache::new(), hp_sys: HpSys::default(), hp_clkrst: HpClkRst::new(),
             lp: LpAon::new(), ana_mst: AnaMst::default(), assist_debug: AssistDebug::default(), rng: Rng::new(),
-            spi2: GpSpi::new(), i2c1: esp_periph::i2c::I2c::new(), axi_dma: AxiDma::new(), ahb_dma: AhbDma::new(), i2s1: esp_periph::I2s::new_v2_p4(CPU_HZ), ledc: Ledc::new(LedcLayout::P4),
+            spi2: GpSpi::new(), i2c1: esp_periph::i2c::I2c::new(), axi_dma: AxiDma::new(), ahb_dma: AhbDma::new(), i2s1: esp_periph::I2s::new_v2_p4(CPU_HZ), ledc: Ledc::new(LedcLayout::P4), pcnt: esp_periph::Pcnt::new(esp_periph::PcntLayout::P4), mcpwm: [Self::new_mcpwm(89), Self::new_mcpwm(95)],
             misc: Misc::new(), spi_exec: false, psram_exec: false, clock: Self::new_clock(), cycle_base: 0, last_status: [0; 4],
         }
     }
@@ -705,6 +719,7 @@ impl Peripherals {
     pub fn write32(&mut self, addr: u32, v: u32) {
         let fx = mmio::write32(self, addr, v);
         if addr == 0x500e_609c { self.ledc_clock(v); }
+        if addr == 0x500e_6094 { self.mcpwm_clock(v); }
         if (0x500e_6054..=0x500e_605c).contains(&addr) { self.i2s1_clock(); }
         if fx.contains(WriteEffect::SPI_EXEC | WriteEffect::PERIPH_RESET) {
             if fx.contains(WriteEffect::PERIPH_RESET) {
@@ -730,9 +745,23 @@ impl Peripherals {
     }
     /// HP_SYS_CLKRST PERI_CLK_CTRL22: LEDC_CLK_SRC_SEL 1:0 (0 XTAL, 1 RC_FAST, 2 PLL_F80M),
     /// LEDC_CLK_EN bit 2 (register/hw_ver3/soc/hp_sys_clkrst_reg.h:2510-2524, hal/ledc_ll.h:98-115;
-    /// RC_FAST is SOC_CLK_RC_FAST_FREQ_APPROX, 20 MHz).
+    /// RC_FAST is SOC_CLK_RC_FAST_FREQ_APPROX, 17.5 MHz in IDF v5.5.4 include/soc/clk_tree_defs.h:55).
+    /// An MCPWM group on the P4's 40 MHz Apb ticks.
+    fn new_mcpwm(signal_base: u32) -> esp_periph::Mcpwm { let mut m = esp_periph::Mcpwm::new(signal_base, 9); m.tick_hz = 40_000_000; m }
+    /// HP_SYS_CLKRST PERI_CLK_CTRL20: MCPWM0_CLK_SRC_SEL 1:0 (0 XTAL, 1 RC_FAST, 2 PLL_F160M),
+    /// MCPWM0_CLK_EN bit 2, MCPWM0_CLK_DIV_NUM 10:3, MCPWM1's at 12:11, 13 and 21:14
+    /// (register/hw_ver3/soc/hp_sys_clkrst_reg.h:2336-2381, hal/mcpwm_ll.h:154-215; RC_FAST is
+    /// SOC_CLK_RC_FAST_FREQ_APPROX, 17.5 MHz in include/soc/clk_tree_defs.h).
+    fn mcpwm_clock(&mut self, v: u32) {
+        for (g, shift) in [0, 11].into_iter().enumerate() {
+            let source = match (v >> shift) & 3 { 0 => 40_000_000, 1 => 17_500_000, 2 => 160_000_000, _ => 0 };
+            self.mcpwm[g].source_hz = source / (((v >> (shift + 3)) & 0xff) + 1) as u64;
+            self.mcpwm[g].clock_enabled = v & (1 << (shift + 2)) != 0 && source != 0;
+            Dispatch::refresh_optional(self, 0x500c0 + g as u32);
+        }
+    }
     fn ledc_clock(&mut self, v: u32) {
-        self.ledc.external_clock_hz = if v & (1 << 2) == 0 { 0 } else { match v & 3 { 0 => 40_000_000, 1 => 20_000_000, 2 => 80_000_000, _ => 0 } };
+        self.ledc.external_clock_hz = if v & (1 << 2) == 0 { 0 } else { match v & 3 { 0 => 40_000_000, 1 => 17_500_000, 2 => 80_000_000, _ => 0 } };
     }
 
     /// Which device each SDMMC slot reaches. Slot 0 is wired to its IO MUX pins: a device on
@@ -831,6 +860,49 @@ mod tests {
         assert_eq!(p.i2s1.sample_rate, 16000);
         p.write32(0x500e_6054, (1 << 28) | (3 << 29));                    // PLL_F160M
         assert_eq!(p.i2s1.sample_rate, 64000);
+    }
+
+    /// PERI_CLK_CTRL22 picks the LEDC source: RC_FAST is 17.5 MHz (IDF v5.5.4 clk_tree_defs.h:55), so
+    /// an 8-bit timer at divider 1 counts 17500 in a millisecond and runs at 17.5 MHz / 256.
+    #[test]
+    fn ledc_rc_fast_is_seventeen_and_a_half_megahertz() {
+        let mut p = Peripherals::new([0; 6], (3, 1));
+        for (sel, hz) in [(0, 40_000_000u64), (1, 17_500_000), (2, 80_000_000)] {
+            p.write32(0x500e_609c, (1 << 2) | sel);                       // LEDC_CLK_EN, LEDC_CLK_SRC_SEL
+            assert_eq!(p.ledc.external_clock_hz, hz);
+        }
+        p.write32(0x500e_609c, (1 << 2) | 1);                             // RC_FAST
+        p.write32(0x500d_30a0, 8 | (256 << 5) | (1 << 26));               // timer 0: 8-bit, divider 1, PARA_UP
+        p.write32(0x500d_3000, 4 | (1 << 4));                             // channel 0 on timer 0
+        p.tick(CPU_HZ / 1000);                                            // 1 ms: 17500 counts, 17500 % 256 = 92
+        assert_eq!(p.read32(0x500d_30a4), 92);
+        let mut gpio = esp_periph::Gpio::with_pins(57);
+        gpio.enable = 1 << 28;
+        gpio.func_out_sel[28] = 126;
+        assert_eq!(p.ledc.output(&gpio, 28).unwrap().0, 17_500_000.0 / 256.0);
+        p.write32(0x500e_609c, 0);
+        assert!(p.ledc.output(&gpio, 28).is_none(), "LEDC_CLK_EN off");
+    }
+
+    /// MCPWM1 clocked by PERI_CLK_CTRL20 (PLL_F160M / 2), the servo example's 1 MHz timer and 50 Hz
+    /// period on the P4's 40 MHz Apb ticks: the compare loads at the first wrap, 20 ms in.
+    #[test]
+    fn mcpwm_takes_its_clock_from_hp_sys_clkrst() {
+        let mut p = Peripherals::new([0; 6], (3, 1));
+        let pwm = 0x500c_1000;
+        p.write32(pwm + 0x004, (19999 << 8) | 79);
+        p.write32(pwm + 0x03c, 1);
+        p.write32(pwm + 0x040, 1500);
+        p.write32(pwm + 0x050, 2 | (1 << 4));
+        p.write32(pwm + 0x008, 2 | (1 << 3));
+        let mut gpio = esp_periph::Gpio::with_pins(57);
+        gpio.enable = 1 << 7;
+        gpio.func_out_sel[7] = 95;
+        assert!(p.mcpwm[1].output(&gpio, 7).is_none(), "unclocked");
+        p.write32(0x500e_6094, (2 << 11) | (1 << 13) | (1 << 14));        // MCPWM1: PLL_F160M, enabled, divider 2
+        assert_eq!(p.mcpwm[1].output(&gpio, 7), Some((50.0, 0)));
+        p.tick(CPU_HZ / 50);
+        assert_eq!(p.mcpwm[1].output(&gpio, 7), Some((50.0, 4915)));
     }
 
     /// AXI-GDMA OUT channel 2: a whole-word descriptor address in LINK2, START in LINK1 bit 1, the

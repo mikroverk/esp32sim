@@ -37,6 +37,10 @@ const SRC_SPI2: usize = 30;
 const SRC_SPI3: usize = 31;
 const SRC_LEDC: usize = 43;
 const SRC_RMT: usize = 47;
+/// IDF v5.5.4 components/soc/esp32/include/soc/interrupts.h, ETS_PCNT_INTR_SOURCE.
+const SRC_PCNT: usize = 48;
+/// ETS_PWM0_INTR_SOURCE, ETS_PWM1_INTR_SOURCE (same header).
+const SRC_PWM0: usize = 39;
 const SRC_I2C0: usize = 49;
 const SRC_I2C1: usize = 50;
 const SRC_RSA: usize = 51;
@@ -817,6 +821,13 @@ pub struct Peripherals {
     pub gpio: ClassicGpio,
     pub ledc: ClassicLedc,
     pub rmt: ClassicRmt,
+    /// PCNT at 0x3FF5_7000, eight units (IDF v5.5.4 soc/esp32/register/soc/reg_base.h DR_REG_PCNT_BASE).
+    pub pcnt: esp_periph::Pcnt,
+    /// MCPWM0/1 at 0x3FF5_E000 and 0x3FF6_C000 (reg_base.h DR_REG_PWM0_BASE/PWM1_BASE; soc/mcpwm_reg.h has
+    /// the S3's offsets), output signals PWM0_OUT0A_IDX 32 and PWM1_OUT0A_IDX 108 (gpio_sig_map.h), clocked
+    /// from PLL_F160M (include/soc/clk_tree_defs.h MCPWM_TIMER_CLK_SRC_DEFAULT) and gated by DPORT
+    /// PERIP_CLK_EN/PERIP_RST_EN bits 17 and 20 (dport_reg.h DPORT_PWM0_CLK_EN, DPORT_PWM1_CLK_EN).
+    pub mcpwm: [esp_periph::Mcpwm; 2],
     pub rtc: ClassicRtc,
     pub efuse: ClassicEfuse,
     pub syscon: RegRam,
@@ -826,6 +837,8 @@ pub struct Peripherals {
     pub i2c: [esp_periph::i2c::I2c<16>; 2],
     pub misc: Misc,
     pub spi_exec: bool,
+    /// Either MCPWM group has its clock (DPORT PERIP_CLK_EN), so `tick` looks at them.
+    mcpwm_on: bool,
     clock: ClockTree<1>,
     // Sixth-tick APB phase survives changes of the selected clock source.
     apb_phase: u64,
@@ -862,6 +875,9 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::RtcSlow, 1600)]
     0x50 "UART1" (uart[1]) => [SRC_UART1];
     0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
     0x56 "RMT" (rmt) => [SRC_RMT];
+    0x57 "PCNT" optional (pcnt) => [SRC_PCNT];
+    0x5e "MCPWM0" optional (mcpwm[0]) => [SRC_PWM0];
+    0x6c "MCPWM1" optional (mcpwm[1]) => [SRC_PWM0 + 1];
     0x59 "LEDC" (ledc) => [SRC_LEDC];
     0x58 "SLC" (slc) => [];
     0x5a "EFUSE" (efuse) => [];
@@ -912,6 +928,8 @@ impl Peripherals {
             gpio,
             ledc: ClassicLedc::new(),
             rmt: ClassicRmt::new(),
+            pcnt: esp_periph::Pcnt::new(esp_periph::PcntLayout::Classic),
+            mcpwm: [esp_periph::Mcpwm::new(32, 9), esp_periph::Mcpwm::new(108, 9)],
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
             syscon: { let mut r = RegRam::new(); r.write(0x7c, SYSCON_DATE_ECO3); r },
@@ -920,7 +938,7 @@ impl Peripherals {
             timg: [ClassicTimer::new(0), ClassicTimer::new(1)],
             i2c: [esp_periph::i2c::I2c::new_classic(), esp_periph::i2c::I2c::new_classic()],
             misc: Misc::new(),
-            spi_exec: false,
+            spi_exec: false, mcpwm_on: false,
             clock: Self::new_clock(),
             apb_phase: 0,
             aes: ClassicAes::new(),
@@ -1066,6 +1084,16 @@ impl Peripherals {
                 && self.dport.ram.read(0xc4) & (1 << 11) == 0;
             self.rmt.clock_enabled = self.dport.ram.read(0xc0) & (1 << 9) != 0
                 && self.dport.ram.read(0xc4) & (1 << 9) == 0;
+            for (group, bit) in [17, 20].into_iter().enumerate() {
+                if addr == 0x3ff0_00c4 && v & (1 << bit) != 0 { self.mcpwm[group] = esp_periph::Mcpwm::new([32, 108][group], 9); }
+                self.mcpwm[group].clock_enabled = self.dport.ram.read(0xc0) & (1 << bit) != 0
+                    && self.dport.ram.read(0xc4) & (1 << bit) == 0;
+                // A clocked group drives its six outputs (the matrix's OEN_SEL 0 leaves the enable
+                // to the peripheral); their PWM waveform is reported by `pwm_output`, not synthesized.
+                let enabled = self.mcpwm[group].clock_enabled;
+                for signal in [32, 108][group]..[32, 108][group] + 6 { self.gpio.set_output_signal(signal, false, enabled); }
+            }
+            self.mcpwm_on = self.mcpwm.iter().any(|m| m.clock_enabled);
         }
         if matches!(addr >> 12, 0x3ff00 | 0x3ff59) { self.sync_ledc_outputs(); }
         if matches!(addr, 0x3ff0_00cc | 0x3ff0_00d0) {
@@ -1074,6 +1102,16 @@ impl Peripherals {
                 && self.dport.ram.read(0xd0) & (1 << 2) == 0;
         }
         if matches!(addr >> 12, 0x3ff00 | 0x3ff56) { self.sync_rmt_outputs(); }
+    }
+    /// GPIO input edges reach the pulse counter; its interrupt is cached like any optional device's.
+    #[cold]
+    #[inline(never)]
+    fn pcnt_edges(&mut self) -> bool {
+        let before = self.pcnt.irq();
+        self.pcnt.matrix_edges(&mut self.gpio.gpio);
+        let changed = before != self.pcnt.irq();
+        if changed { self.refresh_optional(0x57); }
+        changed
     }
     pub fn tick(&mut self, cycles: u64) -> bool {
         let gpio_before = self.gpio.raw_status();
@@ -1094,6 +1132,15 @@ impl Peripherals {
             let cpu_hz = self.uart_pace_hz();
             for uart in self.uart.iter_mut() { irq_changed |= uart.advance(cycles, cpu_hz); }
         }
+        // MCPWM counts APB ticks like LEDC and RMT; its cached source follows the tick.
+        if self.mcpwm_on {
+            for (group, block) in [0x5e, 0x6c].into_iter().enumerate() {
+                if self.mcpwm[group].clock() != Some(ClockDomain::Apb) { continue; }
+                let before = self.mcpwm[group].irq_sources();
+                self.mcpwm[group].tick(ticks);
+                if before != self.mcpwm[group].irq_sources() { self.refresh_optional(block); irq_changed = true; }
+            }
+        }
         let ledc_before = self.ledc.irq_sources();
         let rmt_before = self.rmt.irq_sources();
         if self.ledc.clock() == Some(ClockDomain::Apb) { self.ledc.tick(ticks); }
@@ -1102,6 +1149,7 @@ impl Peripherals {
         irq_changed |= rmt_before != self.rmt.irq_sources();
         self.sync_ledc_outputs();
         self.sync_rmt_outputs();
+        if !self.gpio.gpio.input_changes.is_empty() { irq_changed |= self.pcnt_edges(); }
         // Routed PWM/RMT outputs can also change GPIO edge/level interrupts.
         irq_changed | (gpio_before != self.gpio.raw_status())
     }
@@ -1192,7 +1240,9 @@ impl Peripherals {
             return None;
         }
         let matrix = self.gpio.gpio.func_out_sel[pin];
-        let mut pwm = self.ledc.pwm((matrix & 0x1ff) as usize)?;
+        let Some(mut pwm) = self.ledc.pwm((matrix & 0x1ff) as usize) else {
+            return self.mcpwm.iter().find_map(|m| m.output(&self.gpio.gpio, pin as u8));
+        };
         if matrix & (1 << 9) != 0 {
             pwm.1 = 65535 - pwm.1;
         }
@@ -1605,6 +1655,33 @@ mod tests {
 
         p.write32(0x3ff4_4540, 71 | (1 << 9));
         assert_eq!(p.pwm_output(4).unwrap().1, 49151);
+    }
+
+    /// MCPWM0 with the servo example's settings (PLL_F160M / 2 / 80 = 1 MHz, a 20000-count period,
+    /// 1500 counts high): the compare loads at the first timer wrap, TEZ raises PWM0's source.
+    #[test]
+    fn classic_mcpwm_routes_pwm_and_interrupt_through_gpio_and_dport() {
+        let mut p = Peripherals::new([0; 6]);
+        p.write32(0x3ff4_8070, 1 << 27); // PLL: APB 80 MHz
+        p.write32(0x3ff0_0104 + 4 * SRC_PWM0 as u32, 12);
+        p.write32(0x3ff5_e000, 1);
+        p.write32(0x3ff5_e004, (19999 << 8) | 79);
+        p.write32(0x3ff5_e03c, 1);
+        p.write32(0x3ff5_e040, 1500);
+        p.write32(0x3ff5_e050, 2 | (1 << 4));
+        p.write32(0x3ff5_e008, 2 | (1 << 3));
+        p.write32(0x3ff5_e110, 1 << 3);
+        p.write32(0x3ff4_9048, (2 << 12) | (1 << 9));
+        p.write32(0x3ff4_4540, 32);
+        p.write32(0x3ff4_4024, 1 << 4); // GPIO_ENABLE_W1TS, as IDF's generator setup does
+        assert!(p.pwm_output(4).is_none(), "PWM0's clock is gated");
+        p.write32(0x3ff0_00c0, 1 << 17);
+        assert_eq!(p.pwm_output(4), Some((50.0, 0)));
+        p.tick(4_800_000);
+        assert_eq!(p.pwm_output(4), Some((50.0, 4915)));
+        assert_ne!(p.cpu_lines(0) & (1 << 12), 0);
+        p.write32(0x3ff0_00c4, 1 << 17);
+        assert!(p.pwm_output(4).is_none(), "held in reset");
     }
 
     #[test]

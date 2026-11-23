@@ -147,3 +147,34 @@ The claim is c6-contiki: user CPU −3.64% (0/7 slower, main `d043ff1d` against 
 On `686305aa` (the PR head merged into main `d043ff1d`), rustc 1.100.0: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings` pass; `ESP32SIM_ROM_DIR=… cargo test --release --workspace --no-fail-fast -- --include-ignored --skip external_` 1809 passed, 0 failed, including the `scintilla_p4_lcd35` golden; `node tools/check-evidence-privacy.mjs` pass; `git diff --check` clean. No goldens changed.
 
 At the code commit, on `104d7bd1`: `cargo +1.99.0 clippy --workspace --all-targets -- -D warnings` and the wasm32 `esp32sim-wasm --features jit-tests` clippy pass; `ESP32SIM_ROM_DIR=… cargo +1.99.0 test --release --workspace -- --include-ignored --skip external_` 1371 passed, 0 failed (empty `HOME`); plain `cargo +1.99.0 test --release --workspace` 1315 passed, 0 failed, 86 ignored; `tools/wasm-build.sh` + `node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel` ok; `node tools/check-evidence-privacy.mjs` pass; `git diff --check` clean. No goldens changed.
+
+## PR #381 follow-up: fades and the deadline scan
+
+PR #381 models LEDC hardware fades. A fade's DUTY_CHNG_END interrupt needs a deadline, so its first version answered `has_deadline()` true on the S3, C3, C6 and P4, and the C6's optional deadline scan (`device_set!`'s `optional_deadline`, run every round while a device is configured) called into the LEDC whenever a timer was configured. That call sat in the scan's loop: `optional_deadline` got a 288-byte frame with six saved register pairs and the LEDC's hoisted loads, paid on every call whether a fade ran or not (base: one saved pair). A `has_deadline()` of "a fade runs" alone did not help (arm A below): the call was still in the loop.
+
+Now (`4203d1d7`):
+
+- `optional_deadline` asks `has_deadline` of each configured optional device in a loop without calls and only asks `next_deadline` of those that said yes, out of line (`optional_deadline_of`). Same answers; a scan where no device has a deadline keeps a frameless loop.
+- `Ledc::has_deadline` is "a fade runs" (`fading != 0`); its deadline is `#[cold]` and out of line.
+- The Apb tick rate / 256 is a field set with the layout (`tick_unit`), so `tick_with_source` multiplies by a field as it did by EX252's constant; the PR had made it a test of the layout. The tick's code is again EX252's apart from that load.
+- The C6's PCNT is a static table entry, as on the S3. Its `clock()` is `None`, so as an optional entry it never ticked; it only added a case to the optional tick and refresh dispatch, which runs every round while the LEDC is configured.
+
+Also fixed: a timer shrunk under its phase made `wrap_deadline` subtract with overflow (`95899322`).
+
+Host instructions retired, 5 guest seconds, five alternating rounds of base `3f49dad8` (the PR's merge base), PR head `308f533b` and this follow-up (`ir_rounds.py 5 5 '<fixtures>' bins/base bins/head bins/final`, rustc 1.100.0; binaries, hashes and every run in [pr381-followup.json](pr381-followup.json)). Change = median of the five per-round differences against the base run of the same round; every run has the base's stop line and console hash.
+
+| Fixture | Base median | PR head | This follow-up |
+| --- | ---: | ---: | ---: |
+| c6-contiki | 21,156,912,740 | +2.29% (+2.23…+2.39, 5/5 higher) | +0.09% (+0.03…+0.18, 5/5) |
+| c6-hello | 9,177,736,729 | +0.14% (+0.04…+0.21, 5/5) | +0.15% (−0.04…+0.22, 4/5) |
+| c3-hello | 14,088,878,660 | +0.03% (−0.15…+0.08, 3/5) | +0.00% (−0.22…+0.05, 3/5) |
+| p4-hello | 66,952,245,989 | +0.22% (+0.19…+0.22, 5/5) | −0.04% (−0.17…−0.01, 0/5) |
+| hello (S3) | 1,658,349,838 | −0.32% (−0.63…−0.23, 0/5) | −0.18% (−0.64…+0.07, 1/5) |
+
+The remaining C6 cost is the per-round test for queued GPIO input edges that PR #381 adds to deliver them to the PCNT (the merge base cleared the queue unconditionally): with that test replaced by the base's clear (`final-noedges`, attribution only, PCNT edges dropped), three rounds give c6-contiki +0.02% and c6-hello +0.00% against the base, the follow-up +0.07% and +0.14% in the same rounds (`attribution_noedges`). It is about one host instruction per round.
+
+Screening, c6-contiki, one run per arm and round (`screening`): PR head +2.10…+2.27%; A (the LEDC's `has_deadline` = a fade runs, its deadline cold and out of line) +1.37…+1.56%; B (A + the two-pass scan) +0.53…+0.62%; C (B + `tick_unit`) +0.34…+0.38%; C without the C6 PCNT table entry +0.06…+0.08%; D (C + PCNT static) +0.06…+0.12%. On c6-hello C, D and the PR head all measure +0.10…+0.23%: there the cost is the edge test.
+
+Limits: one loaded machine, native only, host instructions only (no CPU-time claim; arms drift by up to 0.4% over five runs, so only the paired differences are compared). The base tree sits at a path of a different length (debug info only). A firmware that runs fades with DUTY_CHNG_END enabled pays the out-of-line deadline each scan while a fade runs; no fixture here fades. The P4 and the classic ESP32 keep the PCNT as an optional entry: the P4's LEDC is static, so its optional dispatch is not hot, and the classic has no fixture that configures the LEDC.
+
+Checks at `4203d1d7`, rustc 1.100.0: both Clippy commands with `-D warnings` pass; `cargo test --release -p esp-periph -p esp32 -p esp32c6 -p esp32p4 -p esp32s3 -p esp32c3 -p esp-soc -- --include-ignored --skip external_` 1288 passed, 0 failed; `cargo test --release -p esp32sim --test goldens -- --include-ignored --skip external_` 44 passed (`scintilla_p4_lcd35` among them); goldens unchanged.

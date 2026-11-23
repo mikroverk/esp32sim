@@ -1,5 +1,5 @@
 //! ESP32-S3 peripherals. The IP shared with other chips lives in `esp-periph`; here are the
-//! S3-only blocks (interrupt matrix, WiFi MAC, PCNT, GP-SPI, LCD_CAM, EXTMEM, WDEV, regi2c) and
+//! S3-only blocks (interrupt matrix, WiFi MAC, GP-SPI, LCD_CAM, EXTMEM, WDEV, regi2c) and
 //! the `Peripherals` set whose one table (`ENTRIES`) drives dispatch, sources, ticks and deadlines.
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{GpSpi, Ledc, LedcLayout, Mcpwm};
@@ -82,67 +82,8 @@ pub const SRC_WIFI_MAC: usize = 0;
 pub use crate::wifi::WifiMac;
 
 // ------------------------------------------------------------------ PCNT (pulse counter)
-/// Four units, two channels each: a signal input counts on rising/falling edges (mode 0 ignore,
-/// 1 increment, 2 decrement) and a control input modifies that (hctrl/lctrl mode 0 keep, 1 invert,
-/// 2 disable). Inputs arrive through the GPIO matrix (signals 33 + 4*unit .. 36 + 4*unit).
-/// Counters are 16-bit signed; high/low limits, thresholds and zero crossings raise the unit's interrupt.
-pub struct Pcnt { pub conf: [[u32; 3]; 4], pub cnt: [i16; 4], pub status: [u32; 4], pub int_raw: u32, pub int_ena: u32, pub ctrl: u32, ram: RegRam, pub events: u64 }
-impl Default for Pcnt { fn default() -> Self { Self::new() } }
-
-impl Pcnt {
-    pub fn new() -> Self { Pcnt { conf: [[0; 3]; 4], cnt: [0; 4], status: [0; 4], int_raw: 0, int_ena: 0, ctrl: 0, ram: RegRam::new(), events: 0 } }
-    pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
-    pub fn read(&self, off: u32) -> u32 {
-        match off {
-            0x00..=0x2c => { let u = (off / 12) as usize; self.conf[u][((off % 12) / 4) as usize] }
-            0x30..=0x3c => self.cnt[((off - 0x30) / 4) as usize] as u16 as u32,
-            0x40 => self.int_raw, 0x44 => self.int_raw & self.int_ena, 0x48 => self.int_ena,
-            0x50..=0x5c => self.status[((off - 0x50) / 4) as usize],
-            0x60 => self.ctrl, 0xfc => 0x1912_0400,
-            _ => self.ram.read(off),
-        }
-    }
-    pub fn write(&mut self, off: u32, v: u32) {
-        match off {
-            0x00..=0x2c => { let u = (off / 12) as usize; self.conf[u][((off % 12) / 4) as usize] = v; }
-            0x48 => self.int_ena = v, 0x4c => self.int_raw &= !v,
-            0x60 => { self.ctrl = v; for (u, cnt) in self.cnt.iter_mut().enumerate() { if v & (1 << (2 * u)) != 0 { *cnt = 0; } } }
-            _ => self.ram.write(off, v),
-        }
-    }
-    /// A GPIO input changed: `sig(idx)` gives the level of matrix input signal `idx` (None = not routed).
-    pub fn gpio_edge(&mut self, pin: u8, level: bool, sig: &dyn Fn(u32) -> Option<(u8, bool)>) {
-        for u in 0..4 {
-            if self.ctrl & (1 << (2 * u)) != 0 || self.ctrl & (1 << (2 * u + 1)) != 0 { continue; }   // reset held / paused
-            let conf0 = self.conf[u][0];
-            for ch in 0..2u32 {
-                let Some((sp, _)) = sig(33 + 4 * u as u32 + ch) else { continue };
-                if sp != pin { continue; }
-                let sh = 16 + 8 * ch;
-                let mode = if level { (conf0 >> (sh + 2)) & 3 } else { (conf0 >> sh) & 3 };          // pos_mode / neg_mode
-                let mut delta: i32 = match mode { 1 => 1, 2 => -1, _ => 0 };
-                if delta != 0 {
-                    let ctrl_level = sig(35 + 4 * u as u32 + ch).is_none_or(|(_, l)| l);
-                    let cm = if ctrl_level { (conf0 >> (sh + 4)) & 3 } else { (conf0 >> (sh + 6)) & 3 };   // hctrl / lctrl
-                    match cm { 1 => delta = -delta, 2 => delta = 0, _ => {} }
-                }
-                if delta != 0 { self.count(u, delta); }
-            }
-        }
-    }
-    fn count(&mut self, u: usize, delta: i32) {
-        let conf0 = self.conf[u][0]; let conf1 = self.conf[u][1]; let conf2 = self.conf[u][2];
-        let old = self.cnt[u] as i32; let mut new = old + delta;
-        let mut ev = 0u32;
-        if conf0 & (1 << 12) != 0 && new >= (conf2 & 0xffff) as i16 as i32 { ev |= 1 << 5; new = 0; }         // h_lim
-        if conf0 & (1 << 13) != 0 && new <= (conf2 >> 16) as i16 as i32 { ev |= 1 << 4; new = 0; }             // l_lim
-        if conf0 & (1 << 14) != 0 && new == (conf1 & 0xffff) as i16 as i32 { ev |= 1 << 3; }                   // thres0
-        if conf0 & (1 << 15) != 0 && new == (conf1 >> 16) as i16 as i32 { ev |= 1 << 2; }                      // thres1
-        if conf0 & (1 << 11) != 0 && new == 0 && old != 0 { ev |= if delta > 0 { 1 } else { 2 }; }             // zero (mode: 1 from negative, 2 from positive)
-        self.cnt[u] = new as i16; self.events += 1;
-        if ev != 0 { self.status[u] = ev; self.int_raw |= 1 << u; }
-    }
-}
+/// Four units on matrix signals 33 + 4*unit .. 36 + 4*unit (`esp_periph::pcnt`).
+pub use esp_periph::{Pcnt, PcntLayout};
 
 // ------------------------------------------------------------------ LCD_CAM (camera side)
 /// LCD_CAM captures sensor frames through GDMA trigger 5 while CAM_START is set.
@@ -277,11 +218,6 @@ impl I2cMst {
 impl Device for IntMatrix {
     fn read(&mut self, off: u32) -> u32 { IntMatrix::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { IntMatrix::write(self, off, v); WriteEffect::INTMAP }
-}
-impl Device for Pcnt {
-    fn read(&mut self, off: u32) -> u32 { Pcnt::read(self, off) }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect { Pcnt::write(self, off, v); WriteEffect::NONE }
-    fn irq_sources(&self) -> u64 { self.irq() as u64 }
 }
 impl Device for LcdCam {
     fn read(&mut self, off: u32) -> u32 { LcdCam::read(self, off) }
@@ -450,7 +386,7 @@ impl Peripherals {
             usb: UsbSerialJtag::new(CPU_HZ), uart: [Uart::new(UartLayout::S3), Uart::new(UartLayout::S3), Uart::new(UartLayout::S3)], systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], intmatrix: IntMatrix::new(), gpio: Gpio::new(), ledc: Ledc::new(LedcLayout::S3), mcpwm: [Mcpwm::new(160, 9), Mcpwm::new(166, 9)], rtc: RtcCntl::new(),
             efuse: Efuse::new(mac), system: SystemRegs::new(0x30), extmem: Extmem::new(), spi0: SpiMem::new(false), spi1: SpiMem::new(true),
-            i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()], lcd_cam: LcdCam::new(), spi2: GpSpi::new(), spi3: GpSpi::with_host(3), pcnt: Pcnt::new(), wifi: WifiMac::new(CPU_HZ), fe: FeIq { word: 0 },
+            i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()], lcd_cam: LcdCam::new(), spi2: GpSpi::new(), spi3: GpSpi::with_host(3), pcnt: Pcnt::new(PcntLayout::S3), wifi: WifiMac::new(CPU_HZ), fe: FeIq { word: 0 },
             aes: Aes::new(), rsa: Rsa::new(), sha: Sha::new(), wdev: Wdev::new(), i2c_mst: I2cMst::new(), gdma: Gdma::new(), i2s0: I2s::new(CPU_HZ), i2s1: I2s::new(CPU_HZ), rmt: Rmt::new(CPU_HZ),
             io_mux: RegRam::new(), misc: Misc::new(), fake_reads: std::env::var("ESP_EMU_FAKE_READ").ok().map(|v| v.split(',').filter_map(|e| { let mut p = e.split(':'); let a = u32::from_str_radix(p.next()?.trim_start_matches("0x"), 16).ok()?; let o = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).ok()?; let m = u32::from_str_radix(p.next().unwrap_or("ffffffff").trim_start_matches("0x"), 16).ok()?; Some((a, (o, m))) }).collect()).unwrap_or_default(),
             clock: Self::new_clock(),
@@ -624,16 +560,7 @@ impl Peripherals {
         let mut irq_changed = Dispatch::tick(self, cycles);
         if !self.gpio.input_changes.is_empty() {
             let before = self.pcnt.irq();
-            let gpio = &mut self.gpio;
-            let input = gpio.input;
-            let selections = &gpio.func_in_sel;
-            let sig = |idx: u32| -> Option<(u8, bool)> {
-                let sel = *selections.get(idx as usize)?;
-                if sel & 0x80 == 0 { return None; }                       // not routed through the matrix
-                let pin = (sel & 0x3f) as u8; if pin >= 49 { return None; }
-                let lvl = (input >> pin) & 1 != 0; Some((pin, lvl ^ (sel & 0x40 != 0)))
-            };
-            for (pin, level) in gpio.input_changes.drain(..) { self.pcnt.gpio_edge(pin, level, &sig); }
+            self.pcnt.matrix_edges(&mut self.gpio);
             irq_changed |= before != self.pcnt.irq();
         }
         irq_changed
