@@ -290,6 +290,8 @@ impl SocBus for TestBus {
         Ok(())
     }
     fn write_flash(&mut self, _offset: usize, _data: &[u8]) -> Result<(), String> { Ok(()) }
+    fn read_flash(&self, _offset: usize, _len: usize) -> Option<&[u8]> { None }
+    fn flash_len(&self) -> usize { 0 }
     fn boot_app(&mut self, _app_off: usize) -> Result<u32, String> { Ok(0) }
     fn reboot(&mut self, _mac: [u8; 6]) -> u32 {
         self.irq = false;
