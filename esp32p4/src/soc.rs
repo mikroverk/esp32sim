@@ -190,6 +190,7 @@ impl esp_soc::SocBus for SocBus {
                 SocBus::load_bytes(self, s.load_addr, &data)?;
             }
         }
+        self.invalidate_code();   // the flash MMU entries
         Ok(img.entry)
     }
     /// Digital peripherals re-created; L2MEM, TCM, the LP domain, the efuses and the analog
@@ -239,6 +240,7 @@ impl esp_soc::SocBus for SocBus {
         *self.mmu_psram = [0; MMU_ENTRIES];
         self.mmu_flash_index = 0;
         self.mmu_psram_index = 0;
+        self.invalidate_code();
         self.reservation = [None; 2];
         self.attach_board_devices();                     // the board's I2C devices, on the new controller
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
@@ -270,9 +272,10 @@ impl esp_soc::SocBus for SocBus {
     }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
+        self.invalidate_code();
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.jedec[2] = cap; self.periph.spi0.0.jedec[2] = cap;
     }
-    fn set_psram_size(&mut self, bytes: usize) -> Result<(), String> { self.psram = vec![0; bytes]; Ok(()) }
+    fn set_psram_size(&mut self, bytes: usize) -> Result<(), String> { self.resize_psram(bytes); Ok(()) }
     fn set_strap(&mut self, v: u32) { self.periph.gpio.g.strap = v; }
     fn set_reset_cause(&mut self, c: u32) { self.periph.lp.reset_cause = c; }
     fn set_debug(&mut self, f: &esp_soc::DebugFlags) {
