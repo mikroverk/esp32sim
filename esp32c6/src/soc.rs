@@ -112,6 +112,7 @@ impl esp_soc::SocBus for SocBus {
                     let idx = (((s.load_addr - FLASH_LOW) >> shift) + i) as usize;
                     self.mmu[idx] = MMU_VALID | ((first_page + i) & 0x1ff);
                 }
+                self.invalidate_flash_code();
             } else {
                 let data = self.flash[start..end].to_vec();
                 SocBus::load_bytes(self, s.load_addr, &data)?;
@@ -149,6 +150,7 @@ impl esp_soc::SocBus for SocBus {
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;
+        self.invalidate_flash_code();   // the MMU, and flash the BLE hooks had patched
         self.attach_board_devices();
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
         self.periph.misc.log_all = self.debug.has("mmio");
@@ -189,6 +191,7 @@ impl esp_soc::SocBus for SocBus {
     }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
+        self.invalidate_flash_code();
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.0.jedec[2] = cap; self.periph.spi0.0.jedec[2] = cap;
     }
     fn set_strap(&mut self, v: u32) { self.periph.gpio.strap = v; }

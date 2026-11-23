@@ -7,7 +7,7 @@ const BASE: u32 = 0x4080_0000;
 struct Ram(Vec<u8>);
 impl Ram {
     fn new() -> Self { Ram(vec![0; 0x10000]) }
-    fn mem(&mut self) -> Sram<'_> { Sram { base: BASE, bytes: &mut self.0 } }
+    fn mem(&mut self) -> Sram<'_> { Sram { base: BASE, bytes: &mut self.0, ver: &mut [] } }
     fn w32(&mut self, a: u32, v: u32) { let o = (a - BASE) as usize; self.0[o..o + 4].copy_from_slice(&v.to_le_bytes()); }
     fn r32(&self, a: u32) -> u32 { let o = (a - BASE) as usize; u32::from_le_bytes(self.0[o..o + 4].try_into().unwrap()) }
     /// A descriptor: size, length, eof, owner, buffer, next.
