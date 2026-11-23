@@ -91,7 +91,7 @@ separately lists the actual instruction count for each core.
 
 `--pwm PIN` reports the GPIO-matrix PWM frequency in Hz and duty percentage when the run stops.
 Repeat it to observe several pins. PIN is an unsigned 8-bit decimal number.
-LEDC is supported on S3, C3, C6, P4 and the classic ESP32; MCPWM on S3 and C6. During an LEDC hardware fade
+LEDC is supported on S3, C3, C6, P4 and the classic ESP32; MCPWM on S3, C6, P4 and the classic ESP32. During an LEDC hardware fade
 it reports the duty in effect when the run stops.
 A running timer with 0% or 100% duty still has a snapshot. "No supported running PWM" means
 unrouted, disabled, paused or unsupported configuration; it does not imply a low GPIO level.
