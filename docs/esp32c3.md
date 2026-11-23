@@ -127,7 +127,7 @@ $OD -d examples/hello_world-c3/build/hello_world.elf > /tmp/app.dis
 RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release
 ```
 
-LEDC models low-speed timers, static duty latching and GPIO-matrix frequency/duty observation through `--pwm PIN`. Hardware fades and sampled PWM edges are not modelled.
+LEDC models low-speed timers, duty latching, hardware fades ending with DUTY_CHNG_END, and GPIO-matrix frequency/duty observation through `--pwm PIN`. Sampled PWM edges are not modelled.
 
 ## Wi-Fi station
 

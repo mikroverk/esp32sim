@@ -50,8 +50,8 @@ LACT sleep-time RTC stepping and timer-group watchdog execution are not modeled.
 Classic peripheral extensions include I2C0/1, sixteen LEDC channels,
 SPI2/3 with controller-local DMA, and eight RMT channels. SPI and RMT feed
 the existing board/display/WS2812 interfaces. `esp32dev-loopback` supplies a loopback board fixture; `ttgo-tdisplay`
-hangs an ST7789 on SPI3 (below). Hardware fade and RMT receive
-are not implemented; transaction-level SPI has no bit-level timing.
+hangs an ST7789 on SPI3 (below). LEDC hardware fades run on both speed groups; RMT receive
+is not implemented; transaction-level SPI has no bit-level timing.
 
 Classic Wi-Fi uses the shared `StationLink` access point, network and Ethernet
 relay. An inline DPORT clock gate guards service. A DPORT MAC reset keeps the
