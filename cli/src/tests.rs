@@ -241,7 +241,7 @@ fn timeout_durations_and_inject_escapes_parse_as_documented() {
     assert!(duration("soon").is_err() && duration("-1s").is_err() && duration("").is_err());
     assert_eq!(unescape(r"ot state\r\n").unwrap(), "ot state\r\n");
     assert_eq!(unescape(r"a\tb\\c\x41\q").unwrap(), "a\tb\\cA\\q");
-    assert!(unescape(r"\x80").is_err() && unescape(r"\x4").is_err());
+    assert!(unescape(r"\x80").is_err() && unescape(r"\x4").is_err() && unescape(r"\x+1").is_err());
 }
 
 #[test]

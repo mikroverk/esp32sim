@@ -79,7 +79,7 @@ fn unescape(s: &str) -> Result<String, String> {
             Some('n') => out.push('\n'), Some('r') => out.push('\r'), Some('t') => out.push('\t'), Some('\\') => out.push('\\'),
             Some('x') => {
                 let hex: String = it.by_ref().take(2).collect();
-                match u8::from_str_radix(&hex, 16) { Ok(b) if hex.len() == 2 && b < 0x80 => out.push(b as char), _ => return Err(format!("\\x{hex}: expected two hex digits from 00 to 7f")) }
+                match u8::from_str_radix(&hex, 16) { Ok(b) if hex.len() == 2 && hex.bytes().all(|c| c.is_ascii_hexdigit()) && b < 0x80 => out.push(b as char), _ => return Err(format!("\\x{hex}: expected two hex digits from 00 to 7f")) }
             }
             Some(other) => { out.push('\\'); out.push(other); }
             None => out.push('\\'),
@@ -317,7 +317,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if o.exit_on.as_deref() == Some("") || o.inject_ons.iter().any(String::is_empty) { usage_error("--exit-on and --inject-on need a non-empty string"); }
     if o.inject_ons.len() > o.injects.len() { usage_error("each --inject-on needs an --inject: they pair up in the order given"); }
     if !o.inject_ons.is_empty() && o.script.is_some() { usage_error("--inject-on with --script: the waits would hold the script back; put them in the script (waituart0, uart0)"); }
-    if o.uart_tcp.is_some() && o.uart_tcp == o.uart1_tcp { usage_error("--uart-tcp and --uart1-tcp need different addresses"); }
+    if o.uart_tcp.is_some() && o.uart_tcp == o.uart1_tcp && !o.uart_tcp.as_deref().is_some_and(|a| a.ends_with(":0")) { usage_error("--uart-tcp and --uart1-tcp need different addresses"); }
     if (o.ble_observe || o.ble_scan) && !o.ble_full { usage_error("BLE central/observer use requires --ble full"); }
     if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
     if !o.ble_nearby.is_empty() {
@@ -826,7 +826,7 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
         cmds
     });
     let t0 = std::time::Instant::now();
-    m.host.deadline = o.timeout.map(|d| t0 + d);
+    m.host.deadline = o.timeout.map(|d| t0.checked_add(d).unwrap_or_else(|| usage_error("--timeout: too long")));
     m.web_restart = !o.no_reboot;
     let (reboot, app) = (!o.no_reboot && boot == "rom", boot == "app");
     let (insns, ended) = match cmds { Some(cmds) => run_usb_host(&mut m, &cmds, o.max_insns, reboot, app), None => (o.max_insns, None) };
@@ -843,8 +843,11 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
         eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);
         if let Some(cache) = &model.cache { eprintln!("[emu] approximate physical data cache: {:?}", cache.borrow().stats()); }
     }
-    // --exit-on matched: 0, as for any run that ends; --timeout: 124, as coreutils `timeout`; --exit-on never matched: 1
-    match m.host.ended {
+    // --exit-on matched: 0, as for any run that ends; --timeout: 124, as coreutils `timeout`; --exit-on never matched: 1.
+    // The machine goes first: what it writes on drop (--regtrace's buffer) is not lost to `exit`.
+    let ended = m.host.ended;
+    drop(m);
+    match ended {
         Some(esp_soc::HostEnd::Timeout) => std::process::exit(124),
         None if o.exit_on.is_some() => std::process::exit(1),
         _ => {}
