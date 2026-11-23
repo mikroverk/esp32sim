@@ -1,13 +1,26 @@
-//! A Bosch BMP280 barometric pressure and temperature sensor on I2C (0x76 or 0x77), as
-//! esp-idf-lib's `bmp280` component drives it: chip ID 0x58 at 0xD0, 24 bytes of calibration at
-//! 0x88 (T1..T3 then P1..P9, little-endian 16-bit), 20-bit raw pressure at 0xF7 and temperature
-//! at 0xFA, each three bytes MSB-first with the low nibble of the third byte unused. `ctrl_meas`
-//! at 0xF4 starts a measurement and `status` at 0xF3 bit 3 reads back as measuring.
+//! A Bosch BMP280 barometric pressure and temperature sensor on I2C (0x76 or 0x77), modelled from
+//! datasheet BST-BMP280-DS001 revision 1.26 (October 2021). Section and table numbers below are
+//! that revision:
 //!
-//! The compensation below is the datasheet's integer path verbatim, so the model and the driver
-//! agree to the last digit. The calibration words are the datasheet's worked example, and the
-//! default raw values are the ones it compensates to 25.08 °C / 100653 Pa — `compensate` is
-//! asserted against those, which is what makes the model trustworthy rather than merely plausible.
+//! - 4.3.1 and Table 18: chip ID 0x58 at 0xD0, the register map, and which registers are read-only.
+//! - Table 17: the 24 calibration bytes at 0x88 (T1..T3 then P1..P9, little-endian 16-bit words;
+//!   T1 and P1 unsigned, everything else two's complement).
+//! - Tables 21, 22, 24 and 25: 20-bit samples at 0xF7 (pressure) and 0xFA (temperature), three
+//!   bytes MSB-first with the low nibble of the third byte unused, and 0x80000 for a channel the
+//!   measurement skipped.
+//! - 3.6.2: `ctrl_meas` at 0xF4 starts a measurement, and a forced one returns to sleep when it
+//!   finishes. `status` at 0xF3 bit 3 is the measuring flag; here it only ever reads clear,
+//!   because the measurement completes in the write that starts it.
+//! - 4.3.2: 0xB6 written to 0xE0 runs the full power-on reset.
+//! - 5.2.1: a write transaction is pairs of register address and data.
+//! - 3.11.3: the integer compensation path, reproduced verbatim (including its note that the
+//!   integer result may deviate slightly from the printed table).
+//!
+//! The calibration words and the staged raw samples are the datasheet's worked example, which
+//! compensates to 25.08 °C / 100653.25 Pa; `compensate` returns those as the integer values the
+//! datasheet's own functions return, so the tests assert them exactly rather than within a
+//! tolerance. The write sequences of esp-idf-lib's `bmp280`, Linux's `bmp280-core`, Adafruit's
+//! BMP280 library and Bosch's BME280_SensorAPI are replayed in the tests.
 use esp_periph::i2c::I2cDevice;
 
 /// SDO strapped high (the common module default). SDO low is 0x76.
@@ -40,7 +53,7 @@ const CALIBRATION: [u16; 12] = [
     6000,   // 0x9E P9
 ];
 
-/// Raw ADC values the datasheet compensates to 25.08 °C and 100653 Pa.
+/// Raw ADC values the datasheet compensates to 25.08 °C and 100653.25 Pa.
 const ADC_T: u32 = 519888;
 const ADC_P: u32 = 415148;
 
@@ -48,10 +61,9 @@ pub struct Bmp280 {
     regs: [u8; 256],
     ptr: u8,
     first: bool,
-    /// Raw 20-bit samples a forced measurement publishes at 0xF7/0xFA.
+    /// Raw 20-bit samples the next measurement publishes at 0xF7/0xFA.
     raw_t: u32,
     raw_p: u32,
-    pub reads: u64,
 }
 
 impl Default for Bmp280 { fn default() -> Self { Self::new() } }
@@ -60,15 +72,15 @@ impl Bmp280 {
     pub fn new() -> Self {
         let mut d = Bmp280 {
             regs: [0u8; 256], ptr: 0, first: true,
-            raw_t: ADC_T, raw_p: ADC_P, reads: 0,
+            raw_t: ADC_T, raw_p: ADC_P,
         };
         d.reset();
         d
     }
 
-    /// Power-on / soft-reset state (datasheet 4.3.2): calibration and chip ID restored,
-    /// control and status cleared, and the default worked-example sample published so a
-    /// fixed-delay driver still reads a sane value before its first forced measurement.
+    /// Power-on / soft-reset state (datasheet 4.3.2): calibration and chip ID restored, control,
+    /// status and config cleared, and both data channels reading 0x80 0x00 0x00 — the reset value
+    /// of Table 18, and the value a channel with oversampling 000 reports (Tables 21, 22).
     fn reset(&mut self) {
         self.regs = [0u8; 256];
         for (i, &w) in CALIBRATION.iter().enumerate() {
@@ -77,21 +89,27 @@ impl Bmp280 {
             self.regs[r + 1] = (w >> 8) as u8;
         }
         self.regs[REG_ID as usize] = CHIP_ID;
-        self.publish();
+        // im_update (bit 0) and measuring (bit 3) only ever read clear here: a measurement
+        // completes inside the write that starts it (3.6.2), so no conversion is ever pending.
+        self.regs[REG_STATUS as usize] = 0;
+        self.regs[REG_PRESS as usize] = 0x80;
+        self.regs[REG_TEMP as usize] = 0x80;
     }
 
-    /// Replace what the next forced measurement reports. `publish` makes it visible immediately,
-    /// so a driver that skips the status poll still reads a sane sample.
+    /// Stage the samples the next measurement reports. Nothing reaches the data registers until a
+    /// measurement runs, so a guest that has not configured `ctrl_meas` still reads 0x80000.
     pub fn set_raw(&mut self, adc_t: u32, adc_p: u32) {
         self.raw_t = adc_t & 0x000F_FFFF;
         self.raw_p = adc_p & 0x000F_FFFF;
-        self.publish();
     }
 
-    /// Write the latched samples into the data registers, MSB first, low nibble of xlsb clear.
+    /// Write the sample a measurement produced into the data registers, MSB first, low nibble of
+    /// xlsb clear. A channel whose oversampling is 000 was skipped by that measurement and reports
+    /// 0x80000 as silicon does (Tables 21, 22); `ctrl_meas` still holds the rates just written.
     fn publish(&mut self) {
-        let p = self.raw_p;
-        let t = self.raw_t;
+        let ctrl = self.regs[REG_CTRL_MEAS as usize];
+        let p = if ctrl & 0x1C != 0 { self.raw_p } else { 0x8_0000 };
+        let t = if ctrl & 0xE0 != 0 { self.raw_t } else { 0x8_0000 };
         self.regs[REG_PRESS as usize] = (p >> 12) as u8;
         self.regs[REG_PRESS as usize + 1] = (p >> 4) as u8;
         self.regs[REG_PRESS as usize + 2] = ((p & 0x0F) << 4) as u8;
@@ -115,8 +133,10 @@ impl Bmp280 {
         ((self.regs[r] as i32) << 12) | ((self.regs[r + 1] as i32) << 4) | ((self.regs[r + 2] as i32) >> 4)
     }
 
-    /// Temperature in °C and pressure in Pa, by the datasheet's integer path.
-    pub fn compensate(&self) -> (f32, f32) {
+    /// Temperature in 0.01 °C and pressure in Q24.8 (Pa × 256), by the datasheet's integer path
+    /// (3.11.3): the same values `bmp280_compensate_T_int32` and `bmp280_compensate_P_int64`
+    /// return. Keeping the integers means the worked example can be asserted exactly.
+    pub fn compensate(&self) -> (i32, u32) {
         let adc_t = self.sample(REG_TEMP);
         let adc_p = self.sample(REG_PRESS);
 
@@ -126,7 +146,7 @@ impl Bmp280 {
         let var1 = (((adc_t >> 3) - (dig_t1 << 1)) * dig_t2) >> 11;
         let var2 = (((((adc_t >> 4) - dig_t1) * ((adc_t >> 4) - dig_t1)) >> 12) * dig_t3) >> 14;
         let t_fine = var1 + var2;
-        let t = ((t_fine * 5 + 128) >> 8) as f32 / 100.0;
+        let t = (t_fine * 5 + 128) >> 8;
 
         let dig_p1 = self.word(0x8E) as i64;
         let dig_p2 = self.sword(0x90) as i64;
@@ -144,13 +164,13 @@ impl Bmp280 {
         let var2 = var2 + (dig_p4 << 35);
         let mut var1 = ((var1 * var1 * dig_p3) >> 8) + ((var1 * dig_p2) << 12);
         var1 = (((1i64 << 47) + var1) * dig_p1) >> 33;
-        if var1 == 0 { return (t, 0.0); }
+        if var1 == 0 { return (t, 0); }
         let mut p = 1048576 - adc_p as i64;
         p = (((p << 31) - var2) * 3125) / var1;
         let var1 = (dig_p9 * (p >> 13) * (p >> 13)) >> 25;
         let var2 = (dig_p8 * p) >> 19;
         p = ((p + var1 + var2) >> 8) + (dig_p7 << 4);
-        (t, p as f32 / 256.0)
+        (t, p as u32)
     }
 }
 
@@ -204,7 +224,6 @@ impl I2cDevice for Bmp280 {
     fn read(&mut self) -> u8 {
         let r = self.ptr;
         let v = self.regs[r as usize];
-        if r == REG_STATUS { self.reads += 1; }
         self.ptr = r.wrapping_add(1);
         v
     }
@@ -229,17 +248,37 @@ mod tests {
     }
 
     #[test]
-    fn default_samples_compensate_to_the_datasheet_example() {
-        let d = Bmp280::new();
-        let (t, p) = d.compensate();
-        assert!((t - 25.08).abs() < 0.05, "temperature {t}");
-        assert!((p - 100_653.0).abs() < 20.0, "pressure {p}");
+    fn default_samples_compensate_to_the_datasheet_example_exactly() {
+        let mut d = Bmp280::new();
+        // The page-23 worked example is the raw pair in ADC_T/ADC_P with both channels
+        // oversampled; force one measurement so it reaches the data registers.
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
+        // bmp280_compensate_T_int32 -> 2508 (25.08 °C) and bmp280_compensate_P_int64 ->
+        // 25767233 (Q24.8, 100653.25 Pa). The printed table says 25767236; 3.11.3 allows the
+        // integer result to deviate. Asserting the exact integers catches an off-by-a-shift.
+        assert_eq!(d.compensate(), (2508, 25_767_233));
+    }
+
+    /// Table 18 gives 0x80 0x00 0x00 for both channels until a measurement has run, and
+    /// Tables 21 and 22 give 0x80000 for a channel whose oversampling is 000.
+    #[test]
+    fn data_registers_hold_the_reset_value_until_a_measurement_covers_a_channel() {
+        let mut d = Bmp280::new();
+        assert_eq!(read_at(&mut d, REG_PRESS, 3), [0x80, 0x00, 0x00]);
+        assert_eq!(read_at(&mut d, REG_TEMP, 3), [0x80, 0x00, 0x00]);
+        // osrs_t = x4, osrs_p = skipped, mode 01: only temperature is measured.
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x61);
+        assert_eq!(read_at(&mut d, REG_PRESS, 3), [0x80, 0x00, 0x00]);
+        assert_eq!(read_at(&mut d, REG_TEMP, 3), [0x7E, 0xED, 0x00]);
+        d.start(false); d.write(REG_RESET); d.write(0xB6);
+        assert_eq!(read_at(&mut d, REG_TEMP, 3), [0x80, 0x00, 0x00]);
     }
 
     #[test]
     fn forced_measurement_completes_on_write_and_data_is_contiguous() {
         let mut d = Bmp280::new();
-        // esp-idf-lib writes 0x6C at init and 0x6D to force (osrs x3/x3, mode 01).
+        // esp-idf-lib writes 0x6C at init and 0x6D to force: osrs_t = 011 (x4), osrs_p = 011
+        // (x4), mode 00 at init and 01 when forcing.
         d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
         // The measurement is finished by the write: mode bits return to 00, status stays clear.
         assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0], 0x6C);
@@ -296,8 +335,10 @@ mod tests {
     #[test]
     fn a_different_sample_changes_the_reported_value() {
         let mut d = Bmp280::new();
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
         let (t0, _) = d.compensate();
         d.set_raw(ADC_T - 200_000, ADC_P);
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
         let (t1, _) = d.compensate();
         assert!(t1 < t0, "cooler raw sample should read cooler: {t0} -> {t1}");
     }
