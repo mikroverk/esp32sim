@@ -46,7 +46,25 @@ impl Aes {
                     else { for byte in iv.iter_mut().rev() { *byte = byte.wrapping_add(1); if *byte != 0 { break; } } }
                     block
                 }
-                _ => crate::crypto::aes_block(&key, &block, decrypt), // ECB
+                4 => { // CFB8: one forward-cipher call per byte; the IV shifts in the ciphertext byte.
+                    for byte in block.iter_mut() {
+                        let stream = crate::crypto::aes_block(&key, &iv, false);
+                        let input = *byte;
+                        *byte ^= stream[0];
+                        iv.copy_within(1.., 0);
+                        iv[15] = if decrypt { input } else { *byte };
+                    }
+                    block
+                }
+                5 => { // CFB128: the next IV is the ciphertext block. A zero-padded final block leaves the
+                       // ciphertext bytes then the keystream in the output, as IDF's partial-block path expects.
+                    let ciphertext = block;
+                    let stream = crate::crypto::aes_block(&key, &iv, false);
+                    for i in 0..16 { block[i] ^= stream[i]; }
+                    iv = if decrypt { ciphertext } else { block };
+                    block
+                }
+                _ => crate::crypto::aes_block(&key, &block, decrypt), // ECB (0); GCM (6) is not modelled
             };
             output.extend_from_slice(&out);
             self.blocks += 1;
@@ -130,7 +148,8 @@ mod tests {
 
     #[test]
     fn chaining_matches_nist_vectors_across_dma_requests() {
-        // NIST SP 800-38A appendix F: first two AES-128 blocks for ECB, CBC, OFB and CTR.
+        // NIST SP 800-38A appendix F: first two AES-128 blocks for ECB, CBC, OFB, CTR, CFB8 (F.3.7, which
+        // lists 18 bytes; the rest computed with pyca/cryptography 44.0.3) and CFB128 (F.3.13).
         // https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf
         let plain = hex("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e51");
         for (mode, initial_iv, cipher, final_iv) in [
@@ -142,6 +161,10 @@ mod tests {
                 "3b3fd92eb72dad20333449f8e83cfb4a7789508d16918f03f53c52dac54ed825", "d9a4dada0892239f6b8b3d7680e15674"),
             (3, "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
                 "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff", "f0f1f2f3f4f5f6f7f8f9fafbfcfdff01"),
+            (4, "000102030405060708090a0b0c0d0e0f",
+                "3b79424c9c0dd436bace9e0ed4586a4f32b9ded50ae3ba69d472e88267fb5052", "32b9ded50ae3ba69d472e88267fb5052"),
+            (5, "000102030405060708090a0b0c0d0e0f",
+                "3b3fd92eb72dad20333449f8e83cfb4ac8a64537a0b3a93fcde3cdad9f1ce58b", "c8a64537a0b3a93fcde3cdad9f1ce58b"),
         ] {
             let cipher = hex(cipher);
             for decrypt in [false, true] {
@@ -155,5 +178,15 @@ mod tests {
                 assert_eq!(iv, hex(final_iv), "mode {mode}, decrypt {decrypt}");
             }
         }
+    }
+
+    #[test]
+    fn cfb128_short_final_block_leaves_the_keystream_after_the_data() {
+        // IDF's esp_aes_crypt_cfb128 (v5.5.4, port/aes/dma/esp_aes.c) sends a partial final block through
+        // DMA and keeps the whole output block as its next IV: ciphertext bytes, then keystream.
+        let plain = hex("6bc1bee22e409f96e93d7e117393172aae2d8a57");
+        let mut aes = accelerator(5, false, "000102030405060708090a0b0c0d0e0f");
+        assert_eq!(aes.transform_blocks(&plain),
+                   hex("3b3fd92eb72dad20333449f8e83cfb4ac8a64537beb005a35354a201dab36bda"));
     }
 }
