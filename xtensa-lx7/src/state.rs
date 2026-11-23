@@ -216,7 +216,7 @@ impl Cpu {
             interrupt: 0, intenable: 0, ccount: 0, approximate_cpi: 1, approximate_pie_mode: 0, approximate_pie_events: 0, approximate_pie_cycles: 0, ccompare: [0; 3],
             #[cfg(target_arch = "wasm32")]
             event_at: u32::MAX,
-            cpenable: 0, prid, threadptr: 0, f64: [0; 3], lx6: false, misc: [0; 4],
+            cpenable: 0xff, prid, threadptr: 0, f64: [0; 3], lx6: false, misc: [0; 4],
             icount: 0, icountlevel: 0, ibreakenable: 0, ibreaka: [0; 2], dbreaka: [0; 2], dbreakc: [0; 2], memctl: 0, atomctl: 0, ddr: 0,
             configid: [0xC2ECFAFE, 0x22F86EDF],   // reported by real S3 (informational)
             fr: [0; 16], fcr: 0, fsr: 0,
@@ -246,7 +246,7 @@ impl Cpu {
         self.interrupt = 0;
         self.ext_irq_lines = 0;
         self.lcount = 0;
-        self.cpenable = 0;
+        self.cpenable = 0xff;  // observed value on ESP32 and ESP32-S3 silicon
         self.icountlevel = 0;
         self.memctl = 1;      // observed reset value on ESP32-S3 silicon (rsr.memctl in the ROM reset path)
         self.waiting = false;

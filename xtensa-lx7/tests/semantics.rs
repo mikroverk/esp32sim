@@ -186,3 +186,15 @@ fn rsr_ps_does_not_split_block_before_interrupt_enable() {
         assert_eq!((c.pc, c.epc), (oracle.pc, oracle.epc));
     }
 }
+
+/// Crsr.cpenable at the start of an esp-hal `main` reads 0xff on ESP32-S3 and ESP32 silicon.
+#[test]
+fn cpenable_resets_with_all_coprocessors_enabled() {
+    assert_eq!(Cpu::new(0).cpenable, 0xff);
+    // add.s f3, f3, f3 (listing: 0a3330); CP0 is the FPU on the S3, so the step must not raise
+    // Coprocessor0Disabled.
+    let (mut cpu, mut ram) = machine(&asm("0a3330"), "add.s f3, f3, f3");
+    cpu.fr[3] = 1.5f32.to_bits();
+    step(&mut cpu, &mut ram).unwrap();
+    assert_eq!(cpu.fr[3], 3.0f32.to_bits());
+}
