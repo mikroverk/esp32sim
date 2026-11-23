@@ -34,6 +34,9 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi or --wifi-sta)");
     eprintln!("  --hostfwd tcp:H:HP-G:GP  publish a guest TCP port on the host (repeatable; needs --wifi)");
     eprintln!("  --script F            host actions at emulated times (button presses, touches, serial input, stop)");
+    eprintln!("  --exit-on TEXT        end the run, status 0, once the console prints TEXT (status 1 if it never does)");
+    eprintln!("  --timeout DUR         end the run after DUR of wall-clock time (5s, 500ms), status 124");
+    eprintln!("  --inject DATA, --inject-on TEXT   DATA (\\n, \\r escapes) into UART0, at the start or once UART0 printed TEXT");
     eprintln!("  --tft-png F, --wav F  save the display / the audio at the end of the run");
     eprintln!("  --mic-wav [PORT:]F    play a 16-bit PCM WAV once into I2S RX (default controller 0), resampled");
     eprintln!("  --web PORT            serve the board UI at http://127.0.0.1:PORT/ in real time");
@@ -52,6 +55,36 @@ fn help(chip: &str, code: i32) -> ! {
 }
 
 fn usage_error(message: &str) -> ! { eprintln!("{message}"); std::process::exit(2) }
+
+/// `--timeout`: `500ms`, `5s`, `6.5s`, `2m`, `1h`; a bare number is seconds.
+fn duration(s: &str) -> Result<std::time::Duration, String> {
+    let (num, scale) = if let Some(n) = s.strip_suffix("ms") { (n, 1e-3) } else if let Some(n) = s.strip_suffix('s') { (n, 1.0) }
+        else if let Some(n) = s.strip_suffix('m') { (n, 60.0) } else if let Some(n) = s.strip_suffix('h') { (n, 3600.0) } else { (s, 1.0) };
+    let v: f64 = num.trim().parse().map_err(|_| format!("{s:?}: expected a duration such as 500ms, 5s or 2m"))?;
+    std::time::Duration::try_from_secs_f64(v * scale).map_err(|_| format!("{s:?}: expected a duration such as 500ms, 5s or 2m"))
+}
+
+/// `--inject` / `--inject-on` paired by position: (trigger, payload); the injects beyond the triggers have none.
+fn inject_plan(o: &Opts) -> Vec<(Option<String>, String)> { o.injects.iter().enumerate().map(|(i, d)| (o.inject_ons.get(i).cloned(), d.clone())).collect() }
+
+/// `--inject`: `\n`, `\r`, `\t`, `\\` and `\xNN` (00 to 7f) in the payload; any other backslash stays as typed.
+fn unescape(s: &str) -> Result<String, String> {
+    let mut out = String::new();
+    let mut it = s.chars();
+    while let Some(c) = it.next() {
+        if c != '\\' { out.push(c); continue; }
+        match it.next() {
+            Some('n') => out.push('\n'), Some('r') => out.push('\r'), Some('t') => out.push('\t'), Some('\\') => out.push('\\'),
+            Some('x') => {
+                let hex: String = it.by_ref().take(2).collect();
+                match u8::from_str_radix(&hex, 16) { Ok(b) if hex.len() == 2 && b < 0x80 => out.push(b as char), _ => return Err(format!("\\x{hex}: expected two hex digits from 00 to 7f")) }
+            }
+            Some(other) => { out.push('\\'); out.push(other); }
+            None => out.push('\\'),
+        }
+    }
+    Ok(out)
+}
 
 fn apply_adc_raw<S: Soc>(m: &mut Machine<S>, specs: &[(u8, u16)]) {
     for &(pin, raw) in specs {
@@ -129,6 +162,8 @@ pub struct Opts {
     /// `--imu-motion N`: scripted IMU motion mode for boards with an IMU model (0 at rest, 1 the 30 s handling script)
     pub imu_motion: Option<u32>,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
+    /// `--exit-on TEXT`, `--timeout DURATION` (wall clock), `--inject DATA` / `--inject-on TEXT` (paired by position)
+    pub exit_on: Option<String>, pub timeout: Option<std::time::Duration>, pub injects: Vec<String>, pub inject_ons: Vec<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
     pub i2s_tone: Vec<String>,
     pub mic_wav: Vec<String>,
@@ -201,6 +236,10 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--max-seconds" => o.max_seconds = Some(next().parse().expect("seconds")),
             "--script" => o.script = Some(next()),
             "--serial" => o.serial = Some(next()),
+            "--exit-on" => o.exit_on = Some(next()),
+            "--timeout" => o.timeout = Some(duration(&next()).unwrap_or_else(|e| usage_error(&format!("--timeout: {e}")))),
+            "--inject" => o.injects.push(unescape(&next()).unwrap_or_else(|e| usage_error(&format!("--inject: {e}")))),
+            "--inject-on" => o.inject_ons.push(next()),
             "--console" => o.console = Some(next()),
             "--console-prefix" => o.console_prefix = true,
             "--realtime" => o.realtime = true,
@@ -269,6 +308,9 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     for spec in &o.hostfwd {
         if let Err(e) = esp_soc::nat::HostFwdSpec::parse(spec) { usage_error(&format!("--hostfwd: {e}")); }
     }
+    if o.exit_on.as_deref() == Some("") || o.inject_ons.iter().any(String::is_empty) { usage_error("--exit-on and --inject-on need a non-empty string"); }
+    if o.inject_ons.len() > o.injects.len() { usage_error("each --inject-on needs an --inject: they pair up in the order given"); }
+    if !o.inject_ons.is_empty() && o.script.is_some() { usage_error("--inject-on with --script: the waits would hold the script back; put them in the script (waituart0, uart0)"); }
     if (o.ble_observe || o.ble_scan) && !o.ble_full { usage_error("BLE central/observer use requires --ble full"); }
     if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
     if !o.ble_nearby.is_empty() {
@@ -299,6 +341,9 @@ pub fn run_cli(default_chip: &str) {
     if o.cam_stream.is_some() != o.cam_size.is_some() { usage_error("--cam-stream and --cam-size must be supplied together"); }
     validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
+    if (o.cooja || o.coproc.is_some()) && (o.exit_on.is_some() || o.timeout.is_some() || !o.injects.is_empty()) {
+        usage_error("--exit-on, --timeout and --inject are not available with --cooja or --coproc");
+    }
     if o.cooja { return run_cooja(&mut o); }
     if o.coproc.is_some() { return run_cosim(&o); }
     match o.chip.as_str() {
@@ -774,6 +819,7 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
         cmds
     });
     let t0 = std::time::Instant::now();
+    m.host.deadline = o.timeout.map(|d| t0 + d);
     m.web_restart = !o.no_reboot;
     let (reboot, app) = (!o.no_reboot && boot == "rom", boot == "app");
     let (insns, ended) = match cmds { Some(cmds) => run_usb_host(&mut m, &cmds, o.max_insns, reboot, app), None => (o.max_insns, None) };
@@ -789,6 +835,12 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     if let Some(model) = memory_model {
         eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);
         if let Some(cache) = &model.cache { eprintln!("[emu] approximate physical data cache: {:?}", cache.borrow().stats()); }
+    }
+    // --exit-on matched: 0, as for any run that ends; --timeout: 124, as coreutils `timeout`; --exit-on never matched: 1
+    match m.host.ended {
+        Some(esp_soc::HostEnd::Timeout) => std::process::exit(124),
+        None if o.exit_on.is_some() => std::process::exit(1),
+        _ => {}
     }
 }
 
@@ -926,6 +978,8 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     }
     if let Some(p) = &o.script { m.load_script(&std::fs::read_to_string(p).unwrap_or_else(|e| usage_error(&format!("script: {e}")))).unwrap_or_else(|e| usage_error(&format!("script: {e}"))); }
     if let Some(s) = &o.serial { m.bus.serial_input(s.as_bytes()); }
+    if !o.injects.is_empty() { m.add_injections(&inject_plan(o)); }
+    m.host.exit_on = o.exit_on.clone().map(String::into_bytes);
     apply_adc_raw(m, &o.adc_raw);
     for pre in &o.trace_fns {
         let n = m.trace_fns(pre);

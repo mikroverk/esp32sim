@@ -41,6 +41,23 @@ pub struct Script { pub events: Vec<(u64, ScriptAction)>, pub pos: usize, pub lo
                    /// UART0 text seen so far (capped) and where the pending wait started looking
                    uart0_seen: Vec<u8>, wait_mark: Option<usize> }
 
+/// Host conditions around a run (`--exit-on`, `--timeout`), tested where the console is drained: a run without them
+/// pays an `is_some` test per drain and nothing per round.
+#[derive(Default)]
+pub struct HostIo {
+    /// `--exit-on`: stop the run (as a script `stop` does) once UART0 or USB-Serial/JTAG prints this
+    pub exit_on: Option<Vec<u8>>,
+    /// `--timeout`: stop the run at this wall-clock instant
+    pub deadline: Option<std::time::Instant>,
+    /// which of the two stopped the run
+    pub ended: Option<HostEnd>,
+    /// the last bytes each console stream printed (USB, UART0), so a match split across two drains is found
+    tails: [Vec<u8>; 2],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostEnd { ExitOn, Timeout }
+
 pub struct Realtime {
     pub enabled: bool,
     wall_start: Option<std::time::Instant>,
@@ -91,6 +108,7 @@ pub struct Machine<S: Soc> {
     pub console: Console,
     /// live web UI
     pub web: Option<WebServer>,
+    pub host: HostIo,
     pub camera_input: Option<std::sync::Arc<std::sync::Mutex<Option<crate::picture::Picture>>>>,
     /// the network monitor's capture (`--pcap`, `--wifi` with `--web`): its live frames go to the
     /// board page's Network panel
@@ -158,7 +176,7 @@ impl<S: Soc> Machine<S> {
             exceptions: 0, interrupts: 0, irq_hist: vec![[0; 32]; S::CORES],
             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0, uart0_seen: Vec::new(), wait_mark: None }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
-            camera_input: None, net_tap: None, web: None, ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
+            camera_input: None, net_tap: None, web: None, host: HostIo::default(), ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_accesses: Vec::new(), approximate_jit_timing: None, approximate_jit_frontiers: false, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
@@ -359,6 +377,15 @@ impl<S: Soc> Machine<S> {
                 backlog.extend_from_slice(&d);
                 if backlog.len() > 65536 { let cut = backlog.len() - 49152; backlog.drain(..cut); }
             }
+            if i < 2 && !d.is_empty() { if let Some(text) = self.host.exit_on.as_ref().filter(|t| !t.is_empty()) {
+                let tail = &mut self.host.tails[i]; tail.extend_from_slice(&d);
+                let hit = tail.windows(text.len()).any(|w| w == &text[..]);
+                let keep = text.len() - 1; if tail.len() > keep { tail.drain(..tail.len() - keep); }
+                if hit && self.host.ended.is_none() {
+                    eprintln!("[emu] --exit-on {:?} matched on {} at t={:.3}s", String::from_utf8_lossy(text), src, self.bus.cycles() as f64 / S::CPU_HZ as f64);
+                    self.host.ended = Some(HostEnd::ExitOn); self.max_cycles = 0;
+                }
+            } }
             if let Some(w) = &self.web { if !d.is_empty() { {
                 // `data` is text; when the bytes are not valid UTF-8 (a binary protocol, or a character split across
                 // two drains) `hex` carries them exactly, so a client can tell and use the raw bytes.
@@ -368,6 +395,10 @@ impl<S: Soc> Machine<S> {
             let (bit, tag) = [(1, "[usb]  "), (2, "[uart0] "), (4, "[uart1] "), (4, "[uart2] ")][i];
             emit(bit, tag, d, &mut self.console.all);
         }
+        if let Some(deadline) = self.host.deadline { if self.host.ended.is_none() && std::time::Instant::now() >= deadline {
+            eprintln!("[emu] --timeout: the wall-clock time ran out at t={:.3}s", self.bus.cycles() as f64 / S::CPU_HZ as f64);
+            self.host.ended = Some(HostEnd::Timeout); self.max_cycles = 0;
+        } }
     }
 
     // ------------------------------------------------------------------ interrupts
@@ -1197,6 +1228,17 @@ impl<S: Soc> Machine<S> {
         ev.sort_by_key(|e| e.0);
         self.script.events = ev; self.script.pos = 0;
         Ok(())
+    }
+
+    /// `--inject` / `--inject-on`: console input on the script's timeline. A payload without a trigger goes into UART0
+    /// at the start; the triggered ones form one chain of `waituart0` (without a timeout) and `uart0` steps, so each
+    /// trigger is looked for after the previous payload went in, as the prompts of a dialogue appear in turn.
+    pub fn add_injections(&mut self, plan: &[(Option<String>, String)]) {
+        let untriggered = plan.iter().filter(|(t, _)| t.is_none()).map(|(_, d)| (0, ScriptAction::Uart(0, d.clone())));
+        let chain = plan.iter().filter_map(|(t, d)| Some([(0, ScriptAction::WaitUart0(t.clone()?, u64::MAX, 0)), (0, ScriptAction::Uart(0, d.clone()))])).flatten();
+        let ev: Vec<_> = untriggered.chain(chain).collect();
+        self.script.events.extend(ev);
+        self.script.events[self.script.pos..].sort_by_key(|e| e.0);
     }
 
     // ------------------------------------------------------------------ reports and captures

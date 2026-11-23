@@ -34,6 +34,6 @@ pub mod wifi;
 pub use board::{Board, BoardModel, NoBoard};
 pub use debug::DebugFlags;
 pub use load::LoadKind;
-pub use machine::{Console, Debug, Machine, Realtime, Script, ScriptAction};
+pub use machine::{Console, Debug, HostEnd, HostIo, Machine, Realtime, Script, ScriptAction};
 pub use observe::{Ctx, Observer, Wants};
 pub use soc::{CoreState, GpioState, RunUntil, Soc, SocBus, Stop};
