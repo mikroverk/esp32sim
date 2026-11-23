@@ -1,0 +1,207 @@
+{
+  "method": "EX230 normalized native AArch64 code; static body sizes are not dynamic instruction counts",
+  "binary_sha256": {
+    "base": "7957e74d28c4de35bdf9556a5a0666035495c443dd5e8150ee3e0a8a6486a1c6",
+    "candidate": "3e3f8912cc09696e3518a1a9862b3972e4fa0be90d8c987ebfa67d17ce65f98d"
+  },
+  "gate": true,
+  "totals": {
+    "total": 218,
+    "identical": 186,
+    "differing": 32
+  },
+  "rows": [
+    {
+      "status": "changed",
+      "name": "<esp32c3::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+      "base_ops": 349,
+      "candidate_ops": 349
+    },
+    {
+      "status": "changed",
+      "name": "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+      "base_ops": 476,
+      "candidate_ops": 476
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::run",
+      "base_ops": 4588,
+      "candidate_ops": 4544
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::run_unmodeled::<false>",
+      "base_ops": 1055,
+      "candidate_ops": 1051
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c3::soc::C3>>::step_core",
+      "base_ops": 464,
+      "candidate_ops": 1508
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run",
+      "base_ops": 4693,
+      "candidate_ops": 4635
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_unmodeled::<false>",
+      "base_ops": 1072,
+      "candidate_ops": 1052
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_until_cycle",
+      "base_ops": 3244,
+      "candidate_ops": 5567
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32c6::soc::C6>>::step_core",
+      "base_ops": 466,
+      "candidate_ops": 1603
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::run",
+      "base_ops": 3478,
+      "candidate_ops": 3439
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevGe3>>>::run_unmodeled::<false>",
+      "base_ops": 1199,
+      "candidate_ops": 1172
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevLt3>>>::run",
+      "base_ops": 3478,
+      "candidate_ops": 3439
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32p4::soc::Esp32p4<esp32p4::soc::RevLt3>>>::run_unmodeled::<false>",
+      "base_ops": 1199,
+      "candidate_ops": 1172
+    },
+    {
+      "status": "changed",
+      "name": "<esp_soc::machine::Machine<esp32s31::soc::S31>>::step_core",
+      "base_ops": 509,
+      "candidate_ops": 1601
+    },
+    {
+      "status": "removed",
+      "name": "<riscv_rv32::decode::Op as core::fmt::Debug>::fmt (.1139)",
+      "base_ops": 12,
+      "candidate_ops": 0
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::decode::Op as core::fmt::Debug>::fmt (.1141)",
+      "base_ops": 0,
+      "candidate_ops": 12
+    },
+    {
+      "status": "removed",
+      "name": "<riscv_rv32::decode::Op as core::fmt::Debug>::fmt (.139)",
+      "base_ops": 12,
+      "candidate_ops": 0
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::decode::Op as core::fmt::Debug>::fmt (.140)",
+      "base_ops": 0,
+      "candidate_ops": 12
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32c3::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1221
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32c6::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1291
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32p4::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1117
+    },
+    {
+      "status": "changed",
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::run::<esp32s31::soc::SocBus>",
+      "base_ops": 1452,
+      "candidate_ops": 1160
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::state::Cpu as emu_core::core::Core>::step::<esp32p4::bus::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 1144
+    },
+    {
+      "status": "removed",
+      "name": "<riscv_rv32::state::Cpu>::mret (.110)",
+      "base_ops": 25,
+      "candidate_ops": 0
+    },
+    {
+      "status": "added",
+      "name": "<riscv_rv32::state::Cpu>::mret (.111)",
+      "base_ops": 0,
+      "candidate_ops": 25
+    },
+    {
+      "status": "added",
+      "name": "riscv_rv32::block::run::<esp32s31::soc::SocBus>",
+      "base_ops": 0,
+      "candidate_ops": 2759
+    },
+    {
+      "status": "removed",
+      "name": "riscv_rv32::decode::decode_for",
+      "base_ops": 743,
+      "candidate_ops": 0
+    },
+    {
+      "status": "added",
+      "name": "riscv_rv32::decode::decode_for (.110)",
+      "base_ops": 0,
+      "candidate_ops": 743
+    },
+    {
+      "status": "removed",
+      "name": "riscv_rv32::exec::step_outcome::<esp32c3::bus::SocBus>",
+      "base_ops": 1151,
+      "candidate_ops": 0
+    },
+    {
+      "status": "removed",
+      "name": "riscv_rv32::exec::step_outcome::<esp32c6::bus::SocBus>",
+      "base_ops": 3157,
+      "candidate_ops": 0
+    },
+    {
+      "status": "removed",
+      "name": "riscv_rv32::exec::step_outcome::<esp32p4::bus::SocBus>",
+      "base_ops": 1144,
+      "candidate_ops": 0
+    },
+    {
+      "status": "removed",
+      "name": "riscv_rv32::exec::step_outcome::<esp32s31::soc::SocBus>",
+      "base_ops": 1201,
+      "candidate_ops": 0
+    }
+  ]
+}
