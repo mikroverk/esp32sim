@@ -1,18 +1,33 @@
 # RV32 result-only execution (EX263)
 
-Base: upstream main `04f07602dba76eb6704b8901c989c9c9c1f8b42a`.
-Rust 1.99.0, native AArch64 release/LTO and wasm32 release.
+Rebased base: upstream main `3f49dad86878afca429508a7a8b2e8f0bf38ea6e`. Rust 1.99.0.
+
+The historical results below, including the CPU table, codegen, WASM comparisons,
+exact-work probes and mutations, are for the earlier base `04f07602dba76eb6704b8901c989c9c9c1f8b42a` and its candidate, not this rebase. They do not establish current codegen or performance. EX265 added RV32 decoded blocks; this experiment instead requests inlining for the result-only interpreter path. Main retains `#[inline]` on `exec_insn` after the EX265 follow-up found forcing it inline slowed C3. This rebase only adds `#[inline(always)]` on `step_outcome`.
 
 ## Change and scope
 
-Inline the existing `step_outcome` and `exec_insn` into their callers. The
+Request inlining of the existing `step_outcome` into its callers. The
 result-only execution loop can discard observing-only facts without creating a
 second interpreter. Fetches, retirement, cycles, traps, IRQs, device accesses,
 and instruction budgets are unchanged. The RV32 core is shared by C3, C6 and
-P4; there is no new state or public API. Code size grows, and static codegen
+P4; there is no new state or public API. Historical code size grew; current
+selected native code is compared below. Static codegen
 alone does not establish a speedup or rule out a layout regression.
 
-## Exact work
+## Rebase screening (2026-11-23)
+
+A daytime screen compared main `3f49dad8` with the rebased implementation `5854362e`, using `cargo +1.99.0 build --release --bins` on each side, one warmup and three rotating A/B/A runs per workload, user CPU, 30 guest seconds. The A/A arm runs the same base binary twice. This is a noisy smoke, not a seven-pair quiet-machine CPU table; the A/A spread limits conclusions. Each workload matched at 4,800,000,000 scheduler instructions and its console hash, with no exceptions and matching interrupt totals (3,028 / 3,029 / 31,160). Samples and hashes: `rebase-smoke.json`.
+
+| Workload | Candidate/base paired deltas | A/A paired deltas |
+| --- | --- | --- |
+| C3 hello | +19.05%, +0.01%, -1.94% | +50.65%, +2.04%, +1.85% |
+| C6 hello | -9.58%, -0.54%, -11.78% | -11.14%, -24.57%, -17.58% |
+| C6 display starter | -7.85%, -8.19%, -9.57% | -0.14%, +1.10%, +0.56% |
+
+The display screen suggests a remaining benefit but does not establish a formal CPU result. C3 and C6 hello are inconclusive under this noise. A quiet-machine table remains pending.
+
+## Historical exact work (old base)
 
 Both arms ran each input for 10 guest seconds with unprobed release `--bins`
 builds. The unprobed outputs give scheduler work, exceptions, interrupt lines
@@ -37,7 +52,11 @@ offset: without that correction three base machine functions differ only in
 that address syntax. This is a selected-function check, not a whole-binary
 identity claim.
 
-## Emitted code
+## Rebase code generation
+
+The native AArch64 release `--bins` comparison (`codegen-rebase.json`) selects 196 functions, 168 identical and 28 changed, added or removed. The outlined C6 `step_outcome` has 3,149 static operations on base and is absent in the candidate. This is a selected-symbol comparison, not a whole-binary identity or a dynamic performance proof. Historical WASM reports below have been trimmed to changed/added/removed rows and aggregate totals; they compare the old base only.
+
+## Historical emitted code (old base)
 
 Native AArch64 normalized comparison (`codegen.json`) selects 134 functions:
 113 identical and 21 changed, added or removed. The changes are RV32 C3/C6/P4
@@ -70,7 +89,18 @@ WASM size is 4,065,319 → 4,133,209 bytes (+67,890, +1.67%); deterministic
 `gzip -n` size is 1,142,241 → 1,165,704 (+23,463, +2.05%). The selected native
 hot-code result is not a whole-module identity claim for WASM.
 
-## Tests and mutations
+## Rebase checks
+
+With an empty HOME and explicit Rustup/Cargo paths, Rust 1.99.0:
+
+- Native workspace/all-targets and release WASM JIT-feature clippy with `-D warnings`: both exit 101 on base and candidate. In each paired gate, error lines and locations are identical: `clippy::needless_range_loop` at `esp32s31/src/soc.rs:410`, pre-existing on main, unchanged; candidate adds zero diagnostics.
+- ROM-enabled `cargo +1.99.0 test --release --workspace --no-fail-fast -- --include-ignored --skip external_`: 1,851 passed, zero failed.
+- Plain `cargo +1.99.0 test --release --workspace --no-fail-fast`: 1,778 passed, 104 ignored, zero failed.
+- `RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh` and `node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel`: passed all eight demos.
+- `node tools/check-evidence-privacy.mjs`: passed before staging.
+- `mutate-rebase.py` killed three runtime mutants without compile errors: omitted retirement, doubled instruction cycles, and omitted observer fetch bytes (`mutations-rebase.json`). `outline-mut-rebase.py` also killed removal of the `step_outcome` inline request via the native emitted-code gate (`outline-result-rebase.json`). The old `exec_insn` inline mutation no longer applies: this rebase intentionally retains main's plain inline hint.
+
+## Historical tests and mutations (old base)
 
 The differential test covers 49,152 compressed encodings, 16,384 deterministic
 full-width words and 77 directed instruction/state combinations, comparing CPU

@@ -1,0 +1,326 @@
+[
+  {
+    "case": "c3-hello",
+    "pair": 0,
+    "arm": "base",
+    "user_cpu": 2.496058,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 0,
+    "arm": "cand",
+    "user_cpu": 2.553659,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "7af61a87cf69811bc0e166c992831a9312506a9e960dc7bdbf4be78c8cc70d3c"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 0,
+    "arm": "aa",
+    "user_cpu": 3.326579999999999,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 1,
+    "arm": "aa",
+    "user_cpu": 3.9192160000000005,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 1,
+    "arm": "cand",
+    "user_cpu": 3.0972539999999995,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "7af61a87cf69811bc0e166c992831a9312506a9e960dc7bdbf4be78c8cc70d3c"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 1,
+    "arm": "base",
+    "user_cpu": 2.6015960000000007,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 2,
+    "arm": "base",
+    "user_cpu": 2.439622,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 2,
+    "arm": "cand",
+    "user_cpu": 2.4398030000000013,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "7af61a87cf69811bc0e166c992831a9312506a9e960dc7bdbf4be78c8cc70d3c"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 2,
+    "arm": "aa",
+    "user_cpu": 2.4894009999999973,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 3,
+    "arm": "aa",
+    "user_cpu": 2.474292000000002,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 3,
+    "arm": "cand",
+    "user_cpu": 2.3823529999999984,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "7af61a87cf69811bc0e166c992831a9312506a9e960dc7bdbf4be78c8cc70d3c"
+  },
+  {
+    "case": "c3-hello",
+    "pair": 3,
+    "arm": "base",
+    "user_cpu": 2.4294610000000034,
+    "console_sha256": "3b9d8d3eb053a97670f11896674e70ffc968fd7a803cb2cdc5c051414af94efd",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3028 interrupts",
+    "binary_sha256": "3167b0badee3ebe9d4e1dfe1d803e6eb4900e5b061b852fcd2a6029fe8db1912"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 0,
+    "arm": "base",
+    "user_cpu": 1.589470999999996,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 0,
+    "arm": "cand",
+    "user_cpu": 1.583038000000002,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 0,
+    "arm": "aa",
+    "user_cpu": 1.7551750000000013,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 1,
+    "arm": "aa",
+    "user_cpu": 1.8779830000000004,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 1,
+    "arm": "cand",
+    "user_cpu": 1.9109009999999955,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 1,
+    "arm": "base",
+    "user_cpu": 2.1134540000000044,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 2,
+    "arm": "base",
+    "user_cpu": 2.605194999999995,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 2,
+    "arm": "cand",
+    "user_cpu": 2.5911060000000035,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 2,
+    "arm": "aa",
+    "user_cpu": 1.9649860000000032,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 3,
+    "arm": "aa",
+    "user_cpu": 1.8468929999999943,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 3,
+    "arm": "cand",
+    "user_cpu": 1.976885000000003,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-hello",
+    "pair": 3,
+    "arm": "base",
+    "user_cpu": 2.240817,
+    "console_sha256": "bd69fbb9ac5c677337a293c1ec0ff7941306eec82c499290917a7c42360f86ad",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 3029 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 0,
+    "arm": "base",
+    "user_cpu": 13.416707999999993,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 0,
+    "arm": "cand",
+    "user_cpu": 9.697716,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 0,
+    "arm": "aa",
+    "user_cpu": 10.656527000000011,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 1,
+    "arm": "aa",
+    "user_cpu": 10.50474899999999,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 1,
+    "arm": "cand",
+    "user_cpu": 9.693814000000003,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 1,
+    "arm": "base",
+    "user_cpu": 10.519479000000004,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 2,
+    "arm": "base",
+    "user_cpu": 10.480924000000002,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 2,
+    "arm": "cand",
+    "user_cpu": 9.622997999999995,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 2,
+    "arm": "aa",
+    "user_cpu": 10.59626399999999,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 3,
+    "arm": "aa",
+    "user_cpu": 10.580074000000025,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 3,
+    "arm": "cand",
+    "user_cpu": 9.514842999999985,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "ac3e81311b2daca95d34f8857a7e740dbc0264e448dcdfbb7238264309df7c56"
+  },
+  {
+    "case": "c6-starter",
+    "pair": 3,
+    "arm": "base",
+    "user_cpu": 10.521466000000004,
+    "console_sha256": "1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b",
+    "stop": "Halted \u2014 4800000000 insns; emulated 30.000s (4800000000 cycles); 0 exceptions, 31160 interrupts",
+    "binary_sha256": "8d61c68d396e2de229e76103015289fa48987535ffd42ae519a51a2c46d12bd5"
+  }
+]
