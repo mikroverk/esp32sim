@@ -183,8 +183,12 @@ impl esp_soc::SocBus for SocBus {
         p.spi0.psram_mr[2] = old.spi0.psram_mr[2]; p.spi1.psram_mr[2] = old.spi1.psram_mr[2];
         p.rtc.ram = old.rtc.ram; p.rtc.slow_ticks = old.rtc.slow_ticks; p.rtc.reset_cause = cause;
         p.usb.connected = old.usb.connected;            // the host side of the USB cable is not reset
+        // The USB-OTG cable stays plugged in; the host sees the reset core's pull-up go.
+        if let Some(link) = old.usb_otg.link.take() { p.usb_otg.stats = old.usb_otg.stats; p.usb_otg.reattach(old.usb_otg.now, link); }
         p.rtc.ram.write(0x38, cause | (cause << 6));
         p.rtc.ram.write(0x98, 0);                       // watchdog disarmed by the reset; the ROM re-arms it
+        if p.usb_phy_to_otg() { p.route_usb_phy(); }    // RTC_CNTL_USB_CONF survives the reset, and with it the PHY's owner
+        esp_periph::Dispatch::refresh_optional(p, periph::USB_OTG_BLOCK);
         p.i2s0.pcm = old.i2s0.pcm; p.i2s0.frames_out = old.i2s0.frames_out; p.i2s1.pcm = old.i2s1.pcm; p.i2s1.frames_out = old.i2s1.frames_out;   // keep the captured audio continuous
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
         self.invalidate_tlb();
@@ -260,6 +264,11 @@ impl esp_soc::SocBus for SocBus {
         if p.lcd_cam.lcd_frames > 0 { s += &format!("[emu] lcd: {} RGB frames\n", p.lcd_cam.lcd_frames); }
         if p.lcd_cam.frames + p.lcd_cam.dropped > 0 { s += &format!("[emu] camera: {} VSYNCs, {} frames with dropped data\n", p.lcd_cam.frames, p.lcd_cam.dropped); }
         if p.rmt.tx_count > 0 { s += &format!("[emu] rmt tx {}\n", p.rmt.tx_count); }
+        if let Some(l) = &p.usb_otg.link {
+            let (d, k) = (&p.usb_otg.stats, &l.stats);
+            s += &format!("[usb] {} SETUPs, {} IN packets ({} bytes), {} OUT packets ({} bytes), {} NAKs, {} STALLs; host: {} transfers, {} bus resets, {} data PID errors; core: {} DMA faults, {} FIFO size errors\n",
+                          d.setups, d.packets_in, d.bytes_in, d.packets_out, d.bytes_out, d.naks, d.stalls, k.transfers, k.resets, k.toggle_errors, d.dma_faults, d.fifo_errors);
+        }
         s.trim_end().to_string()
     }
     fn set_debug(&mut self, f: &esp_soc::DebugFlags) {
@@ -293,6 +302,21 @@ impl esp_soc::SocBus for SocBus {
     fn audio(&self) -> (&[i16], u32) { let a = self.periph.audio(); (&a.pcm, a.sample_rate) }
     fn camera_frames(&self) -> u64 { self.periph.lcd_cam.frames }
     fn irq_sources_of(&self, core: usize, line: u32) -> Vec<usize> { (0..NUM_SOURCES).filter(|&s| self.periph.intmatrix.map[core][s] == line).collect() }
+    /// The host on the other end of the full-speed USB-OTG port. It sees the core only while the
+    /// internal PHY is the core's (`Peripherals::route_usb_phy`).
+    fn attach_usb_host(&mut self, timing: esp_periph::usb_otg::UsbTiming) -> Result<(), String> {
+        self.flush_ticks();
+        let now = self.cycles;
+        let mut link = esp_periph::usb_otg::UsbLink::new(timing, periph::CPU_HZ, now);
+        link.log = self.periph.usb_otg.logging();
+        self.periph.route_usb_phy();
+        self.periph.usb_otg.attach(now, link);
+        esp_periph::Dispatch::refresh_optional(&mut self.periph, periph::USB_OTG_BLOCK);
+        self.refresh_tick_budget();
+        self.irq_dirty = true;
+        Ok(())
+    }
+    fn usb_link(&mut self) -> Option<&mut esp_periph::usb_otg::UsbLink> { self.expire_tick_budget(); self.periph.usb_otg.link.as_deref_mut() }
 }
 
 #[cfg(test)]

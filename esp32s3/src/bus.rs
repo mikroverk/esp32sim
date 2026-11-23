@@ -121,6 +121,35 @@ struct CacheResource {
     wait_cycles: [u64; 2],
 }
 
+/// What the USB-OTG core's DMA reaches: internal SRAM through the data bus
+/// (DRAM_LOW..DRAM_HIGH), where esp_tinyusb allocates its DMA-capable buffers. Anything else is
+/// a bus error to the DMA.
+struct SramDma<'a> { sram: &'a mut Vec<u8>, page_ver: &'a mut Vec<u32>, vbase: usize }
+impl SramDma<'_> {
+    /// The SRAM offset of `len` bytes at `addr`, if they are all on the data bus.
+    fn offset(addr: u32, len: usize) -> Result<usize, Fault> {
+        if (DRAM_LOW..DRAM_HIGH).contains(&addr) && (DRAM_HIGH - addr) as usize >= len { Ok((addr - DRAM_LOW) as usize + 0x8000) } else { Err(Fault::Unmapped) }
+    }
+}
+impl esp_periph::sdmmc::SdmmcMemory for SramDma<'_> {
+    fn read(&mut self, addr: u32, buf: &mut [u8]) -> Result<(), Fault> {
+        let o = Self::offset(addr, buf.len())?;
+        buf.copy_from_slice(&self.sram[o..o + buf.len()]);
+        Ok(())
+    }
+    /// The written pages' versions move, as `note_written` moves them, so no decoded code there
+    /// survives. SRAM is outside `stable_pages`, so the flash epoch stays.
+    fn write(&mut self, addr: u32, data: &[u8]) -> Result<(), Fault> {
+        if data.is_empty() { return Ok(()); }
+        let o = Self::offset(addr, data.len())?;
+        self.sram[o..o + data.len()].copy_from_slice(data);
+        let (first, last) = (o >> VPAGE_SHIFT, (o + data.len() - 1) >> VPAGE_SHIFT);
+        let from = if o & VPAGE_MASK < emu_core::bus::PREV_PAGE_BYTES as usize && first > 0 { first - 1 } else { first };
+        for p in from..=last { if let Some(v) = self.page_ver.get_mut(self.vbase + p) { *v = v.wrapping_add(1); } }
+        Ok(())
+    }
+}
+
 /// Preserve the original cadence whenever an active device lacks a deadline.
 const MAX_TICK_DEFER: u32 = 256;
 /// EX134: only quiet devices may use this longer backstop. The default stays below
@@ -550,6 +579,7 @@ impl SocBus {
             self.spi3_pins = self.board.uses_spi_pins().then(|| self.periph.spi3_pins());
         }
         self.periph.write32(a, v);
+        if self.periph.usb_otg.pending() { self.run_dma_hosts(); }
         if matches!(a & !0xfff, 0x6000_4000 | 0x6000_9000) && self.board.uses_gpio_waveform() {
             self.board.gpio_waveform_at(self.cycles, esp_soc::pins::ChipPins::S3.routes(&self.periph.gpio, &self.periph.io_mux));
         }
@@ -994,8 +1024,25 @@ impl SocBus {
         self.deliver_spi2_transfer();
         self.deliver_spi3_transfer();
         if !self.periph.rmt.done.is_empty() { self.deliver_rmt_frames(); }
+        if self.periph.usb_otg.pending() { self.run_dma_hosts(); }
         0
     }
+
+    /// Carry out what the USB host on the cable has due, moving data through the core's DMA in
+    /// internal SRAM.
+    #[cold]
+    #[inline(never)]
+    fn run_dma_hosts(&mut self) {
+        let mut dma = SramDma { sram: &mut self.sram, page_ver: &mut self.page_ver, vbase: self.ver_base[SRC_SRAM as usize] as usize };
+        if self.periph.usb_otg.pending() {
+            self.periph.usb_otg.run(&mut dma);
+            esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::USB_OTG_BLOCK);
+        }
+        self.irq_dirty = true;
+    }
+
+    /// The host changed the USB cable's schedule: re-derive the tick budget at the next tick.
+    pub(crate) fn expire_tick_budget(&mut self) { self.flush_ticks(); self.tick_budget = 1; }
     /// Every routed pin of a completed transmitter receives its frame (mirrored strips).
     #[cold]
     #[inline(never)]
@@ -1019,6 +1066,9 @@ mod dma_tests;
 #[cfg(test)]
 #[path = "bus/memory_origin_tests.rs"]
 mod memory_origin_regressions;
+#[cfg(test)]
+#[path = "bus/usb_sd_tests.rs"]
+mod usb_sd_tests;
 
 #[path = "bus/pins.rs"]
 mod pins;

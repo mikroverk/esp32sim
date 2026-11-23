@@ -4,6 +4,7 @@
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{GpSpi, Ledc, LedcLayout, Mcpwm};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect};
+use esp_periph::usb_otg::{Dwc2, Dwc2Config};
 pub use esp_periph::rmt::RmtDma as Rmt;
 pub use esp_periph::{read_desc, reset_cause_name, Aes, DirtyMem, DmaDesc, Efuse, Gdma, GdmaInCh, GdmaOutCh, Gpio, I2s, RegRam, RmtTxCh, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, Timer, TimerGroup, Uart, UartLayout, UsbSerialJtag,
                     APB_HZ, DMA_ADDR_BASE, GDMA_CHANNELS, GDMA_CH_STRIDE, RMT_MEM_WORDS, RST_POWERON, RST_RTCWDT_CPU, RST_RTCWDT_RTC, RST_RTCWDT_SYS, RST_SW_CPU, RST_SW_SYS, RTC_SLOW_HZ, SYSTIMER_HZ, XTAL_HZ};
@@ -45,6 +46,9 @@ pub const SRC_DMA_IN_CH0: usize = 66;
 pub const SRC_DMA_OUT_CH0: usize = 71;
 pub const SRC_FROM_CPU0: usize = 79;
 pub const SRC_USB_SERIAL_JTAG: usize = 96;
+/// ETS_USB_INTR_SOURCE, the USB-OTG core's (IDF v5.5.4
+/// components/soc/esp32s3/include/soc/interrupts.h:54).
+pub const SRC_USB_OTG: usize = 38;
 pub const NUM_SOURCES: usize = 99;
 
 pub const CPU_HZ: u64 = 240_000_000;
@@ -349,7 +353,14 @@ pub struct Peripherals {
     pub intmatrix_dirty: bool,
     pub ledc: Ledc,
     pub mcpwm: [Mcpwm; 2],
+    /// the full-speed USB-OTG core (DR_REG_USB_BASE 0x60080000: `USB0` and `USB_DWC` in IDF
+    /// v5.5.4 components/soc/esp32s3/ld/esp32s3.peripherals.ld) and the cable to a host, if one
+    /// is attached
+    pub usb_otg: Dwc2,
 }
+
+/// The USB-OTG block, whose entry in the table below is optional.
+pub const USB_OTG_BLOCK: u32 = 0x80;
 
 // Every peripheral, where it sits, and its interrupt source numbers. Entries for one block are
 // tried in order: a range-limited entry goes before the full-block one behind it.
@@ -396,6 +407,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), 
     0x3a "AES" (aes) => [SRC_AES];
     0x3c "RSA" (rsa) => [SRC_RSA];
     0x06 "FE" (fe) @ 0x174..=0x177 => [];
+    0x80 "USB_OTG" optional (usb_otg) => [SRC_USB_OTG];
 }
 
 impl DeviceSet for Peripherals {
@@ -427,7 +439,33 @@ impl Peripherals {
             io_mux: RegRam::new(), misc: Misc::new(), fake_reads: std::env::var("ESP_EMU_FAKE_READ").ok().map(|v| v.split(',').filter_map(|e| { let mut p = e.split(':'); let a = u32::from_str_radix(p.next()?.trim_start_matches("0x"), 16).ok()?; let o = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).ok()?; let m = u32::from_str_radix(p.next().unwrap_or("ffffffff").trim_start_matches("0x"), 16).ok()?; Some((a, (o, m))) }).collect()).unwrap_or_default(),
             clock: Self::new_clock(),
             spi_exec: false, last_status: [0; 4], intmatrix_dirty: false,
+            usb_otg: Self::new_usb_otg(),
         }
+    }
+
+    /// The core starts without the PHY: at reset the internal PHY serves USB-Serial-JTAG.
+    fn new_usb_otg() -> Dwc2 { let mut d = Dwc2::new(Dwc2Config::esp32s3_fs(CPU_HZ)); d.set_phy(false); d }
+
+    /// Which controller the internal USB PHY serves: true for USB-OTG, false for USB-Serial-JTAG.
+    /// RTC_CNTL_USB_CONF.SW_HW_USB_PHY_SEL (bit 20) hands the choice to SW_USB_PHY_SEL (bit 19),
+    /// otherwise eFuse USB_PHY_SEL (EFUSE_RD_REPEAT_DATA1 bit 25) makes it; IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/rtc_cntl_reg.h:3071-3077, efuse_reg.h:510-516, and
+    /// hal/esp32s3/include/hal/usb_wrap_ll.h:56-67 (`usb_wrap_ll_phy_enable_external`, which
+    /// TinyUSB's PHY setup calls with `false`).
+    pub fn usb_phy_to_otg(&self) -> bool {
+        let conf = self.rtc.ram.read(0x120);
+        if conf & (1 << 20) != 0 { conf & (1 << 19) != 0 } else { self.efuse.read(0x34) & (1 << 25) != 0 }
+    }
+
+    /// Give the internal PHY to the controller that has it now: the OTG core reaches the cable
+    /// when it has the PHY and USB_WRAP_OTG_CONF.PHY_SEL (bit 2, usb_wrap_reg.h:130-135) does not
+    /// pick an external one; USB-Serial-JTAG loses its host (no more SOFs) while the OTG core
+    /// has the PHY.
+    pub fn route_usb_phy(&mut self) {
+        let otg = self.usb_phy_to_otg();
+        let wrap = self.misc.generic.get(&0x39).map_or(0, |r| r.read(0));
+        self.usb_otg.set_phy(otg && wrap & (1 << 2) == 0);
+        self.usb.connected = !otg;
     }
 
     pub fn block_name_pub(block: u32) -> String { Self::block_name(block).to_string() }
@@ -437,7 +475,7 @@ impl Peripherals {
             0x0b => "HINF", 0x0c => "UHCI1", 0x0f => "I2S0", 0x10 => "UART1", 0x11 => "BT", 0x13 => "I2C0", 0x14 => "UHCI0", 0x15 => "SLCHOST", 0x16 => "RMT", 0x17 => "PCNT",
             0x18 => "SLC", 0x19 => "LEDC", 0x1c => "NRX", 0x1d => "BB", 0x1e => "PWM0", 0x1f => "TIMG0", 0x20 => "TIMG1", 0x21 => "RTC_SLOWMEM", 0x23 => "SYSTIMER",
             0x24 => "SPI2", 0x25 => "SPI3", 0x26 => "APB_CTRL", 0x27 => "I2C1", 0x28 => "SDMMC", 0x2a => "PERI_BACKUP", 0x2b => "TWAI", 0x2c => "PWM1", 0x2d => "I2S1", 0x2e => "UART2", 0x33 => "WIFI_MAC", 0x34 => "WIFI_MAC2", 0x35 => "WDEV", 0x0e => "I2C_MST",
-            0x38 => "USB_SERIAL_JTAG", 0x39 => "USB_WRAP", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS", 0x3e => "HMAC", 0x3f => "GDMA", 0x40 => "APB_SARADC", 0x41 => "LCD_CAM",
+            0x38 => "USB_SERIAL_JTAG", 0x39 => "USB_WRAP", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS", 0x3e => "HMAC", 0x3f => "GDMA", 0x40 => "APB_SARADC", 0x41 => "LCD_CAM", 0x80 => "USB_OTG",
             0xc0 => "SYSTEM", 0xc1 => "SENSITIVE", 0xc2 => "INTERRUPT", 0xc4 => "EXTMEM", 0xc5 => "MMU", 0xce => "ASSIST_DEBUG", 0xcf => "ASSIST_DEBUG2", 0xd0 => "WCL",
             _ => "?",
         }
@@ -481,6 +519,7 @@ impl Peripherals {
             for (group, bit) in [17, 20].iter().enumerate() { if v & (1 << bit) != 0 { self.mcpwm[group] = Mcpwm::new(160 + group as u32 * 6, 9); } }
         }
         let fx = mmio::write32(self, addr, v);
+        if matches!(addr, 0x6000_8120 | 0x6003_9000 | 0x600c_0020) { self.usb_control(addr, v); }
         if fx.contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if fx.contains(WriteEffect::INTMAP) { self.intmatrix_dirty = true; }
         // ESP-IDF v5.5.4 soc/system_reg.h: PERIP_CLK_EN1/RST_EN1 LCD_CAM bit 8.
@@ -491,6 +530,19 @@ impl Peripherals {
             for (group, bit) in [17, 20].iter().enumerate() { self.mcpwm[group].clock_enabled = self.system.read(0x18) & (1 << bit) != 0 && self.system.read(0x20) & (1 << bit) == 0; }
             self.ledc.clock_enabled = self.system.read(0x18) & (1 << 11) != 0 && self.system.read(0x20) & (1 << 11) == 0;
             for block in [0x19, 0x1e, 0x2c] { self.refresh_optional(block); }
+        }
+    }
+
+    /// The registers outside the block that control it: RTC_CNTL_USB_CONF and USB_WRAP_OTG_CONF
+    /// move the internal PHY between the two USB controllers; SYSTEM_PERIP_RST_EN0.USB_RST (bit 23)
+    /// holds the OTG core in reset (IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/system_reg.h:416-418).
+    #[cold]
+    #[inline(never)]
+    fn usb_control(&mut self, addr: u32, v: u32) {
+        match addr {
+            0x600c_0020 => { self.usb_otg.set_reset(v & (1 << 23) != 0); Dispatch::refresh_optional(self, USB_OTG_BLOCK); }
+            _ => self.route_usb_phy(),
         }
     }
 
