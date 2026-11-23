@@ -41,7 +41,7 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --trace-fn PREFIX, --break PC, --watch ADDR, --peek ADDR,N, --profile, --vcd F, --debug AREAS, --no-jit");
     eprintln!("                        debugging; --no-jit is the oracle when a result looks wrong");
     eprintln!("  --adc PIN, --adc-raw PIN=N   last ADC sample at exit / a 12-bit count into that pad");
-    eprintln!("  --sd IMG, --sd-rw IMG (P4) a card in the SD socket, copy-on-write / write-through;");
+    eprintln!("  --sd IMG, --sd-rw IMG (P4, S3) an SD card, copy-on-write / write-through;");
     eprintln!("                        --sd-prg-us N, --sd-serial HEX for its programming time and serial");
     eprintln!("  --usb-host F          (P4, S3, S31) a USB host on the USB-OTG port running F; --sd-timing (P4) for timed SD");
     eprintln!("  --coproc c6:KEY=V,... (P4) an ESP32-C6 co-processor on SDIO, run in lock-step");

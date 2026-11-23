@@ -91,8 +91,9 @@ pub enum SdmmcLayout {
     /// ESP32-P4: no PWREN or GPIO register; Espressif's wrapper from 0x800 (CLK_EDGE_SEL,
     /// RAW_INTS, DLL_CLK_CONF, DLL_CONF).
     Esp32p4,
-    /// ESP32 and ESP32-S3: PWREN at 0x04 and the CLOCK register at 0x800. Not wired to a chip
-    /// yet; their reset values are unverified.
+    /// ESP32 and ESP32-S3: PWREN at 0x04 and the CLOCK register at 0x800. Wired on the S3;
+    /// VERID and HCON read the P4's values, unverified there (IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/sdmmc_reg.h gives no reset values).
     Esp32,
 }
 

@@ -121,9 +121,10 @@ struct CacheResource {
     wait_cycles: [u64; 2],
 }
 
-/// What the USB-OTG core's DMA reaches: internal SRAM through the data bus
-/// (DRAM_LOW..DRAM_HIGH), where esp_tinyusb allocates its DMA-capable buffers. Anything else is
-/// a bus error to the DMA.
+/// What the SDMMC host's IDMAC and the USB-OTG core's DMA reach: internal SRAM through the data
+/// bus (DRAM_LOW..DRAM_HIGH). IDF keeps their buffers there: the S3 has no
+/// SOC_SDMMC_PSRAM_DMA_CAPABLE, so esp_driver_sdmmc bounces PSRAM buffers through internal RAM,
+/// and esp_tinyusb allocates DMA-capable memory. Anything else is a bus error to the DMA.
 struct SramDma<'a> { sram: &'a mut Vec<u8>, page_ver: &'a mut Vec<u32>, vbase: usize }
 impl SramDma<'_> {
     /// The SRAM offset of `len` bytes at `addr`, if they are all on the data bus.
@@ -504,6 +505,7 @@ impl SocBus {
             self.refresh_tick_budget();
         }
         let a = addr & !3;
+        if a >> 12 == 0x60028 { return self.sdmmc_read(addr); }
         let Some(port) = UART_FIFOS.iter().position(|&f| f == a) else { return self.periph.read32(addr) };
         // RXFIFO_FULL follows the FIFO level (`Uart::read`): the mask ROM's shared UART handler reads one FIFO and never
         // clears the interrupt, so a falling level must reach the CPU.
@@ -579,7 +581,7 @@ impl SocBus {
             self.spi3_pins = self.board.uses_spi_pins().then(|| self.periph.spi3_pins());
         }
         self.periph.write32(a, v);
-        if self.periph.usb_otg.pending() { self.run_dma_hosts(); }
+        if self.periph.sdmmc.pending() || self.periph.usb_otg.pending() { self.run_dma_hosts(); }
         if matches!(a & !0xfff, 0x6000_4000 | 0x6000_9000) && self.board.uses_gpio_waveform() {
             self.board.gpio_waveform_at(self.cycles, esp_soc::pins::ChipPins::S3.routes(&self.periph.gpio, &self.periph.io_mux));
         }
@@ -1028,12 +1030,26 @@ impl SocBus {
         0
     }
 
-    /// Carry out what the USB host on the cable has due, moving data through the core's DMA in
-    /// internal SRAM.
+    /// A STATUS read can raise the SDMMC host's busy-clear interrupt (`Sdmmc::take_read_irq`).
+    #[cold]
+    #[inline(never)]
+    fn sdmmc_read(&mut self, addr: u32) -> u32 {
+        let w = self.periph.read32(addr);
+        if self.periph.sdmmc.take_read_irq() { esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::SDMMC_BLOCK); self.irq_dirty = true; }
+        w
+    }
+
+    /// Carry out the SDMMC command or IDMAC resume the last write started, and what the USB host
+    /// on the cable has due, both moving data through their DMA in internal SRAM.
     #[cold]
     #[inline(never)]
     fn run_dma_hosts(&mut self) {
         let mut dma = SramDma { sram: &mut self.sram, page_ver: &mut self.page_ver, vbase: self.ver_base[SRC_SRAM as usize] as usize };
+        if self.periph.sdmmc.pending() {
+            self.periph.sdmmc.route = self.periph.sd_routes();
+            self.periph.sdmmc.run(&mut dma);
+            esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::SDMMC_BLOCK);
+        }
         if self.periph.usb_otg.pending() {
             self.periph.usb_otg.run(&mut dma);
             esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::USB_OTG_BLOCK);

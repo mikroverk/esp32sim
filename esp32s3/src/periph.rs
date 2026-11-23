@@ -4,6 +4,7 @@
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{GpSpi, Ledc, LedcLayout, Mcpwm};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect};
+use esp_periph::sdmmc::{Sdmmc, SdmmcLayout, SLOTS};
 use esp_periph::usb_otg::{Dwc2, Dwc2Config};
 pub use esp_periph::rmt::RmtDma as Rmt;
 pub use esp_periph::{read_desc, reset_cause_name, Aes, DirtyMem, DmaDesc, Efuse, Gdma, GdmaInCh, GdmaOutCh, Gpio, I2s, RegRam, RmtTxCh, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, Timer, TimerGroup, Uart, UartLayout, UsbSerialJtag,
@@ -46,8 +47,9 @@ pub const SRC_DMA_IN_CH0: usize = 66;
 pub const SRC_DMA_OUT_CH0: usize = 71;
 pub const SRC_FROM_CPU0: usize = 79;
 pub const SRC_USB_SERIAL_JTAG: usize = 96;
-/// ETS_USB_INTR_SOURCE, the USB-OTG core's (IDF v5.5.4
-/// components/soc/esp32s3/include/soc/interrupts.h:54).
+/// ETS_SDIO_HOST_INTR_SOURCE and ETS_USB_INTR_SOURCE, the USB-OTG core's (IDF v5.5.4
+/// components/soc/esp32s3/include/soc/interrupts.h:48, :54).
+pub const SRC_SDIO_HOST: usize = 30;
 pub const SRC_USB_OTG: usize = 38;
 pub const NUM_SOURCES: usize = 99;
 
@@ -357,10 +359,22 @@ pub struct Peripherals {
     /// v5.5.4 components/soc/esp32s3/ld/esp32s3.peripherals.ld) and the cable to a host, if one
     /// is attached
     pub usb_otg: Dwc2,
+    /// the SD/MMC host (DR_REG_SDMMC_BASE 0x60028000, IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/reg_base.h:43) and the card on its bus
+    pub sdmmc: Sdmmc,
+    /// CPU cycles before this peripheral set was built: the card's time runs on through a chip reset
+    pub sd_cycle_base: u64,
 }
 
-/// The USB-OTG block, whose entry in the table below is optional.
+/// The USB-OTG and SDMMC blocks, whose entries in the table below are optional.
 pub const USB_OTG_BLOCK: u32 = 0x80;
+pub const SDMMC_BLOCK: u32 = 0x28;
+/// GPIO matrix signals of the SDMMC host per slot: the card clock output, the card-detect and
+/// write-protect inputs (IDF v5.5.4 components/soc/esp32s3/include/soc/gpio_sig_map.h:312-314,
+/// :355-361). The S3 has no IO MUX function for SDMMC: every SD pin goes through the matrix.
+pub const SIG_SDHOST_CCLK_OUT: [u32; SLOTS] = [172, 173];
+pub const SIG_SDHOST_CARD_DETECT_N: [usize; SLOTS] = [194, 195];
+pub const SIG_SDHOST_CARD_WRITE_PRT: [usize; SLOTS] = [196, 197];
 
 // Every peripheral, where it sits, and its interrupt source numbers. Entries for one block are
 // tried in order: a range-limited entry goes before the full-block one behind it.
@@ -408,6 +422,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), 
     0x3c "RSA" (rsa) => [SRC_RSA];
     0x06 "FE" (fe) @ 0x174..=0x177 => [];
     0x80 "USB_OTG" optional (usb_otg) => [SRC_USB_OTG];
+    0x28 "SDMMC" optional (sdmmc) => [SRC_SDIO_HOST];
 }
 
 impl DeviceSet for Peripherals {
@@ -421,6 +436,7 @@ impl DeviceSet for Peripherals {
             0xc2 if !write => self.intmatrix.status = self.source_status(),   // INTERRUPT_*_STATUS reads the live sources
             0x35 => self.wifi.now_cycles = self.clock.cycles(),               // TSF timestamps
             0x08 => self.rtc.now_cycles = self.clock.cycles(),                // SENS ADC samples analog sources at this time
+            SDMMC_BLOCK => self.sdmmc_pre_access(),
             _ => {}
         }
     }
@@ -439,7 +455,7 @@ impl Peripherals {
             io_mux: RegRam::new(), misc: Misc::new(), fake_reads: std::env::var("ESP_EMU_FAKE_READ").ok().map(|v| v.split(',').filter_map(|e| { let mut p = e.split(':'); let a = u32::from_str_radix(p.next()?.trim_start_matches("0x"), 16).ok()?; let o = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).ok()?; let m = u32::from_str_radix(p.next().unwrap_or("ffffffff").trim_start_matches("0x"), 16).ok()?; Some((a, (o, m))) }).collect()).unwrap_or_default(),
             clock: Self::new_clock(),
             spi_exec: false, last_status: [0; 4], intmatrix_dirty: false,
-            usb_otg: Self::new_usb_otg(),
+            usb_otg: Self::new_usb_otg(), sdmmc: Sdmmc::new(SdmmcLayout::Esp32), sd_cycle_base: 0,
         }
     }
 
@@ -466,6 +482,39 @@ impl Peripherals {
         let wrap = self.misc.generic.get(&0x39).map_or(0, |r| r.read(0));
         self.usb_otg.set_phy(otg && wrap & (1 << 2) == 0);
         self.usb.connected = !otg;
+    }
+
+    /// A GPIO matrix input signal's level: the pin IN_SEL names, or the constant inputs 0x38
+    /// (one) and 0x3C (zero, the reset value), inverted by IN_INV_SEL (bit 6) (IDF v5.5.4
+    /// components/soc/esp32s3/include/soc/gpio_pins.h:13-14).
+    fn matrix_input(&self, signal: usize) -> bool {
+        let sel = self.gpio.func_in_sel[signal];
+        let level = match sel & 0x3f { 0x38 => true, 0x3c => false, p => self.gpio.level(p as u8) };
+        level ^ (sel & 0x40 != 0)
+    }
+
+    /// The card is on the first slot whose clock the GPIO matrix puts on a pad: the S3 routes
+    /// SD through the matrix to whatever pins the firmware chose, so the card follows them.
+    pub fn sd_routes(&self) -> [Option<usize>; SLOTS] {
+        let mut r = [None; SLOTS];
+        if self.sdmmc.devices.is_empty() { return r; }
+        let pins = &self.gpio.func_out_sel[..self.gpio.pins as usize];
+        if let Some(slot) = (0..SLOTS).find(|&s| pins.iter().any(|&sel| sel & 0x1ff == SIG_SDHOST_CCLK_OUT[s])) { r[slot] = Some(0); }
+        r
+    }
+
+    /// Before an SDMMC access: emulated time for the card, the slots' routes, and CDETECT and
+    /// WRTPRT from the card-detect and write-protect signals of the matrix (IDF's driver ties
+    /// them to constant inputs when the board has no such pin: esp_driver_sdmmc/src/sdmmc_host.c).
+    /// Out of line, so that `pre_access` stays small enough to inline into every register access.
+    #[cold]
+    #[inline(never)]
+    fn sdmmc_pre_access(&mut self) {
+        self.sdmmc.now_ns = ((self.sd_cycle_base + self.clock.cycles()) as u128 * 1_000_000_000 / CPU_HZ as u128) as u64;
+        self.sdmmc.route = self.sd_routes();
+        let (cd, wp) = (0..SLOTS).fold((0, 0), |(cd, wp), s| (cd | (self.matrix_input(SIG_SDHOST_CARD_DETECT_N[s]) as u32) << s, wp | (self.matrix_input(SIG_SDHOST_CARD_WRITE_PRT[s]) as u32) << s));
+        self.sdmmc.card_detect_n = cd;
+        self.sdmmc.write_protect = wp;
     }
 
     pub fn block_name_pub(block: u32) -> String { Self::block_name(block).to_string() }
@@ -519,7 +568,7 @@ impl Peripherals {
             for (group, bit) in [17, 20].iter().enumerate() { if v & (1 << bit) != 0 { self.mcpwm[group] = Mcpwm::new(160 + group as u32 * 6, 9); } }
         }
         let fx = mmio::write32(self, addr, v);
-        if matches!(addr, 0x6000_8120 | 0x6003_9000 | 0x600c_0020) { self.usb_control(addr, v); }
+        if matches!(addr, 0x6000_8120 | 0x6003_9000 | 0x600c_0020 | 0x600c_0024) { self.usb_sd_control(addr, v); }
         if fx.contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if fx.contains(WriteEffect::INTMAP) { self.intmatrix_dirty = true; }
         // ESP-IDF v5.5.4 soc/system_reg.h: PERIP_CLK_EN1/RST_EN1 LCD_CAM bit 8.
@@ -533,15 +582,17 @@ impl Peripherals {
         }
     }
 
-    /// The registers outside the block that control it: RTC_CNTL_USB_CONF and USB_WRAP_OTG_CONF
-    /// move the internal PHY between the two USB controllers; SYSTEM_PERIP_RST_EN0.USB_RST (bit 23)
-    /// holds the OTG core in reset (IDF v5.5.4
-    /// components/soc/esp32s3/register/soc/system_reg.h:416-418).
+    /// The registers outside the two blocks that control them: RTC_CNTL_USB_CONF and
+    /// USB_WRAP_OTG_CONF move the internal PHY between the two USB controllers;
+    /// SYSTEM_PERIP_RST_EN0.USB_RST (bit 23) holds the OTG core in reset, PERIP_RST_EN1.SDIO_HOST_RST
+    /// (bit 7) the SDMMC host (IDF v5.5.4 components/soc/esp32s3/register/soc/system_reg.h:416-418,
+    /// :580-582).
     #[cold]
     #[inline(never)]
-    fn usb_control(&mut self, addr: u32, v: u32) {
+    fn usb_sd_control(&mut self, addr: u32, v: u32) {
         match addr {
             0x600c_0020 => { self.usb_otg.set_reset(v & (1 << 23) != 0); Dispatch::refresh_optional(self, USB_OTG_BLOCK); }
+            0x600c_0024 => if v & (1 << 7) != 0 { self.sdmmc.reset_registers(); Dispatch::refresh_optional(self, SDMMC_BLOCK); },
             _ => self.route_usb_phy(),
         }
     }

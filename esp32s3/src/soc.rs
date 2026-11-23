@@ -164,6 +164,7 @@ impl esp_soc::SocBus for SocBus {
         self.cancel_spi2_timing();
         let cause = self.periph.rtc.reset_cause;
         let mut old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
+        let sd_base = old.sd_cycle_base + old.clock_cycles();
         let p = &mut self.periph;
         // The host AP and network survive a guest reboot; only the MAC and relay queues reset.
         p.wifi.link = old.wifi.link.surviving_reboot();
@@ -183,7 +184,9 @@ impl esp_soc::SocBus for SocBus {
         p.spi0.psram_mr[2] = old.spi0.psram_mr[2]; p.spi1.psram_mr[2] = old.spi1.psram_mr[2];
         p.rtc.ram = old.rtc.ram; p.rtc.slow_ticks = old.rtc.slow_ticks; p.rtc.reset_cause = cause;
         p.usb.connected = old.usb.connected;            // the host side of the USB cable is not reset
-        // The USB-OTG cable stays plugged in; the host sees the reset core's pull-up go.
+        // The card keeps its power and its state; IDF's init resets it with CMD0. The USB-OTG
+        // cable stays plugged in; the host sees the reset core's pull-up go.
+        p.sdmmc.devices = std::mem::take(&mut old.sdmmc.devices); p.sdmmc.stats = old.sdmmc.stats; p.sd_cycle_base = sd_base;
         if let Some(link) = old.usb_otg.link.take() { p.usb_otg.stats = old.usb_otg.stats; p.usb_otg.reattach(old.usb_otg.now, link); }
         p.rtc.ram.write(0x38, cause | (cause << 6));
         p.rtc.ram.write(0x98, 0);                       // watchdog disarmed by the reset; the ROM re-arms it
@@ -264,6 +267,10 @@ impl esp_soc::SocBus for SocBus {
         if p.lcd_cam.lcd_frames > 0 { s += &format!("[emu] lcd: {} RGB frames\n", p.lcd_cam.lcd_frames); }
         if p.lcd_cam.frames + p.lcd_cam.dropped > 0 { s += &format!("[emu] camera: {} VSYNCs, {} frames with dropped data\n", p.lcd_cam.frames, p.lcd_cam.dropped); }
         if p.rmt.tx_count > 0 { s += &format!("[emu] rmt tx {}\n", p.rmt.tx_count); }
+        let sd = &p.sdmmc.stats;
+        if !p.sdmmc.devices.is_empty() || sd.commands > 0 {
+            s += &format!("[sdmmc] {} commands ({} unanswered), {} bytes read, {} written\n", sd.commands, sd.timeouts, sd.bytes_read, sd.bytes_written);
+        }
         if let Some(l) = &p.usb_otg.link {
             let (d, k) = (&p.usb_otg.stats, &l.stats);
             s += &format!("[usb] {} SETUPs, {} IN packets ({} bytes), {} OUT packets ({} bytes), {} NAKs, {} STALLs; host: {} transfers, {} bus resets, {} data PID errors; core: {} DMA faults, {} FIFO size errors\n",
@@ -302,6 +309,18 @@ impl esp_soc::SocBus for SocBus {
     fn audio(&self) -> (&[i16], u32) { let a = self.periph.audio(); (&a.pcm, a.sample_rate) }
     fn camera_frames(&self) -> u64 { self.periph.lcd_cam.frames }
     fn irq_sources_of(&self, core: usize, line: u32) -> Vec<usize> { (0..NUM_SOURCES).filter(|&s| self.periph.intmatrix.map[core][s] == line).collect() }
+    /// The card answers on the slot whose clock the firmware routes to a pad (`Peripherals::sd_routes`).
+    /// The SD bus takes no time: the S3's SDMMC clock tree is not decoded, so `--sd-timing` is refused.
+    fn attach_sd_card(&mut self, image: Box<dyn esp_periph::sdmmc::SdStore>, config: esp_periph::sdmmc::SdCardConfig) -> Result<String, String> {
+        if config.timed_bus { return Err("a timed SD bus needs the SDMMC clock tree, which the ESP32-S3 model does not decode".into()); }
+        let mut card = esp_periph::sdmmc::SdCard::with_config(image, config)?;
+        let what = format!("{}, {} blocks ({}), serial {:08x}, programming {} us, on the pins the firmware routes a slot's clock to", card.describe(), card.blocks(),
+                           if card.sdxc() { "SDXC" } else { "SDHC" }, card.serial(), card.config.prg_ns / 1000);
+        esp_periph::sdmmc::SdDevice::set_log(&mut card, self.periph.sdmmc.logging());
+        self.periph.sdmmc.devices.clear();
+        self.periph.sdmmc.attach(Box::new(card));
+        Ok(what)
+    }
     /// The host on the other end of the full-speed USB-OTG port. It sees the core only while the
     /// internal PHY is the core's (`Peripherals::route_usb_phy`).
     fn attach_usb_host(&mut self, timing: esp_periph::usb_otg::UsbTiming) -> Result<(), String> {

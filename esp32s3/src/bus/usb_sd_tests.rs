@@ -1,10 +1,14 @@
-//! The USB-OTG core on the S3 bus: the shared PHY, its identity and what its DMA reaches.
+//! The USB-OTG core and the SDMMC host on the S3 bus: the shared PHY, the card's slot through the
+//! GPIO matrix, card detect, their interrupt sources and what their DMA reaches.
 use super::*;
 use esp_periph::usb_otg::Request;
 
 const USB_OTG: u32 = 0x6008_0000;
+const SDMMC: u32 = 0x6002_8000;
 const RTC_USB_CONF: u32 = 0x6000_8120;
 const USB_WRAP_OTG_CONF: u32 = 0x6003_9000;
+const GPIO_FUNC_IN_SEL: u32 = 0x6000_4154;
+const GPIO_FUNC_OUT_SEL: u32 = 0x6000_4554;
 
 fn bus() -> SocBus { SocBus::new(1 << 20, 0, [0; 6]) }
 
@@ -72,6 +76,49 @@ fn the_otg_core_is_the_full_speed_instance() {
     assert_eq!(b.read32(USB_OTG + 0x48).unwrap(), 0x224D_D930, "GHWCFG2");
     assert_eq!(b.read32(USB_OTG + 0x24).unwrap(), 256, "GRXFSIZ: OTG_RX_DFIFO_DEPTH");
     assert_eq!(b.read32(USB_OTG + 0x28).unwrap(), 256 << 16 | 256, "GNPTXFSIZ");
+}
+
+/// CMD8 with the given CMD card number, and the RINTSTS it leaves.
+fn cmd8(b: &mut SocBus, slot: u32) -> u32 {
+    b.write32(SDMMC + 0x44, 0xffff_ffff).unwrap();
+    b.write32(SDMMC + 0x28, 0x1aa).unwrap();
+    b.write32(SDMMC + 0x2c, 1 << 31 | slot << 16 | 1 << 6 | 8).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x2c).unwrap() >> 31, 0, "taken within the write");
+    b.read32(SDMMC + 0x44).unwrap()
+}
+
+/// The card answers on the slot whose clock (SDHOST_CCLK_OUT_2, signal 173) the GPIO matrix puts
+/// on a pad, and the host's interrupt is source 30.
+#[test]
+fn the_card_answers_on_the_slot_the_matrix_clocks() {
+    let mut b = bus();
+    esp_soc::SocBus::attach_sd_card(&mut b, Box::new(esp_periph::sdmmc::MemStore(vec![0; 1 << 20])), Default::default()).unwrap();
+    assert_eq!(cmd8(&mut b, 1) & (1 << 8), 1 << 8, "no clock on any pin: response timeout");
+    b.write32(GPIO_FUNC_OUT_SEL + 4 * 36, 173).unwrap();
+    assert_eq!(cmd8(&mut b, 1), 1 << 2, "CMD_DONE, no error");
+    assert_eq!(b.read32(SDMMC + 0x30).unwrap(), 0x1aa, "R7 echoes the check pattern");
+    assert_eq!(cmd8(&mut b, 0) & (1 << 8), 1 << 8, "nothing on slot 0");
+    b.write32(SDMMC + 0x24, 1 << 2).unwrap();
+    b.write32(SDMMC, 1 << 4).unwrap();
+    let _ = cmd8(&mut b, 1);
+    b.write32(SDMMC + 0x44, 0).unwrap();
+    assert_eq!(b.periph.source_status()[0] >> crate::periph::SRC_SDIO_HOST & 1, 1, "source 30 asserted");
+    b.write32(SDMMC + 0x44, 1 << 2).unwrap();
+    assert_eq!(b.periph.source_status()[0] >> crate::periph::SRC_SDIO_HOST & 1, 0, "and released");
+}
+
+/// CDETECT and WRTPRT read the card-detect and write-protect signals of the matrix: the constant
+/// inputs IDF ties them to without such pins (zero; one inverted), or a pin.
+#[test]
+fn card_detect_and_write_protect_follow_the_matrix() {
+    let mut b = bus();
+    assert_eq!(b.read32(SDMMC + 0x50).unwrap(), 0, "reset: constant zero, both slots detect a card");
+    b.write32(GPIO_FUNC_IN_SEL + 4 * 195, 0x80 | 0x38).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x50).unwrap(), 2, "slot 1 tied high: no card");
+    b.write32(GPIO_FUNC_IN_SEL + 4 * 197, 0x80 | 0x40 | 0x38).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x54).unwrap(), 0, "write protect: one, inverted");
+    b.write32(GPIO_FUNC_IN_SEL + 4 * 196, 0x80 | 5).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x54).unwrap(), 1, "slot 0 from GPIO5, floating high");
 }
 
 /// The DMA reaches internal SRAM on the data bus; a write moves the page versions so no decoded
