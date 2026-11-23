@@ -110,6 +110,7 @@ dependencies = [
  "esp32s3",
  "esp32s31",
  "esp32sim-wasm-jit",
+ "riscv-rv32",
  "xtensa-lx7",
 ]
 

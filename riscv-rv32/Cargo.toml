@@ -5,5 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "RV32IMC(A)(F)(Zb*, Zcb, Zcmp) interpreter for the ESP32-C3, C6 and P4 RISC-V cores"
 
+[features]
+# The JIT's WebAssembly backend, for a page that provides `env.host_jit_compile` and
+# `env.host_jit_release` (`web/wasm/jit.mjs`)
+wasm-jit-host = []
+
 [dependencies]
 emu-core = { path = "../emu-core" }

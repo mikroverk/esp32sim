@@ -1,0 +1,61 @@
+{
+ "rounds": 7,
+ "max_load": 3.0,
+ "workloads": {
+  "s31-hello": {
+   "identical_work_and_console": true,
+   "insns": [
+    9600000000,
+    9594213952
+   ],
+   "console_sha256": "e84178d1ceb9d34189548c1055572e5efbd8f2275523866a039ec524a2af2bc4",
+   "load": [
+    1.81,
+    2.42
+   ],
+   "discarded_rounds": [],
+   "summary": {
+    "main": { "user_median_s": 4.79, "host_insns_median": 170518641403, "host_cycles_median": 20812486602
+    },
+    "main-again": { "user_median_s": 4.8, "host_insns_median": 170518458784, "host_cycles_median": 20866001514, "user_paired_median_pct": 0.63, "host_insns_paired_median_pct": -0.0, "host_cycles_paired_median_pct": 0.59, "slower_pairs": 4
+    },
+    "off": { "user_median_s": 4.8, "host_insns_median": 170402856682, "host_cycles_median": 20875165720, "user_paired_median_pct": 0.21, "host_insns_paired_median_pct": -0.07, "host_cycles_paired_median_pct": 0.29, "slower_pairs": 4
+    },
+    "on": { "user_median_s": 4.72, "host_insns_median": 168777509962, "host_cycles_median": 20542734429, "user_paired_median_pct": -2.05, "host_insns_paired_median_pct": -1.02, "host_cycles_paired_median_pct": -2.09, "slower_pairs": 1
+    }
+   },
+   "runs": {
+    "main": { "user_s": [  4.75,  4.79,  4.72,  5.05,  4.75,  4.87,  4.85 ], "host_insns": [  170517673156,  170518450071,  170519216086,  170518641403,  170517352913,  170538129750,  170553805633 ], "host_cycles": [  20614815897,  20812486602,  20510962356,  22023726587,  20643289858,  21201848289,  21131573103 ], "load": [  2.42,  2.01,  2.01,  2.02,  1.94,  2.09,  2.09 ]
+    },
+    "main-again": { "user_s": [  4.83,  4.82,  4.82,  4.8,  4.8,  4.78,  4.78 ], "host_insns": [  170519774553,  170517797259,  170517787223,  170517969827,  170518458784,  170522054642,  170521316031 ], "host_cycles": [  20998207931,  20935101164,  20958248566,  20853189047,  20866001514,  20828267303,  20779869937 ], "load": [  2.31,  2.01,  2.01,  2.02,  1.94,  1.91,  2.08 ]
+    },
+    "off": { "user_s": [  4.82,  4.8,  4.81,  4.8,  4.81,  4.78,  4.8 ], "host_insns": [  170402252729,  170401978437,  170402856682,  170403049777,  170402312603,  170406582747,  170407147204 ], "host_cycles": [  20929477840,  20872573235,  20910694762,  20859240466,  20950353844,  20781299960,  20875165720 ], "load": [  2.2,  2.0,  2.01,  1.94,  1.94,  1.91,  2.07 ]
+    },
+    "on": { "user_s": [  4.7,  4.68,  4.76,  4.72,  4.7,  4.77,  4.73 ], "host_insns": [  168776165439,  168777509962,  168776850855,  168776832589,  168777993910,  168791897403,  168780967595 ], "host_cycles": [  20448958583,  20305174754,  20691037932,  20545407374,  20407956996,  20758492697,  20542734429 ], "load": [  2.19,  2.09,  2.0,  1.93,  1.87,  1.81,  2.15 ]
+    }
+   }
+  }
+ },
+ "binaries": {
+  "main": {
+   "esp32sim-s31": "407ba267af5930c932a614058c37742c8fba0b0f51d2df5598b90f3145fbfa90"
+  },
+  "main-again": {
+   "esp32sim-s31": "daff10acf628d6c9d7bbcedcf10379ef51ac07f22093a5ffde9f64c30a1b0487"
+  },
+  "off": {
+   "esp32sim-s31": "4e4bb1c8fe21b49dba2581a4b54355e2778617e6e1c7bcb2897a291a9293e4db"
+  },
+  "on": {
+   "esp32sim-s31": "4e4bb1c8fe21b49dba2581a4b54355e2778617e6e1c7bcb2897a291a9293e4db"
+  }
+ },
+ "environment": {
+  "main": {},
+  "main-again": {},
+  "off": {
+   "RV32_JIT": "0"
+  },
+  "on": {}
+ }
+}

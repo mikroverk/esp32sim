@@ -23,6 +23,7 @@
 use crate::bus::Bus;
 use crate::decode::{decode_for, Comp, Insn, Op};
 use crate::exec::{exec_insn_inline, step_outcome, Trap};
+use crate::jit::{Code, Ctx, Jit, NoCode, STOP, TRAP};
 use crate::state::Cpu;
 use emu_core::core::pc_bit;
 
@@ -65,23 +66,81 @@ pub struct Blocks {
     isa: u32,
     pub builds: u64,
     pub flushes: u64,
+    /// the JIT's state, behind a pointer so that blocks without it are laid out as before it:
+    /// none where there is no backend, or with `RV32_JIT=0`
+    jit: Option<Box<State>>,
+}
+
+/// What the JIT keeps per block table (EX269).
+struct State {
+    /// whole runs of a block before it is compiled
+    hot: u16,
+    /// regions compiled
+    compiled: u64,
+    /// the compiled code, once there is any
+    code: Option<Box<Jit>>,
+    /// per block entry; empty until the first block is built
+    slots: Vec<Slot>,
+    /// every compiled block's code by pc: (code, length, code pages, versions), so a block
+    /// inside a compiled region is entered there
+    regions: std::collections::HashMap<u32, (u32, usize, [u32; 2], [u32; 2])>,
+}
+
+#[derive(Clone, Copy)]
+struct Slot {
+    /// the compiled block's code (`Jit::compile`), `NOT_COMPILED` or `UNCOMPILABLE`
+    code: u32,
+    /// whole runs of the block not yet compiled, up to `State::hot`
+    hits: u16,
+}
+const NOT_COMPILED: u32 = u32::MAX;
+const UNCOMPILABLE: u32 = u32::MAX - 1;
+const NO_SLOT: Slot = Slot { code: NOT_COMPILED, hits: 0 };
+
+impl State {
+    /// Discard the compiled code and everything that refers to it.
+    fn forget(&mut self) {
+        if let Some(c) = self.code.as_mut() { c.reset(); }
+        self.regions.clear();
+        self.slots.fill(NO_SLOT);
+    }
+}
+
+/// `RV32_JIT` and `RV32_JIT_HOT`, read once (docs/cli.md): the whole runs before a block is
+/// compiled, none for no JIT.
+fn settings() -> Option<u16> {
+    static SETTINGS: std::sync::OnceLock<Option<u16>> = std::sync::OnceLock::new();
+    *SETTINGS.get_or_init(|| {
+        let on = crate::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0");
+        on.then(|| std::env::var("RV32_JIT_HOT").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::jit::HOT))
+    })
 }
 
 impl Default for Blocks {
-    fn default() -> Self { Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0 } }
+    fn default() -> Self {
+        let jit = settings().map(|hot| Box::new(State { hot, compiled: 0, code: None, slots: Vec::new(), regions: Default::default() }));
+        Blocks { on: true, entries: Vec::new(), arena: Vec::new(), isa: 0, builds: 0, flushes: 0, jit }
+    }
 }
 
 impl Blocks {
-    /// Forget every block (a reset, new boundaries, `--no-jit`).
+    /// Forget every block (a reset, new boundaries, `--no-jit`), and their code.
     pub fn flush(&mut self) {
         if !self.entries.is_empty() { self.entries.iter_mut().for_each(|e| *e = EMPTY); self.flushes += 1; }
         self.arena.clear();
+        if let Some(j) = self.jit.as_mut() { j.forget(); }
     }
+    /// Compile a block after `runs` whole runs of it (`RV32_JIT_HOT`).
+    pub fn set_jit_hot(&mut self, runs: u16) { if let Some(j) = self.jit.as_mut() { j.hot = runs; } }
+    /// Regions compiled.
+    pub fn compiled(&self) -> u64 { self.jit.as_ref().map_or(0, |j| j.compiled) }
+    /// Bytes of compiled code held.
+    pub fn code_bytes(&self) -> usize { self.jit.as_ref().and_then(|j| j.code.as_ref()).map_or(0, |c| c.bytes()) }
 }
 
 /// Instructions after which the rest of a block may be stale: anything that can store.
 #[inline(always)]
-fn may_write(op: Op) -> bool {
+pub(crate) fn may_write(op: Op) -> bool {
     use Op::*;
     matches!(op, Sb | Sh | Sw | ScW | AmoSwapW | AmoAddW | AmoXorW | AmoAndW | AmoOrW | AmoMinW | AmoMaxW | AmoMinuW | AmoMaxuW | CmPush | Fsw) || op.is_pie()
 }
@@ -91,7 +150,7 @@ fn may_write(op: Op) -> bool {
 /// read (`csrrs`/`csrrc` from x0, or with a zero immediate) writes nothing (`exec_insn`) and
 /// `read_csr` has no side effects, so a delay loop that polls the cycle counter stays one block.
 #[inline(always)]
-fn ends_block(i: &Insn) -> bool {
+pub(crate) fn ends_block(i: &Insn) -> bool {
     use Op::*;
     match i.op {
         Csrrs | Csrrc | Csrrsi | Csrrci => i.rs1 != 0,
@@ -126,22 +185,29 @@ fn lookup<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32) -> Option<Entry> {
     build(cpu, bus, pc, ei)
 }
 
-#[cold]
-#[inline(never)]
-fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32, ei: usize) -> Option<Entry> {
+/// A decoded block before it is stored: what `build` keeps, and what the JIT's regions use for
+/// the blocks around a hot one.
+pub(crate) struct Decoded {
+    pub insns: [Insn; MAX_LEN],
+    pub n: usize,
+    pub writes: u32,
+    pub plain_end: bool,
+    pub vidx: [u32; 2],
+    pub ver: [u32; 2],
+}
+
+/// Decode the block at `pc`, as `build` stores it: up to `MAX_LEN` instructions, at most two
+/// version pages, in front of a boundary, through its terminator. The pages are watched before
+/// their versions are read (EX110). `None` where there is no block to run.
+pub(crate) fn decode_block<B: Bus>(cpu: &Cpu, bus: &mut B, pc: u32) -> Option<Decoded> {
     let isa = cpu.isa();
-    let b = &mut cpu.blocks;
-    if b.isa != isa || b.arena.len() + MAX_LEN > ARENA_CAP { b.flush(); b.isa = isa; }
     let v0 = bus.code_page(pc);
     if v0 == NO_PAGE { return None; }
     let mut v1 = v0;
     const NOP: Insn = Insn { op: Op::Illegal, rd: 0, rs1: 0, rs2: 0, imm: 0, len: 4, comp: Comp::None, raw: 0 };
-    let mut buf = [NOP; MAX_LEN];
-    let mut n = 0;
-    let mut writes = 0u32;
-    let mut plain_end = true;
+    let mut d = Decoded { insns: [NOP; MAX_LEN], n: 0, writes: 0, plain_end: true, vidx: [v0, v0], ver: [0; 2] };
     let mut at = pc;
-    for (k, slot) in buf.iter_mut().enumerate() {
+    for k in 0..MAX_LEN {
         if k > 0 && cpu.boundary_bloom & pc_bit(at) != 0 { break; }
         let Some(bytes) = bus.fetch_ahead(at) else { break; };
         let i = decode_for(isa, at, bytes);
@@ -154,33 +220,97 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32, ei: usize) -> Option<Entry
             if p != v0 && p != v1 { if v1 == v0 { v1 = p; } else { fits = false; } }
         }
         if !fits { break; }
-        if may_write(i.op) { writes |= 1 << k; }
-        *slot = i;
-        n = k + 1;
+        if may_write(i.op) { d.writes |= 1 << k; }
+        d.insns[k] = i;
+        d.n = k + 1;
         if ends_block(&i) {
-            plain_end = matches!(i.op, Op::Jal | Op::Jalr | Op::Beq | Op::Bne | Op::Blt | Op::Bge | Op::Bltu | Op::Bgeu | Op::CmPopret | Op::CmPopretz);
+            d.plain_end = matches!(i.op, Op::Jal | Op::Jalr | Op::Beq | Op::Bne | Op::Blt | Op::Bge | Op::Bltu | Op::Bgeu | Op::CmPopret | Op::CmPopretz);
             break;
         }
         at = at.wrapping_add(i.len as u32);
     }
-    if n == 0 { return None; }
+    if d.n == 0 { return None; }
     // EX110's order: watch the pages, then read the versions the block will compare.
     bus.note_code_page(v0);
     if v1 != v0 { bus.note_code_page(v1); }
     let pv = bus.page_versions();
     let (Some(&ver0), Some(&ver1)) = (pv.get(v0 as usize), pv.get(v1 as usize)) else { return None; };
+    d.vidx = [v0, v1];
+    d.ver = [ver0, ver1];
+    Some(d)
+}
+
+#[cold]
+#[inline(never)]
+fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32, ei: usize) -> Option<Entry> {
+    let isa = cpu.isa();
+    let b = &mut cpu.blocks;
+    if b.isa != isa || b.arena.len() + MAX_LEN > ARENA_CAP { b.flush(); b.isa = isa; }
+    let d = decode_block(cpu, bus, pc)?;
+    let b = &mut cpu.blocks;
+    let n = d.n;
     // the evicted block's slots, if they are enough; nothing else refers to them
     let old = b.entries[ei];
     let (start, cap) = if old.pc != EMPTY.pc && old.cap as usize >= n { (old.start as usize, old.cap) } else {
         let start = b.arena.len();
-        b.arena.extend_from_slice(&buf[..n]);
+        b.arena.extend_from_slice(&d.insns[..n]);
         (start, n as u8)
     };
-    b.arena[start..start + n].copy_from_slice(&buf[..n]);
-    let e = Entry { pc, start: start as u32, n: n as u8, cap, writes, plain_end, vidx: [v0, v1], ver: [ver0, ver1] };
+    b.arena[start..start + n].copy_from_slice(&d.insns[..n]);
+    let e = Entry { pc, start: start as u32, n: n as u8, cap, writes: d.writes, plain_end: d.plain_end, vidx: d.vidx, ver: d.ver };
     b.entries[ei] = e;
+    if let Some(j) = b.jit.as_mut() {
+        if j.slots.is_empty() { j.slots = vec![NO_SLOT; ENTRIES]; }
+        j.slots[ei] = NO_SLOT;
+    }
     b.builds += 1;
     Some(e)
+}
+
+/// The compiled code of the block in entry `ei`, compiling its region once the block is hot.
+#[inline(always)]
+fn jit_code<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<Code> {
+    let b = &mut cpu.blocks;
+    let j = b.jit.as_deref_mut()?;
+    let s = j.slots.get_mut(ei)?;
+    if s.code >= UNCOMPILABLE {
+        if s.code == UNCOMPILABLE { return None; }
+        s.hits = s.hits.saturating_add(1);
+        if s.hits < j.hot { return None; }
+        // inside a region compiled already, from the same bytes (versions) and as long
+        let e = &b.entries[ei];
+        match j.regions.get(&e.pc) {
+            Some(&(code, n, vidx, ver)) if n == e.n as usize && vidx == e.vidx && ver == e.ver => s.code = code,
+            _ => return jit_compile(cpu, bus, ei),
+        }
+    }
+    let code = s.code;
+    j.code.as_ref().map(|c| c.entry(code))
+}
+
+#[cold]
+#[inline(never)]
+fn jit_compile<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: usize) -> Option<Code> {
+    let e = cpu.blocks.entries[ei];
+    let insns = cpu.blocks.arena[e.start as usize..e.start as usize + e.n as usize].to_vec();
+    let region = crate::jit::region(cpu, bus, e.pc, &insns, e.vidx, e.ver);
+    let j = cpu.blocks.jit.as_deref_mut()?;
+    if j.code.is_none() {
+        j.code = Jit::new();
+        // the host gives no executable memory: blocks stay interpreted
+        if j.code.is_none() { cpu.blocks.jit = None; return None; }
+    }
+    let mut codes = j.code.as_mut()?.compile::<B>(&region);
+    if codes == Err(NoCode::Full) {
+        // start again, every block's code with it
+        j.forget();
+        codes = j.code.as_mut()?.compile::<B>(&region);
+    }
+    let Ok(codes) = codes else { j.slots[ei].code = UNCOMPILABLE; return None; };
+    for ((pc, n, vidx, ver), &code) in region.members().zip(&codes) { j.regions.insert(pc, (code, n, vidx, ver)); }
+    j.slots[ei].code = codes[0];
+    j.compiled += 1;
+    j.code.as_ref().map(|c| c.entry(codes[0]))
 }
 
 /// One instruction through the interpreter, with `Core::run`'s stop tests.
@@ -207,6 +337,27 @@ pub fn run<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap
             }
         };
         let n = (e.n as u32).min(budget - used);
+        // a whole block, no hardware loop counting, no break pending: its compiled code
+        if cpu.blocks.jit.is_some() && n == e.n as u32 && cpu.hwlp_count[0] | cpu.hwlp_count[1] == 0 && !bus.block_break() {
+            if let Some(code) = jit_code(cpu, bus, (e.pc >> 1) as usize & (ENTRIES - 1)) {
+                let mut ctx = Ctx::new(bus);
+                // SAFETY: the code is this core's (slots forget theirs whenever it is reset) and
+                // the entry block's versions were just checked by `lookup`. Nothing compiles or
+                // discards code while it runs: the helpers never reach `build` or `flush`. Code is
+                // made for one bus: a core always runs on the same one, whose versions never shrink.
+                let r = unsafe { Jit::call(code, cpu, bus, &mut ctx, budget - used) };
+                let (done, status) = (r as u32, (r >> 32) as u32);
+                bus.note_pc(ctx.last_pc);
+                match status {
+                    TRAP => return (used + done, ctx.trap),
+                    STOP => return (used + done, None),
+                    _ => {}
+                }
+                used += done;
+                if cpu.boundary_bloom != 0 && cpu.boundary_bloom & pc_bit(cpu.pc) != 0 { return (used, None); }
+                continue;
+            }
+        }
         let mut done = 0;
         while done < n {
             let i = cpu.blocks.arena[(e.start + done) as usize];
