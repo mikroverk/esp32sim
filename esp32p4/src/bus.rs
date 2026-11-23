@@ -6,6 +6,9 @@
 //! 64 KB pages, programmed through the item index / content registers of the flash controller
 //! (SPI_MEM_C) and of the PSRAM controller (SPI_MEM_S). Each of these has a non-cacheable alias
 //! at +0x4000_0000 (SOC_NON_CACHEABLE_OFFSET); caches are not modelled, so both views are one.
+//!
+//! The bus versions the code it fetches (`Bus::page_versions`, laid out at `CODE_PAGES`), so the
+//! cores run decoded blocks and their JIT (EX265, EX269).
 
 use crate::periph::Peripherals;
 use riscv_rv32::bus::{Bus, Fault};
@@ -47,27 +50,66 @@ pub const CLIC_HIGH: u32 = 0x2082_0000;
 #[derive(Clone, Copy)]
 enum Mmu { Flash, Psram }
 
+const CODE_PAGE_SHIFT: u32 = emu_core::bus::VPAGE_SHIFT;
+const L2_CODE: usize = 0;
+const TCM_CODE: usize = L2_CODE + ((L2MEM_HIGH - L2MEM_LOW) >> CODE_PAGE_SHIFT) as usize;
+const LP_CODE: usize = TCM_CODE + ((TCM_HIGH - TCM_LOW) >> CODE_PAGE_SHIFT) as usize;
+const ROM_CODE: usize = LP_CODE + ((LP_RAM_HIGH - LP_RAM_LOW) >> CODE_PAGE_SHIFT) as usize;
+const FLASH_CODE: usize = ROM_CODE + 1;
+const PSRAM_CODE: usize = FLASH_CODE + MMU_ENTRIES;
+/// Decoded-code versions (`Bus::page_versions`, EX265), one array for both cores: one counter
+/// per 256-byte page of L2MEM, TCM and LP RAM, one for both mask ROMs, one per 64 KB page of the
+/// flash window (its MMU entry; the uncached alias shares it), then one per 256-byte physical
+/// page of PSRAM (every virtual address of a page, through either alias, has one version), which
+/// `SocBus::resize_psram` adds to these. Memory map: IDF v5.5.4
+/// components/soc/esp32p4/include/soc/soc.h:152-182, the same for every revision; MMU entries:
+/// ext_mem_defs.h:57-78.
+const CODE_PAGES: usize = PSRAM_CODE;
+/// Every bus starts its versions where no earlier bus's can still be.
+static CODE_EPOCH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+/// The code versions of `n` bytes written at offset `off` of the memory whose versions start at
+/// `code`: its pages, and the page before when the write reaches into the first three bytes of
+/// one (a four-byte instruction there starts on that page). Indices past the array have no
+/// version: `code_page` never gives one out.
+#[inline(always)]
+fn bump(ver: &mut [u32], code: usize, off: usize, n: usize) {
+    let first = code + (off.saturating_sub(emu_core::bus::PREV_PAGE_BYTES as usize) >> CODE_PAGE_SHIFT);
+    let last = (code + ((off + n.max(1) - 1) >> CODE_PAGE_SHIFT)).min(ver.len() - 1);
+    if let Some(pages) = ver.get_mut(first..=last) { for v in pages { *v = v.wrapping_add(1); } }
+}
+/// The flash array changed at `n` bytes from `off`: the version of every flash-window page whose
+/// MMU entry maps them, or the three bytes before (`fetch` reads an instruction's bytes on from
+/// where its first one is, so one ending a 64 KB page reads the next flash page).
+fn bump_flash(ver: &mut [u32], mmu: &[u32; MMU_ENTRIES], off: usize, n: usize) {
+    let (lo, hi) = (off.saturating_sub(emu_core::bus::PREV_PAGE_BYTES as usize), off + n.max(1));
+    for (page, &e) in mmu.iter().enumerate() {
+        let at = ((e & MMU_FLASH_PAGE_MASK) as usize) << MMU_PAGE_SHIFT;
+        if e & MMU_FLASH_VALID != 0 && at < hi && lo < at + (1 << MMU_PAGE_SHIFT) { ver[FLASH_CODE + page] = ver[FLASH_CODE + page].wrapping_add(1); }
+    }
+}
+
 /// What the SDMMC host's IDMAC and the USB-OTG core's DMA reach: L2MEM and PSRAM
 /// (SOC_SDMMC_PSRAM_DMA_CAPABLE, SOC_PSRAM_DMA_CAPABLE, IDF v5.5.3 include/soc/soc_caps.h;
 /// components/usb/hcd_dwc.c:50, the USB-DWC's DMA reaching external RAM on the P4), at
 /// their cached or uncached addresses. Caches are not modelled, so a DMA access sees what the
-/// cores wrote.
-struct DmaView<'a> { l2mem: &'a mut [u8], psram: &'a mut [u8], mmu: &'a [u32; MMU_ENTRIES] }
+/// cores wrote. A write moves the code versions of what it wrote (`ver`).
+struct DmaView<'a> { l2mem: &'a mut [u8], psram: &'a mut [u8], mmu: &'a [u32; MMU_ENTRIES], ver: &'a mut [u32] }
 /// HP UART0/1 FIFO registers (IDF v5.5.4 components/soc/esp32p4/register/soc/reg_base.h).
 const UART_FIFOS: [u32; 2] = [0x500c_a000, 0x500c_b000];
 
 impl DmaView<'_> {
-    /// The memory at `addr` and how many bytes of it are contiguous there.
-    fn span(&mut self, addr: u32) -> Result<&mut [u8], Fault> {
+    /// The memory at `addr` and how many bytes of it are contiguous there, with where its code
+    /// versions start and its offset in that memory.
+    fn span(&mut self, addr: u32) -> Result<(&mut [u8], usize, usize), Fault> {
         let a = if (0x8000_0000..0x9000_0000).contains(&addr) { addr - UNCACHED_OFFSET } else { addr };
         match a {
-            L2MEM_LOW..=0x4FFB_FFFF => Ok(&mut self.l2mem[(a - L2MEM_LOW) as usize..]),
+            L2MEM_LOW..=0x4FFB_FFFF => { let o = (a - L2MEM_LOW) as usize; Ok((&mut self.l2mem[o..], L2_CODE, o)) }
             PSRAM_LOW..=0x4BFF_FFFF => {
                 let entry = self.mmu[((a - PSRAM_LOW) >> MMU_PAGE_SHIFT) as usize];
                 if entry & MMU_PSRAM_VALID == 0 { return Err(Fault::Unmapped); }
                 let off = (((entry & MMU_PSRAM_PAGE_MASK) as usize) << MMU_PAGE_SHIFT) | (a & 0xffff) as usize;
                 let page_end = (off | 0xffff) + 1;
-                self.psram.get_mut(off..page_end.min(self.psram.len())).filter(|s| !s.is_empty()).ok_or(Fault::Unmapped)
+                self.psram.get_mut(off..page_end.min(self.psram.len())).filter(|s| !s.is_empty()).map(|s| (s, PSRAM_CODE, off)).ok_or(Fault::Unmapped)
             }
             _ => Err(Fault::Unmapped),
         }
@@ -76,7 +118,7 @@ impl DmaView<'_> {
 impl esp_periph::sdmmc::SdmmcMemory for DmaView<'_> {
     fn read(&mut self, mut addr: u32, mut buf: &mut [u8]) -> Result<(), Fault> {
         while !buf.is_empty() {
-            let s = self.span(addr)?;
+            let (s, _, _) = self.span(addr)?;
             let n = s.len().min(buf.len());
             buf[..n].copy_from_slice(&s[..n]);
             buf = &mut buf[n..];
@@ -84,11 +126,13 @@ impl esp_periph::sdmmc::SdmmcMemory for DmaView<'_> {
         }
         Ok(())
     }
+    /// A write that faults part-way has still changed, and versioned, the spans before the fault.
     fn write(&mut self, mut addr: u32, mut data: &[u8]) -> Result<(), Fault> {
         while !data.is_empty() {
-            let s = self.span(addr)?;
+            let (s, code, off) = self.span(addr)?;
             let n = s.len().min(data.len());
             s[..n].copy_from_slice(&data[..n]);
+            bump(self.ver, code, off, n);
             data = &data[n..];
             addr = addr.wrapping_add(n as u32);
         }
@@ -123,8 +167,11 @@ pub struct SocBus {
     pub lp_ram: Vec<u8>,
     pub flash: Vec<u8>,
     pub psram: Vec<u8>,
+    /// Changing these or the memories above from outside the guest needs `invalidate_code`.
     pub mmu_flash: Box<[u32; MMU_ENTRIES]>,
     pub mmu_psram: Box<[u32; MMU_ENTRIES]>,
+    /// `Bus::page_versions` (`CODE_PAGES`); it only grows, as the JIT's code requires
+    code_ver: Vec<u32>,
     pub mmu_flash_index: u32,
     pub mmu_psram_index: u32,
     pub periph: Peripherals,
@@ -159,33 +206,79 @@ impl SocBus {
             lp_rom: vec![0; (LP_ROM_HIGH - LP_ROM_LOW) as usize], lp_ram: vec![0; (LP_RAM_HIGH - LP_RAM_LOW) as usize],
             flash: vec![0xff; flash_size], psram: Vec::new(),
             mmu_flash: Box::new([0; MMU_ENTRIES]), mmu_psram: Box::new([0; MMU_ENTRIES]), mmu_flash_index: 0, mmu_psram_index: 0,
+            code_ver: vec![CODE_EPOCH.fetch_add(1 << 20, std::sync::atomic::Ordering::Relaxed); CODE_PAGES],
             periph: Peripherals::new(mac, wafer), wafer, board: Box::new(esp_soc::NoBoard),
             cycles: 0, last_fault: None, irq_dirty: true, ena_latency: Default::default(), uart_busy: false, gpio_events: None, debug: Default::default(), cur_core: 0, reservation: [None; 2], reset_request: None, core_pcs: [0; 2],
         }
     }
 
-    /// Resolve to (buffer, offset, writable). The flash and PSRAM windows go through their MMUs.
-    fn resolve(&mut self, addr: u32) -> Option<(&mut Vec<u8>, usize, bool)> {
+    /// Resolve to (buffer, offset, where the code versions of a writable buffer start). The flash
+    /// and PSRAM windows go through their MMUs.
+    #[inline(always)]
+    fn resolve(&mut self, addr: u32) -> Option<(&mut Vec<u8>, usize, Option<usize>)> {
         let a = if (0x8000_0000..0x9000_0000).contains(&addr) { addr - UNCACHED_OFFSET } else { addr };
         match a {
-            L2MEM_LOW..=0x4FFB_FFFF => Some((&mut self.l2mem, (a - L2MEM_LOW) as usize, true)),
+            L2MEM_LOW..=0x4FFB_FFFF => Some((&mut self.l2mem, (a - L2MEM_LOW) as usize, Some(L2_CODE))),
             FLASH_LOW..=0x43FF_FFFF => {
                 let entry = self.mmu_flash[((a - FLASH_LOW) >> MMU_PAGE_SHIFT) as usize];
                 if entry & MMU_FLASH_VALID == 0 { return None; }
                 let off = (((entry & MMU_FLASH_PAGE_MASK) as usize) << MMU_PAGE_SHIFT) | (a & 0xffff) as usize;
-                if off < self.flash.len() { Some((&mut self.flash, off, false)) } else { None }
+                if off < self.flash.len() { Some((&mut self.flash, off, None)) } else { None }
             }
             PSRAM_LOW..=0x4BFF_FFFF => {
-                let entry = self.mmu_psram[((a - PSRAM_LOW) >> MMU_PAGE_SHIFT) as usize];
-                if entry & MMU_PSRAM_VALID == 0 { return None; }
-                let off = (((entry & MMU_PSRAM_PAGE_MASK) as usize) << MMU_PAGE_SHIFT) | (a & 0xffff) as usize;
-                if off < self.psram.len() { Some((&mut self.psram, off, true)) } else { None }
+                let off = self.psram_phys(a)?;
+                Some((&mut self.psram, off, Some(PSRAM_CODE)))
             }
-            ROM_LOW..=0x4FC1_FFFF => Some((&mut self.rom, (a - ROM_LOW) as usize, false)),
-            TCM_LOW..=0x3010_1FFF => Some((&mut self.tcm, (a - TCM_LOW) as usize, true)),
-            LP_RAM_LOW..=0x5010_FFFF => Some((&mut self.lp_ram, (a - LP_RAM_LOW) as usize, true)),
-            LP_ROM_LOW..=0x5010_3FFF => Some((&mut self.lp_rom, (a - LP_ROM_LOW) as usize, false)),
+            ROM_LOW..=0x4FC1_FFFF => Some((&mut self.rom, (a - ROM_LOW) as usize, None)),
+            TCM_LOW..=0x3010_1FFF => Some((&mut self.tcm, (a - TCM_LOW) as usize, Some(TCM_CODE))),
+            LP_RAM_LOW..=0x5010_FFFF => Some((&mut self.lp_ram, (a - LP_RAM_LOW) as usize, Some(LP_CODE))),
+            LP_ROM_LOW..=0x5010_3FFF => Some((&mut self.lp_rom, (a - LP_ROM_LOW) as usize, None)),
             _ => None,
+        }
+    }
+
+    /// The PSRAM offset a (cached) PSRAM-window address maps to, if it is mapped and backed.
+    #[inline(always)]
+    fn psram_phys(&self, a: u32) -> Option<usize> {
+        let entry = self.mmu_psram[((a - PSRAM_LOW) >> MMU_PAGE_SHIFT) as usize];
+        if entry & MMU_PSRAM_VALID == 0 { return None; }
+        let off = (((entry & MMU_PSRAM_PAGE_MASK) as usize) << MMU_PAGE_SHIFT) | (a & 0xffff) as usize;
+        (off < self.psram.len()).then_some(off)
+    }
+
+    /// Decoded code may no longer match anything: after loading or changing memory, the MMUs or
+    /// the memory sizes from outside the guest's own accesses.
+    pub fn invalidate_code(&mut self) { for v in &mut self.code_ver { *v = v.wrapping_add(1); } }
+
+    /// `bytes` of PSRAM (0 = none), zeroed, with a code version per page. The versions never
+    /// shrink: compiled code reads them without a bounds check.
+    pub(crate) fn resize_psram(&mut self, bytes: usize) {
+        self.psram = vec![0; bytes];
+        let pages = CODE_PAGES + bytes.div_ceil(1 << CODE_PAGE_SHIFT);
+        if pages > self.code_ver.len() { let epoch = self.code_ver[0]; self.code_ver.resize(pages, epoch); }
+        self.invalidate_code();
+    }
+
+    /// The bytes `fetch` reads at `pc`, or `None` where it faults.
+    #[inline(always)]
+    fn fetch_bytes(&mut self, pc: u32) -> Option<[u8; 4]> {
+        match self.resolve(pc) {
+            Some((b, o, _)) if o < b.len() => {
+                let mut r = [0u8; 4];
+                for (i, x) in r.iter_mut().enumerate() { if let Some(&v) = b.get(o + i) { *x = v; } }
+                Some(r)
+            }
+            _ => None,
+        }
+    }
+
+    /// A CPU store of `v` at `addr` to memory, moving the code versions of what it wrote.
+    #[inline(always)]
+    fn store<const N: usize>(&mut self, addr: u32, v: [u8; N]) -> Result<(), Fault> {
+        self.break_reservation(addr);
+        match self.resolve(addr) {
+            Some((b, o, Some(code))) if o + N <= b.len() => { b[o..o + N].copy_from_slice(&v); bump(&mut self.code_ver, code, o, N); Ok(()) }
+            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
 
@@ -216,12 +309,22 @@ impl SocBus {
         }
     }
 
+    /// An entry that changes moves the code versions of what the window showed through it: the
+    /// flash page's version, or those of the PSRAM page it mapped (the code versioned there was
+    /// fetched through this entry).
     fn mmu_write(&mut self, m: Mmu, o: u32, v: u32) {
         match (m, o) {
             (Mmu::Flash, SPI_MMU_ITEM_INDEX) => self.mmu_flash_index = v & 0x3ff,
-            (Mmu::Flash, _) => self.mmu_flash[self.mmu_flash_index as usize % MMU_ENTRIES] = v & 0x3fff,
+            (Mmu::Flash, _) => {
+                let i = self.mmu_flash_index as usize % MMU_ENTRIES;
+                if self.mmu_flash[i] != v & 0x3fff { self.mmu_flash[i] = v & 0x3fff; self.code_ver[FLASH_CODE + i] = self.code_ver[FLASH_CODE + i].wrapping_add(1); }
+            }
             (Mmu::Psram, SPI_MMU_ITEM_INDEX) => self.mmu_psram_index = v & 0x3ff,
-            (Mmu::Psram, _) => self.mmu_psram[self.mmu_psram_index as usize % MMU_ENTRIES] = v & 0x1fff,
+            (Mmu::Psram, _) => {
+                let i = self.mmu_psram_index as usize % MMU_ENTRIES;
+                let old = std::mem::replace(&mut self.mmu_psram[i], v & 0x1fff);
+                if old != v & 0x1fff && old & MMU_PSRAM_VALID != 0 { bump(&mut self.code_ver, PSRAM_CODE, ((old & MMU_PSRAM_PAGE_MASK) as usize) << MMU_PAGE_SHIFT, 1 << MMU_PAGE_SHIFT); }
+            }
         }
     }
 
@@ -304,7 +407,7 @@ impl SocBus {
         let mut need = frames as usize * bpf;
         // the bytes of every descriptor taken, so a frame split between two stays whole
         let mut stream: Vec<u8> = Vec::with_capacity(need);
-        let mut mem = DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram };
+        let mut mem = DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram, ver: &mut self.code_ver };
         let mut walk = esp_periph::gdma::DescriptorWalk::new(esp_periph::gdma::GDMA_DESCRIPTOR_STEP_BUDGET);
         loop {
             if need == 0 { break; }
@@ -352,7 +455,7 @@ impl SocBus {
         let Some(bits) = self.periph.spi2.dma_tx_pending else { return };
         let Some(ch) = self.periph.axi_dma.gdma.out_channel_for(1) else { return };   // not started yet: the round's end retries
         let mut data = Vec::with_capacity((bits as usize).div_ceil(8));
-        let mut memory = AxiOut { mem: DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram }, channel: &mut self.periph.axi_dma.gdma.out[ch] };
+        let mut memory = AxiOut { mem: DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram, ver: &mut self.code_ver }, channel: &mut self.periph.axi_dma.gdma.out[ch] };
         let result = esp_periph::gdma::gather_out(&mut memory, (bits as usize).div_ceil(8), &mut data);
         let c = &mut self.periph.axi_dma.gdma.out[ch];
         c.running = false; c.buf_pos = 0;
@@ -379,7 +482,7 @@ impl SocBus {
     /// current pin routing.
     fn run_sdmmc(&mut self) {
         self.periph.sdmmc.route = self.periph.sd_routes();
-        let mut dma = DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram };
+        let mut dma = DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram, ver: &mut self.code_ver };
         self.periph.sdmmc.run(&mut dma);
         if self.periph.has_sdio { self.sync_sdio(); }
     }
@@ -400,7 +503,7 @@ impl SocBus {
     /// Let the USB host on the cable carry out what is due, its transactions moving data through
     /// the core's DMA.
     fn run_usb(&mut self) {
-        let mut dma = DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram };
+        let mut dma = DmaView { l2mem: &mut self.l2mem, psram: &mut self.psram, mmu: &self.mmu_psram, ver: &mut self.code_ver };
         self.periph.usb_otg.run(&mut dma);
         esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::USB_OTG_BLOCK);
         self.irq_dirty = true;
@@ -410,6 +513,7 @@ impl SocBus {
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
         self.periph.spi1.execute(&mut self.flash, &mut []);
+        for &(_, off, n) in &self.periph.spi1.dirty { bump_flash(&mut self.code_ver, &self.mmu_flash, off, n); }
         self.periph.spi1.dirty.clear();
     }
 
@@ -417,6 +521,7 @@ impl SocBus {
     fn run_psram(&mut self) {
         self.periph.psram_exec = false;
         self.periph.psram1.execute(&mut [], &mut self.psram);
+        for &(_, off, n) in &self.periph.psram1.dirty { bump(&mut self.code_ver, PSRAM_CODE, off, n); }
         self.periph.psram1.dirty.clear();
     }
 
@@ -434,12 +539,14 @@ impl SocBus {
 
     /// Write straight into flash (image loaders, not the guest).
     pub fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
+        self.invalidate_code();
         let target = self.flash.get_mut(offset..).and_then(|tail| tail.get_mut(..data.len())).ok_or("flash image too large")?;
         target.copy_from_slice(data);
         Ok(())
     }
 
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {
+        self.invalidate_code();
         // The mask ROM ELF links its .eh_frame at the flash window; nothing ever reads it.
         if (FLASH_LOW..FLASH_HIGH).contains(&addr) { return Ok(()); }
         for (i, b) in data.iter().enumerate() {
@@ -528,7 +635,29 @@ impl SocBus {
 }
 
 impl Bus for SocBus {
-    fn note_code_page(&mut self, _vidx: u32) {} // This bus has no decode cache.
+    fn note_code_page(&mut self, _vidx: u32) {} // Every write that can change code moves its version.
+    #[inline(always)]
+    fn page_versions(&self) -> &[u32] { &self.code_ver }
+    /// `CODE_PAGES`; `u32::MAX` (no version) outside the memories `fetch` reads and for a PSRAM
+    /// address its MMU does not map. A flash-window pc has its MMU page's version, a PSRAM one
+    /// its physical page's under the current mapping.
+    fn code_page(&mut self, pc: u32) -> u32 {
+        let a = if (0x8000_0000..0x9000_0000).contains(&pc) { pc - UNCACHED_OFFSET } else { pc };
+        let page = |low: u32| ((a - low) >> CODE_PAGE_SHIFT) as usize;
+        let i = match a {
+            L2MEM_LOW..=0x4FFB_FFFF => L2_CODE + page(L2MEM_LOW),
+            FLASH_LOW..=0x43FF_FFFF => FLASH_CODE + ((a - FLASH_LOW) >> MMU_PAGE_SHIFT) as usize,
+            PSRAM_LOW..=0x4BFF_FFFF => match self.psram_phys(a) { Some(off) => PSRAM_CODE + (off >> CODE_PAGE_SHIFT), None => return u32::MAX },
+            ROM_LOW..=0x4FC1_FFFF | LP_ROM_LOW..=0x5010_3FFF => ROM_CODE,
+            TCM_LOW..=0x3010_1FFF => TCM_CODE + page(TCM_LOW),
+            LP_RAM_LOW..=0x5010_FFFF => LP_CODE + page(LP_RAM_LOW),
+            _ => return u32::MAX,
+        };
+        if i < self.code_ver.len() { i as u32 } else { u32::MAX }
+    }
+    /// `fetch` without its fault record.
+    #[inline(always)]
+    fn fetch_ahead(&mut self, pc: u32) -> Option<[u8; 4]> { self.fetch_bytes(pc) }
     fn reserve(&mut self, addr: u32) { self.reservation[self.cur_core] = Some(addr & !3); }
     fn reservation_held(&mut self, addr: u32) -> bool { self.reservation[self.cur_core].take() == Some(addr & !3) }
     fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
@@ -545,37 +674,18 @@ impl Bus for SocBus {
     }
     fn write8(&mut self, addr: u32, v: u8) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.periph_write(addr, v as u32, 1); return Ok(()); }
-        self.break_reservation(addr);
-        match self.resolve(addr) {
-            Some((b, o, true)) if o < b.len() => { b[o] = v; Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
-        }
+        self.store(addr, [v])
     }
     fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.periph_write(addr, v as u32, 2); return Ok(()); }
-        self.break_reservation(addr);
-        match self.resolve(addr) {
-            Some((b, o, true)) if o + 2 <= b.len() => { b[o..o + 2].copy_from_slice(&v.to_le_bytes()); Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
-        }
+        self.store(addr, v.to_le_bytes())
     }
     fn write32(&mut self, addr: u32, v: u32) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.periph_write(addr, v, 4); return Ok(()); }
-        self.break_reservation(addr);
-        match self.resolve(addr) {
-            Some((b, o, true)) if o + 4 <= b.len() => { b[o..o + 4].copy_from_slice(&v.to_le_bytes()); Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
-        }
+        self.store(addr, v.to_le_bytes())
     }
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
-        match self.resolve(pc) {
-            Some((b, o, _)) if o < b.len() => {
-                let mut r = [0u8; 4];
-                for (i, x) in r.iter_mut().enumerate() { if let Some(&v) = b.get(o + i) { *x = v; } }
-                Ok(r)
-            }
-            _ => { self.last_fault = Some((pc, false)); Err(Fault::Unmapped) }
-        }
+        match self.fetch_bytes(pc) { Some(r) => Ok(r), None => { self.last_fault = Some((pc, false)); Err(Fault::Unmapped) } }
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
@@ -754,14 +864,14 @@ mod tests {
         b.psram = vec![0; 0x20000];
         b.mmu_psram[0] = MMU_PSRAM_VALID | 1 << 10 | 1;
         b.mmu_psram[1] = MMU_PSRAM_VALID | 1 << 10;
-        let mut d = DmaView { l2mem: &mut b.l2mem, psram: &mut b.psram, mmu: &b.mmu_psram };
+        let mut d = DmaView { l2mem: &mut b.l2mem, psram: &mut b.psram, mmu: &b.mmu_psram, ver: &mut b.code_ver };
         d.write(0x8FF4_0000, &[1, 2, 3, 4]).unwrap();
         let mut r = [0u8; 4];
         d.read(0x4FF4_0000, &mut r).unwrap();
         assert_eq!(r, [1, 2, 3, 4]);
         d.write(0x4800_fffe, &[5, 6, 7, 8]).unwrap();
         assert_eq!((&b.psram[0x1_fffe..], &b.psram[..2]), (&[5u8, 6][..], &[7u8, 8][..]), "split across the page boundary as mapped");
-        let mut d = DmaView { l2mem: &mut b.l2mem, psram: &mut b.psram, mmu: &b.mmu_psram };
+        let mut d = DmaView { l2mem: &mut b.l2mem, psram: &mut b.psram, mmu: &b.mmu_psram, ver: &mut b.code_ver };
         assert!(d.read(0x4802_0000, &mut r).is_err(), "an unmapped PSRAM page");
         assert!(d.read(0x4FFB_FFFE, &mut r).is_err(), "past the end of L2MEM");
         assert!(d.write(0x3010_0000, &r).is_err(), "TCM is out of its reach");
@@ -824,6 +934,236 @@ mod tests {
         esp_soc::SocBus::reboot(&mut b, [0; 6]);
         b.write32(0x5012_4000, 0x67 | 2 << 8).unwrap();
         assert_eq!(b.read32(0x5012_4000).unwrap() >> 16 & 0xff, 0x5a);
+    }
+
+    /// EX265: `fetch_ahead` returns exactly what `fetch` returns where it succeeds, `None` where
+    /// it faults, and records no fault itself.
+    #[test]
+    fn fetch_ahead_is_fetch_without_its_fault_record() {
+        let mut b = SocBus::new(0x40000, [0; 6], (3, 1));
+        b.resize_psram(0x20000);
+        for (i, x) in b.flash.iter_mut().enumerate() { *x = i as u8 ^ 0x5a; }
+        for (i, x) in b.psram.iter_mut().enumerate() { *x = (i >> 3) as u8; }
+        for (i, x) in b.l2mem.iter_mut().enumerate() { *x = i as u8; }
+        for (i, x) in b.rom.iter_mut().chain(b.tcm.iter_mut()).chain(b.lp_ram.iter_mut()).chain(b.lp_rom.iter_mut()).enumerate() { *x = (i * 7) as u8; }
+        b.mmu_flash[1] = MMU_FLASH_VALID | 3;                         // past the 256 KB flash
+        b.mmu_flash[2] = MMU_FLASH_VALID | 1;
+        b.mmu_psram[0] = MMU_PSRAM_VALID | 1 << 10 | 1;
+        b.mmu_psram[1] = MMU_PSRAM_VALID | 1 << 10 | 2;               // past the 128 KB PSRAM
+        b.invalidate_code();
+        for pc in [L2MEM_LOW, L2MEM_LOW + 6, L2MEM_HIGH - 2, L2MEM_HIGH, 0x8FF0_0010, 0x8FFB_FFFE, ROM_LOW + 0x40, 0x8FC0_0040, ROM_HIGH - 2,
+                   TCM_LOW, TCM_HIGH - 2, TCM_HIGH, LP_RAM_LOW + 8, LP_RAM_HIGH - 2, LP_ROM_LOW + 2, LP_ROM_HIGH - 2,
+                   FLASH_LOW, 0x4001_0000, 0x4002_fffe, 0x8002_0010, FLASH_HIGH - 4, PSRAM_LOW + 2, PSRAM_LOW + 0xfffe, 0x8800_0100, 0x4801_0000, 0x4802_0000,
+                   0x5000_0000, CLIC_LOW, 0x1000_0000, 0x7010_0000, u32::MAX - 1] {
+            b.last_fault = None;
+            let ahead = b.fetch_ahead(pc);
+            assert_eq!(b.last_fault, None, "{pc:#x}: fetch_ahead recorded a fault");
+            assert_eq!(ahead, b.fetch(pc).ok(), "{pc:#x}");
+        }
+    }
+
+    /// Whether `f` moved the code version a block at `pc` remembers (`Bus::page_versions`, EX265):
+    /// that of the page `pc` was on before.
+    fn moves(b: &mut SocBus, pc: u32, f: impl FnOnce(&mut SocBus)) -> bool {
+        let i = b.code_page(pc) as usize;
+        let v = *b.page_versions().get(i).unwrap_or_else(|| panic!("{pc:#x} has no version"));
+        f(b);
+        b.page_versions()[i] != v
+    }
+
+    /// A sector erase (0x20) or page program (0x02, one word) by SPI1, as `flash_cmd` in
+    /// esp-periph's spi_mem tests issues it, through the bus.
+    fn spi1_cmd(b: &mut SocBus, cmd: u32, addr: u32, word: Option<u32>) {
+        const BASE: u32 = 0x5008_D000;
+        let user = 1 << 31 | 1 << 30 | if word.is_some() { 1 << 27 } else { 0 };
+        for (o, v) in [(0x34, 0), (0x18, user), (0x1c, 23 << 26), (0x20, 7 << 28 | cmd), (0x04, addr), (0x24, if word.is_some() { 31 } else { 0 }), (0x28, 0)] { b.write32(BASE + o, v).unwrap(); }
+        if let Some(w) = word { b.write32(BASE + 0x58, w).unwrap(); }
+        b.write32(BASE, 1 << 18).unwrap();
+    }
+
+    /// EX265: what moves the code versions and what leaves them alone, for each memory `fetch`
+    /// reads and each way it can change: CPU stores through every alias, every DMA path, SPI1 and
+    /// the PSRAM controller changing their arrays, the MMUs, loading and a chip reset.
+    #[test]
+    fn code_versions_move_with_every_write_that_can_change_fetched_code() {
+        let mut b = SocBus::new(0x40000, [0; 6], (3, 1));
+        b.resize_psram(0x40000);
+        let pc = L2MEM_LOW + 0x4_1000;
+        assert_eq!(b.code_page(pc), b.code_page(pc + UNCACHED_OFFSET), "both views of L2MEM share a version");
+        assert!(moves(&mut b, pc, |b| b.write32(pc + 8, 1).unwrap()), "a store on the page");
+        assert!(moves(&mut b, pc, |b| b.write8(pc + UNCACHED_OFFSET + 0xff, 1).unwrap()), "a byte store through the uncached alias");
+        assert!(moves(&mut b, pc, |b| b.write16(pc + 0x102, 1).unwrap()), "a store into the first three bytes of the next page");
+        assert!(!moves(&mut b, pc, |b| b.write32(pc + 0x104, 1).unwrap()), "a store past them");
+        assert!(!moves(&mut b, pc, |b| b.write32(pc - 4, 1).unwrap()), "a store on the page before");
+        assert!(moves(&mut b, pc, |b| { b.cur_core = 1; b.write32(pc, 1).unwrap(); b.cur_core = 0; }), "core 1's store");
+        assert!(!moves(&mut b, pc, |b| b.write32(0x500c_a000 + 0x24, 1).unwrap()), "a peripheral register");
+        for p in [TCM_LOW + 0x100, LP_RAM_LOW + 0x7f00] {
+            assert!(moves(&mut b, p, |b| b.write32(p + 4, 1).unwrap()), "{p:#x}: a store");
+            assert!(!moves(&mut b, p, |b| b.write32(pc, 1).unwrap()), "{p:#x}: an L2MEM store");
+        }
+        assert_eq!(b.code_page(ROM_LOW), b.code_page(LP_ROM_LOW));
+        assert!(!moves(&mut b, ROM_LOW, |b| { let _ = b.write32(ROM_LOW, 1); }), "a refused ROM store");
+        // DMA (the SDMMC IDMAC's and the USB-OTG core's view), into L2MEM through either address
+        // and into PSRAM through its MMU; a write that faults part-way versions what it wrote
+        b.mmu_psram[0] = MMU_PSRAM_VALID | 1 << 10 | 3;
+        b.mmu_psram[1] = MMU_PSRAM_VALID | 1 << 10;
+        b.invalidate_code();
+        let dma = |b: &mut SocBus, a: u32, n: usize| { use esp_periph::sdmmc::SdmmcMemory; let _ = DmaView { l2mem: &mut b.l2mem, psram: &mut b.psram, mmu: &b.mmu_psram, ver: &mut b.code_ver }.write(a, &vec![0x13; n]); };
+        assert!(moves(&mut b, pc, |b| dma(b, pc + UNCACHED_OFFSET + 0x80, 4)), "DMA into L2MEM");
+        assert!(!moves(&mut b, pc, |b| dma(b, pc + 0x200, 4)), "DMA elsewhere");
+        let ps = PSRAM_LOW + 0xff00;
+        assert_eq!(b.code_page(ps), b.code_page(ps + UNCACHED_OFFSET));
+        assert!(moves(&mut b, ps, |b| dma(b, PSRAM_LOW + 0xfffe, 4)), "DMA into PSRAM across an MMU page");
+        assert!(moves(&mut b, PSRAM_LOW + 0x1_0000, |b| dma(b, PSRAM_LOW + 0xfffe, 4)), "and the next one");
+        b.mmu_psram[1] = 0;
+        assert!(moves(&mut b, ps, |b| dma(b, ps + 0xfc, 0x200)), "a DMA write cut short by an unmapped page");
+        assert!(moves(&mut b, ps, |b| b.write32(ps + 0x10, 1).unwrap()), "a CPU store to PSRAM");
+        // the PSRAM MMU: remapping a page moves the versions of the page it showed
+        b.write32(PSRAM_MSPI0 + SPI_MMU_ITEM_INDEX, 0).unwrap();
+        assert!(!moves(&mut b, ps, |b| b.write32(PSRAM_MSPI0 + SPI_MMU_ITEM_CONTENT, MMU_PSRAM_VALID | 1 << 10 | 3).unwrap()), "the same entry again");
+        assert!(moves(&mut b, ps, |b| b.write32(PSRAM_MSPI0 + SPI_MMU_ITEM_CONTENT, MMU_PSRAM_VALID | 1 << 10 | 2).unwrap()), "a new mapping");
+        b.write32(PSRAM_MSPI0 + SPI_MMU_ITEM_INDEX, 2).unwrap();
+        assert!(!moves(&mut b, ps, |b| b.write32(PSRAM_MSPI0 + SPI_MMU_ITEM_CONTENT, MMU_PSRAM_VALID | 1 << 10 | 2).unwrap()), "another entry");
+        // the PSRAM controller writing its array (psram_cmd's 0x8080 sync write)
+        assert!(moves(&mut b, ps, |b| { psram_cmd(b, 0x8080, 0x2_ff10, Some(1), 0); }), "a PSRAM controller write");
+        assert!(!moves(&mut b, ps, |b| { psram_cmd(b, 0x8080, 0x3_ff10, Some(1), 0); }), "one to another page");
+        assert!(!moves(&mut b, ps, |b| { psram_cmd(b, 0x0000, 0x2_ff10, None, 32); }), "a read");
+        // the flash window: one version per MMU page, moved by its entry and by SPI1 changing
+        // the flash it maps, or the three bytes after it
+        b.write32(FLASH_SPI0 + SPI_MMU_ITEM_INDEX, 0).unwrap();
+        b.write32(FLASH_SPI0 + SPI_MMU_ITEM_CONTENT, MMU_FLASH_VALID | 1).unwrap();
+        b.write32(FLASH_SPI0 + SPI_MMU_ITEM_INDEX, 2).unwrap();
+        b.write32(FLASH_SPI0 + SPI_MMU_ITEM_CONTENT, MMU_FLASH_VALID | 3).unwrap();
+        let (f0, f2) = (FLASH_LOW + 0x100, FLASH_LOW + 0x2_0100);
+        assert_eq!(b.code_page(f0), b.code_page(f0 + UNCACHED_OFFSET));
+        assert!(moves(&mut b, f0, |b| spi1_cmd(b, 0x20, 0x1_f000, None)), "an erase of the flash it maps");
+        assert!(b.flash[0x1_f000..0x2_0000].iter().all(|&x| x == 0xff));
+        assert!(!moves(&mut b, f2, |b| spi1_cmd(b, 0x20, 0x1_f000, None)), "not another page's");
+        assert!(moves(&mut b, f0, |b| spi1_cmd(b, 0x02, 0x2_0000, Some(0)), ), "a program of the first bytes after it");
+        assert_eq!(b.flash[0x2_0000], 0);
+        assert!(!moves(&mut b, f0, |b| spi1_cmd(b, 0x02, 0x2_0004, Some(0))), "past them");
+        assert!(moves(&mut b, f2, |b| spi1_cmd(b, 0x02, 0x3_8000, Some(0))), "a program of page 3");
+        assert!(!moves(&mut b, f0, |b| spi1_cmd(b, 0x03, 0x1_0000, None)), "a read");
+        assert!(!moves(&mut b, f0, |b| spi1_cmd(b, 0x20, 0x0, None)), "an erase of unmapped flash");
+        b.write32(FLASH_SPI0 + SPI_MMU_ITEM_INDEX, 0).unwrap();
+        assert!(!moves(&mut b, f0, |b| b.write32(FLASH_SPI0 + SPI_MMU_ITEM_CONTENT, MMU_FLASH_VALID | 1).unwrap()), "the same entry again");
+        assert!(moves(&mut b, f0, |b| b.write32(FLASH_SPI0 + SPI_MMU_ITEM_CONTENT, MMU_FLASH_VALID | 2).unwrap()), "a flash MMU entry");
+        assert!(!moves(&mut b, f2, |b| b.write32(FLASH_SPI0 + SPI_MMU_ITEM_CONTENT, MMU_FLASH_VALID | 1).unwrap()), "another entry");
+        assert!(!moves(&mut b, f0, |b| b.write32(pc, 1).unwrap()), "an L2MEM store");
+        // from outside the guest
+        for p in [pc, TCM_LOW, ROM_LOW, f0, ps] {
+            assert!(moves(&mut b, p, |b| b.load_bytes(L2MEM_LOW, &[1]).unwrap()), "{p:#x}: loading");
+            assert!(moves(&mut b, p, |b| b.write_flash(0, &[1]).unwrap()), "{p:#x}: writing the flash image");
+            assert!(moves(&mut b, p, |b| { esp_soc::SocBus::reboot(b, [0; 6]); b.mmu_flash[0] = MMU_FLASH_VALID | 2; b.mmu_psram[0] = MMU_PSRAM_VALID | 1 << 10 | 3; }), "{p:#x}: a chip reset");
+        }
+        // a direct boot maps the app's flash segment (here vpage 1 to flash page 1)
+        let mut image = vec![0xe9, 1, 0, 0, 0, 0, 0, 0]; image.resize(24, 0);
+        image.extend(0x4001_0020u32.to_le_bytes().iter().chain(&4u32.to_le_bytes()).chain(&[0x13, 0, 0, 0]));
+        b.write_flash(0x1_0000, &image).unwrap();
+        assert!(moves(&mut b, FLASH_LOW + 0x1_0020, |b| { esp_soc::SocBus::boot_app(b, 0x1_0000).unwrap(); }), "a direct boot's flash mapping");
+        assert_eq!(b.fetch(FLASH_LOW + 0x1_0020), Ok([0x13, 0, 0, 0]));
+        assert_eq!((b.code_page(0x5000_0000), b.code_page(L2MEM_HIGH), b.code_page(PSRAM_LOW + 0x3_0000)), (u32::MAX, u32::MAX, u32::MAX), "no version outside fetchable memory");
+        let n = b.page_versions().len();
+        b.resize_psram(0x1000);
+        assert_eq!(b.page_versions().len(), n, "the versions never shrink");
+        assert_eq!(b.code_page(PSRAM_LOW), u32::MAX, "nor give a version to PSRAM that is gone");
+    }
+
+    /// The I2S1 AHB-GDMA's and the GP-SPI2 AXI-GDMA's descriptor write-back (OUT_AUTO_WRBACK)
+    /// moves the code version of the descriptor's page.
+    #[test]
+    fn gdma_descriptor_write_back_moves_code_versions() {
+        let mut b = SocBus::new(0x1000, [0; 6], (3, 1));
+        b.periph.i2s1.write(0x24, 1 << 2);                            // TX_START
+        (b.periph.i2s1.tx_conf1, b.periph.i2s1.bytes_per_frame) = (15 << 14, 4);
+        let d = 0x4ff4_0000;
+        for (o, v) in [(0, 1u32 << 31 | 1 << 30 | 4 << 12 | 4), (4, d + 0x100), (8, 0)] { b.write32(d + o, v).unwrap(); }
+        let ch = &mut b.periph.ahb_dma.gdma.out[0];
+        (ch.peri_sel, ch.running, ch.desc, ch.conf0) = (4, true, d, 1 << 2);
+        assert!(moves(&mut b, d, |b| b.i2s1_tx(crate::periph::CPU_HZ)), "AHB-GDMA write-back");
+        assert_eq!(b.read32(d).unwrap() >> 31, 0, "owner: CPU");
+        let d = 0x4ff4_1000;
+        for (o, v) in [(0, 1u32 << 31 | 1 << 30 | 4 << 12 | 4), (4, d + 0x100), (8, 0)] { b.write32(d + o, v).unwrap(); }
+        let ch = &mut b.periph.axi_dma.gdma.out[0];
+        (ch.peri_sel, ch.running, ch.desc, ch.conf0) = (1, true, d, 1 << 2);
+        b.periph.spi2.dma_tx_pending = Some(32);
+        assert!(moves(&mut b, d, |b| b.spi2_dma_tx()), "AXI-GDMA write-back");
+        assert_eq!(b.read32(d).unwrap() >> 31, 0, "owner: CPU");
+    }
+
+    /// Self-modifying code on the decoded blocks and their JIT (EX265, EX269): a block core 0
+    /// has run (and compiled, where there is a JIT) must not run again once its bytes change,
+    /// whether core 0 stores them through the uncached alias, core 1 stores them, or DMA writes
+    /// them. `addi a0, zero, k; j .` at `T`, rewritten to another `k` each time.
+    #[test]
+    fn rewritten_code_runs_new_on_either_core_and_after_dma() {
+        use riscv_rv32::{Core, Cpu};
+        let addi = |k: u32| k << 20 | 10 << 7 | 0x13;                  // addi a0, zero, k
+        let mut b = SocBus::new(0x20000, [0; 6], (3, 1));
+        b.irq_dirty = false;   // the machine's interrupt refresh: a pending one ends every run at once
+        let (t, p) = (L2MEM_LOW + 0x4_0100, L2MEM_LOW + 0x4_0000);
+        for (k, w) in [addi(1), 0x0000_006f].iter().enumerate() { b.write32(t + 4 * k as u32, *w).unwrap(); }
+        // lui t0, 0x8ff40 ; sw t1, 0x100(t0) ; j t (the store goes through the uncached alias)
+        for (k, w) in [0x8ff4_02b7u32, 0x1062_a023, 0x0f80_006f].iter().enumerate() { b.write32(p + 4 * k as u32, *w).unwrap(); }
+        let mut c0 = Cpu::new_esp32p4();
+        let mut c1 = Cpu::new_esp32p4(); c1.hartid = 1;
+        let run_t = |c: &mut Cpu, b: &mut SocBus| { b.cur_core = 0; c.pc = t; assert_eq!(c.run(b, 1000), (1000, None)); c.x[10] };
+        assert_eq!(run_t(&mut c0, &mut b), 1);
+        assert!(c0.blocks.builds > 0, "blocks ran");
+        let jit = c0.code_cache_stats().unwrap().2 > 0;
+        assert_eq!(jit, riscv_rv32::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0"), "the loop was compiled where there is a JIT");
+        // core 0 rewrites its own code and jumps to it
+        c0.x[6] = addi(2); c0.pc = p; c0.run(&mut b, 1000);
+        assert_eq!((c0.x[10], c0.pc), (2, t + 4), "core 0's own store");
+        // core 1 rewrites it
+        b.cur_core = 1; c1.x[6] = addi(3); c1.pc = p; c1.run(&mut b, 3);
+        assert_eq!(run_t(&mut c0, &mut b), 3, "core 1's store");
+        // DMA rewrites it
+        { use esp_periph::sdmmc::SdmmcMemory; DmaView { l2mem: &mut b.l2mem, psram: &mut b.psram, mmu: &b.mmu_psram, ver: &mut b.code_ver }.write(t, &addi(4).to_le_bytes()).unwrap(); }
+        assert_eq!(run_t(&mut c0, &mut b), 4, "a DMA write");
+        // the flash window: SPI1 programs the instruction's bits away (addi a0, zero, 1 -> 0)
+        b.write_flash(0x1_0000, &[addi(1), 0x0000_006f].iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<_>>()).unwrap();
+        b.mmu_flash[0] = MMU_FLASH_VALID | 1; b.invalidate_code();
+        c0.pc = FLASH_LOW; c0.run(&mut b, 1000);
+        assert_eq!(c0.x[10], 1);
+        spi1_cmd(&mut b, 0x02, 0x1_0000, Some(addi(0)));
+        b.irq_dirty = false;
+        c0.pc = FLASH_LOW; c0.run(&mut b, 1000);
+        assert_eq!(c0.x[10], 0, "a flash program");
+        // PSRAM: its virtual page 0 remapped from physical page 1 to page 2, other code
+        b.resize_psram(0x30000);
+        for (page, k) in [(1usize, 5u32), (2, 6)] { b.psram[page << 16..][..8].copy_from_slice(&[addi(k), 0x0000_006f].iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<_>>()); }
+        b.invalidate_code();
+        for (page, k) in [(1, 5), (2, 6)] {
+            b.write32(PSRAM_MSPI0 + SPI_MMU_ITEM_CONTENT, MMU_PSRAM_VALID | 1 << 10 | page).unwrap();
+            c0.pc = PSRAM_LOW; c0.run(&mut b, 1000);
+            assert_eq!(c0.x[10], k, "PSRAM page {page}");
+        }
+    }
+
+    /// EX265/EX269 on the P4's hardware loops: a loop whose body is a block, inside an outer
+    /// loop that gets hot, runs as the interpreter runs it (registers, counts, the loop state),
+    /// cut anywhere by the budget.
+    #[test]
+    fn hardware_loops_run_on_blocks_as_on_the_interpreter() {
+        use riscv_rv32::{Core, Cpu};
+        // esp.lp.setupi 0, count 200, end = pc + 12 ; addi a0,a0,1 ; addi a1,a1,2 ; addi a2,a2,3 ;
+        // addi a3,a3,1 ; j pc
+        let prog = [0x0000_502bu32 | 200 << 20 | (12 >> 1) << 15, 0x0015_0513, 0x0025_8593, 0x0036_0613, 0x0016_8693, 0xfedf_f06f];
+        let state = |c: &Cpu| (c.pc, c.x, c.insn_count, c.retired_count, c.hwlp_count, c.hwlp_state);
+        let mut runs = Vec::new();
+        for jit in [true, false] {
+            let mut b = SocBus::new(0x1000, [0; 6], (3, 1));
+            for (k, w) in prog.iter().enumerate() { b.write32(L2MEM_LOW + 0x100 + 4 * k as u32, *w).unwrap(); }
+            b.irq_dirty = false;
+            let mut c = Cpu::new_esp32p4_rev3(); c.pc = L2MEM_LOW + 0x100; c.set_hwlp_state(1); c.set_jit(jit);
+            let mut trace = Vec::new();
+            for budget in (0..400).map(|i| 1 + (i * 37) % 523) { c.run(&mut b, budget); trace.push(state(&c)); }
+            assert_eq!(c.blocks.builds > 0, jit);
+            runs.push((trace, c.code_cache_stats().unwrap().2));
+        }
+        assert_eq!(runs[0].0, runs[1].0);
+        assert_eq!(runs[0].1 > 0, riscv_rv32::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0"), "the outer loop was compiled where there is a JIT");
     }
 
     #[test]
