@@ -10,11 +10,12 @@ fn setup(word: u32, mode: u32) -> (Cpu, FlatRam) {
     for (n, r) in cpu.x.iter_mut().enumerate().skip(1) {
         *r = match n % 3 { 0 => BASE + 32, 1 => u32::MAX, _ => n as u32 };
     }
-    cpu.mtvec = BASE + 48;
+    cpu.mtvec = if mode >= 7 { BASE | (if mode == 8 { 3 } else { 0 }) } else { BASE + 48 };
+    cpu.clic = mode >= 7;
     cpu.mepc = BASE + 16;
-    cpu.mstatus = if mode & 1 != 0 { 0x1808 } else { 0x1800 };
+    cpu.mstatus = if mode & 1 != 0 || mode >= 7 { 0x1808 } else { 0x1800 };
     cpu.waiting = mode == 2 || mode == 3;
-    cpu.irq = (mode == 3 || mode == 4 || mode == 5).then_some(3);
+    cpu.irq = if mode >= 7 { Some((5 << 8) | 3) } else { (mode == 3 || mode == 4 || mode == 5).then_some(3) };
     cpu.reservation = Some(BASE + 32);
     cpu.insn_count = 100;
     cpu.retired_count = 80;
@@ -47,6 +48,11 @@ fn assert_cpu(a: &Cpu, b: &Cpu) {
 fn compare(word: u32, mode: u32) {
     let (mut observed, mut observed_ram) = setup(word, mode);
     let outcome = observed.step(&mut observed_ram);
+    if mode >= 7 {
+        assert_eq!(outcome.kind, emu_core::StepKind::TrapBefore(emu_core::Trap::Interrupt(3)));
+        assert_eq!((observed.pc, observed.mepc, observed.mil), (BASE, BASE, 5));
+        assert_eq!(observed.mcause & 0x8000_001f, 0x8000_0013);
+    }
     assert_eq!((observed.insn_count, observed.cycle_count), (101, 121));
     assert_eq!(observed.retired_count, 80 + u64::from(outcome.kind == emu_core::StepKind::Retired));
     let (mut result_only, mut result_ram) = setup(word, mode);
@@ -57,6 +63,11 @@ fn compare(word: u32, mode: u32) {
     assert_eq!(run.run(&mut run_ram, 1), (1, outcome.result().err()));
     assert_cpu(&observed, &run);
     assert_eq!(observed_ram.mem, run_ram.mem);
+}
+
+#[test]
+fn clic_interrupt_delivery_matches_all_paths() {
+    for mode in [7, 8] { compare(0x0050_0093, mode); }
 }
 
 #[test]

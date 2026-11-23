@@ -30,8 +30,9 @@ rows=[]
 for n in sorted(set(a)|set(b)):
     x,y=a.get(n),b.get(n)
     rows.append(dict(name=n,status=('added' if x is None else 'removed' if y is None else 'identical' if x==y else 'changed'),base_sha256=hashlib.sha256(x.encode()).hexdigest() if x else None,candidate_sha256=hashlib.sha256(y.encode()).hexdigest() if y else None))
-r=dict(method='wasm-dis named function text with type indices resolved to exact signatures; other layout differences retained',rows=rows)
-Path(sys.argv[3]).write_text(json.dumps(r,indent=2)+'\n')
 from collections import Counter
-print(dict(Counter(row['status'] for row in rows)))
+counts=dict(Counter(row['status'] for row in rows))
+r=dict(method='wasm-dis named function text with type indices resolved to exact signatures; other layout differences retained',totals=counts,rows=[row for row in rows if row['status'] != 'identical'])
+Path(sys.argv[3]).write_text(json.dumps(r,indent=2)+'\n')
+print(counts)
 print('step functions',sum('step_outcome' in n for n in a),sum('step_outcome' in n for n in b))
