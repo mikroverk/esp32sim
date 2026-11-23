@@ -172,9 +172,11 @@ air that joins it, completes WPA2 and takes a lease from the guest's DHCP server
   register with `--log-periph` the moment a firmware wants it.
 - **`Saved PC`** on a non-power-on reset: the ROM reads a PC the previous reset stashed in RTC
   memory, which the emulator does not write.
-- **Speed work** — the C3 bus does a plain address-range walk per access; it has none of the S3's
-  software TLB, block interpreter or JIT. It still runs ~200–300 Minsn/s (well above the C3's
-  160 MHz) because the workload is light, but a busy firmware would want the same treatment.
+- **Speed work** — the C3 runs the RV32 decoded blocks and their JIT ([EX265](experiments.md#ex265),
+  [EX269](experiments.md#ex269)): its bus keeps a code version per 256-byte page of SRAM (one for
+  both the IRAM and the DRAM view) and RTC memory, one for the ROM and one for the flash windows,
+  moved by CPU stores, GDMA, the WiFi and BLE models, SPI1 program/erase in mapped flash and MMU
+  writes. Each access is still a plain address-range walk; there is no software TLB.
 
 ## Gotchas found bringing it up
 
