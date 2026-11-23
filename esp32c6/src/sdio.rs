@@ -93,8 +93,8 @@ pub trait DmaMem {
     fn write32(&mut self, addr: u32, v: u32) -> bool { self.write(addr, &v.to_le_bytes()).is_ok() }
 }
 
-/// A slice of memory at a base address.
-pub struct Sram<'a> { pub base: u32, pub bytes: &'a mut [u8] }
+/// A slice of memory at a base address, and the code versions of its pages (`bus::bump_code`).
+pub struct Sram<'a> { pub base: u32, pub bytes: &'a mut [u8], pub ver: &'a mut [u32] }
 impl Sram<'_> {
     fn span(&self, addr: u32, len: usize) -> Option<std::ops::Range<usize>> {
         let o = addr.checked_sub(self.base)? as usize;
@@ -111,6 +111,7 @@ impl DmaMem for Sram<'_> {
     fn write(&mut self, addr: u32, data: &[u8]) -> Result<(), Fault> {
         let r = self.span(addr, data.len()).ok_or(Fault::Unmapped)?;
         self.bytes[r].copy_from_slice(data);
+        crate::bus::bump_code(self.ver, self.base, addr, data.len());
         Ok(())
     }
 }
@@ -687,7 +688,7 @@ impl Device for SdioSlave {
 /// is re-derived before the C6's next instruction.
 impl crate::bus::SocBus {
     pub fn sdio_command(&mut self, cmd: u8, arg: u32) -> Result<SdResponse, SdCmdError> {
-        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram };
+        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram, ver: &mut self.code_ver[..crate::bus::SRAM_PAGES] };
         let r = self.periph.optional.sdio.command(cmd, arg, &mut mem);
         self.sdio_settle();
         r
@@ -695,7 +696,7 @@ impl crate::bus::SocBus {
     /// The next card-to-host bytes. `done` is the machine cycle the bus finishes carrying them:
     /// the DMA's hand-back to the C6 waits for it when it is still to come.
     pub fn sdio_read_data(&mut self, buf: &mut [u8], done: u64) -> Result<(), SdDataError> {
-        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram };
+        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram, ver: &mut self.code_ver[..crate::bus::SRAM_PAGES] };
         let sdio = &mut self.periph.optional.sdio;
         sdio.defer_to((done > self.cycles).then_some(done));
         let r = sdio.read_data(buf, &mut mem);
@@ -705,7 +706,7 @@ impl crate::bus::SocBus {
     }
     /// The next host-to-card bytes, `done` as for `sdio_read_data`.
     pub fn sdio_write_data(&mut self, data: &[u8], done: u64) -> Result<(), SdDataError> {
-        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram };
+        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram, ver: &mut self.code_ver[..crate::bus::SRAM_PAGES] };
         let sdio = &mut self.periph.optional.sdio;
         sdio.defer_to((done > self.cycles).then_some(done));
         let r = sdio.write_data(data, &mut mem);
@@ -720,14 +721,14 @@ impl crate::bus::SocBus {
     #[cold]
     #[inline(never)]
     pub fn sdio_apply_all(&mut self) {
-        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram };
+        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram, ver: &mut self.code_ver[..crate::bus::SRAM_PAGES] };
         if self.periph.optional.sdio.apply_due(u64::MAX, &mut mem) { self.sdio_settle(); }
     }
     /// Carry out the hand-backs that have come due.
     #[cold]
     #[inline(never)]
     pub fn sdio_apply_due(&mut self) {
-        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram };
+        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram, ver: &mut self.code_ver[..crate::bus::SRAM_PAGES] };
         if self.periph.optional.sdio.apply_due(self.cycles, &mut mem) { self.sdio_settle(); }
     }
     /// DAT1 as the slave drives it: low (true) while function 1 interrupts the host.
@@ -739,7 +740,7 @@ impl crate::bus::SocBus {
     #[inline(never)]
     pub(crate) fn sdio_slc_write(&mut self) {
         if !self.periph.optional.sdio.dma_pending() { return; }
-        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram };
+        let mut mem = Sram { base: crate::bus::SRAM_LOW, bytes: &mut self.sram, ver: &mut self.code_ver[..crate::bus::SRAM_PAGES] };
         self.periph.optional.sdio.run_dma(&mut mem);
         self.sdio_settle();
     }
