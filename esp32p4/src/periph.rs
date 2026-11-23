@@ -745,7 +745,7 @@ impl Peripherals {
     }
     /// HP_SYS_CLKRST PERI_CLK_CTRL22: LEDC_CLK_SRC_SEL 1:0 (0 XTAL, 1 RC_FAST, 2 PLL_F80M),
     /// LEDC_CLK_EN bit 2 (register/hw_ver3/soc/hp_sys_clkrst_reg.h:2510-2524, hal/ledc_ll.h:98-115;
-    /// RC_FAST is SOC_CLK_RC_FAST_FREQ_APPROX, 20 MHz).
+    /// RC_FAST is SOC_CLK_RC_FAST_FREQ_APPROX, 17.5 MHz in IDF v5.5.4 include/soc/clk_tree_defs.h:55).
     /// An MCPWM group on the P4's 40 MHz Apb ticks.
     fn new_mcpwm(signal_base: u32) -> esp_periph::Mcpwm { let mut m = esp_periph::Mcpwm::new(signal_base, 9); m.tick_hz = 40_000_000; m }
     /// HP_SYS_CLKRST PERI_CLK_CTRL20: MCPWM0_CLK_SRC_SEL 1:0 (0 XTAL, 1 RC_FAST, 2 PLL_F160M),
@@ -761,7 +761,7 @@ impl Peripherals {
         }
     }
     fn ledc_clock(&mut self, v: u32) {
-        self.ledc.external_clock_hz = if v & (1 << 2) == 0 { 0 } else { match v & 3 { 0 => 40_000_000, 1 => 20_000_000, 2 => 80_000_000, _ => 0 } };
+        self.ledc.external_clock_hz = if v & (1 << 2) == 0 { 0 } else { match v & 3 { 0 => 40_000_000, 1 => 17_500_000, 2 => 80_000_000, _ => 0 } };
     }
 
     /// Which device each SDMMC slot reaches. Slot 0 is wired to its IO MUX pins: a device on
@@ -860,6 +860,28 @@ mod tests {
         assert_eq!(p.i2s1.sample_rate, 16000);
         p.write32(0x500e_6054, (1 << 28) | (3 << 29));                    // PLL_F160M
         assert_eq!(p.i2s1.sample_rate, 64000);
+    }
+
+    /// PERI_CLK_CTRL22 picks the LEDC source: RC_FAST is 17.5 MHz (IDF v5.5.4 clk_tree_defs.h:55), so
+    /// an 8-bit timer at divider 1 counts 17500 in a millisecond and runs at 17.5 MHz / 256.
+    #[test]
+    fn ledc_rc_fast_is_seventeen_and_a_half_megahertz() {
+        let mut p = Peripherals::new([0; 6], (3, 1));
+        for (sel, hz) in [(0, 40_000_000u64), (1, 17_500_000), (2, 80_000_000)] {
+            p.write32(0x500e_609c, (1 << 2) | sel);                       // LEDC_CLK_EN, LEDC_CLK_SRC_SEL
+            assert_eq!(p.ledc.external_clock_hz, hz);
+        }
+        p.write32(0x500e_609c, (1 << 2) | 1);                             // RC_FAST
+        p.write32(0x500d_30a0, 8 | (256 << 5) | (1 << 26));               // timer 0: 8-bit, divider 1, PARA_UP
+        p.write32(0x500d_3000, 4 | (1 << 4));                             // channel 0 on timer 0
+        p.tick(CPU_HZ / 1000);                                            // 1 ms: 17500 counts, 17500 % 256 = 92
+        assert_eq!(p.read32(0x500d_30a4), 92);
+        let mut gpio = esp_periph::Gpio::with_pins(57);
+        gpio.enable = 1 << 28;
+        gpio.func_out_sel[28] = 126;
+        assert_eq!(p.ledc.output(&gpio, 28).unwrap().0, 17_500_000.0 / 256.0);
+        p.write32(0x500e_609c, 0);
+        assert!(p.ledc.output(&gpio, 28).is_none(), "LEDC_CLK_EN off");
     }
 
     /// MCPWM1 clocked by PERI_CLK_CTRL20 (PLL_F160M / 2), the servo example's 1 MHz timer and 50 Hz
