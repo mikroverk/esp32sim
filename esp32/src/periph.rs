@@ -37,6 +37,8 @@ const SRC_SPI2: usize = 30;
 const SRC_SPI3: usize = 31;
 const SRC_LEDC: usize = 43;
 const SRC_RMT: usize = 47;
+/// IDF v5.5.4 components/soc/esp32/include/soc/interrupts.h, ETS_PCNT_INTR_SOURCE.
+const SRC_PCNT: usize = 48;
 const SRC_I2C0: usize = 49;
 const SRC_I2C1: usize = 50;
 const SRC_RSA: usize = 51;
@@ -817,6 +819,8 @@ pub struct Peripherals {
     pub gpio: ClassicGpio,
     pub ledc: ClassicLedc,
     pub rmt: ClassicRmt,
+    /// PCNT at 0x3FF5_7000, eight units (IDF v5.5.4 soc/esp32/register/soc/reg_base.h DR_REG_PCNT_BASE).
+    pub pcnt: esp_periph::Pcnt,
     pub rtc: ClassicRtc,
     pub efuse: ClassicEfuse,
     pub syscon: RegRam,
@@ -862,6 +866,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::RtcSlow, 1600)]
     0x50 "UART1" (uart[1]) => [SRC_UART1];
     0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
     0x56 "RMT" (rmt) => [SRC_RMT];
+    0x57 "PCNT" optional (pcnt) => [SRC_PCNT];
     0x59 "LEDC" (ledc) => [SRC_LEDC];
     0x58 "SLC" (slc) => [];
     0x5a "EFUSE" (efuse) => [];
@@ -912,6 +917,7 @@ impl Peripherals {
             gpio,
             ledc: ClassicLedc::new(),
             rmt: ClassicRmt::new(),
+            pcnt: esp_periph::Pcnt::new(esp_periph::PcntLayout::Classic),
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
             syscon: { let mut r = RegRam::new(); r.write(0x7c, SYSCON_DATE_ECO3); r },
@@ -1075,6 +1081,16 @@ impl Peripherals {
         }
         if matches!(addr >> 12, 0x3ff00 | 0x3ff56) { self.sync_rmt_outputs(); }
     }
+    /// GPIO input edges reach the pulse counter; its interrupt is cached like any optional device's.
+    #[cold]
+    #[inline(never)]
+    fn pcnt_edges(&mut self) -> bool {
+        let before = self.pcnt.irq();
+        self.pcnt.matrix_edges(&mut self.gpio.gpio, 0x80, 0x38);
+        let changed = before != self.pcnt.irq();
+        if changed { self.refresh_optional(0x57); }
+        changed
+    }
     pub fn tick(&mut self, cycles: u64) -> bool {
         let gpio_before = self.gpio.raw_status();
         let mut irq_changed = Dispatch::tick(self, cycles);
@@ -1102,6 +1118,7 @@ impl Peripherals {
         irq_changed |= rmt_before != self.rmt.irq_sources();
         self.sync_ledc_outputs();
         self.sync_rmt_outputs();
+        if !self.gpio.gpio.input_changes.is_empty() { irq_changed |= self.pcnt_edges(); }
         // Routed PWM/RMT outputs can also change GPIO edge/level interrupts.
         irq_changed | (gpio_before != self.gpio.raw_status())
     }

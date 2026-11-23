@@ -42,14 +42,14 @@ esp32s3/      the SoC and boards
   bus.rs      SocBus: memory map, cache MMU, software TLB, peripheral dispatch; bus/dma.rs the
               GDMA pumps (I2S, SPI2/3, RMT, camera, memory-to-memory)
   periph.rs   the S3's device table (`device_set!`) and its S3-only models (interrupt matrix,
-              WiFi MAC, PCNT, LCD_CAM, EXTMEM, WDEV, the I2C_MST front of esp-periph's regi2c);
+              WiFi MAC, LCD_CAM, EXTMEM, WDEV, the I2C_MST front of esp-periph's regi2c);
               the rest come from esp-periph
   i2c.rs      the I2C devices boards hang on esp-periph's controller (CH32V003, TCA9554, GT911,
               CST820, QMI8658)
   board/      one file per board: Atech14, WaveshareCam, WaveshareLcd4b, WaveshareAmoled18V2,
               Stopwatch (BoardModel from esp-soc)
 esp-periph/   the peripheral IP Espressif chips share, one file each (UART, USB-Serial/JTAG,
-              systimer, TIMG, GPIO, LEDC, MCPWM, RTC_CNTL, SAR ADC, efuse, SYSTEM, SPI_MEM, GDMA,
+              systimer, TIMG, GPIO, LEDC, MCPWM, PCNT, RTC_CNTL, SAR ADC, efuse, SYSTEM, SPI_MEM, GDMA,
               SHA/AES/RSA, I2S, RMT, GP-SPI, I2C, SDMMC, USB-OTG), the `Device` trait they
               implement, and `device_set!`: the one table per chip that generates dispatch,
               interrupt sources, clock ticks and timer deadlines

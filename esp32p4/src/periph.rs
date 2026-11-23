@@ -26,6 +26,8 @@ pub mod src {
     pub const GPSPI2: usize = 25;
     pub const I2C1: usize = 45;
     pub const LEDC: usize = 52;
+    /// IDF v5.5.4 components/soc/esp32p4/include/soc/interrupts.h, ETS_PCNT_INTR_SOURCE.
+    pub const PCNT: usize = 111;
     pub const I2S1: usize = 28;
     /// ETS_AHB_PDMA_IN_CH0..2 (56-58) and OUT_CH0..2 (59-61)
     pub const AHB_DMA_IN_CH0: usize = 56;
@@ -564,6 +566,9 @@ pub struct Peripherals {
     pub i2s1: esp_periph::I2s,
     /// LEDC (0x500D3000); its clock is HP_SYS_CLKRST PERI_CLK_CTRL22's (`ledc_clock`)
     pub ledc: Ledc,
+    /// PCNT at 0x500C_9000 (IDF v5.5.4 soc/esp32p4/register/hw_ver3/soc/reg_base.h DR_REG_PCNT_BASE;
+    /// hw_ver1 has the same registers).
+    pub pcnt: esp_periph::Pcnt,
     pub assist_debug: AssistDebug,
     /// WDEV_RND_REG: LP_SYSTEM_REG_RNG_DATA (0x501101A4) on rev < 3, LP_TRNG's RNG_DATA
     /// (0x50126004) on rev >= 3 (IDF v5.5.4 register/hw_ver1/soc/wdev_reg.h:16,
@@ -610,6 +615,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Xtal, 9), (Cloc
     0x500d0 "SPI2" (spi2) => [src::GPSPI2];
     0x500d2 "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x500d3 "LEDC" (ledc) => [src::LEDC];
+    0x500c9 "PCNT" optional (pcnt) => [src::PCNT];
     0x500d6 "INTMTX" (intmtx) => [];
     0x500e0 "GPIO" (gpio) => [src::GPIO_INTR0];
     0x500e1 "IO_MUX" (io_mux) => [];
@@ -667,7 +673,7 @@ impl Peripherals {
             spi0: MspiCache(flash_controller(false)), psram0: MspiCache(RegRam::new()), spi1: flash_controller(true), psram1: psram_controller(),
             sha: Sha::new(), intmtx: IntMatrix::new(), clic: Clic::default(), cache: Cache::new(), hp_sys: HpSys::default(), hp_clkrst: HpClkRst::new(),
             lp: LpAon::new(), ana_mst: AnaMst::default(), assist_debug: AssistDebug::default(), rng: Rng::new(),
-            spi2: GpSpi::new(), i2c1: esp_periph::i2c::I2c::new(), axi_dma: AxiDma::new(), ahb_dma: AhbDma::new(), i2s1: esp_periph::I2s::new_v2_p4(CPU_HZ), ledc: Ledc::new(LedcLayout::P4),
+            spi2: GpSpi::new(), i2c1: esp_periph::i2c::I2c::new(), axi_dma: AxiDma::new(), ahb_dma: AhbDma::new(), i2s1: esp_periph::I2s::new_v2_p4(CPU_HZ), ledc: Ledc::new(LedcLayout::P4), pcnt: esp_periph::Pcnt::new(esp_periph::PcntLayout::P4),
             misc: Misc::new(), spi_exec: false, psram_exec: false, clock: Self::new_clock(), cycle_base: 0, last_status: [0; 4],
         }
     }

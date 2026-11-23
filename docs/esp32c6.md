@@ -181,6 +181,8 @@ $OD -d examples/hello_world-c6/build/hello_world.elf > /tmp/app.dis
 RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release -- --ignored external_
 ```
 
+PCNT (0x60012000, source 62) counts GPIO-matrix input edges in its four units, with limits, thresholds and zero-crossing events.
+
 LEDC models low-speed timers, duty latching, hardware fades (the gamma ranges, written through CHn_GAMMA_WR_ADDR) ending with DUTY_CHNG_END, and GPIO-matrix frequency/duty observation through `--pwm PIN`. Sampled PWM edges are not modelled.
 
 ## The 802.15.4 MAC (`esp32c6/src/radio.rs`)

@@ -566,6 +566,15 @@ impl SocBus {
         input.into_iter().chain(self.ena_latency.deadline()).min()
     }
 
+    /// GPIO input edges reach the pulse counter; its interrupt is cached like any optional device's.
+    #[cold]
+    #[inline(never)]
+    fn pcnt_edges(&mut self) {
+        let before = self.periph.pcnt.irq();
+        self.periph.pcnt.matrix_edges(&mut self.periph.gpio, 0x80, 0x38);
+        if before != self.periph.pcnt.irq() { esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x12); self.irq_dirty = true; }
+    }
+
     fn devices(&mut self, cycles: u32) {
         if self.periph.work_pending { self.pending_work(cycles); }
         // Board time advances before peripheral callbacks; inputs are delivered after them.
@@ -575,7 +584,7 @@ impl SocBus {
         // when a source can have moved; time still advances on every round.
         self.irq_dirty |= esp_periph::Dispatch::tick(&mut self.periph, cycles as u64);
         if self.uart_busy { self.pace_uart_input(cycles); }
-        self.periph.gpio.input_changes.clear();
+        if !self.periph.gpio.input_changes.is_empty() { self.pcnt_edges(); }
         if self.board_edges { self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
         if self.uart_pins {
             for input in self.board.uart_rx(self.cycles) {
