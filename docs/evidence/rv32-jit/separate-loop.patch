@@ -1,0 +1,13 @@
+diff --git a/riscv-rv32/src/block.rs b/riscv-rv32/src/block.rs
+index 650bb454..dd2651b8 100644
+--- a/riscv-rv32/src/block.rs
++++ b/riscv-rv32/src/block.rs
+@@ -324,0 +325,5 @@ pub fn run<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap
++    // the loop without the JIT is its own code
++    if cpu.blocks.jit.is_some() { run_with::<B, true>(cpu, bus, budget) } else { run_with::<B, false>(cpu, bus, budget) }
++}
++
++fn run_with<B: Bus, const JIT: bool>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
+@@ -341 +346 @@ pub fn run<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap
+-        if cpu.blocks.jit.is_some() && n == e.n as u32 && cpu.hwlp_count[0] | cpu.hwlp_count[1] == 0 && !bus.block_break() {
++        if JIT && n == e.n as u32 && cpu.hwlp_count[0] | cpu.hwlp_count[1] == 0 && !bus.block_break() {
