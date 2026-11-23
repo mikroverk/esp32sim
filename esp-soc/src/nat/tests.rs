@@ -865,3 +865,85 @@ fn a_udp_hostfwd_sender_idle_past_the_timeout_starts_a_new_flow() {
     assert_ne!(first, second);
     assert_eq!(nat.udp_inbound, 2);
 }
+
+#[test]
+fn a_udp_hostfwd_flood_is_taken_a_few_senders_a_poll_and_spares_the_guests_flows() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    // the guest's own flow, as a DNS query starts one, and a host sender it answered
+    let resolver = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    nat.udp_out(&[2; 6], &GUEST, 1234, &[127, 0, 0, 1], &[127, 0, 0, 1], resolver.local_addr().unwrap().port(), b"query", 0);
+    let peer = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    peer.send_to(b"hello", bound).unwrap();
+    let (answered, _) = hostfwd_datagram(&mut nat, 1);
+    nat.udp_out(&[2; 6], &GUEST, 7, &[10, 0, 2, 2], &[10, 0, 2, 2], answered, b"hi", 1);
+    const SENDERS: usize = 100;
+    let flood: Vec<UdpSocket> = (0..SENDERS).map(|_| UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap()).collect();
+    for s in &flood { s.send_to(b"x", bound).unwrap(); }
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let first = nat.poll(2);
+    assert_eq!((first.len(), nat.udp_inbound, nat.udp_evicted), (UDP_ACCEPT, 1 + UDP_ACCEPT as u64, 0), "one poll takes UDP_ACCEPT new senders");
+    let (mut delivered, mut now) = (first.len(), 3);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while delivered < SENDERS {
+        let frames = nat.poll(now);
+        assert!(frames.len() <= UDP_ACCEPT);
+        delivered += frames.len();
+        now += 1;
+        assert!(std::time::Instant::now() < deadline, "the rest wait in the socket for later polls");
+    }
+    assert_eq!((nat.udp_inbound, nat.udp_refused), (1 + SENDERS as u64, 0));
+    assert_eq!(nat.udp.len(), MAX_FLOWS);
+    assert_eq!(nat.udp_evicted, (2 + SENDERS - MAX_FLOWS) as u64, "only flows the guest never sent on gave way");
+    assert!(nat.udp.iter().any(|f| !f.inbound && f.guest_port == 1234), "the guest's own flow stays");
+    assert!(nat.udp.iter().any(|f| f.inbound && f.dst_port == answered), "so does the sender it answered");
+}
+
+#[test]
+fn a_udp_hostfwd_sender_is_turned_away_when_every_flow_is_the_guests() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    let receiver = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let port = receiver.local_addr().unwrap().port();
+    for sport in 0..MAX_FLOWS as u16 { nat.udp_out(&[2; 6], &GUEST, 1000 + sport, &[127, 0, 0, 1], &[127, 0, 0, 1], port, b"q", 0); }
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    host.send_to(b"knock", bound).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    while nat.udp_refused == 0 {
+        assert!(nat.poll(1).is_empty());
+        assert!(std::time::Instant::now() < deadline, "loopback delivery timed out");
+        std::thread::yield_now();
+    }
+    assert_eq!((nat.udp_refused, nat.udp_inbound, nat.udp_evicted), (1, 0, 0));
+    assert_eq!(nat.udp.len(), MAX_FLOWS);
+    assert!(nat.udp.iter().all(|f| !f.inbound));
+}
+
+#[test]
+fn udp_datagrams_over_the_mtu_are_dropped_both_ways() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    // host to guest: through the forwarded port, then as a reply to the guest's own flow
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    for len in [MAX_UDP_PAYLOAD + 1, 9000, MAX_UDP_PAYLOAD] { host.send_to(&vec![0x55; len], bound).unwrap(); }
+    let frames = poll_ready(&mut nat, 0);
+    assert_eq!((frames.len(), nat.udp_oversize), (1, 2));
+    assert_eq!(u16::from_be_bytes([frames[0][16], frames[0][17]]), 1500);
+    let server = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    server.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
+    let sport = server.local_addr().unwrap().port();
+    nat.udp_out(&[2; 6], &GUEST, 1234, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, b"q", 1);
+    let mut buf = [0; 2048];
+    let (_, from) = server.recv_from(&mut buf).unwrap();
+    for len in [MAX_UDP_PAYLOAD + 1, MAX_UDP_PAYLOAD] { server.send_to(&vec![0x66; len], from).unwrap(); }
+    let frames = poll_ready(&mut nat, 2);
+    assert_eq!((frames.len(), nat.udp_oversize), (1, 3));
+    assert_eq!(frames[0].len(), 14 + 1500);
+    // guest to host: nothing over the limit leaves, and it starts no flow
+    let flows = nat.udp_flows;
+    nat.udp_out(&[2; 6], &GUEST, 1235, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, &[0x77; MAX_UDP_PAYLOAD + 1], 3);
+    assert_eq!((nat.udp_oversize, nat.udp_flows), (4, flows));
+    nat.udp_out(&[2; 6], &GUEST, 1235, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, &[0x77; MAX_UDP_PAYLOAD], 3);
+    assert_eq!(server.recv_from(&mut buf).unwrap().0, MAX_UDP_PAYLOAD);
+    assert_eq!(nat.udp_oversize, 4);
+}

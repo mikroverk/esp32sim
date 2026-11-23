@@ -46,9 +46,13 @@ the station's port 3333 from 10.0.2.2, from a gateway port (50000 up) of that se
 the guest sends back to that port goes to the sender from 5353, so a UDP echo or request/response
 server in the guest answers `nc -u 127.0.0.1 5353`. Datagrams wait in the host's socket until the
 station's MAC is known; one that reaches the guest before its server binds the port is lost, as on
-a real network (ESP-IDF's `protocols/sockets/udp_server` on the C3 echoed what came after it bound).
-A sender silent for 120 s loses its gateway port and gets a new one with its next datagram. The
-`[emu] nat:` line counts these flows as UDP inbound.
+a real network (in a manual run, ESP-IDF v5.5.4's `protocols/sockets/udp_server` on the C3 echoed
+what came after it bound). A sender silent for 120 s loses its gateway port and gets a new one with
+its next datagram. The `[emu] nat:` line counts these flows as UDP inbound. Each poll of the NAT
+takes at most 16 new senders; the rest wait in the host socket. Senders share the 64-flow UDP table
+with the guest's own flows but never push those out: on a full table a new sender takes the slot of
+the least recently active sender the guest has never answered, or, with none, is turned away and
+its datagram lost (`inbound turned away` in the `[emu] nat:` line).
 
 The same `--wifi` and `--net` work on the **ESP32-C6** (`esp32sim-c6`): the access point and the
 network are the same code, the MAC model is the C6's own ([wifi-c6-plan.md](wifi-c6-plan.md)). What
@@ -96,6 +100,9 @@ has been tried is one station on one open or WPA2 network; `examples/c6-wifi-sta
 
 - **UDP inbound** reaches only ports published with `--hostfwd udp:`; multicast and mDNS still do
   not cross.
+- **UDP datagrams over 1472 bytes**, more than one 1500-byte IP packet holds, are dropped in either
+  direction and counted in the `[emu] nat:` line (`datagrams over the MTU dropped`); the NAT does
+  not fragment.
 - **Multicast and mDNS** do not cross the NAT: `something.local` will not resolve, and Home
   Assistant / ESP-IDF discovery protocols will not see anything. Use IP addresses.
 - **UDP reply peers** must match the destination IP and port of the outgoing datagram. The

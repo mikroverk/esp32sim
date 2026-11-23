@@ -15,7 +15,8 @@ const MAX_HOSTFWD: usize = 8;
 /// Datagrams one `--hostfwd udp:` sender may have waiting for the NAT; more are dropped, as a
 /// full socket buffer drops them.
 const UDP_QUEUE: usize = 16;
-/// Datagrams read from a `--hostfwd udp:` port per `udp_accept`, so a flood cannot stall a poll.
+/// Datagrams read from a `--hostfwd udp:` port per `udp_accept`, so a flood cannot stall a poll;
+/// the rest wait in the socket.
 const UDP_READS: usize = 64;
 
 // A permit belongs to the blocking connect worker, not its guest flow. Removing a flow with RST
@@ -62,8 +63,6 @@ pub struct StdTransport {
     tcp: HashMap<FlowId, StdTcp>,
     udp: HashMap<FlowId, StdUdp>,
     forwards: Vec<HostFwd>,
-    /// senders at a `--hostfwd udp:` port that `udp_accept` has not handed the NAT yet
-    udp_new: VecDeque<FlowId>,
     next: FlowId,
     resolver: [u8; 4],
 }
@@ -73,7 +72,7 @@ impl Default for StdTransport {
 }
 
 impl StdTransport {
-    pub fn new() -> Self { Self { tcp: HashMap::new(), udp: HashMap::new(), forwards: Vec::new(), udp_new: VecDeque::new(), next: 0, resolver: host_resolver() } }
+    pub fn new() -> Self { Self { tcp: HashMap::new(), udp: HashMap::new(), forwards: Vec::new(), next: 0, resolver: host_resolver() } }
 
     /// Bind one host TCP port; its connections reach the NAT through `tcp_accept`, which delivers
     /// each as a SYN to `spec.guest_ip:guest_port`. A UDP port's senders reach it through
@@ -98,12 +97,15 @@ impl StdTransport {
     }
 
     /// Read what waits at the `--hostfwd udp:` ports into their senders' flows, starting a flow
-    /// for a sender not seen yet (or no longer: the NAT closed its flow).
-    fn read_udp_forwards(&mut self) {
+    /// for a sender not seen yet (or no longer: the NAT closed its flow). Reading stops at `max`
+    /// new senders; what is behind them stays in the socket.
+    fn read_udp_forwards(&mut self, max: usize) -> Vec<(FlowId, [u8; 4], u16)> {
+        let mut new = Vec::new();
         let mut buf = [0; 2048];
         for fwd in 0..self.forwards.len() {
             let Listener::Udp(sock) = &self.forwards[fwd].listener else { continue };
             for _ in 0..UDP_READS {
+                if new.len() >= max { return new; }
                 let (n, peer) = match sock.recv_from(&mut buf) {
                     Ok(got) => got,
                     Err(e) if e.kind() == ErrorKind::Interrupted => continue,
@@ -121,9 +123,11 @@ impl StdTransport {
                 self.next = self.next.wrapping_add(1);
                 let id = self.next;
                 self.udp.insert(id, StdUdp::In { fwd, peer, queue: VecDeque::from([buf[..n].to_vec()]) });
-                self.udp_new.push_back(id);
+                let f = &self.forwards[fwd];
+                new.push((id, f.guest_ip, f.guest_port));
             }
         }
+        new
     }
 
     fn id(&mut self) -> FlowId {
@@ -215,7 +219,7 @@ impl NatTransport for StdTransport {
         }
         self.socket(id)?.recv(buf)
     }
-    fn udp_close(&mut self, id: FlowId) { self.udp.remove(&id); self.udp_new.retain(|&n| n != id); }
+    fn udp_close(&mut self, id: FlowId) { self.udp.remove(&id); }
 
     fn resolver(&self) -> [u8; 4] { self.resolver }
 
@@ -240,13 +244,7 @@ impl NatTransport for StdTransport {
         None
     }
 
-    fn udp_accept(&mut self) -> Option<(FlowId, [u8; 4], u16)> {
-        self.read_udp_forwards();
-        let id = self.udp_new.pop_front()?;
-        let Some(StdUdp::In { fwd, .. }) = self.udp.get(&id) else { return None };
-        let f = &self.forwards[*fwd];
-        Some((id, f.guest_ip, f.guest_port))
-    }
+    fn udp_accept(&mut self, max: usize) -> Vec<(FlowId, [u8; 4], u16)> { self.read_udp_forwards(max) }
 }
 
 fn host_resolver() -> [u8; 4] {
