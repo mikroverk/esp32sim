@@ -27,6 +27,7 @@ pub mod png;
 pub mod rom;
 pub mod soc;
 pub mod uart;
+pub mod uart_tcp;
 pub mod usb_host;
 pub mod web;
 pub mod wifi;

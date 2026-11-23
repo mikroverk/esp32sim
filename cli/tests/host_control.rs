@@ -1,8 +1,12 @@
-//! The host-side run controls: `--exit-on`, `--timeout`, `--inject` / `--inject-on`.
+//! The host-side run controls: `--exit-on`, `--timeout`, `--inject` / `--inject-on`, and `--uart-tcp` carrying
+//! the mask ROM's UART download protocol (esptool's SLIP framing) over a socket. No external tools: the test
+//! speaks SLIP itself. Stock esptool against the same bridge is checked by hand (docs/cli.md).
 #[path = "../../tests/common.rs"]
 mod common;
 use common::*;
-use std::process::Command;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpStream;
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 const BIN: &str = env!("CARGO_BIN_EXE_esp32sim");
@@ -86,3 +90,88 @@ fn inject_reaches_the_p4_console_repl_after_its_prompt() {
     assert!(stdout.contains("show storage size and sector size"), "{stdout}");
     assert!(emulated_seconds(&stderr) < 5.0, "{stderr}");
 }
+
+fn slip(packet: &[u8]) -> Vec<u8> {
+    let mut f = vec![0xc0];
+    for &b in packet { match b { 0xc0 => f.extend([0xdb, 0xdc]), 0xdb => f.extend([0xdb, 0xdd]), b => f.push(b) } }
+    f.push(0xc0);
+    f
+}
+
+/// esptool's command packet: direction 0, opcode, length, checksum, data.
+fn command(op: u8, data: &[u8]) -> Vec<u8> {
+    let mut p = vec![0, op];
+    p.extend((data.len() as u16).to_le_bytes());
+    p.extend(0u32.to_le_bytes());
+    p.extend(data);
+    slip(&p)
+}
+
+/// SLIP frames out of a byte stream: returns the decoded packets and keeps a partial frame in `buf`.
+fn frames(buf: &mut Vec<u8>) -> Vec<Vec<u8>> {
+    let mut out = Vec::new();
+    loop {
+        let Some(start) = buf.iter().position(|&b| b == 0xc0) else { buf.clear(); break };
+        let Some(len) = buf[start + 1..].iter().position(|&b| b == 0xc0) else { buf.drain(..start); break };
+        let raw: Vec<u8> = buf[start + 1..start + 1 + len].to_vec();
+        buf.drain(..start + 1 + len);   // keep the closing 0xc0: it may open the next frame
+        if raw.is_empty() { continue; }
+        let mut p = Vec::new();
+        let mut it = raw.into_iter();
+        while let Some(b) = it.next() { p.push(if b == 0xdb { match it.next() { Some(0xdc) => 0xc0, Some(0xdd) => 0xdb, _ => 0 } } else { b }); }
+        out.push(p);
+    }
+    out
+}
+
+/// Boot the chip's ROM in UART download mode with `--uart-tcp` on a free port, SYNC as esptool does, and read the
+/// chip-detect magic word: the answer must come from the ROM over the socket.
+fn rom_download_over_uart_tcp(chip: &str, rom_name: &str, strap: &str, magics: &[u32]) {
+    let rom = rom(rom_name);
+    let mut child = Command::new(BIN).args(["--chip", chip, "--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--strap", strap,
+        "--uart-tcp", "127.0.0.1:0", "--timeout", "60s", "--no-dump"]).current_dir(root())
+        .stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut err = BufReader::new(child.stderr.take().unwrap());
+    let mut addr = None;
+    let mut line = String::new();
+    while addr.is_none() && err.read_line(&mut line).unwrap() > 0 {
+        if let Some(rest) = line.strip_prefix("[emu] UART0 on tcp ") { addr = rest.split(':').take(2).collect::<Vec<_>>().join(":").into(); }
+        line.clear();
+    }
+    let addr = addr.unwrap_or_else(|| { let _ = child.kill(); panic!("no `[emu] UART0 on tcp` line") });
+    // drain the rest of stderr so the emulator never blocks on it
+    let log = std::thread::spawn(move || { let mut s = String::new(); let _ = err.read_to_string(&mut s); s });
+    let mut s = TcpStream::connect(&addr).unwrap();
+    s.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
+    let mut sync = vec![0x07, 0x07, 0x12, 0x20]; sync.extend([0x55; 32]);
+    let (mut buf, mut synced, mut magic) = (Vec::new(), false, None);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut chunk = [0u8; 4096];
+    while magic.is_none() && Instant::now() < deadline {
+        s.write_all(&command(if synced { 0x0a } else { 0x08 }, if synced { &[0x00, 0x10, 0x00, 0x40] } else { &sync })).unwrap();
+        let until = Instant::now() + Duration::from_millis(300);
+        while Instant::now() < until {
+            match s.read(&mut chunk) { Ok(0) => break, Ok(n) => buf.extend_from_slice(&chunk[..n]), Err(_) => {} }
+            for p in frames(&mut buf) {
+                if p.len() < 10 || p[0] != 1 { continue; }
+                let status = p[8];
+                match p[1] { 0x08 if status == 0 => synced = true, 0x0a if status == 0 => magic = Some(u32::from_le_bytes([p[4], p[5], p[6], p[7]])), _ => {} }
+            }
+            if magic.is_some() || (synced && buf.is_empty()) { break; }
+        }
+    }
+    drop(s);
+    let _ = child.kill(); let _ = child.wait();
+    let log = log.join().unwrap();
+    assert!(synced, "{chip}: no SYNC answer over the socket\n{log}");
+    let magic = magic.unwrap_or_else(|| panic!("{chip}: no READ_REG answer\n{log}"));
+    assert!(magics.contains(&magic), "{chip}: chip-detect magic {magic:#010x}, expected one of {magics:x?}");
+    assert!(log.contains("[uart0-tcp] client"), "{log}");
+}
+
+// esptool's CHIP_DETECT_MAGIC_VALUE lists (esptool v4.12 targets/esp32c3.py, esp32s3.py)
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF"]
+fn c3_rom_download_mode_answers_over_uart_tcp() { rom_download_over_uart_tcp("c3", "esp32c3_rev3", "0x2", &[0x6921506f, 0x1b31506f, 0x4881606f, 0x4361606f]); }
+
+#[test] #[ignore = "needs the ESP32-S3 mask ROM ELF"]
+fn s3_rom_download_mode_answers_over_uart_tcp() { rom_download_over_uart_tcp("s3", "esp32s3_rev0", "0x2", &[0x9]); }

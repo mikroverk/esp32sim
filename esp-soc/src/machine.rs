@@ -41,8 +41,9 @@ pub struct Script { pub events: Vec<(u64, ScriptAction)>, pub pos: usize, pub lo
                    /// UART0 text seen so far (capped) and where the pending wait started looking
                    uart0_seen: Vec<u8>, wait_mark: Option<usize> }
 
-/// Host conditions around a run (`--exit-on`, `--timeout`), tested where the console is drained: a run without them
-/// pays an `is_some` test per drain and nothing per round.
+/// Host conditions and links around a run (`--exit-on`, `--timeout`, `--uart-tcp`, `--uart1-tcp`). The stop
+/// conditions are tested where the console is drained, the sockets polled from the real-time pacing step: a run
+/// without them pays an `is_some`/`is_empty` test per drain and nothing per round.
 #[derive(Default)]
 pub struct HostIo {
     /// `--exit-on`: stop the run (as a script `stop` does) once UART0 or USB-Serial/JTAG prints this
@@ -53,6 +54,8 @@ pub struct HostIo {
     pub ended: Option<HostEnd>,
     /// the last bytes each console stream printed (USB, UART0), so a match split across two drains is found
     tails: [Vec<u8>; 2],
+    /// sockets carrying a UART's bytes both ways (`uart_tcp::UartTcp`)
+    pub uart_tcp: Vec<crate::uart_tcp::UartTcp>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -386,6 +389,7 @@ impl<S: Soc> Machine<S> {
                     self.host.ended = Some(HostEnd::ExitOn); self.max_cycles = 0;
                 }
             } }
+            if i > 0 && !d.is_empty() && !self.host.uart_tcp.is_empty() { for b in &mut self.host.uart_tcp { if b.uart + 1 == i { b.send(&d); } } }
             if let Some(w) = &self.web { if !d.is_empty() { {
                 // `data` is text; when the bytes are not valid UTF-8 (a binary protocol, or a character split across
                 // two drains) `hex` carries them exactly, so a client can tell and use the raw bytes.
@@ -399,6 +403,19 @@ impl<S: Soc> Machine<S> {
             eprintln!("[emu] --timeout: the wall-clock time ran out at t={:.3}s", self.bus.cycles() as f64 / S::CPU_HZ as f64);
             self.host.ended = Some(HostEnd::Timeout); self.max_cycles = 0;
         } }
+    }
+
+    /// `--uart-tcp`, `--uart1-tcp`: what each socket's client sent goes into its UART's receive path, which releases it
+    /// at the line rate (`Uart::host_input_queued`); held output is written.
+    #[cold]
+    #[inline(never)]
+    pub fn poll_uart_tcp(&mut self) {
+        let mut input = Vec::new();
+        for i in 0..self.host.uart_tcp.len() {
+            input.clear();
+            self.host.uart_tcp[i].poll(&mut input);
+            if !input.is_empty() { let n = self.host.uart_tcp[i].uart; self.bus.uart_input(n, &input); }
+        }
     }
 
     // ------------------------------------------------------------------ interrupts
@@ -1129,6 +1146,7 @@ impl<S: Soc> Machine<S> {
     #[inline(never)]
     fn rt_pace(&mut self) {
         self.poll_camera_input();
+        if !self.host.uart_tcp.is_empty() { self.poll_uart_tcp(); }
         {
             self.rt.last_check = self.bus.cycles();
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);

@@ -37,6 +37,8 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --exit-on TEXT        end the run, status 0, once the console prints TEXT (status 1 if it never does)");
     eprintln!("  --timeout DUR         end the run after DUR of wall-clock time (5s, 500ms), status 124");
     eprintln!("  --inject DATA, --inject-on TEXT   DATA (\\n, \\r escapes) into UART0, at the start or once UART0 printed TEXT");
+    eprintln!("  --uart-tcp H:P        UART0 bytes over TCP: esptool --port socket://H:P (with --strap for download mode);");
+    eprintln!("                        --uart1-tcp H:P the same for UART1");
     eprintln!("  --tft-png F, --wav F  save the display / the audio at the end of the run");
     eprintln!("  --mic-wav [PORT:]F    play a 16-bit PCM WAV once into I2S RX (default controller 0), resampled");
     eprintln!("  --web PORT            serve the board UI at http://127.0.0.1:PORT/ in real time");
@@ -164,6 +166,8 @@ pub struct Opts {
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     /// `--exit-on TEXT`, `--timeout DURATION` (wall clock), `--inject DATA` / `--inject-on TEXT` (paired by position)
     pub exit_on: Option<String>, pub timeout: Option<std::time::Duration>, pub injects: Vec<String>, pub inject_ons: Vec<String>,
+    /// `--uart-tcp HOST:PORT`, `--uart1-tcp HOST:PORT`: UART0 / UART1 bytes over a TCP socket (esptool's `socket://`)
+    pub uart_tcp: Option<String>, pub uart1_tcp: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
     pub i2s_tone: Vec<String>,
     pub mic_wav: Vec<String>,
@@ -240,6 +244,8 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--timeout" => o.timeout = Some(duration(&next()).unwrap_or_else(|e| usage_error(&format!("--timeout: {e}")))),
             "--inject" => o.injects.push(unescape(&next()).unwrap_or_else(|e| usage_error(&format!("--inject: {e}")))),
             "--inject-on" => o.inject_ons.push(next()),
+            "--uart-tcp" => o.uart_tcp = Some(next()),
+            "--uart1-tcp" => o.uart1_tcp = Some(next()),
             "--console" => o.console = Some(next()),
             "--console-prefix" => o.console_prefix = true,
             "--realtime" => o.realtime = true,
@@ -311,6 +317,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if o.exit_on.as_deref() == Some("") || o.inject_ons.iter().any(String::is_empty) { usage_error("--exit-on and --inject-on need a non-empty string"); }
     if o.inject_ons.len() > o.injects.len() { usage_error("each --inject-on needs an --inject: they pair up in the order given"); }
     if !o.inject_ons.is_empty() && o.script.is_some() { usage_error("--inject-on with --script: the waits would hold the script back; put them in the script (waituart0, uart0)"); }
+    if o.uart_tcp.is_some() && o.uart_tcp == o.uart1_tcp { usage_error("--uart-tcp and --uart1-tcp need different addresses"); }
     if (o.ble_observe || o.ble_scan) && !o.ble_full { usage_error("BLE central/observer use requires --ble full"); }
     if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
     if !o.ble_nearby.is_empty() {
@@ -341,8 +348,8 @@ pub fn run_cli(default_chip: &str) {
     if o.cam_stream.is_some() != o.cam_size.is_some() { usage_error("--cam-stream and --cam-size must be supplied together"); }
     validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
     if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
-    if (o.cooja || o.coproc.is_some()) && (o.exit_on.is_some() || o.timeout.is_some() || !o.injects.is_empty()) {
-        usage_error("--exit-on, --timeout and --inject are not available with --cooja or --coproc");
+    if (o.cooja || o.coproc.is_some()) && (o.exit_on.is_some() || o.timeout.is_some() || !o.injects.is_empty() || o.uart_tcp.is_some() || o.uart1_tcp.is_some()) {
+        usage_error("--exit-on, --timeout, --inject, --uart-tcp and --uart1-tcp are not available with --cooja or --coproc");
     }
     if o.cooja { return run_cooja(&mut o); }
     if o.coproc.is_some() { return run_cosim(&o); }
@@ -1004,6 +1011,17 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     m.dbg.stop_after_exceptions = o.stop_exc;
     m.console.mask = console_mask(&console);
     m.console.prefix = o.console_prefix;
+    for (uart, addr) in [(0, &o.uart_tcp), (1, &o.uart1_tcp)] {
+        let Some(addr) = addr else { continue };
+        let flag = if uart == 0 { "--uart-tcp" } else { "--uart1-tcp" };
+        let b = esp_soc::uart_tcp::UartTcp::bind(addr, uart).unwrap_or_else(|e| usage_error(&format!("{flag} {addr}: {e}")));
+        let at = b.local_addr().map_or_else(|| addr.clone(), |a| a.to_string());
+        eprintln!("[emu] UART{uart} on tcp {at}: connect with socket://{at}");
+        m.host.uart_tcp.push(b);
+        // the socket is polled from the real-time pacing step; UART0's bytes are the socket's, not stdout's
+        m.rt.enabled = true;
+        if uart == 0 { m.console.mask &= !2; }
+    }
     if let Some(p) = &o.regtrace { m.add_observer(Box::new(RegTrace::new(std::fs::File::create(p).expect("regtrace file"), o.regtrace_max, o.regtrace_from_pc))); }
     if let Some(port) = o.web_port {
         let dir = o.web_dir.clone().unwrap_or_else(|| { let exe = std::env::current_exe().unwrap(); let mut d = exe.parent().unwrap().to_path_buf(); for _ in 0..3 { if d.join("web").exists() { break; } d = d.parent().unwrap().to_path_buf(); } d.join("web").to_string_lossy().to_string() });
