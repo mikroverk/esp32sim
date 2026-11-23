@@ -266,7 +266,11 @@ impl<'p> UsbHost<'p> {
         self.speed = Some(speed);
         self.address = 0;
         self.config = None;
-        self.mps0 = if speed == Speed::High { 64 } else { 8 };
+        // EP0's packet size until the device descriptor gives it: 64 at high speed (fixed) and,
+        // as a first guess, at full speed too, where the first GET_DESCRIPTOR(64) reads
+        // bMaxPacketSize0 (Linux v6.12 drivers/usb/core/hub.c, hub_port_init). With 8 a device
+        // whose EP0 takes 64 sends its 18-byte descriptor in one packet, more than the host takes.
+        self.mps0 = 64;
         Ok(speed)
     }
 
@@ -305,10 +309,24 @@ impl<'p> UsbHost<'p> {
         Ok(String::from_utf16_lossy(&units))
     }
 
+    /// The first GET_DESCRIPTOR(DEVICE, 64) at address 0, read for bMaxPacketSize0 alone (Linux
+    /// v6.12 drivers/usb/core/hub.c: get_bMaxPacketSize0, hub_port_init). With the host's
+    /// 64-byte guess, a device whose EP0 takes 8 bytes ends the data stage with one short packet:
+    /// the descriptor's first 8 bytes, as far as bMaxPacketSize0. A read shorter than that, or one
+    /// that is not a device descriptor, is EPROTO there; a bMaxPacketSize0 other than 8, 16, 32 or
+    /// 64 is "Invalid ep0 maxpacket" (EMSGSIZE). Linux retries both with a port reset in between,
+    /// then gives up; the scripted host gives up at once.
+    fn first_mps0(&mut self) -> Result<u8, UsbError> {
+        let d = self.get_descriptor(req::DEVICE, 0, 0, 64)?;
+        if d.len() < 8 || d[1] != req::DEVICE { return Err(UsbError::Protocol(format!("not a device descriptor: {:02x?}", &d[..d.len().min(18)]))); }
+        if ![8, 16, 32, 64].contains(&d[7]) { return Err(UsbError::Protocol(format!("invalid bMaxPacketSize0 {}", d[7]))); }
+        Ok(d[7])
+    }
+
     /// Power, connect, debounce, reset, address and configure the device on the port, the way a
-    /// host's hub driver does (USB 2.0 §9.1.2): the device descriptor's first 64 bytes at
-    /// address 0, SET_ADDRESS, the full device descriptor, the configuration, the strings,
-    /// SET_CONFIGURATION.
+    /// host's hub driver does (USB 2.0 §9.1.2): bMaxPacketSize0 from the first read of the device
+    /// descriptor at address 0 (`first_mps0`), SET_ADDRESS, the full device descriptor, the
+    /// configuration, the strings, SET_CONFIGURATION.
     pub fn enumerate(&mut self, connect_timeout_ns: u64) -> Result<(), UsbError> {
         if !self.link()?.port().power { self.power_on()?; self.say(format_args!("VBUS on")); }
         self.wait_connect(connect_timeout_ns)?;
@@ -320,10 +338,7 @@ impl<'p> UsbHost<'p> {
         self.say(format_args!("port reset: {:?} speed", speed));
         let r = self.timing.reset_recovery_ns;
         self.idle_ns(r)?;
-        let d = self.get_descriptor(req::DEVICE, 0, 0, 64)?;
-        let dev = DeviceDescriptor::parse(&d)?;
-        if ![8, 16, 32, 64].contains(&dev.mps0) { return Err(UsbError::Protocol(format!("bMaxPacketSize0 {}", dev.mps0))); }
-        self.mps0 = dev.mps0 as u16;
+        self.mps0 = self.first_mps0()? as u16;
         self.set_address(1)?;
         self.say(format_args!("address 1"));
         let dev = DeviceDescriptor::parse(&self.get_descriptor(req::DEVICE, 0, 0, 18)?)?;
@@ -361,11 +376,14 @@ impl<'p> UsbHost<'p> {
     pub fn reset_device(&mut self) -> Result<(), UsbError> {
         let (dev, cfg) = match (self.device.clone(), self.config.clone()) { (Some(d), Some(c)) => (d, c), _ => return Err(UsbError::Protocol("no configured device to reset".into())) };
         let address = self.address.max(1);
+        // A known device keeps its EP0 packet size through the resets: hub_port_init guesses only
+        // for a new one (`initial`).
         self.reset()?;
+        self.mps0 = dev.mps0 as u16;
         self.idle_ns(50_000_000)?;
-        let first = DeviceDescriptor::parse(&self.get_descriptor(req::DEVICE, 0, 0, 64)?)?;
-        if first.mps0 != dev.mps0 { return Err(UsbError::Protocol("the reset changed bMaxPacketSize0".into())); }
+        if self.first_mps0()? != dev.mps0 { return Err(UsbError::Protocol("the reset changed bMaxPacketSize0".into())); }
         self.reset()?;
+        self.mps0 = dev.mps0 as u16;
         self.idle_ns(50_000_000)?;
         self.set_address(address)?;
         self.idle_ns(10_000_000)?;

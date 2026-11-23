@@ -36,8 +36,8 @@ ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte 
 | LEDC | 0x60019000 | partial | timers, fractional dividers, static duty latching, interrupts and GPIO-matrix output; hardware fades — |
 | MCPWM0/1 | 0x6001E000/2C000 | partial | up-counting timers, compare latching, simple generator actions, interrupts and GPIO-matrix output; sync, capture, fault, carrier and dead time — |
 | TWAI | — | — | |
-| USB-OTG | — | — | the DWC2 core is modelled in `esp-periph/src/usb_otg.rs` and wired on the ESP32-P4 only (esp32p4.md, "USB") |
-| SDMMC | 0x60028000 | — | the DesignWare host and SD card are modelled in `esp-periph/src/sdmmc.rs` and wired on the ESP32-P4 only (esp32p4.md, "SD card") |
+| USB-OTG | 0x60080000 | partial | the full-speed DWC2 core in device mode with buffer DMA ([model](../esp-periph/src/usb_otg.rs), shared with the P4; esp32p4.md, "USB"), interrupt source 38, and `--usb-host`'s host on the cable. The internal PHY follows RTC_CNTL_USB_CONF (SW_HW_USB_PHY_SEL, SW_USB_PHY_SEL) or eFuse USB_PHY_SEL: the host sees the core only while the PHY is the core's, and USB-Serial/JTAG gets no SOFs then. DMA reaches internal SRAM only; slave (FIFO) mode and host mode are not modelled |
+| SDMMC | 0x60028000 | partial | the DesignWare host with its IDMAC and `--sd`'s card ([model](../esp-periph/src/sdmmc.rs), shared with the P4; esp32p4.md, "SD card"), interrupt source 30. The S3 routes SD through the GPIO matrix, so the card answers on the first slot whose clock (SDHOST_CCLK_OUT_1/2) reaches a pin; CDETECT and WRTPRT read the matrix's card-detect and write-protect inputs. Commands and data take no bus time (no `--sd-timing`: the SDMMC clock tree is not decoded); DMA reaches internal SRAM only |
 | WiFi baseband/PHY/RF, BT | — | — | radio registers are faked, not modelled; see wifi-plan.md |
 
 CPU-side: full base ISA, FPU (single precision), MAC16, booleans, PIE (all esp-dl/esp-dsp

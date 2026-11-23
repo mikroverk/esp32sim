@@ -20,7 +20,10 @@ enum Bot { Idle, DataIn(Vec<u8>, usize), DataOut(usize, Vec<u8>), Status([u8; 13
 #[derive(Default)]
 struct Knobs { not_ready: u32, phase_on: Option<u8>, bad_tag_on: Option<u8>, short_on: Option<(u8, usize)>, nak_in: u32, zlp_before_csw_on: Option<u8>,
                 /// READ CAPACITY's block length instead of 512; the first string's bLength
-                block_len: Option<u32>, string_len: Option<u8> }
+                block_len: Option<u32>, string_len: Option<u8>,
+                /// a full-speed device; EP0's packet size (and bMaxPacketSize0) instead of 64; a
+                /// bMaxPacketSize0 that differs from the packet size EP0 sends
+                full_speed: bool, ep0: Option<u8>, mps0_field: Option<u8> }
 
 struct FakeMsc {
     disk: Vec<u8>,
@@ -123,7 +126,7 @@ impl FakeMsc {
         self.ctrl_pos = 0;
         match (s[0], s[1]) {
             (0x80, req::GET_DESCRIPTOR) => match (value >> 8) as u8 {
-                req::DEVICE => self.ctrl_in = DEVICE.to_vec(),
+                req::DEVICE => { self.ctrl_in = DEVICE.to_vec(); self.ctrl_in[7] = self.knobs.mps0_field.or(self.knobs.ep0).unwrap_or(64); }
                 req::CONFIGURATION => self.ctrl_in = config(),
                 req::STRING => self.ctrl_in = match value & 0xff { 0 => vec![4, 3, 9, 4], 1 => { let mut d = string("TinyUSB"); if let Some(n) = self.knobs.string_len { d[0] = n; } d } 2 => string("TinyUSB Device"), 3 => string("123456"), _ => { self.ctrl_stall = true; vec![] } },
                 _ => self.ctrl_stall = true,
@@ -145,7 +148,7 @@ impl FakeMsc {
 impl UsbFunction for FakeMsc {
     fn vbus(&mut self, _now: u64, on: bool) { self.vbus = on; }
     fn pullup(&self) -> bool { self.vbus }
-    fn speed_capability(&self) -> Speed { Speed::High }
+    fn speed_capability(&self) -> Speed { if self.knobs.full_speed { Speed::Full } else { Speed::High } }
     fn bus_reset(&mut self, _now: u64) { self.configured = false; self.bot = Bot::Idle; self.bus_resets += 1; self.hang_after = None; }
     fn enumerated(&mut self, _now: u64, _speed: Speed) {}
     fn bus_event(&mut self, _now: u64, _e: BusEvent) {}
@@ -153,7 +156,7 @@ impl UsbFunction for FakeMsc {
     fn token_in(&mut self, _mem: &mut dyn DmaMemory, ep: u8, max: usize) -> InReply {
         if ep == 0 {
             if self.ctrl_stall { return InReply::Stall; }
-            let n = (self.ctrl_in.len() - self.ctrl_pos).min(max);
+            let n = (self.ctrl_in.len() - self.ctrl_pos).min(max).min(self.knobs.ep0.unwrap_or(64) as usize);
             let d = self.ctrl_in[self.ctrl_pos..self.ctrl_pos + n].to_vec();
             self.ctrl_pos += n;
             let pid = self.ep0_pid;
@@ -242,6 +245,47 @@ fn enumeration_follows_chapter_9_in_emulated_time() {
     let t = h.now_ns();
     assert!((162_000_000..164_000_000).contains(&t), "debounce 100 ms + reset 50 ms + recovery 10 ms + SET_ADDRESS 2 ms and a few microframes, took {t} ns");
     assert!(port.dev.configured);
+}
+
+/// A full-speed device whose EP0 takes `ep0` bytes, enumerated and then reset by the host.
+fn full_speed(ep0: u8) -> FakePort {
+    let mut dev = FakeMsc::new(2048);
+    (dev.knobs.full_speed, dev.knobs.ep0) = (true, Some(ep0));
+    let mut port = FakePort::new(dev);
+    let mut h = UsbHost::new(&mut port);
+    h.enumerate(1_000_000_000).unwrap();
+    assert_eq!(h.speed, Some(Speed::Full));
+    assert_eq!((h.mps0, h.device.as_ref().unwrap().mps0), (ep0 as u16, ep0));
+    assert_eq!(h.strings.len(), 3, "the descriptors after SET_ADDRESS came in {ep0}-byte packets");
+    h.reset_device().unwrap();
+    assert_eq!(h.mps0, ep0 as u16, "the reset keeps EP0's packet size");
+    assert!(port.dev.configured);
+    port
+}
+
+/// The host's first GET_DESCRIPTOR(DEVICE, 64) guesses a 64-byte EP0. A device whose EP0 takes 8
+/// bytes answers with one short packet, the descriptor's first 8 bytes: enough for
+/// bMaxPacketSize0, which the host takes before it reads the whole descriptor (Linux
+/// hub_port_init).
+#[test]
+fn full_speed_with_an_8_byte_ep0_enumerates_from_a_short_first_read() { full_speed(8); }
+
+/// A full-speed device whose EP0 takes 64 bytes sends the 18-byte descriptor in one packet.
+#[test]
+fn full_speed_with_a_64_byte_ep0_enumerates() { full_speed(64); }
+
+/// bMaxPacketSize0 other than 8, 16, 32 or 64 ends enumeration with an error (Linux: "Invalid
+/// ep0 maxpacket"), as does a first read too short to hold it.
+#[test]
+fn an_invalid_bmaxpacketsize0_fails_enumeration() {
+    for (field, ep0) in [(0, 64), (9, 64), (128, 64), (255, 64), (8, 7)] {
+        let mut dev = FakeMsc::new(2048);
+        (dev.knobs.full_speed, dev.knobs.ep0, dev.knobs.mps0_field) = (true, Some(ep0), Some(field));
+        let mut port = FakePort::new(dev);
+        let mut h = UsbHost::new(&mut port);
+        assert!(matches!(h.enumerate(1_000_000_000), Err(UsbError::Protocol(_))), "bMaxPacketSize0 {field}, EP0 packets of {ep0}");
+        assert!(h.device.is_none() && !port.dev.configured);
+    }
 }
 
 #[test]

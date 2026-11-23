@@ -91,8 +91,9 @@ pub enum SdmmcLayout {
     /// ESP32-P4: no PWREN or GPIO register; Espressif's wrapper from 0x800 (CLK_EDGE_SEL,
     /// RAW_INTS, DLL_CLK_CONF, DLL_CONF).
     Esp32p4,
-    /// ESP32 and ESP32-S3: PWREN at 0x04 and the CLOCK register at 0x800. Not wired to a chip
-    /// yet; their reset values are unverified.
+    /// ESP32 and ESP32-S3: PWREN at 0x04 and the CLOCK register at 0x800. Wired on the S3;
+    /// VERID and HCON read the P4's values, unverified there (IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/sdmmc_reg.h gives no reset values).
     Esp32,
 }
 
@@ -219,6 +220,8 @@ pub struct Sdmmc {
     log: bool,
     /// each slot's SDIO interrupt as last seen on DAT1
     sdio_irq: [bool; SLOTS],
+    /// the block's reset line is asserted (`set_reset`): writes are ignored
+    held: bool,
 }
 
 impl Sdmmc {
@@ -227,7 +230,7 @@ impl Sdmmc {
             bmod: 0, dbaddr: 0, idsts: 0, idinten: 0, dscaddr: 0, bufaddr: 0, tcbcnt: 0, tbbcnt: 0, resp_index: 0, cursor: 0,
             ram: RegRam::new(), card_detect_n: 0, write_protect: 0, devices: Vec::new(), route: [None; SLOTS], now_ns: 0, xfer: None,
             pending: Pending::None, bci_slot: None, read_irq: false, timed: false, ciu_hz: 0, deferred: Vec::new(), data_due: 0,
-            stats: SdmmcStats::default(), log: false, sdio_irq: [false; SLOTS] };
+            stats: SdmmcStats::default(), log: false, sdio_irq: [false; SLOTS], held: false };
         s.reset_registers();
         s
     }
@@ -248,6 +251,14 @@ impl Sdmmc {
         self.pending = Pending::None;
         self.bci_slot = None;
         self.deferred.clear();
+    }
+
+    /// The block's reset line held at a level (SYSTEM_PERIP_RST_EN1.SDIO_HOST_RST on the S3):
+    /// asserting it resets the registers, which ignore writes until it is released, as
+    /// `Dwc2::set_reset` does for the USB-OTG core.
+    pub fn set_reset(&mut self, asserted: bool) {
+        if asserted && !self.held { self.reset_registers(); }
+        self.held = asserted;
     }
 
     /// The card clock of `slot`: CLKSRC picks one of the four CLKDIV dividers (0 divides by 1,
@@ -595,6 +606,7 @@ impl Device for Sdmmc {
     }
 
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        if self.held { return WriteEffect::NONE; }
         match off {
             reg::CTRL => {
                 if v & (CTRL_CONTROLLER_RESET | CTRL_DMA_RESET) != 0 { self.xfer = None; self.pending = Pending::None; self.deferred.clear(); }

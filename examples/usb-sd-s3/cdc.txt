@@ -1,0 +1,6 @@
+# A host on the S3's USB-OTG port (--usb-host) for IDF's tusb_serial_device example: enumerate,
+# open the CDC-ACM interface, send a line the example echoes back, unplug.
+attach
+cdc 200 hello from the host
+detach
+idle 50
