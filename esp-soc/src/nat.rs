@@ -1,6 +1,6 @@
 //! User-mode NAT: guest TCP and UDP flows are relayed through a host transport (`NatTransport`):
-//! natively `StdTransport`, ordinary host sockets, which also carries `--hostfwd` inbound TCP to
-//! the station.
+//! natively `StdTransport`, ordinary host sockets, which also carries `--hostfwd` inbound TCP
+//! connections and UDP datagrams to the station.
 //!
 //! TCP uses bounded buffers in both directions. SYN, data and FIN share one retransmission queue,
 //! so a dropped virtual-air frame cannot discard acknowledged guest bytes or strand a handshake.
@@ -68,24 +68,26 @@ impl Sent {
     fn len(&self) -> usize { self.data.len() + usize::from(self.flags & (SYN | FIN) != 0) }
 }
 
-/// One `--hostfwd` listener: a host TCP port that becomes a SYN to the station.
+/// One `--hostfwd` listener: a host TCP port whose connections become SYNs to the station, or a
+/// host UDP port whose datagrams go to the station, each sender's from a gateway port of its own.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostFwdSpec {
+    pub udp: bool,
     pub bind: SocketAddr,
     pub guest_ip: [u8; 4],
     pub guest_port: u16,
 }
 
 impl HostFwdSpec {
-    /// `tcp:[hostaddr]:hostport-[guestaddr]:guestport`. Empty host binds loopback; empty guest is 10.0.2.15.
+    /// `tcp|udp:[hostaddr]:hostport-[guestaddr]:guestport`. Empty host binds loopback; empty guest is 10.0.2.15.
     pub fn parse(spec: &str) -> Result<Self, String> {
-        let rest = match spec.strip_prefix("tcp:") {
-            Some(rest) => rest,
-            None if spec.starts_with("udp:") => return Err("UDP host forwarding is not supported".into()),
-            None => return Err(format!("invalid --hostfwd {spec:?}: expected tcp:HOST:HOSTPORT-GUEST:GUESTPORT")),
+        let expected = || format!("invalid --hostfwd {spec:?}: expected tcp:HOST:HOSTPORT-GUEST:GUESTPORT or udp:HOST:HOSTPORT-GUEST:GUESTPORT");
+        let (udp, rest) = match (spec.strip_prefix("tcp:"), spec.strip_prefix("udp:")) {
+            (Some(rest), _) => (false, rest),
+            (_, Some(rest)) => (true, rest),
+            _ => return Err(expected()),
         };
-        let (left, right) = rest.split_once('-')
-            .ok_or_else(|| format!("invalid --hostfwd {spec:?}: expected tcp:HOST:HOSTPORT-GUEST:GUESTPORT"))?;
+        let (left, right) = rest.split_once('-').ok_or_else(expected)?;
         let (host, host_port) = left.rsplit_once(':')
             .ok_or_else(|| format!("invalid --hostfwd {spec:?}: missing host port"))?;
         let (guest, guest_port) = right.rsplit_once(':')
@@ -103,7 +105,7 @@ impl HostFwdSpec {
         };
         let guest_port: u16 = guest_port.parse().map_err(|_| format!("invalid --hostfwd guest port {guest_port:?}"))?;
         if guest_port == 0 { return Err("--hostfwd guest port must be 1..=65535".into()); }
-        Ok(Self { bind: SocketAddr::new(host_ip, host_port), guest_ip, guest_port })
+        Ok(Self { udp, bind: SocketAddr::new(host_ip, host_port), guest_ip, guest_port })
     }
 }
 
@@ -224,10 +226,13 @@ impl Write for FlowWriter<'_> {
     fn flush(&mut self) -> io::Result<()> { Ok(()) }
 }
 
+/// A guest UDP flow. An inbound one (`--hostfwd udp:`) is one host sender's datagrams to the
+/// forwarded guest port, from the gateway's `dst_port`; the guest's replies there go back to it.
 struct Udp {
     guest_mac: [u8; 6], guest_ip: [u8; 4], guest_port: u16, dst_ip: [u8; 4], dst_port: u16,
     reply_src: [u8; 4], // DNS's guest-visible address, before host resolver redirection
     id: FlowId,
+    inbound: bool,
     last_activity_us: u64,
 }
 
@@ -272,6 +277,8 @@ pub struct Nat {
     /// `--hostfwd` listeners on the transport (`StdTransport::listen`), for the report line
     pub hostfwd: u64,
     pub udp_flows: u64,
+    /// UDP flows a host sender began through a `--hostfwd udp:` port
+    pub udp_inbound: u64,
     pub udp_evicted: u64, pub udp_send_errors: u64,
     pub bytes_to_host: u64, pub bytes_to_guest: u64,
     /// answers to DNS queries the transport resolved itself
@@ -288,7 +295,7 @@ impl Nat {
         Self { tcp: Vec::new(), udp: Vec::new(), dns: VecDeque::new(), resolver: transport.resolver(), transport,
             pending: Vec::new(), sta_mac: [0; 6], next_eph: INBOUND_PORT_BASE, isn: 0x1000, log,
             tcp_opened: 0, tcp_refused: 0, tcp_accepted: 0, hostfwd: 0,
-            udp_flows: 0, udp_evicted: 0, udp_send_errors: 0, bytes_to_host: 0, bytes_to_guest: 0,
+            udp_flows: 0, udp_inbound: 0, udp_evicted: 0, udp_send_errors: 0, bytes_to_host: 0, bytes_to_guest: 0,
             dns_answers: 0 }
     }
 
@@ -345,16 +352,8 @@ impl Nat {
             Some(i) => i,
             None => {
                 let Ok(id) = self.transport.udp_open(SocketAddrV4::new(ip(dip), dport)) else { return };
-                if self.udp.len() >= MAX_FLOWS {
-                    let oldest = self.udp.iter().enumerate().max_by_key(|(_, f)| now_us.wrapping_sub(f.last_activity_us)).unwrap().0;
-                    let evicted = self.udp.remove(oldest);
-                    self.transport.udp_close(evicted.id);
-                    self.udp_evicted += 1;
-                    if self.log { eprintln!("[nat] UDP evicted least recently active flow (table full)"); }
-                }
-                self.udp.push(Udp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
-                    reply_src: *reply_src, id, last_activity_us: now_us });
-                self.udp_flows += 1;
+                self.udp_insert(Udp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
+                    reply_src: *reply_src, id, inbound: false, last_activity_us: now_us }, now_us);
                 if self.log { eprintln!("[nat] UDP {}:{} -> {}:{} ({} bytes)", ip(gip), sport, ip(dip), dport, payload.len()); }
                 self.udp.len() - 1
             }
@@ -368,6 +367,20 @@ impl Nat {
                 if self.log { eprintln!("[nat] UDP {}:{} send failed: {}", ip(dip), dport, e); }
             }
         }
+    }
+
+    /// A new UDP flow at the end of the table; a full table first gives up its least recently
+    /// active flow.
+    fn udp_insert(&mut self, flow: Udp, now_us: u64) {
+        if self.udp.len() >= MAX_FLOWS {
+            let oldest = self.udp.iter().enumerate().max_by_key(|(_, f)| now_us.wrapping_sub(f.last_activity_us)).unwrap().0;
+            let evicted = self.udp.remove(oldest);
+            self.transport.udp_close(evicted.id);
+            self.udp_evicted += 1;
+            if self.log { eprintln!("[nat] UDP evicted least recently active flow (table full)"); }
+        }
+        self.udp.push(flow);
+        self.udp_flows += 1;
     }
 
     pub fn tcp_in(&mut self, gmac: &[u8; 6], gip: &[u8; 4], dip: &[u8; 4], seg: &[u8], now_us: u64) -> Vec<Vec<u8>> {
@@ -448,7 +461,8 @@ impl Nat {
         for _ in 0..1000u16 {
             let port = self.next_eph;
             self.next_eph = if self.next_eph == u16::MAX { INBOUND_PORT_BASE } else { self.next_eph + 1 };
-            if port >= INBOUND_PORT_BASE && !self.tcp.iter().any(|c| c.inbound && c.dst_port == port) { return Some(port); }
+            if port >= INBOUND_PORT_BASE && !self.tcp.iter().any(|c| c.inbound && c.dst_port == port)
+                && !self.udp.iter().any(|f| f.inbound && f.dst_port == port) { return Some(port); }
         }
         None
     }
@@ -484,11 +498,26 @@ impl Nat {
         }
     }
 
+    /// The UDP senders new at a `--hostfwd udp:` port, each a flow from a gateway port of its own
+    /// to the forwarded guest port, once the station's MAC is known; until then their datagrams
+    /// wait in the transport. With no free gateway port the flow is closed and its datagrams lost.
+    fn accept_udp(&mut self, now_us: u64) {
+        if self.sta_mac == [0; 6] { return; }
+        while let Some((id, guest_ip, guest_port)) = self.transport.udp_accept() {
+            let Some(eph) = self.alloc_eph() else { self.transport.udp_close(id); continue };
+            if self.log { eprintln!("[nat] UDP hostfwd {}:{} -> {}:{}", ip(&GATEWAY_IP), eph, ip(&guest_ip), guest_port); }
+            self.udp_insert(Udp { guest_mac: self.sta_mac, guest_ip, guest_port, dst_ip: GATEWAY_IP, dst_port: eph,
+                reply_src: GATEWAY_IP, id, inbound: true, last_activity_us: now_us }, now_us);
+            self.udp_inbound += 1;
+        }
+    }
+
     /// Pump a bounded amount of host traffic, then retransmit and expire flows.
     pub fn poll(&mut self, now_us: u64) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
         self.accept_inbound();
         self.start_pending(now_us, &mut out);
+        self.accept_udp(now_us);
         let transport = &mut *self.transport;
         for c in &mut self.tcp {
             if c.closed() { continue; }
@@ -554,7 +583,7 @@ impl Nat {
             let mut buf = [0; 2048];
             for _ in 0..UDP_BATCH {
                 let Ok(n) = transport.udp_recv(flow.id, &mut buf) else { break };
-                if self.log { eprintln!("[nat] UDP reply {} bytes -> guest port {}", n, flow.guest_port); }
+                if self.log { eprintln!("[nat] UDP {} {} bytes -> guest port {}", if flow.inbound { "hostfwd" } else { "reply" }, n, flow.guest_port); }
                 self.bytes_to_guest += n as u64;
                 flow.last_activity_us = now_us;
                 let udp = udp_packet(&flow.reply_src, &flow.guest_ip, flow.dst_port, flow.guest_port, &buf[..n]);

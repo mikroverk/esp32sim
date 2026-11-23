@@ -716,14 +716,17 @@ fn hostfwd_spec_parses_the_documented_tcp_form() {
     let spec = HostFwdSpec::parse("tcp:0.0.0.0:0-:1").unwrap();
     assert_eq!(spec.bind.ip(), IpAddr::V4(Ipv4Addr::UNSPECIFIED));
     assert_eq!(spec.guest_port, 1);
-    for bad in ["udp:127.0.0.1:8080-:80", "tcp:127.0.0.1:8080:80", "tcp:127.0.0.1:8080-:0", "tcp:nope:8080-:80", "tcp::65536-:80", ""] {
+    let spec = HostFwdSpec::parse("udp::5353-10.0.2.15:7").unwrap();
+    assert_eq!(spec, HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 5353)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    assert!(!HostFwdSpec::parse("tcp::5353-:7").unwrap().udp);
+    for bad in ["sctp:127.0.0.1:8080-:80", "udp:127.0.0.1:8080-:0", "tcp:127.0.0.1:8080:80", "tcp:127.0.0.1:8080-:0", "tcp:nope:8080-:80", "tcp::65536-:80", ""] {
         assert!(HostFwdSpec::parse(bad).is_err(), "{bad}");
     }
 }
 
 #[test]
 fn hostfwd_holds_until_the_station_mac_is_known_then_relays_both_ways() {
-    let (mut nat, bound) = listening(HostFwdSpec { bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 80 });
+    let (mut nat, bound) = listening(HostFwdSpec { udp: false, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 80 });
     let connector = std::thread::spawn(move || {
         let sock = TcpStream::connect(bound).unwrap();
         sock.set_nonblocking(true).unwrap();
@@ -779,7 +782,7 @@ fn hostfwd_holds_until_the_station_mac_is_known_then_relays_both_ways() {
 
 #[test]
 fn hostfwd_counts_a_guest_rst_to_the_forwarded_syn_as_refused() {
-    let (mut nat, bound) = listening(HostFwdSpec { bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 4444 });
+    let (mut nat, bound) = listening(HostFwdSpec { udp: false, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 4444 });
     let connector = std::thread::spawn(move || TcpStream::connect(bound).unwrap());
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
     while !connector.is_finished() {
@@ -798,4 +801,67 @@ fn hostfwd_counts_a_guest_rst_to_the_forwarded_syn_as_refused() {
     let out = nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[10, 0, 2, 2], &segment_ports(4444, eph, 0, syn_seq + 1, RST | ACK, &[]), 2);
     assert!(out.is_empty());
     assert_eq!((nat.tcp_refused, nat.tcp_accepted), (1, 0));
+}
+
+/// A host sender's datagram, as the NAT's next poll delivers it: from the gateway's port for that
+/// sender to the forwarded guest port.
+fn hostfwd_datagram(nat: &mut Nat, now_us: u64) -> (u16, Vec<u8>) {
+    let frames = poll_ready(nat, now_us);
+    assert_eq!(frames.len(), 1);
+    let f = &frames[0];
+    assert_eq!((&f[0..6], &f[23]), (&[2u8; 6][..], &17), "UDP to the station");
+    assert_eq!((&f[26..30], &f[30..34]), (&[10u8, 0, 2, 2][..], &[10u8, 0, 2, 15][..]));
+    assert_eq!(u16::from_be_bytes([f[36], f[37]]), 7);
+    assert_eq!(transport_checksum(&[10, 0, 2, 2], &GUEST, 17, &f[34..]), 0);
+    (u16::from_be_bytes([f[34], f[35]]), f[42..].to_vec())
+}
+
+#[test]
+fn udp_hostfwd_holds_until_the_station_mac_is_known_then_answers_each_sender() {
+    let (nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    let mut net = crate::net::VirtualNet::new(false);
+    net.nat = Some(nat);
+    let (a, b) = (UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap(), UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap());
+    for s in [&a, &b] { s.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap(); }
+    a.send_to(b"ping a", bound).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    assert!(net.poll(0).is_empty(), "no datagram before the station MAC is known");
+    let nat = net.nat.as_mut().unwrap();
+    nat.set_station([2; 6]);
+    let (port_a, data) = hostfwd_datagram(nat, 1);
+    assert_eq!(data, b"ping a");
+    b.send_to(b"ping b", bound).unwrap();
+    let (port_b, data) = hostfwd_datagram(nat, 2);
+    assert_eq!(data, b"ping b");
+    assert_ne!(port_a, port_b, "each sender has a gateway port of its own");
+    a.send_to(b"again", bound).unwrap();
+    assert_eq!(hostfwd_datagram(nat, 3), (port_a, b"again".to_vec()), "a known sender keeps its port");
+    // the guest's echo, through the virtual network, goes back to each sender from the forwarded port
+    for (port, payload) in [(port_b, &b"pong b"[..]), (port_a, b"pong a")] {
+        let udp = udp_packet(&GUEST, &[10, 0, 2, 2], 7, port, payload);
+        assert!(net.handle(&ethernet(&GATEWAY_MAC, &[2; 6], 0x0800, &ip_packet(17, &GUEST, &[10, 0, 2, 2], &udp)), 4).is_empty());
+    }
+    let mut buf = [0; 16];
+    for (sock, want) in [(&a, &b"pong a"[..]), (&b, b"pong b")] {
+        let (n, from) = sock.recv_from(&mut buf).unwrap();
+        assert_eq!((&buf[..n], from), (want, bound));
+    }
+    let nat = net.nat.as_ref().unwrap();
+    assert_eq!((nat.udp_inbound, nat.udp_flows, nat.bytes_to_host), (2, 2, 12));
+}
+
+#[test]
+fn a_udp_hostfwd_sender_idle_past_the_timeout_starts_a_new_flow() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    host.send_to(b"one", bound).unwrap();
+    let (first, _) = hostfwd_datagram(&mut nat, 0);
+    assert!(nat.poll(IDLE_CLOSE_US).is_empty());
+    assert!(nat.udp.is_empty(), "the idle flow is forgotten");
+    host.send_to(b"two", bound).unwrap();
+    let (second, data) = hostfwd_datagram(&mut nat, IDLE_CLOSE_US + 1);
+    assert_eq!(data, b"two");
+    assert_ne!(first, second);
+    assert_eq!(nat.udp_inbound, 2);
 }

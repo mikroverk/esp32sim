@@ -17,7 +17,8 @@ MAC is handled by two layers in front of the host network:
   and retransmits; UDP flows are a bound `UdpSocket` per (port, destination) with a reply path
   and an idle reaper. Name lookups are forwarded to the host's own first resolver from
   `/etc/resolv.conf`. `--hostfwd tcp:127.0.0.1:8080-:80` listens on the host and delivers
-  accepted connections as SYNs from the gateway to the station. `--net none` refuses outbound
+  accepted connections as SYNs from the gateway to the station; `--hostfwd udp:…` delivers a host
+  UDP port's datagrams, each sender from a gateway port of its own, and sends the replies back. `--net none` refuses outbound
   traffic instead (immediate RST).
 
 No libslirp, no tun device, no entitlement, no root. TLS works: the panel fetches
@@ -26,7 +27,7 @@ accelerator, SHA over GDMA (including SHA-384) and AES-CTR — see docs/peripher
 
 ## Not there yet
 
-- **UDP inbound**: not forwarded; `--hostfwd` is TCP only.
+- **UDP inbound**: only to ports published with `--hostfwd udp:` (docs/networking-howto.md).
 - **Multicast/mDNS**: not carried, so `esp-web.local` and Home Assistant discovery do not resolve;
   use IP addresses.
 - **Real LAN presence**: a `--net tap`/vmnet backend would give the guest an address on the real

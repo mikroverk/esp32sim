@@ -52,4 +52,8 @@ pub trait NatTransport {
     /// flow, the guest address and the guest port. The NAT sends the station a SYN from the gateway
     /// once it knows the station's MAC; until the guest's SYN-ACK nothing is read from the flow.
     fn tcp_accept(&mut self) -> Option<(FlowId, [u8; 4], u16)> { None }
+    /// A host sender new at a `--hostfwd udp:` port: its flow, the guest address and the guest
+    /// port. Its datagrams, the first included, come from `udp_recv`, and `udp_send` answers it
+    /// from the forwarded port. The NAT asks every poll once it knows the station's MAC.
+    fn udp_accept(&mut self) -> Option<(FlowId, [u8; 4], u16)> { None }
 }

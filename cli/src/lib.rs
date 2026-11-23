@@ -32,7 +32,7 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --wifi ssid=…,psk=…   a virtual access point with DHCP, DNS, NTP and NAT to the host network");
     eprintln!("  --wifi-sta ssid=…,psk=…   a virtual station that joins the guest's own access point (not the P4)");
     eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi or --wifi-sta)");
-    eprintln!("  --hostfwd tcp:H:HP-G:GP  publish a guest TCP port on the host (repeatable; needs --wifi)");
+    eprintln!("  --hostfwd tcp|udp:H:HP-G:GP  publish a guest TCP or UDP port on the host (repeatable; needs --wifi)");
     eprintln!("  --script F            host actions at emulated times (button presses, touches, serial input, stop)");
     eprintln!("  --tft-png F, --wav F  save the display / the audio at the end of the run");
     eprintln!("  --mic-wav [PORT:]F    play a 16-bit PCM WAV once into I2S RX (default controller 0), resampled");
@@ -568,8 +568,9 @@ fn wifi_config(specs: &[String], net: &str, net_log: bool, hostfwd: &[String]) -
         for spec in hostfwd {
             let parsed = esp_soc::nat::HostFwdSpec::parse(spec).unwrap_or_else(|e| usage_error(&format!("--hostfwd: {e}")));
             let bound = transport.listen(&parsed).unwrap_or_else(|e| usage_error(&format!("--hostfwd {spec}: {e}")));
-            if net_log { eprintln!("[nat] hostfwd tcp {} -> {}:{}", bound, std::net::Ipv4Addr::from(parsed.guest_ip), parsed.guest_port); }
-            eprintln!("[emu] hostfwd tcp {} -> {}.{}.{}.{}:{}", bound, parsed.guest_ip[0], parsed.guest_ip[1], parsed.guest_ip[2], parsed.guest_ip[3], parsed.guest_port);
+            let proto = if parsed.udp { "udp" } else { "tcp" };
+            if net_log { eprintln!("[nat] hostfwd {proto} {} -> {}:{}", bound, std::net::Ipv4Addr::from(parsed.guest_ip), parsed.guest_port); }
+            eprintln!("[emu] hostfwd {proto} {} -> {}.{}.{}.{}:{}", bound, parsed.guest_ip[0], parsed.guest_ip[1], parsed.guest_ip[2], parsed.guest_ip[3], parsed.guest_port);
         }
         let mut nat = esp_soc::nat::Nat::with_transport(net_log, Box::new(transport));
         nat.hostfwd = hostfwd.len() as u64;
