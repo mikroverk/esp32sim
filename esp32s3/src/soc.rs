@@ -330,6 +330,7 @@ impl esp_soc::SocBus for SocBus {
         link.log = self.periph.usb_otg.logging();
         self.periph.route_usb_phy();
         self.periph.usb_otg.attach(now, link);
+        self.usb_host = true;
         esp_periph::Dispatch::refresh_optional(&mut self.periph, periph::USB_OTG_BLOCK);
         self.refresh_tick_budget();
         self.irq_dirty = true;

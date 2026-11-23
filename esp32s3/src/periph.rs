@@ -358,10 +358,10 @@ pub struct Peripherals {
     /// the full-speed USB-OTG core (DR_REG_USB_BASE 0x60080000: `USB0` and `USB_DWC` in IDF
     /// v5.5.4 components/soc/esp32s3/ld/esp32s3.peripherals.ld) and the cable to a host, if one
     /// is attached
-    pub usb_otg: Dwc2,
+    pub usb_otg: Box<Dwc2>,
     /// the SD/MMC host (DR_REG_SDMMC_BASE 0x60028000, IDF v5.5.4
     /// components/soc/esp32s3/register/soc/reg_base.h:43) and the card on its bus
-    pub sdmmc: Sdmmc,
+    pub sdmmc: Box<Sdmmc>,
     /// CPU cycles before this peripheral set was built: the card's time runs on through a chip reset
     pub sd_cycle_base: u64,
 }
@@ -455,12 +455,13 @@ impl Peripherals {
             io_mux: RegRam::new(), misc: Misc::new(), fake_reads: std::env::var("ESP_EMU_FAKE_READ").ok().map(|v| v.split(',').filter_map(|e| { let mut p = e.split(':'); let a = u32::from_str_radix(p.next()?.trim_start_matches("0x"), 16).ok()?; let o = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).ok()?; let m = u32::from_str_radix(p.next().unwrap_or("ffffffff").trim_start_matches("0x"), 16).ok()?; Some((a, (o, m))) }).collect()).unwrap_or_default(),
             clock: Self::new_clock(),
             spi_exec: false, last_status: [0; 4], intmatrix_dirty: false,
-            usb_otg: Self::new_usb_otg(), sdmmc: Sdmmc::new(SdmmcLayout::Esp32), sd_cycle_base: 0,
+            usb_otg: Self::new_usb_otg(), sdmmc: Box::new(Sdmmc::new(SdmmcLayout::Esp32)), sd_cycle_base: 0,
         }
     }
 
-    /// The core starts without the PHY: at reset the internal PHY serves USB-Serial-JTAG.
-    fn new_usb_otg() -> Dwc2 { let mut d = Dwc2::new(Dwc2Config::esp32s3_fs(CPU_HZ)); d.set_phy(false); d }
+    /// The core starts without the PHY: at reset the internal PHY serves USB-Serial-JTAG. Boxed, as
+    /// is the SDMMC host, so that unused they add a pointer, not their registers, to the set.
+    fn new_usb_otg() -> Box<Dwc2> { let mut d = Box::new(Dwc2::new(Dwc2Config::esp32s3_fs(CPU_HZ))); d.set_phy(false); d }
 
     /// Which controller the internal USB PHY serves: true for USB-OTG, false for USB-Serial-JTAG.
     /// RTC_CNTL_USB_CONF.SW_HW_USB_PHY_SEL (bit 20) hands the choice to SW_USB_PHY_SEL (bit 19),

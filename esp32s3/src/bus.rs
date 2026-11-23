@@ -104,6 +104,8 @@ pub struct SocBus {
     cache_resource: CacheResource,
     pub(crate) fetch_cache: xtensa_lx7::state::SharedFetchCache,
     board_edges: bool,
+    /// a USB host is on the OTG port (`attach_usb_host`): only then can the core's work fall due
+    pub(crate) usb_host: bool,
 }
 
 /// One shared external resource, occupied only by priced fills/writebacks.
@@ -190,7 +192,7 @@ impl SocBus {
             spi2_timing: false, spi2_scheduled: None, spi2_pins: None, spi3_dma_fault: None, spi3_pins: None,
             tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
-            approximate_cache_yield_miss: false,
+            approximate_cache_yield_miss: false, usb_host: false,
             cache_resource: CacheResource::default(),
             fetch_cache: xtensa_lx7::state::SharedFetchCache::default(),
         };
@@ -581,7 +583,8 @@ impl SocBus {
             self.spi3_pins = self.board.uses_spi_pins().then(|| self.periph.spi3_pins());
         }
         self.periph.write32(a, v);
-        if self.periph.sdmmc.pending() || self.periph.usb_otg.pending() { self.run_dma_hosts(); }
+        // Only an SDMMC register write starts a command, only a USB-OTG one can make the cable's work due.
+        if matches!(a >> 12, 0x60028 | 0x60080) && (self.periph.sdmmc.pending() || self.periph.usb_otg.pending()) { self.run_dma_hosts(); }
         if matches!(a & !0xfff, 0x6000_4000 | 0x6000_9000) && self.board.uses_gpio_waveform() {
             self.board.gpio_waveform_at(self.cycles, esp_soc::pins::ChipPins::S3.routes(&self.periph.gpio, &self.periph.io_mux));
         }
@@ -1026,7 +1029,7 @@ impl SocBus {
         self.deliver_spi2_transfer();
         self.deliver_spi3_transfer();
         if !self.periph.rmt.done.is_empty() { self.deliver_rmt_frames(); }
-        if self.periph.usb_otg.pending() { self.run_dma_hosts(); }
+        if self.usb_host && self.periph.usb_otg.pending() { self.run_dma_hosts(); }
         0
     }
 
