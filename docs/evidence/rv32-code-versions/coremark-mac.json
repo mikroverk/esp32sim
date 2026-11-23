@@ -1,0 +1,545 @@
+{
+ "host": "Apple M5 Max, macOS 27.2.1, native AArch64 builds",
+ "rustc": "1.100.0 (0ef1bc386 2026-11-09)",
+ "revisions": {
+  "main": "8c1c227d",
+  "new": "jit/rv32-all 588a00c0 (main + jit/c3 a4757049 + jit/c6 d4f2ea5e + jit/p4 5997e66c)"
+ },
+ "esp_emu": "esp-emu 1.2.0 release asset esp-emu-1.2.0-aarch64-apple-darwin.tar.gz, SHA-256 2406dbec04bcb8ee207e512cbb98a8c5478c9dad94ee18f1b3b14c384ab5eb6f (matches the release SHA256SUMS)",
+ "firmware": "espressif/esp-emulator test_apps/coremark at 6bc8abda (2026-11-20), built with ESP-IDF v5.5.4 (S31: v6.1), unmodified sdkconfig.defaults",
+ "binaries_sha256": {
+  "main": {
+   "esp32sim": "34561fbc311fd207483a865bfe24f43846c10e11d16f2e4f1b8c52c6f2b3e1fb",
+   "esp32sim-c3": "9c53c9ef679b38458c190319398bb291e4903de29c190c14a2dacb43a507b260",
+   "esp32sim-c6": "ba5d9ac9ba22ca7b13214c7961e796c182ee6e44ebafd665806687712ab3c45a",
+   "esp32sim-p4": "a71af025c5284cd421edffab46ff226ae171abac3d986f962e24d5a179252d7b",
+   "esp32sim-s31": "c23133fde614e6472da4e6ef632fa89785ff6ddc1075dee299d33070bc5fc214"
+  },
+  "new": {
+   "esp32sim": "97d3220ac59c1578c3f6f916b89ce36b3d0bc4c364543d704fad920001f1eea7",
+   "esp32sim-c3": "662a847f94715bc7b4dda950032baef5e6e6c00f462c671107b4ee63bb6c4b71",
+   "esp32sim-c6": "42f38753bf2ea2f87c4d87f6a13c7cb2f4cbfdf1720d01139f4eeb40c541f995",
+   "esp32sim-p4": "f7a3fe53f65e1b1080f4c71476d8227b3f7f39b3f4741dd449cd69d739e760f9",
+   "esp32sim-s31": "4e218c94bd1fce0f9c9144b1384a4a4de3b55744808667fa4c4d3f68eb343444"
+  },
+  "esp-emu": {
+   "esp-emu-1.2.0-aarch64-apple-darwin/esp-emu": "920a8f68bf024251dc62b4b164b96f093f6349d8acf40402c211666f5d5a0544"
+  }
+ },
+ "firmware_sha256": {
+  "esp32c3-app.bin": "d06fdbf95a22d1d20192a69a22c89124a63d130a3060f6d3f3bd07d7a983113c",
+  "esp32c3-bootloader.bin": "84f39bc44132d76cabc951b714f2c96cb549d0d89fa434cb097ba18b854d2177",
+  "esp32c3-merged.bin": "cafb46e9d91925826c106faa8c2a1616e011c1043632f2593fc13db956eacf97",
+  "esp32c3-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+  "esp32c6-app.bin": "a034f44188c528422cf70f5bdc7019bbec1b89a799812dbe997ace314aeb48cf",
+  "esp32c6-bootloader.bin": "6e0ca1b87daef6eec9831f6f60a567e2270e260917c2bc935b6cb322c7437e82",
+  "esp32c6-merged.bin": "21db9528b23a08b7fb027a4096868bc5b035c854aa7e7cc291fde4706bc290ed",
+  "esp32c6-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+  "esp32p4-app.bin": "48578136635361fb138f0f60254686378aa82c1b118767f52f48c2e254421dca",
+  "esp32p4-bootloader.bin": "ecc5f0258af93c42e20aa0c2ef6a63725b88648f9a5ee700799577d65f1255e2",
+  "esp32p4-merged.bin": "7cdd2d55115ddb1b88fde2bfbb3aaa961da4dbea9a8fdac62f609707c705c210",
+  "esp32p4-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+  "esp32s3-app.bin": "0868415ef7e610ad12c615948cbb6067fd151787a433501dadc848f192f3b856",
+  "esp32s3-bootloader.bin": "e548d7e78481e7c1cb8ff808d067e7d930f523bf73d5bef2c914990a8590fdc5",
+  "esp32s3-merged.bin": "806f7a929ac19f86e9d35c5baeb4c687c6844b587de0d83349677a56f6066124",
+  "esp32s3-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+  "esp32s31-app.bin": "06180a77ad32e48822c7f5febd527eb38257039205f2a7992f7f3307f050db52",
+  "esp32s31-bootloader.bin": "77d1d8095462e51e8ffc0aaa8c8f328d4c77a172a050abe6415ce63eb68a0eb8",
+  "esp32s31-merged.bin": "6aa0ede98a9cbfdc004d8df8b810776aeb8d77801ab5370d0b35eda2d1524d7e",
+  "esp32s31-ptable.bin": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820"
+ },
+ "rounds": 5,
+ "order": "warm-up of each side, then rounds alternating esp-emu/main/new and reversed",
+ "runs": {
+  "esp32c3": {
+   "esp-emu": [
+    {
+     "user_s": 7.64,
+     "host_insns": 143242532862,
+     "score": 533.428165,
+     "load": 40.3271484375
+    },
+    {
+     "user_s": 7.54,
+     "host_insns": 143246863092,
+     "score": 533.428165,
+     "load": 21.22021484375
+    },
+    {
+     "user_s": 7.54,
+     "host_insns": 143247151471,
+     "score": 533.428165,
+     "load": 19.64208984375
+    },
+    {
+     "user_s": 7.74,
+     "host_insns": 143249929217,
+     "score": 533.428165,
+     "load": 18.38330078125
+    },
+    {
+     "user_s": 7.69,
+     "host_insns": 143243396896,
+     "score": 533.428165,
+     "load": 17.5810546875
+    }
+   ],
+   "main": [
+    {
+     "user_s": 15.31,
+     "host_insns": 411560040740,
+     "score": 533.428165,
+     "load": 33.25830078125
+    },
+    {
+     "user_s": 15.08,
+     "host_insns": 411558401998,
+     "score": 533.428165,
+     "load": 24.96630859375
+    },
+    {
+     "user_s": 15.17,
+     "host_insns": 411541429738,
+     "score": 533.428165,
+     "load": 19.8408203125
+    },
+    {
+     "user_s": 15.16,
+     "host_insns": 411546615737,
+     "score": 533.428165,
+     "load": 18.427734375
+    },
+    {
+     "user_s": 17.57,
+     "host_insns": 411550312165,
+     "score": 533.428165,
+     "load": 17.552734375
+    }
+   ],
+   "new": [
+    {
+     "user_s": 4.71,
+     "host_insns": 92895829435,
+     "score": 533.428165,
+     "load": 31.7958984375
+    },
+    {
+     "user_s": 4.19,
+     "host_insns": 92889701032,
+     "score": 533.428165,
+     "load": 29.81005859375
+    },
+    {
+     "user_s": 4.36,
+     "host_insns": 92887849944,
+     "score": 533.428165,
+     "load": 19.373046875
+    },
+    {
+     "user_s": 4.22,
+     "host_insns": 92887552476,
+     "score": 533.428165,
+     "load": 18.3017578125
+    },
+    {
+     "user_s": 4.38,
+     "host_insns": 92881871528,
+     "score": 533.428165,
+     "load": 17.18798828125
+    }
+   ]
+  },
+  "esp32c6": {
+   "esp-emu": [
+    {
+     "user_s": 7.8,
+     "host_insns": 147733869857,
+     "score": 533.428165,
+     "load": 14.17041015625
+    },
+    {
+     "user_s": 7.39,
+     "host_insns": 147713944247,
+     "score": 533.428165,
+     "load": 19.845703125
+    },
+    {
+     "user_s": 7.12,
+     "host_insns": 147715002055,
+     "score": 533.428165,
+     "load": 17.3291015625
+    },
+    {
+     "user_s": 7.05,
+     "host_insns": 147703141943,
+     "score": 533.428165,
+     "load": 11.3828125
+    },
+    {
+     "user_s": 7.04,
+     "host_insns": 147707719174,
+     "score": 533.428165,
+     "load": 10.20166015625
+    }
+   ],
+   "main": [
+    {
+     "user_s": 16.07,
+     "host_insns": 363070593339,
+     "score": 533.428165,
+     "load": 21.236328125
+    },
+    {
+     "user_s": 13.71,
+     "host_insns": 363076340409,
+     "score": 533.428165,
+     "load": 23.70654296875
+    },
+    {
+     "user_s": 12.35,
+     "host_insns": 363017718715,
+     "score": 533.428165,
+     "load": 15.43994140625
+    },
+    {
+     "user_s": 12.25,
+     "host_insns": 363014912046,
+     "score": 533.428165,
+     "load": 12.54296875
+    },
+    {
+     "user_s": 12.37,
+     "host_insns": 363051885415,
+     "score": 533.428165,
+     "load": 9.63525390625
+    }
+   ],
+   "new": [
+    {
+     "user_s": 4.77,
+     "host_insns": 79337742886,
+     "score": 533.428165,
+     "load": 23.21435546875
+    },
+    {
+     "user_s": 4.77,
+     "host_insns": 79345630164,
+     "score": 533.428165,
+     "load": 25.35888671875
+    },
+    {
+     "user_s": 3.12,
+     "host_insns": 79335143000,
+     "score": 533.428165,
+     "load": 14.5234375
+    },
+    {
+     "user_s": 3.14,
+     "host_insns": 79327639335,
+     "score": 533.428165,
+     "load": 14.0009765625
+    },
+    {
+     "user_s": 3.39,
+     "host_insns": 79448362385,
+     "score": 533.428165,
+     "load": 9.18359375
+    }
+   ]
+  },
+  "esp32p4": {
+   "esp-emu": [
+    {
+     "user_s": 7.04,
+     "host_insns": 148078875820,
+     "score": 1333.926189,
+     "load": 7.5791015625
+    },
+    {
+     "user_s": 6.93,
+     "host_insns": 148082980687,
+     "score": 1333.926189,
+     "load": 5.70166015625
+    },
+    {
+     "user_s": 6.91,
+     "host_insns": 148080654588,
+     "score": 1333.926189,
+     "load": 5.48486328125
+    },
+    {
+     "user_s": 6.99,
+     "host_insns": 148078238200,
+     "score": 1333.926189,
+     "load": 5.087890625
+    },
+    {
+     "user_s": 7.0,
+     "host_insns": 148079776692,
+     "score": 1333.926189,
+     "load": 4.92041015625
+    }
+   ],
+   "main": [
+    {
+     "user_s": 15.36,
+     "host_insns": 455646895850,
+     "score": 1200.240048,
+     "load": 6.91552734375
+    },
+    {
+     "user_s": 15.25,
+     "host_insns": 455639086626,
+     "score": 1200.240048,
+     "load": 6.10595703125
+    },
+    {
+     "user_s": 15.31,
+     "host_insns": 455637845935,
+     "score": 1200.240048,
+     "load": 5.31494140625
+    },
+    {
+     "user_s": 15.44,
+     "host_insns": 455641368524,
+     "score": 1200.240048,
+     "load": 5.19873046875
+    },
+    {
+     "user_s": 15.76,
+     "host_insns": 455706302275,
+     "score": 1200.240048,
+     "load": 4.93798828125
+    }
+   ],
+   "new": [
+    {
+     "user_s": 5.44,
+     "host_insns": 133736749346,
+     "score": 1200.240048,
+     "load": 6.681640625
+    },
+    {
+     "user_s": 5.38,
+     "host_insns": 133735019046,
+     "score": 1200.240048,
+     "load": 6.626953125
+    },
+    {
+     "user_s": 5.36,
+     "host_insns": 133735923590,
+     "score": 1200.240048,
+     "load": 5.20947265625
+    },
+    {
+     "user_s": 5.34,
+     "host_insns": 133735261050,
+     "score": 1200.240048,
+     "load": 5.1923828125
+    },
+    {
+     "user_s": 5.38,
+     "host_insns": 133735667777,
+     "score": 1200.240048,
+     "load": 4.86279296875
+    }
+   ]
+  },
+  "esp32s31": {
+   "esp-emu": [
+    {
+     "user_s": 7.61,
+     "host_insns": 172152358509,
+     "score": 1093.892434,
+     "load": 4.8056640625
+    },
+    {
+     "user_s": 7.59,
+     "host_insns": 172149899212,
+     "score": 1093.892434,
+     "load": 7.134765625
+    },
+    {
+     "user_s": 7.68,
+     "host_insns": 172153576438,
+     "score": 1093.892434,
+     "load": 6.96337890625
+    },
+    {
+     "user_s": 7.77,
+     "host_insns": 172155709709,
+     "score": 1093.892434,
+     "load": 6.01904296875
+    },
+    {
+     "user_s": 7.65,
+     "host_insns": 172149822679,
+     "score": 1093.892434,
+     "load": 5.7880859375
+    }
+   ],
+   "main": [
+    {
+     "user_s": 6.31,
+     "host_insns": 157342749539,
+     "score": 1093.693037,
+     "load": 4.98876953125
+    },
+    {
+     "user_s": 6.33,
+     "host_insns": 157339843197,
+     "score": 1093.693037,
+     "load": 7.4287109375
+    },
+    {
+     "user_s": 6.49,
+     "host_insns": 157344122787,
+     "score": 1093.693037,
+     "load": 6.50732421875
+    },
+    {
+     "user_s": 6.42,
+     "host_insns": 157337437791,
+     "score": 1093.693037,
+     "load": 6.2822265625
+    },
+    {
+     "user_s": 6.33,
+     "host_insns": 157337418906,
+     "score": 1093.693037,
+     "load": 5.8046875
+    }
+   ],
+   "new": [
+    {
+     "user_s": 6.44,
+     "host_insns": 157341371738,
+     "score": 1093.693037,
+     "load": 5.1494140625
+    },
+    {
+     "user_s": 6.36,
+     "host_insns": 157336167125,
+     "score": 1093.693037,
+     "load": 7.37939453125
+    },
+    {
+     "user_s": 6.34,
+     "host_insns": 157349090726,
+     "score": 1093.693037,
+     "load": 6.38623046875
+    },
+    {
+     "user_s": 6.35,
+     "host_insns": 157338562263,
+     "score": 1093.693037,
+     "load": 6.59521484375
+    },
+    {
+     "user_s": 6.3,
+     "host_insns": 157337873624,
+     "score": 1093.693037,
+     "load": 6.060546875
+    }
+   ]
+  },
+  "esp32s3": {
+   "esp-emu": [
+    {
+     "user_s": 7.54,
+     "host_insns": 215095006604,
+     "score": 571.428571,
+     "load": 5.81005859375
+    },
+    {
+     "user_s": 7.35,
+     "host_insns": 215085876198,
+     "score": 571.428571,
+     "load": 6.04736328125
+    },
+    {
+     "user_s": 7.3,
+     "host_insns": 215089159438,
+     "score": 571.428571,
+     "load": 5.80615234375
+    },
+    {
+     "user_s": 7.21,
+     "host_insns": 215087216820,
+     "score": 571.428571,
+     "load": 5.28369140625
+    },
+    {
+     "user_s": 7.14,
+     "host_insns": 215087039742,
+     "score": 571.428571,
+     "load": 5.0859375
+    }
+   ],
+   "main": [
+    {
+     "user_s": 5.04,
+     "host_insns": 155567001392,
+     "score": 857.265324,
+     "load": 5.9853515625
+    },
+    {
+     "user_s": 4.99,
+     "host_insns": 155564595375,
+     "score": 857.265324,
+     "load": 5.96923828125
+    },
+    {
+     "user_s": 5.1,
+     "host_insns": 155573523941,
+     "score": 857.265324,
+     "load": 6.1416015625
+    },
+    {
+     "user_s": 4.96,
+     "host_insns": 155565546029,
+     "score": 857.265324,
+     "load": 5.6044921875
+    },
+    {
+     "user_s": 5.01,
+     "host_insns": 155567969073,
+     "score": 857.265324,
+     "load": 4.99853515625
+    }
+   ],
+   "new": [
+    {
+     "user_s": 5.05,
+     "host_insns": 155561197946,
+     "score": 857.265324,
+     "load": 6.06640625
+    },
+    {
+     "user_s": 5.03,
+     "host_insns": 155561641387,
+     "score": 857.265324,
+     "load": 6.14111328125
+    },
+    {
+     "user_s": 5.08,
+     "host_insns": 155565528534,
+     "score": 857.265324,
+     "load": 5.8095703125
+    },
+    {
+     "user_s": 4.95,
+     "host_insns": 155563407285,
+     "score": 857.265324,
+     "load": 5.74462890625
+    },
+    {
+     "user_s": 4.93,
+     "host_insns": 155562397864,
+     "score": 857.265324,
+     "load": 4.91845703125
+    }
+   ]
+  }
+ }
+}

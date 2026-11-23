@@ -1,0 +1,298 @@
+{
+ "host": "Linux x86_64, Intel i9-12900F, runs pinned to one P-core (taskset -c 4); user CPU from rusage (no perf counters)",
+ "revisions": {
+  "esp32sim": "main 8c1c227d"
+ },
+ "esp_emu": "esp-emu 1.2.0 esp-emu-1.2.0-x86_64-unknown-linux-gnu.tar.gz (SHA256SUMS verified)",
+ "note": "before code versions: C3/C6/P4 interpreter; the RV32 JIT has no x86 backend",
+ "runs": {
+  "esp32c3": {
+   "runs": {
+    "esp-emu": [
+     {
+      "user_s": 8.19,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.67
+     },
+     {
+      "user_s": 8.15,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.77
+     },
+     {
+      "user_s": 8.2,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.66
+     },
+     {
+      "user_s": 8.21,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.84
+     },
+     {
+      "user_s": 8.18,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.84
+     }
+    ],
+    "esp32sim": [
+     {
+      "user_s": 18.48,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.68
+     },
+     {
+      "user_s": 18.5,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.77
+     },
+     {
+      "user_s": 18.47,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.73
+     },
+     {
+      "user_s": 18.5,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.81
+     },
+     {
+      "user_s": 18.49,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.79
+     }
+    ]
+   },
+   "median_user_s": {
+    "esp-emu": 8.19,
+    "esp32sim": 18.49
+   }
+  },
+  "esp32c6": {
+   "runs": {
+    "esp-emu": [
+     {
+      "user_s": 8.27,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.9
+     },
+     {
+      "user_s": 8.26,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 1.03
+     },
+     {
+      "user_s": 8.28,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 1.03
+     },
+     {
+      "user_s": 8.27,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.97
+     },
+     {
+      "user_s": 8.26,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.9
+     }
+    ],
+    "esp32sim": [
+     {
+      "user_s": 16.64,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.92
+     },
+     {
+      "user_s": 16.65,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.94
+     },
+     {
+      "user_s": 16.65,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.96
+     },
+     {
+      "user_s": 16.63,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.97
+     },
+     {
+      "user_s": 16.63,
+      "score": 533.428165,
+      "emulated_s": 11.248,
+      "load": 0.96
+     }
+    ]
+   },
+   "median_user_s": {
+    "esp-emu": 8.27,
+    "esp32sim": 16.64
+   }
+  },
+  "esp32s3": {
+   "runs": {
+    "esp-emu": [
+     {
+      "user_s": 8.51,
+      "score": 571.428571,
+      "emulated_s": 10.5,
+      "load": 0.97
+     },
+     {
+      "user_s": 8.53,
+      "score": 571.428571,
+      "emulated_s": 10.5,
+      "load": 0.94
+     },
+     {
+      "user_s": 8.51,
+      "score": 571.428571,
+      "emulated_s": 10.5,
+      "load": 0.87
+     },
+     {
+      "user_s": 8.53,
+      "score": 571.428571,
+      "emulated_s": 10.5,
+      "load": 0.9
+     },
+     {
+      "user_s": 8.53,
+      "score": 571.428571,
+      "emulated_s": 10.5,
+      "load": 0.91
+     }
+    ],
+    "esp32sim": [
+     {
+      "user_s": 13.09,
+      "score": 857.265324,
+      "emulated_s": 6.999,
+      "load": 0.92
+     },
+     {
+      "user_s": 13.14,
+      "score": 857.265324,
+      "emulated_s": 6.999,
+      "load": 0.94
+     },
+     {
+      "user_s": 13.14,
+      "score": 857.265324,
+      "emulated_s": 6.999,
+      "load": 0.85
+     },
+     {
+      "user_s": 13.11,
+      "score": 857.265324,
+      "emulated_s": 6.999,
+      "load": 0.88
+     },
+     {
+      "user_s": 13.09,
+      "score": 857.265324,
+      "emulated_s": 6.999,
+      "load": 0.93
+     }
+    ]
+   },
+   "median_user_s": {
+    "esp-emu": 8.53,
+    "esp32sim": 13.11
+   }
+  },
+  "esp32p4": {
+   "runs": {
+    "esp-emu": [
+     {
+      "user_s": 7.91,
+      "score": 1333.926189,
+      "emulated_s": 4.498,
+      "load": 1.02
+     },
+     {
+      "user_s": 7.91,
+      "score": 1333.926189,
+      "emulated_s": 4.498,
+      "load": 1.01
+     },
+     {
+      "user_s": 7.93,
+      "score": 1333.926189,
+      "emulated_s": 4.498,
+      "load": 1.0
+     },
+     {
+      "user_s": 7.92,
+      "score": 1333.926189,
+      "emulated_s": 4.498,
+      "load": 1.0
+     },
+     {
+      "user_s": 7.91,
+      "score": 1333.926189,
+      "emulated_s": 4.498,
+      "load": 1.0
+     }
+    ],
+    "esp32sim": [
+     {
+      "user_s": 21.32,
+      "score": 1200.240048,
+      "emulated_s": 4.999,
+      "load": 1.02
+     },
+     {
+      "user_s": 21.32,
+      "score": 1200.240048,
+      "emulated_s": 4.999,
+      "load": 1.01
+     },
+     {
+      "user_s": 21.28,
+      "score": 1200.240048,
+      "emulated_s": 4.999,
+      "load": 1.0
+     },
+     {
+      "user_s": 21.35,
+      "score": 1200.240048,
+      "emulated_s": 4.999,
+      "load": 1.0
+     },
+     {
+      "user_s": 21.35,
+      "score": 1200.240048,
+      "emulated_s": 4.999,
+      "load": 1.0
+     }
+    ]
+   },
+   "median_user_s": {
+    "esp-emu": 7.91,
+    "esp32sim": 21.32
+   }
+  }
+ }
+}

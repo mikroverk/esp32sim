@@ -179,9 +179,10 @@ Pads, units and the voltage curve are in [peripherals.md](peripherals.md#host-ad
 
 Environment: `ESP_EMU_DEBUG=wifi,spi,net` is `--debug` for every run (the older
 `ESP_EMU_DEBUG_SPI`, `ESP_EMU_DEBUG_NET`, `ESP_EMU_LOG_ALL`, `ESP_EMU_RT_LOG`... still work as aliases).
-`RV32_JIT=0` keeps the ESP32-S31's decoded blocks but runs them through the interpreter (`--no-jit` runs
-no blocks either), and `RV32_JIT_HOT=N` compiles a block after N whole runs instead of 32. Both are read
-once per process; the C3, C6 and P4 run no blocks, so neither does anything there.
+`RV32_JIT=0` keeps the RISC-V chips' decoded blocks (C3, C6, P4 and S31) but runs them through the interpreter
+(`--no-jit` runs no blocks either), and `RV32_JIT_HOT=N` compiles a block after N whole runs instead of 32.
+Both are read once per process. The JIT has AArch64 and WebAssembly backends; on other hosts the blocks run
+without it.
 `XTENSA_DIS_FILES=a.dis:b.dis` feeds the decoder equivalence test.
 
 ## Action scripts
