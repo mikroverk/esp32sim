@@ -248,7 +248,8 @@ impl Ledc<$classic> {
             if !(waiting || all && self.ena & (1 << n) != 0) { return None; }
             let (period, div) = self.timer(n)?;
             let hz = source(n, self.timer_params[n]);
-            (hz != 0).then(|| ((self.tick_hz() / 256 * div * period) - self.phase[n]).div_ceil(hz))
+            // A timer shrunk under its phase wraps at the next tick.
+            (hz != 0).then(|| (self.tick_hz() / 256 * div * period).saturating_sub(self.phase[n]).max(1).div_ceil(hz))
         }).min()
     }
 }
@@ -495,6 +496,23 @@ mod tests {
         }
         ledc.write(0xa0, 1 << 23);
         assert_eq!(ledc.clock(), None);
+    }
+
+    /// A guest that shrinks a timer under a running fade leaves its phase past the new period: the
+    /// next wrap is one tick away, not an underflow.
+    #[test]
+    fn shrinking_a_timer_under_a_fade_wraps_at_the_next_tick() {
+        let mut ledc = Ledc::new(LedcLayout::C3);
+        ledc.write(0xd0, 1);
+        ledc.write(0xa0, 14 | (256 << 4) | (1 << 25));           // 14-bit, divider 1
+        ledc.write(0xc8, 1 << 4);
+        ledc.write(12, (1 << 31) | (100 << 20) | 1);
+        ledc.write(0, 4 | (1 << 4));
+        ledc.tick(10_000);
+        ledc.write(0xa0, 1 | (256 << 4) | (1 << 25));            // 1-bit: a period of 2 ticks
+        assert_eq!(ledc.next_deadline(), Some(1));
+        ledc.tick(1);
+        assert!(ledc.read(0xa4) < 2, "the counter is back inside the period");
     }
 
     /// CONF1's single range (S3/C3): DUTY_NUM 4, DUTY_CYCLE 0 (one period), DUTY_SCALE 1, down.

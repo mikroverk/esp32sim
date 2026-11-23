@@ -273,6 +273,21 @@ mod tests {
         assert_eq!((ledc.read(0x0c) >> 31, ledc.read(0x10)), (0, 30 << 4));
     }
 
+    /// The HS timer 0 overflow interrupt asks for each wrap; shrinking the timer leaves its phase
+    /// past the new period, so the next wrap is one tick away, not an underflow.
+    #[test]
+    fn shrinking_a_timer_past_its_phase_wraps_at_the_next_tick() {
+        let mut ledc = ClassicLedc::new();
+        ledc.clock_enabled = true;
+        ledc.write(0x140, 14 | (256 << 5) | (1 << 25));          // 14-bit, divider 1, APB
+        ledc.write(0x188, 1);
+        ledc.tick(10_000);
+        ledc.write(0x140, 1 | (256 << 5) | (1 << 25));
+        assert_eq!(ledc.next_deadline(), Some(1));
+        ledc.tick(1);
+        assert!(ledc.read(0x144) < 2, "the counter is back inside the period");
+    }
+
     #[test]
     fn interrupt_status_and_clear_cover_timer_and_duty_completion() {
         let mut ledc = ClassicLedc::new();
