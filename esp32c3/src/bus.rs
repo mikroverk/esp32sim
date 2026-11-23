@@ -384,12 +384,10 @@ impl SocBus {
         if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.drop_rx_unarmed(); return; }
         let Some((desc, dw0, buf, next)) = armed else { self.periph.wifi.link.drop_rx(); return; };
         // A network around's frames carry its own channel and signal (`VirtualAp::rx_meta`)
-        let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.ap().unwrap().log) };
+        let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.rx_log()) };
         let mut b = Vec::with_capacity(total);
-        let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
-        // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
-        // requires in the C3 blob; inherited from the S3 model, not measured on C3 silicon.
-        let fm = if bcast { 1u32 << 28 } else { (1u32 << 28) | (1u32 << 29) };
+        // address-match bits (`StationLink::rx_match`): inherited from the S3 model, not measured on C3 silicon
+        let fm = self.periph.wifi.link.rx_match(frame);
         let w0: u32 = fm | (rssi as u8 as u32);   // rssi (−40 dBm for the access point), 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
         let w5: u32 = 0xa6;                                                                // noise floor -90
@@ -488,7 +486,7 @@ impl SocBus {
         if self.periph.spi_exec { self.run_spi(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
-        if self.periph.wifi.link.ap().is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
+        if self.periph.wifi.link.on_air() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
         self.periph.refresh_work();
     }
 

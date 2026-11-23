@@ -149,6 +149,11 @@ for firmware hashes, commands and limits. No physical C3 Wi-Fi comparison was ru
 (`web/wasm/fw/public/c3-wifi-*`): scan, WPA2, DHCP and five pings, with the console, the WiFi
 counts and the interrupt count pinned.
 
+The guest can be the access point too: `--wifi-sta ssid=…,psk=…` puts a virtual station on the
+air that joins it, completes WPA2 and takes a lease from the guest's DHCP server
+(docs/wifi-plan.md). `wifi_softap_c3` runs `examples/wifi-softap` built for the C3
+(`web/wasm/fw/public/c3-*softap*`).
+
 ## Not there yet
 
 - **Watchdogs.** The [timer-group watchdogs](../esp-periph/src/timg.rs) are register RAM and never fire. The [RTC watchdog](../esp-periph/src/rtc_cntl.rs) supports reset stages, feed and write protection at the C3 register offsets; its interrupt stage sets raw status but does not interrupt the CPU.

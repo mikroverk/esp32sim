@@ -524,14 +524,13 @@ impl S31Bus {
         const RX_CTRL: usize = 64;
         if self.wifi_mac.rx_next == 0 { self.wifi_mac.link.drop_rx_unarmed(); return; }
         let desc = self.wifi_mac.addr(self.wifi_mac.rx_next);
-        let log = self.wifi_mac.link.ap().is_some_and(|ap| ap.log);
+        let log = self.wifi_mac.link.rx_log();
         let (dw0, buf, next) = (self.wifi_word(desc), self.wifi_word(desc.wrapping_add(4)), self.wifi_word(desc.wrapping_add(8)));
         let total = RX_CTRL + frame.len() + 4;
         if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.wifi_mac.link.drop_rx(); return; }
-        let group = frame.len() >= 5 && frame[4] & 1 == 1;
         let mut words = [0u32; RX_CTRL / 4];
         let rssi = self.wifi_mac.link.rx_meta(frame).1;
-        words[0] = (rssi as u8 as u32) | 1 << 28 | if group { 0 } else { 1 << 29 };
+        words[0] = (rssi as u8 as u32) | self.wifi_mac.link.rx_match(frame);   // the address match (`StationLink::rx_match`)
         words[3] = now_us as u32;
         words[5] = 0xa6;
         words[14] = (frame.len() as u32 + 4) & 0x3fff;

@@ -1,0 +1,41 @@
+ESP32-S3, ESP32-C3 and ESP32-C6 Wi-Fi SoftAP firmware
+=====================================================
+
+Files: s3-softap-bootloader.bin, s3-softap-ptable.bin, s3-wifi_softap.bin,
+c3-softap-bootloader.bin, c3-softap-ptable.bin, c3-wifi_softap.bin,
+c6-softap-bootloader.bin, c6-softap-ptable.bin, c6-wifi_softap.bin.
+
+They are examples/wifi-softap (this repository, MIT) built with ESP-IDF v5.5.4 for each chip,
+as described in that example's README: the same source and sdkconfig.defaults as
+classic-wifi_softap.bin, Xtensa GCC esp-14.2.0_20260121 for the S3 and RISC-V GCC
+esp-14.2.0_20260121 for the C3 and C6. Two clean builds in different directories produced
+identical binaries. ESP-IDF sources and pinned submodules:
+https://github.com/espressif/esp-idf/tree/v5.5.4
+
+Linked components and licences
+------------------------------
+The application link maps were inspected for archives with retained, nonzero sections. This
+list describes the linked subset, not every library available in ESP-IDF.
+
+* ESP-IDF (system, drivers, NVS, netif, event loop, Wi-Fi driver) and Espressif's binary
+  Wi-Fi/PHY libraries (libnet80211, libpp, libphy, libcore, libespnow; libmesh on the C3 and
+  C6; libcoexist on the C6): Espressif Systems, Apache-2.0.
+* wpa_supplicant (ESP-IDF's port, the access point's authenticator): Jouni Malinen and
+  contributors, BSD.
+* Mbed TLS (its crypto library, used by wpa_supplicant): ARM Limited and contributors,
+  Apache-2.0.
+* FreeRTOS: Amazon.com and contributors, MIT.
+* lwIP: Swedish Institute of Computer Science and contributors, BSD-3-Clause.
+* TLSF allocator: Matthew Conte, BSD-3-Clause.
+* newlib C runtime: its per-file copyright holders and licences.
+* GCC runtime (libgcc, libstdc++): Free Software Foundation and contributors, GPL-3.0 with GCC
+  Runtime Library Exception 3.1. Both texts are included in crypto-tls-runtime-licenses.txt.
+
+The FreeRTOS, lwIP, wpa_supplicant, TLSF, newlib and Apache-2.0 licence texts and copyright
+notices are already distributed in wifi-station-NOTICE.txt, starting at its individually
+labelled licence sections. That file's general ESP-IDF inventory is not the linked-component
+list for this firmware.
+
+The SSID and passphrase in the images (esp32sim-ap / esp32sim-pass) are public test inputs,
+never production credentials. The bootloaders and partition tables are ESP-IDF's defaults for
+the example's configuration.

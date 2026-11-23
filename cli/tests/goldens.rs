@@ -845,6 +845,55 @@ fn wifi_softap_classic() {
     expect_u64("wifi-softap-classic.insns", r.insns);
 }
 
+/// The same access point on the S3, C3 and C6 (`examples/wifi-softap` built with ESP-IDF 5.5.4 for
+/// each, `{chip}-softap-*`, `{chip}-wifi_softap.bin`): the virtual station joins through the WPA2
+/// four-way handshake and takes a lease from the guest's DHCP server; the console on USB
+/// Serial/JTAG, as for the station goldens. The firmware's lines, the console, the radio counts
+/// and the instruction count are pinned.
+fn wifi_softap(chip: &str, bin: &str, rom_name: &str, extra: &[&str]) {
+    let rom = rom(rom_name);
+    let (bl, pt, app) = (format!("{FW}/{chip}-softap-bootloader.bin"), format!("{FW}/{chip}-softap-ptable.bin"), format!("{FW}/{chip}-wifi_softap.bin"));
+    let mut args = vec!["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--console", "usb", "--no-dump",
+        "--bootloader", &bl, "--ptable", &pt, "--app", &app, "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "6"];
+    args.extend(extra);
+    let r = run(bin, &args);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
+    assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    expect_text(&format!("wifi-softap-{chip}.softap.txt"), &softap);
+    expect_text(&format!("wifi-softap-{chip}.console.txt"), &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("[emu] wifi")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text(&format!("wifi-softap-{chip}.report.txt"), &report);
+    expect_u64(&format!("wifi-softap-{chip}.insns"), r.insns);
+}
+
+#[test] #[ignore = "needs the ESP32-S3 mask ROM ELF"]
+fn wifi_softap_s3() { wifi_softap("s3", BIN, "esp32s3_rev0", &["--board", "none"]); }
+
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF"]
+fn wifi_softap_c3() { wifi_softap("c3", BIN_C3, "esp32c3_rev3", &[]); }
+
+#[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
+fn wifi_softap_c6() { wifi_softap("c6", BIN_C6, "esp32c6_rev0", &[]); }
+
+/// The access point on the S31 of the ESP-Mosaico: `examples/wifi-softap` built with ESP-IDF v6.1
+/// by `tools/fetch-s31-firmware.sh` (`s31-wifi_softap.bin`, committed in `esp32s31/firmware`; its
+/// bootloader and partition table are the station's and hello's). The virtual station joins and
+/// takes a lease. Pinned: the firmware's own lines, as for the S31 station.
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn wifi_softap_s31_mosaico() {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-wifi-bootloader.bin"), "--ptable", &format!("{fw}/s31-hello-ptable.bin"), "--app", &format!("{fw}/s31-wifi_softap.bin"),
+        "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "6"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
+    assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    expect_text("wifi-softap-s31.softap.txt", &softap);
+}
+
 /// Classic ECO3 ROM, stock IDF bootloader and hello_world application.
 #[test]
 #[ignore = "needs the ESP32 ECO3 mask ROM ELF"]

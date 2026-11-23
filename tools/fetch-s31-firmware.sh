@@ -9,6 +9,8 @@
 #   and tools/s31-wifi/sdkconfig.defaults (the emulator's virtual access point, no display).
 # s31-mosaico-board.bin: examples/mosaico-board as it is (its sdkconfig.defaults and the
 #   dependencies.lock that pins espressif/bmm150 1.1.0, fetched by the component manager).
+# s31-wifi_softap.bin: examples/wifi-softap with tools/s31-softap/sdkconfig.defaults (the Mosaico's
+#   flash and console); its bootloader and partition table are the WiFi station's and hello's.
 # s31-mosaico-demo-*: the page demo (web/wasm/fw/s31-mosaico.json), into DEMO_DIR: examples/mosaico-demo
 #   (its sdkconfig.defaults and dependencies.lock) with three components of esp-mosaico/esp-mosaico-bsp
 #   at BSP_COMMIT in its components/ (esp-mosaico-bsp, and the espressif__spi_nand_flash and
@@ -31,17 +33,20 @@ WIFI="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf6515
 s31-wifi-ptable.bin 5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a partition_table/partition-table.bin
 s31-wifi_station.bin e0e0fcfa27528765915a337f1da904c99cf7fe2b63a88042d48e3d839c8fb0c3 c6_wifi_station.bin"
 # Its bootloader and partition table come out byte for byte the WiFi build's and hello's, so the
-# board set reuses those files. Its build checks its own outputs against the same pins (build
-# below), so a board build whose bootloader or ptable differ fails instead of using them.
+# board set, and the SoftAP set below, reuse those files. Each build checks its own outputs against
+# the same pins (build below), so one whose bootloader or ptable differ fails instead of using them.
 BOARD="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf65157ae14d99211b66 bootloader/bootloader.bin
 s31-hello-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
 s31-mosaico-board.bin 542246f60b5b6f13dd1c18072ea158f496ebbf925edd33c1e757e1e0d1f11b20 mosaico_board.bin"
+SOFTAP="s31-wifi-bootloader.bin 3d4dbd111b594348ac8e284a646d4a6930aaa239fbdecf65157ae14d99211b66 bootloader/bootloader.bin
+s31-hello-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
+s31-wifi_softap.bin 92fbbeeed3652226e84d3e8849a86c59c7ae3dcb817c04c0d4268a55bd663ae6 wifi_softap.bin"
 DEMO="s31-mosaico-demo-bootloader.bin a0cf5ca20b34d2c4e2deaa0f8c16e23e2fa09cce77f0544db802a16bc74df830 bootloader/bootloader.bin
 s31-mosaico-demo-ptable.bin 7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820 partition_table/partition-table.bin
 s31-mosaico-demo.bin ec2c2f899836671907943a3ee55e2d06ec8c16a601a80596a8e8656bba25d00d mosaico_demo.bin"
 
 # The reused files must carry the same pin in every set that names them.
-for n in $(echo "$BOARD" | awk '{print $1":"$2}'); do
+for n in $(printf '%s\n%s\n' "$BOARD" "$SOFTAP" | awk '{print $1":"$2}'); do
   other=$(printf '%s\n%s\n' "$HELLO" "$WIFI" | awk -v f="${n%%:*}" '$1 == f {print $2}')
   [ -z "$other" ] || [ "$other" = "${n#*:}" ] || { echo "${n%%:*}: the board set pins ${n#*:}, the image it reuses is $other" >&2; exit 1; }
 done
@@ -92,5 +97,7 @@ if present "$WIFI"; then echo "S31 WiFi station images in $DIR: 3 pinned files p
 else build s31-wifi examples/c6-wifi-station tools/s31-wifi/sdkconfig.defaults tools/s31-wifi/main-CMakeLists.txt "$WIFI"; fi
 if present "$BOARD"; then echo "S31 Mosaico board-test images in $DIR: 3 pinned files present"
 else build s31-mosaico-board examples/mosaico-board "" "" "$BOARD"; fi
+if present "$SOFTAP"; then echo "S31 SoftAP images in $DIR: 3 pinned files present"
+else build s31-softap examples/wifi-softap tools/s31-softap/sdkconfig.defaults "" "$SOFTAP"; fi
 if present "$DEMO" "$DEMO_DIR"; then echo "S31 Mosaico demo images in $DEMO_DIR: 3 pinned files present"
 else build s31-mosaico-demo examples/mosaico-demo "" "" "$DEMO" "$DEMO_DIR" bsp_components; fi

@@ -81,14 +81,14 @@ Not yet working:
   use IP addresses. TCP servers in the guest are reachable with `--hostfwd`.
 - Hardware AES-GCM (block mode 6) and the DS/HMAC peripherals; mbedTLS has not asked for them yet.
 - Roaming, power save, 802.11n rates, multiple stations, WPA3/SAE, PMF.
-- The guest as an access point beyond the classic ESP32's first steps (below): AP+STA, the S3, C3
-  and C6, more than one station, and host ports forwarded to the guest's access point.
+- The guest as an access point beyond the first steps (below): AP+STA, more than one station, and
+  host ports forwarded to the guest's access point.
 
 ## The guest as an access point (`--wifi-sta`)
 
-On the classic ESP32 a guest in `WIFI_MODE_AP` already works with the MAC as modelled: libpp sends
-its beacons, probe and authentication responses and EAPOL frames through TX queue 0 like any
-other frame. What it needs is something on the air that answers, and received frames flagged for
+On the classic ESP32, S3, C3, C6 and S31 a guest in `WIFI_MODE_AP` already works with the MAC as
+modelled: libpp sends its beacons, probe and authentication responses and EAPOL frames through
+the TX queues like any other frame (queue 0 on the classic). What it needs is something on the air that answers, and received frames flagged for
 the right interface. `--wifi-sta` puts a virtual station (`esp-soc/src/wifi/sta.rs`) where the
 access points would be: it follows the guest's beacons, authenticates and associates, takes the
 supplicant's side of the WPA2 four-way handshake (the PTK from the guest's ANonce, the MIC on
@@ -152,8 +152,7 @@ the program's MAC, and with the relay off again it starts DHCP anew. The end-of-
 keep-alives and renewals (rebinds among them) when there are any.
 
 Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
-AP+STA with both sides on the air; the S3, C3 and C6; host ports forwarded to the guest's access
-point. In relay mode the host program is the station:
+AP+STA with both sides on the air; host ports forwarded to the guest's access point. In relay mode the host program is the station:
 without four-address frames it sends from and receives at the station's MAC, and a frame it relays
 before the station has joined is refused; one the station takes and cannot carry, because it left
 the access point in between, is counted in the end-of-run line. The CLI's `--wifi-sta` and
@@ -183,6 +182,17 @@ optional, as Arduino-ESP32 3.3.9's `WiFi.softAP` configures it) and an Arduino-E
 application: the firmware logs the station joining and its DHCP server leasing 192.168.4.2. The
 `wifi_softap_classic` golden pins `examples/wifi-softap`. With WPA3-SAE the guest refuses the
 association (status 43), as the station offers WPA2-PSK only.
+
+The S3, C3, C6 and S31 MACs (`esp-soc/src/wifi/mac.rs` for the S3 and C3, the C6's and S31's own)
+flag received frames in the same `rx_ctrl` word 0 bits (`StationLink::rx_match`). No slot
+registers are read there: with a virtual station on the air, a frame whose first address is the
+BSSID the station took from the guest's beacons gets bit 29 alone, and every other frame keeps
+bit 28, and 29 for unicast, as before. With bits 28 and 29 both set on the station's frames, the
+S3's softAP never answered its authentication (three attempts in 6 s, no response); with bit 29
+alone the S3, C3 and C6 (ESP-IDF v5.5.4) and the S31 (ESP-IDF v6.1) logged the join and the lease
+within the first seconds. Not compared with silicon on these chips. `examples/wifi-softap` built
+for each is pinned by `wifi_softap_s3`, `wifi_softap_c3`, `wifi_softap_c6` (the console and counts
+as on the classic) and `wifi_softap_s31_mosaico` (the firmware's lines).
 
 ## Scope
 

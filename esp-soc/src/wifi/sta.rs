@@ -147,6 +147,8 @@ impl VirtualSta {
 
     /// The channel of the guest's access point, from its DS Parameter Set; 1 before a beacon.
     pub fn channel(&self) -> u8 { self.channel }
+    /// The guest access point's BSSID, from its beacon; zero before the station heard one.
+    pub fn bssid(&self) -> [u8; 6] { self.bssid }
 
     /// The guest rebooted: its access point and everything it knew of the station are gone.
     pub fn restart(&mut self) {

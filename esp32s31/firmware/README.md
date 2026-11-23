@@ -12,3 +12,8 @@ build them; the script verifies them, and rebuilds them when a hash does not mat
 - `s31-mosaico-board.bin`: `examples/mosaico-board` (its bootloader and partition table are
   `s31-wifi-bootloader.bin` and `s31-hello-ptable.bin`, byte for byte). Booted by
   `mosaico_board_s31` in `cli/tests/goldens.rs`.
+- `s31-wifi_softap.bin`: `examples/wifi-softap` with `tools/s31-softap/sdkconfig.defaults` (16 MB
+  flash, console on USB Serial/JTAG, the example's own access point `esp32sim-ap` /
+  `esp32sim-pass` and no other credentials); its bootloader and partition table are
+  `s31-wifi-bootloader.bin` and `s31-hello-ptable.bin`, byte for byte. Booted by
+  `wifi_softap_s31_mosaico` in `cli/tests/goldens.rs`.

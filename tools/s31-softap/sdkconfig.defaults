@@ -1,0 +1,11 @@
+# Pinned config for the ESP32-S31 SoftAP test (examples/wifi-softap on ESP-IDF v6.1, --preview
+# esp32s31): the example's own defaults (esp32sim-ap / esp32sim-pass, channel 6, no SAE), the
+# Mosaico's 16 MB flash and the console on USB Serial/JTAG as on the ESP-Mosaico.
+CONFIG_IDF_TARGET="esp32s31"
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT=n
+CONFIG_APP_REPRODUCIBLE_BUILD=y
+CONFIG_APP_EXCLUDE_PROJECT_VER_VAR=n
+CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
+CONFIG_APP_PROJECT_VER="s31-softap-1"

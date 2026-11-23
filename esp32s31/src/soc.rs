@@ -465,7 +465,7 @@ impl SocBus {
             self.inner.wifi_tx_step(now_us, frames);
             self.irq_dirty = true;
         }
-        if self.inner.wifi_mac.link.ap().is_some() {
+        if self.inner.wifi_mac.link.on_air() {
             if self.inner.wifi_air_step(now_us) { self.irq_dirty = true; }
             self.inner.wifi_mac.link.net_step(now_us);
         }
@@ -591,6 +591,10 @@ impl esp_soc::SocBus for SocBus {
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
         self.inner.wifi_mac.link.attach_new(cfg, nat, &self.debug);
         Ok(())
+    }
+    fn attach_wifi_station(&mut self, cfg: esp_soc::wifi::sta::StaConfig) -> Result<(), String> {
+        let log = self.debug.has("wifi-frames");
+        self.inner.wifi_mac.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))
     }
     /// The host on the other end of the high-speed USB-OTG port (DR_REG_USB_OTGHS_BASE).
     fn attach_usb_host(&mut self, timing: esp_periph::usb_otg::UsbTiming) -> Result<(), String> {
