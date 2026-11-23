@@ -63,6 +63,12 @@ impl esp_soc::SocBus for SocBus {
         self.periph.refresh_work();
         Ok(())
     }
+    fn attach_wifi_station(&mut self, cfg: esp_soc::wifi::sta::StaConfig) -> Result<(), String> {
+        let log = self.debug.has("wifi-frames");
+        self.periph.wifi.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))?;
+        self.periph.refresh_work();
+        Ok(())
+    }
     fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.periph.wifi.link.set_beacons(list).ok_or_else(|| "no virtual access point".to_string()) }
     fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.periph.wifi.link.set_nat(nat, local_ntp) }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {

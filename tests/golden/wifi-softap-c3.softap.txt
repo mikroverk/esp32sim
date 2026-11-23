@@ -1,0 +1,4 @@
+STARTED ssid="esp32sim-ap" channel=6 auth=WPA2 bssid=60:55:f9:00:11:23
+JOINED mac=02:53:54:41:00:01 aid=1
+LEASED ip=192.168.4.2 mac=02:53:54:41:00:01
+STATUS stations=1

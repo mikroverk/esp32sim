@@ -26,7 +26,7 @@ pub enum Resolve {
 /// `WouldBlock` = try at the next poll, `tcp_read` `Ok(0)` = peer EOF.
 ///
 /// The NAT calls `tcp_close` exactly once for every flow `tcp_connect` or `tcp_accept` returned,
-/// and `udp_close` once for every flow `udp_open` returned, when it forgets the flow.
+/// and `udp_close` once for every flow `udp_open` or `udp_accept` returned, when it forgets the flow.
 pub trait NatTransport {
     /// Begin a TCP connection; None when no more may be opened now (the guest's SYN is dropped
     /// and its retransmission tries again).
@@ -52,4 +52,9 @@ pub trait NatTransport {
     /// flow, the guest address and the guest port. The NAT sends the station a SYN from the gateway
     /// once it knows the station's MAC; until the guest's SYN-ACK nothing is read from the flow.
     fn tcp_accept(&mut self) -> Option<(FlowId, [u8; 4], u16)> { None }
+    /// Host senders new at the `--hostfwd udp:` ports, at most `max`: each one's flow, the guest
+    /// address and the guest port. Their datagrams, the first included, come from `udp_recv`, and
+    /// `udp_send` answers them from the forwarded port. The NAT asks once every poll, when it knows
+    /// the station's MAC; senders past `max` wait for a later poll.
+    fn udp_accept(&mut self, _max: usize) -> Vec<(FlowId, [u8; 4], u16)> { Vec::new() }
 }

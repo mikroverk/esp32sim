@@ -274,7 +274,8 @@ esp_wifi + libpp/libnet80211        unmodified blob, drives the MAC registers
   the host's own resolver, unless the transport resolves names itself, in which case the NAT
   answers the guest's A/AAAA queries from the emulated resolver's address. `--hostfwd` listeners
   live on `StdTransport`; it hands each accepted connection to the NAT (`tcp_accept`), which sends
-  the station a SYN from the gateway once it knows the station's MAC. A guest reboot aborts the
+  the station a SYN from the gateway once it knows the station's MAC, and each new sender at a UDP
+  listener (`udp_accept`), whose datagrams go to the station from a gateway port of its own. A guest reboot aborts the
   NAT's flows (`Nat::abort_all`).
 - **Crypto accelerators**: mbedTLS drives AES (block + GDMA, ECB/CBC/CTR/OFB), SHA (block + GDMA,
   SHA-1 through SHA-512) and the RSA/MPI unit; the WPA supplicant unwraps the group key on AES.

@@ -465,7 +465,7 @@ impl SocBus {
             self.inner.wifi_tx_step(now_us, frames);
             self.irq_dirty = true;
         }
-        if self.inner.wifi_mac.link.ap().is_some() {
+        if self.inner.wifi_mac.link.on_air() {
             if self.inner.wifi_air_step(now_us) { self.irq_dirty = true; }
             self.inner.wifi_mac.link.net_step(now_us);
         }
@@ -591,6 +591,10 @@ impl esp_soc::SocBus for SocBus {
     fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
         self.inner.wifi_mac.link.attach_new(cfg, nat, &self.debug);
         Ok(())
+    }
+    fn attach_wifi_station(&mut self, cfg: esp_soc::wifi::sta::StaConfig) -> Result<(), String> {
+        let log = self.debug.has("wifi-frames");
+        self.inner.wifi_mac.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))
     }
     /// The host on the other end of the high-speed USB-OTG port (DR_REG_USB_OTGHS_BASE).
     fn attach_usb_host(&mut self, timing: esp_periph::usb_otg::UsbTiming) -> Result<(), String> {
@@ -844,6 +848,7 @@ impl esp_soc::SocBus for SocBus {
 
     fn report(&self) -> String {
         let board = self.board.report();
+        let wifi = self.inner.wifi_mac.link.report();
         let u = &self.inner.unmodelled;
         let list: Vec<String> = u.iter().take(48).map(|(a, v)| format!("{a:#010x}={v:#x}")).collect();
         format!(
@@ -857,6 +862,7 @@ impl esp_soc::SocBus for SocBus {
             self.inner.refused.iter().take(48).map(|(a, (n, v))| format!("{a:#010x}x{n}(last write {v:#x})")).collect::<Vec<_>>().join(" ")
         ) + &format!("\nesp32s31: GP-SPI2 {} transfers", self.inner.spi2.transfers) + &self.inner.i2s.iter().enumerate().filter(|(_, i)| i.frames_out != 0 || i.bytes_in != 0 || i.rx_running())
             .map(|(n, i)| format!("\nesp32s31: I2S{n} TX {} frames at {} Hz, RX {} bytes to DMA (RX rate {:?}, RX_CONF {:#x}, RX_CONF1 {:#x})", i.frames_out, i.sample_rate, i.bytes_in, i.rx_rate(), i.read(0x20), i.read(0x28))).collect::<String>() + if board.is_empty() { "" } else { "\n" } + &board
+            + if wifi.is_empty() { "" } else { "\n" } + &wifi
     }
 }
 
