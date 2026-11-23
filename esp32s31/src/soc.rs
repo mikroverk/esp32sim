@@ -848,6 +848,7 @@ impl esp_soc::SocBus for SocBus {
 
     fn report(&self) -> String {
         let board = self.board.report();
+        let wifi = self.inner.wifi_mac.link.report();
         let u = &self.inner.unmodelled;
         let list: Vec<String> = u.iter().take(48).map(|(a, v)| format!("{a:#010x}={v:#x}")).collect();
         format!(
@@ -861,6 +862,7 @@ impl esp_soc::SocBus for SocBus {
             self.inner.refused.iter().take(48).map(|(a, (n, v))| format!("{a:#010x}x{n}(last write {v:#x})")).collect::<Vec<_>>().join(" ")
         ) + &format!("\nesp32s31: GP-SPI2 {} transfers", self.inner.spi2.transfers) + &self.inner.i2s.iter().enumerate().filter(|(_, i)| i.frames_out != 0 || i.bytes_in != 0 || i.rx_running())
             .map(|(n, i)| format!("\nesp32s31: I2S{n} TX {} frames at {} Hz, RX {} bytes to DMA (RX rate {:?}, RX_CONF {:#x}, RX_CONF1 {:#x})", i.frames_out, i.sample_rate, i.bytes_in, i.rx_rate(), i.read(0x20), i.read(0x28))).collect::<String>() + if board.is_empty() { "" } else { "\n" } + &board
+            + if wifi.is_empty() { "" } else { "\n" } + &wifi
     }
 }
 

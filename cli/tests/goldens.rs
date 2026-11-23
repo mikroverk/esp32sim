@@ -891,6 +891,9 @@ fn wifi_softap_s31_mosaico() {
     assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
     let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
     assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    // the end-of-run lines, as on the other chips (their counts are not pinned here)
+    assert!(r.stderr.lines().any(|l| l.starts_with("[emu] wifi: ") && l.contains("frames sent by the guest's access point"))
+        && r.stderr.lines().any(|l| l.starts_with("[emu] wifi-sta: 'esp32sim-ap' Joined") && l.contains("lease 192.168.4.2")), "no WiFi report:\n{}", r.stderr);
     expect_text("wifi-softap-s31.softap.txt", &softap);
 }
 
