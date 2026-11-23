@@ -1,0 +1,16 @@
+# A host on the S3's USB-OTG port (--usb-host) for IDF's tusb_msc example with its SD card
+# storage: enumerate, take the card, write a FAT32 file and read it back, raw blocks, unplug.
+attach
+msc
+ready 100 5000
+capacity
+mode-sense
+read 0 1
+mount
+ls
+fat-write FILE0001.BIN 262144 16
+fat-read FILE0001.BIN
+write 131056 16 a5
+verify 131056 16 a5
+detach
+idle 50
