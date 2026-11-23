@@ -1,6 +1,7 @@
 //! The USB 2.0 On-The-Go controller: Synopsys' DesignWare Hi-Speed USB 2.0 OTG core (DWC2) as a
 //! device with buffer DMA, as the ESP32-P4's high-speed port (0x50000000, UTMI+ PHY) has it and
-//! the ESP32-S2/S3 full-speed port has a smaller copy of it, and the cable to a host (`link`).
+//! the ESP32-S3's full-speed port (0x60080000) has a smaller copy of it, and the cable to a host
+//! (`link`).
 //!
 //! Registers: IDF v5.5.3 components/soc/esp32p4/include/soc/usb_dwc_struct.h (the v4.30a HS
 //! instance) and hal/esp32p4/include/hal/usb_dwc_ll.h; bit names and what the driver expects of
@@ -35,6 +36,8 @@ pub struct Dwc2Config {
     pub pkt_bits: u32,
     /// the FIFO RAM in 32-bit words (OTG_DFIFO_DEPTH)
     pub fifo_words: u32,
+    /// each TX FIFO's reset depth in words (OTG_TX_DINEP_DFIFO_DEPTH_n)
+    pub tx_fifo_words: u32,
     /// UTMI+ high-speed PHY
     pub high_speed: bool,
     /// the clock `tick` counts
@@ -53,7 +56,19 @@ impl Dwc2Config {
     /// OTG20_DFIFO_DEPTH 1024; GHWCFG4.INEps 7 agrees). See docs/esp32p4.md, "USB".
     pub const fn esp32p4_hs(hz: u64) -> Self {
         Dwc2Config { gsnpsid: 0x4F54_430A, ghwcfg: [0, 0x215F_FFD0, 0x0380_5EB5, 0xDFF1_A030], eps: 16, in_eps: 8, xfer_bits: 17, pkt_bits: 8,
-                     fifo_words: 1024, high_speed: true, hz }
+                     fifo_words: 1024, tx_fifo_words: 512, high_speed: true, hz }
+    }
+
+    /// The ESP32-S3's FS instance: GSNPSID 4.00a (IDF v5.5.4 hal/usb_dwc_hal.c accepts it as
+    /// CORE_REG_GSNPSID_4_00a), GHWCFG1-4 as TinyUSB 0.21.0~6 recorded them from silicon
+    /// (dwc2_info.py, `ESP32-S2/S3`), the counter widths, endpoints and FIFO RAM of IDF v5.5.4
+    /// components/soc/esp32s3/include/soc/usb_dwc_cfg.h (OTG_TRANS_COUNT_WIDTH 16,
+    /// OTG_PACKET_COUNT_WIDTH 7, OTG_NUM_EPS 6, OTG_NUM_IN_EPS 5, OTG_DFIFO_DEPTH 256,
+    /// OTG_TX_DINEP_DFIFO_DEPTH_n 256; GHWCFG2.NumDevEps 6 and GHWCFG4.INEps 4 agree), the
+    /// full-speed PHY (OTG_HSPHY_INTERFACE 0, OTG_FSPHY_INTERFACE 1).
+    pub const fn esp32s3_fs(hz: u64) -> Self {
+        Dwc2Config { gsnpsid: 0x4F54_400A, ghwcfg: [0, 0x224D_D930, 0x00C8_04B5, 0xD3F0_A030], eps: 7, in_eps: 5, xfer_bits: 16, pkt_bits: 7,
+                     fifo_words: 256, tx_fifo_words: 256, high_speed: false, hz }
     }
 }
 
@@ -167,6 +182,9 @@ pub struct Dwc2 {
     pending: bool,
     /// the block's reset line is asserted: registers at reset values, writes ignored
     held: bool,
+    /// the PHY carries the core's D+/D- to the cable (the S3 shares its one internal PHY with
+    /// USB-Serial-JTAG; `set_phy`)
+    phy: bool,
     /// a (micro)frame in ticks at the enumerated speed
     frame: u64,
     pub stats: Dwc2Stats,
@@ -179,7 +197,7 @@ impl Dwc2 {
             dieptxf: [0; 15], pcgcctl: 0, dcfg: 0, dctl: 0, diepmsk: 0, doepmsk: 0, daintmsk: 0, diepempmsk: 0,
             ep_in: [Ep::default(); 16], ep_out: [Ep::default(); 16], ram: RegRam::new(), vbus: false, speed: None, sof_since: None,
             sof_ack: 0, suspended: false, setup_phase: false, setup_stash: None, pullup_seen: false, now: 0, link: None, pending: false,
-            held: false, frame: 0, stats: Dwc2Stats::default(), log: false };
+            held: false, phy: true, frame: 0, stats: Dwc2Stats::default(), log: false };
         d.set_speed(None);
         d.reset_registers();
         d
@@ -188,10 +206,10 @@ impl Dwc2 {
     /// The block's reset (LP_CLKRST RST_EN_USB_OTG20 on the P4): every register to its reset
     /// value; the cable stays. GRXFSIZ, the TX FIFO sizes and GDFIFOCFG reset to the
     /// configuration's FIFO depths (usb_dwc_cfg.h OTG20_RX_DFIFO_DEPTH, OTG20_TX_DINEP_DFIFO_DEPTH_n,
-    /// OTG20_DFIFO_DEPTH); GUSBCFG to USBTrdTim 5. DCTL.SDIS resets to 1, so nothing pulls D+ up
-    /// before the firmware connects.
+    /// OTG20_DFIFO_DEPTH on the P4, the OTG_ ones on the S3); GUSBCFG to USBTrdTim 5. DCTL.SDIS
+    /// resets to 1, so nothing pulls D+ up before the firmware connects.
     pub fn reset_registers(&mut self) {
-        let words = self.cfg.fifo_words;
+        let (words, tx) = (self.cfg.fifo_words, self.cfg.tx_fifo_words);
         self.gusbcfg = 5 << 10;
         self.dcfg = 0;
         self.dctl = dctl::SDIS;
@@ -199,8 +217,8 @@ impl Dwc2 {
         self.soft_reset();
         self.grstctl = grstctl::AHBIDL;
         self.grxfsiz = words;
-        self.gnptxfsiz = 512 << 16 | words;
-        for (n, f) in self.dieptxf.iter_mut().enumerate() { *f = 512 << 16 | (words + 512 * (n as u32 + 1)); }
+        self.gnptxfsiz = tx << 16 | words;
+        for (n, f) in self.dieptxf.iter_mut().enumerate() { *f = tx << 16 | (words + tx * (n as u32 + 1)); }
         self.gdfifocfg = words << 16 | words;
         self.ram = RegRam::new();
         self.notify_pullup();
@@ -277,8 +295,17 @@ impl Dwc2 {
     /// B-session valid, or its override (GOTGCTL.BVALOEN/BVALOVAL).
     fn bvalid(&self) -> bool { if self.gotgctl & gotgctl::BVALOEN != 0 { self.gotgctl & gotgctl::BVALOVAL != 0 } else { self.vbus } }
 
-    /// D+ pulled up: a session, device mode and no soft disconnect.
-    pub fn pullup(&self) -> bool { self.bvalid() && self.gusbcfg & gusbcfg::FHMOD == 0 && self.dctl & dctl::SDIS == 0 }
+    /// D+ pulled up where the host sees it: a session, device mode, no soft disconnect, and a
+    /// PHY connecting the core to the cable.
+    pub fn pullup(&self) -> bool { self.phy && self.bvalid() && self.gusbcfg & gusbcfg::FHMOD == 0 && self.dctl & dctl::SDIS == 0 }
+
+    /// Connect the core to the cable's PHY or take it away. Without one the host sees no pull-up,
+    /// so it never resets or enumerates the device.
+    pub fn set_phy(&mut self, on: bool) {
+        if on == self.phy { return; }
+        self.phy = on;
+        self.notify_pullup();
+    }
 
     fn notify_pullup(&mut self) {
         let p = self.pullup();
@@ -341,7 +368,9 @@ impl Dwc2 {
     pub fn irq(&self) -> bool { self.gahbcfg & GAHBCFG_GINT != 0 && self.gintsts_now() & self.gintmsk != 0 }
 
     fn dsts(&self) -> u32 {
-        let spd = match self.speed { Some(Speed::High) | None => 0, Some(Speed::Full) => 1 };
+        // DSTS.EnumSpd: 0 high speed, 1 full speed on a high-speed PHY, 3 full speed on a
+        // full-speed PHY at 48 MHz (TinyUSB 0.21.0~6 dwc2_type.h, DSTS_ENUMSPD_FS)
+        let spd = match self.speed { Some(Speed::High) | None => 0, Some(Speed::Full) => if self.cfg.high_speed { 1 } else { 3 } };
         let f = self.frame_ticks().max(1);
         // SOFFN: the (micro)frame number of the last SOF; at high speed it counts microframes
         let soffn = match self.sof_since { Some(s) if self.now >= s => ((self.now / f) & 0x3fff) as u32, _ => 0 };
