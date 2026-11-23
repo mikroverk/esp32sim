@@ -542,9 +542,11 @@ cycle). `UsbHost` learns that a request finished at the next microframe boundary
 there, so the firmware runs between the transfers of a command:
 
 - `enumerate`: VBUS, waiting for the pull-up, the 100 ms connect debounce (TATTDB, §7.1.7.3), the
-  port reset, 10 ms of reset recovery (§9.2.6.2), the device descriptor's first 64 bytes at address
-  0, SET_ADDRESS and its 2 ms recovery (§9.2.6.3), the device and configuration descriptors, the
-  strings, SET_CONFIGURATION (§9.1.2, §9.4); control transfers time out after 5 s.
+  port reset, 10 ms of reset recovery (§9.2.6.2), GET_DESCRIPTOR(DEVICE, 64) at address 0 with a
+  64-byte EP0 for bMaxPacketSize0 alone (a device whose EP0 takes 8 bytes answers with its first
+  8; `hub_port_init` does the same), SET_ADDRESS and its 2 ms recovery (§9.2.6.3), the device and
+  configuration descriptors, the strings, SET_CONFIGURATION (§9.1.2, §9.4); control transfers
+  time out after 5 s.
 - `reset_device`: Linux's `usb_reset_device` (v6.12 drivers/usb/core/hub.c,
   `usb_reset_and_verify_device` at 6090 and `hub_port_init`'s new scheme at 4985-5034): reset,
   GET_DESCRIPTOR(64) at address 0, reset again, SET_ADDRESS to the old address, the device and
