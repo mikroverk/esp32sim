@@ -120,8 +120,8 @@ binaries. Run `build_probe.py TREE PREFIX` with the matching target directory,
 then compare each chip's two pairs with `check_probe.py OUT BASE BASE_PROBE
 CANDIDATE CANDIDATE_PROBE`. `exact_work.py OUT BASE_PREFIX CAND_PREFIX FW
 STARTER` uses the pinned inputs and saved normal/probed binaries. Use
-`codegen.py BASE_C6 CANDIDATE_C6 OUT` for native selected symbols and
-`mutate.py OUT BASE_C6` with a dedicated target directory in a disposable
+`codegen.py BASE_C6 CANDIDATE_C6 OUT` for native selected symbols. Reports retain only changed, added and removed rows; totals include identical symbols. To reproduce this report-only curation without rebuilding the historical binaries, for each `f` in `codegen.json codegen-rebase.json`, run `git show 1f0cdc135be34bcb5684f3593f3eb62646d6b5a0:docs/evidence/c6-step-facts/$f > "$f.full"` then `python3 docs/evidence/c6-step-facts/codegen.py --from-report "$f.full" "$f"`. This reuses the original full comparisons rather than claiming a new measurement. SHA-256: `codegen.json` `3e58762185ecf783a5575e3752f3dcd8d06cd6dc34b47336c237ddb8537ce70f`; `codegen-rebase.json` `1bea92dc2a75364ce7ca4fd53515b073d8c7b3449b0c59f85bacd6987dab3390`.
+Use `mutate.py OUT BASE_C6` with a dedicated target directory in a disposable
 candidate tree. For WASM, build both with `tools/wasm-build.sh`, disassemble with
 `wasm-dis`, then use `compare_wat.py BASE.wat CANDIDATE.wat OUT.json`. The
 probe/mutation builders temporarily edit sources and must not run concurrently

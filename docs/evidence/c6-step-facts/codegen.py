@@ -12,6 +12,27 @@ import subprocess
 import sys
 import types
 
+def trim(report):
+    rows = report.pop('rows')
+    selected = report.pop('selected')
+    identical = report.pop('identical')
+    assert selected == len(rows) and identical == sum(r['same'] for r in rows)
+    differing = [dict(status=('added' if r['base_ops'] == 0 else
+                              'removed' if r['candidate_ops'] == 0 else 'changed'),
+                      **{k:v for k,v in r.items() if k != 'same'})
+                 for r in rows if not r['same']]
+    report['totals'] = {'total': selected, 'identical': identical, 'differing': len(differing)}
+    report['rows'] = differing
+    return report
+
+def save(report, destination):
+    destination.write_text(json.dumps(trim(report), indent=2)+'\n')
+
+# Re-curate an archived full report without claiming a new binary comparison.
+if len(sys.argv) == 4 and sys.argv[1] == '--from-report':
+    save(json.loads(Path(sys.argv[2]).read_text()), Path(sys.argv[3]))
+    sys.exit(0)
+
 base, candidate, out = map(lambda s: Path(s).resolve(), sys.argv[1:])
 out.mkdir(parents=True, exist_ok=True)
 repo=Path(__file__).resolve().parents[3]
@@ -38,7 +59,7 @@ result={'method':'EX230 normalized native AArch64 code; static body sizes are no
         'binary_sha256':{'base':hashlib.sha256(base.read_bytes()).hexdigest(),'candidate':hashlib.sha256(candidate.read_bytes()).hexdigest()},
         'gate':run in b and step not in b and not any('riscv_rv32::exec::exec_insn::<' in n for n in b),
         'selected':len(rows),'identical':sum(r['same'] for r in rows),'rows':rows}
-(out/'codegen.json').write_text(json.dumps(result,indent=2)+'\n')
+save(result.copy(), out/'codegen.json')
 print(json.dumps({k:v for k,v in result.items() if k!='rows'},indent=2))
 for r in rows:
     if not r['same']: print(r['base_ops'],r['candidate_ops'],r['name'])
