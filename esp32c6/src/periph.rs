@@ -403,7 +403,7 @@ device_set! { Peripherals; inline always; clock: (clock) CPU_HZ, [(ClockDomain::
     0x0f "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x10 "INTMTX" (intmtx) => [];
     0x14 "MCPWM" optional (mcpwm) => [src::MCPWM0];
-    0x12 "PCNT" optional (pcnt) => [src::PCNT];
+    0x12 "PCNT" (pcnt) => [src::PCNT];
     // three channels; the model numbers its sources out 0..4 then in 0..4
     0x80 "GDMA" (gdma) => [src::DMA_OUT_CH0, src::DMA_OUT_CH0 + 1, src::DMA_OUT_CH0 + 2, NO_SOURCE, NO_SOURCE, src::DMA_IN_CH0, src::DMA_IN_CH0 + 1, src::DMA_IN_CH0 + 2, NO_SOURCE, NO_SOURCE];
     0x81 "SPI2" (spi2) => [src::GPSPI2];

@@ -32,6 +32,10 @@ pub struct Ledc<const CLASSIC: bool = false> {
     fading: u8,
     // Phase units cancel the divider's factor of 256, so even C6's maximum period fits u64.
     phase: [u64; 4],
+    /// The rate of the ticks `tick` counts / 256 (phase units per tick at divider 1.0): the Apb
+    /// clock domain, which the P4's device table runs at 40 MHz (CPU 360 MHz / 9) and the other
+    /// chips at 80 MHz. Set with the layout, so the tick does not test the layout.
+    tick_unit: u64,
     active: u8,
     timer_params: [u32; 4],
     raw: u32,
@@ -100,12 +104,9 @@ macro_rules! ledc_impl { ($classic:literal) => {
 impl Ledc<$classic> {
     fn with_layout(layout: LedcLayout) -> Self {
         Self { layout, regs: RegRam::new(), duty: [0; 8], pending: [false; 8],
-            fade: [Fade::default(); 8], fading: 0, phase: [0; 4], active: 0, timer_params: [0; 4], raw: 0, ena: 0, external_clock_hz: 0, clock_enabled: true }
+            fade: [Fade::default(); 8], fading: 0, phase: [0; 4],
+            tick_unit: (if matches!(layout, LedcLayout::P4) { 40_000_000 } else { APB_HZ }) / 256, active: 0, timer_params: [0; 4], raw: 0, ena: 0, external_clock_hz: 0, clock_enabled: true }
     }
-    /// The rate of the ticks `tick` counts: the Apb clock domain, which the P4's device table runs at
-    /// 40 MHz (CPU 360 MHz / 9) and the other chips at 80 MHz.
-    #[inline(always)]
-    fn tick_hz(&self) -> u64 { if matches!(self.layout, LedcLayout::P4) { 40_000_000 } else { APB_HZ } }
     fn channels(&self) -> usize { if matches!(self.layout, LedcLayout::S3 | LedcLayout::P4) { 8 } else { 6 } }
     fn shift(&self) -> u32 { u32::from($classic || matches!(self.layout, LedcLayout::C6 | LedcLayout::P4)) }
     fn source_hz(&self) -> u64 {
@@ -149,7 +150,7 @@ impl Ledc<$classic> {
             if self.active & (1 << n) == 0 { continue; }
             let Some((period, divider)) = self.timer(n) else { continue; };
             let hz = source(n, self.timer_params[n]);
-            let modulus = (self.tick_hz() / 256) * divider * period;
+            let modulus = self.tick_unit * divider * period;
             match ticks.checked_mul(hz).and_then(|delta| self.phase[n].checked_add(delta)) {
                 Some(total) if total < modulus => self.phase[n] = total,
                 _ => self.wrap_timer(n, ticks, hz, modulus),
@@ -249,7 +250,7 @@ impl Ledc<$classic> {
             let (period, div) = self.timer(n)?;
             let hz = source(n, self.timer_params[n]);
             // A timer shrunk under its phase wraps at the next tick.
-            (hz != 0).then(|| (self.tick_hz() / 256 * div * period).saturating_sub(self.phase[n]).max(1).div_ceil(hz))
+            (hz != 0).then(|| (self.tick_unit * div * period).saturating_sub(self.phase[n]).max(1).div_ceil(hz))
         }).min()
     }
 }
@@ -259,7 +260,7 @@ impl Device for Ledc<$classic> {
         if off < self.channels() as u32 * 0x14 && off % 0x14 == 0x10 { return self.duty[(off / 0x14) as usize]; }
         if (0xa4..=0xbc).contains(&off) && off % 8 == 4 {
             let n = ((off - 0xa4) / 8) as usize;
-            return self.timer_settings(n).map_or(0, |(_, div)| (self.phase[n] / (self.tick_hz() / 256 * div)) as u32);
+            return self.timer_settings(n).map_or(0, |(_, div)| (self.phase[n] / (self.tick_unit * div)) as u32);
         }
         match off {
             0xc0 => self.raw, 0xc4 => self.raw & self.ena, 0xc8 => self.ena, 0xcc => 0,
@@ -316,11 +317,17 @@ impl Device for Ledc<$classic> {
         if hz == 0 { return; }
         self.tick_with_source(ticks, |_, _| hz);
     }
-    fn has_deadline(&self) -> bool { true }
     /// Only a running fade with its end interrupt enabled sets a deadline (classic: see ClassicLedc).
-    #[inline]
-    fn next_deadline(&self) -> Option<u64> {
-        if self.fading == 0 { return None; }
+    /// The scan pays one byte test without a fade; the rest stays out of its frame.
+    #[inline(always)]
+    fn has_deadline(&self) -> bool { self.fading != 0 }
+    #[inline(always)]
+    fn next_deadline(&self) -> Option<u64> { if self.fading == 0 { None } else { self.fade_deadline() } }
+}
+impl Ledc<$classic> {
+    #[cold]
+    #[inline(never)]
+    fn fade_deadline(&self) -> Option<u64> {
         let hz = self.source_hz();
         self.wrap_deadline(false, |_, _| hz)
     }

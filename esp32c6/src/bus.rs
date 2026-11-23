@@ -566,13 +566,15 @@ impl SocBus {
         input.into_iter().chain(self.ena_latency.deadline()).min()
     }
 
-    /// GPIO input edges reach the pulse counter; its interrupt is cached like any optional device's.
+    /// GPIO input edges reach the pulse counter. Its table entry is static: the source is read when
+    /// the lines are refreshed, and a static entry keeps the optional devices' tick and refresh
+    /// dispatch (hot while the LEDC runs) as it was.
     #[cold]
     #[inline(never)]
     fn pcnt_edges(&mut self) {
         let before = self.periph.pcnt.irq();
         self.periph.pcnt.matrix_edges(&mut self.periph.gpio);
-        if before != self.periph.pcnt.irq() { esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x12); self.irq_dirty = true; }
+        if before != self.periph.pcnt.irq() { self.irq_dirty = true; }
     }
 
     fn devices(&mut self, cycles: u32) {
@@ -891,6 +893,28 @@ mod parlio_dma_tests {
             assert_eq!(bus.periph.gdma.gdma.out[0].int_raw & 4, 4, "case {case}");
             assert!(!bus.periph.gdma.gdma.out[0].running);
         }
+    }
+}
+
+#[cfg(test)]
+mod pcnt_tests {
+    use super::*;
+    use emu_core::Bus;
+
+    /// Rising edges on a pin routed to PCNT unit 0 reach its threshold; source 62 asserts and
+    /// clears with INT_CLR (pcnt_reg.h: CONF0 POS_MODE 19:18, THR_THRES0_EN 14; INT_ENA 0x48).
+    #[test]
+    fn pulse_counter_interrupt_reaches_the_source_status() {
+        let mut bus = SocBus::new(0x1_0003, [0; 6]);
+        bus.write32(0x6009_1154 + 4 * 101, 0x80 | 5).unwrap();         // PCNT_SIG_CH0_IN0 from GPIO5
+        bus.write32(0x6001_2000, (1 << 18) | (1 << 14)).unwrap();
+        bus.write32(0x6001_2004, 2).unwrap();
+        bus.write32(0x6001_2048, 1).unwrap();
+        for level in [false, true, false, true] { esp_soc::SocBus::gpio_set_input(&mut bus, 5, level); bus.tick(64); }
+        assert_eq!(bus.periph.pcnt.cnt[0], 2);
+        assert_eq!(bus.periph.source_status()[1] & (1 << 30), 1 << 30);
+        bus.write32(0x6001_204c, 1).unwrap();
+        assert_eq!(bus.periph.source_status()[1] & (1 << 30), 0);
     }
 }
 
