@@ -587,13 +587,15 @@ impl Peripherals {
     /// USB_WRAP_OTG_CONF move the internal PHY between the two USB controllers;
     /// SYSTEM_PERIP_RST_EN0.USB_RST (bit 23) holds the OTG core in reset, PERIP_RST_EN1.SDIO_HOST_RST
     /// (bit 7) the SDMMC host (IDF v5.5.4 components/soc/esp32s3/register/soc/system_reg.h:416-418,
-    /// :580-582).
+    /// :580-582). SDIO_HOST_RST's silicon default is 1, but the model's PERIP_RST_EN1 reads 0 at
+    /// reset, so the host starts released; IDF sets and clears the bit before use
+    /// (`sdmmc_ll_reset_register`, hal/esp32s3/include/hal/sdmmc_ll.h:123-124).
     #[cold]
     #[inline(never)]
     fn usb_sd_control(&mut self, addr: u32, v: u32) {
         match addr {
             0x600c_0020 => { self.usb_otg.set_reset(v & (1 << 23) != 0); Dispatch::refresh_optional(self, USB_OTG_BLOCK); }
-            0x600c_0024 => if v & (1 << 7) != 0 { self.sdmmc.reset_registers(); Dispatch::refresh_optional(self, SDMMC_BLOCK); },
+            0x600c_0024 => { self.sdmmc.set_reset(v & (1 << 7) != 0); Dispatch::refresh_optional(self, SDMMC_BLOCK); }
             _ => self.route_usb_phy(),
         }
     }

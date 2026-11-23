@@ -107,6 +107,29 @@ fn the_card_answers_on_the_slot_the_matrix_clocks() {
     assert_eq!(b.periph.source_status()[0] >> crate::periph::SRC_SDIO_HOST & 1, 0, "and released");
 }
 
+/// SYSTEM_PERIP_RST_EN1.SDIO_HOST_RST (bit 7) resets the host's registers when set, and they
+/// ignore writes while it stays set, as the OTG core does under USB_RST.
+#[test]
+fn the_sdmmc_host_ignores_writes_while_held_in_reset() {
+    const RST_EN1: u32 = 0x600c_0024;
+    let mut b = bus();
+    esp_soc::SocBus::attach_sd_card(&mut b, Box::new(esp_periph::sdmmc::MemStore(vec![0; 1 << 20])), Default::default()).unwrap();
+    b.write32(GPIO_FUNC_OUT_SEL + 4 * 36, 173).unwrap();
+    b.write32(SDMMC + 0x18, 1).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x18).unwrap(), 1, "CTYPE: slot 0 4-bit");
+    b.write32(RST_EN1, 1 << 7).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x18).unwrap(), 0, "setting the bit resets CTYPE");
+    b.write32(SDMMC + 0x18, 1).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x18).unwrap(), 0, "held: the write is ignored");
+    b.write32(RST_EN1, 1 << 7).unwrap();
+    assert_eq!(cmd8(&mut b, 1), 0, "held: no command starts, RINTSTS stays clear");
+    assert_eq!(b.periph.sdmmc.stats.commands, 0);
+    b.write32(RST_EN1, 0).unwrap();
+    b.write32(SDMMC + 0x18, 1).unwrap();
+    assert_eq!(b.read32(SDMMC + 0x18).unwrap(), 1, "released: writes take effect");
+    assert_eq!(cmd8(&mut b, 1), 1 << 2, "and the card answers");
+}
+
 /// CDETECT and WRTPRT read the card-detect and write-protect signals of the matrix: the constant
 /// inputs IDF ties them to without such pins (zero; one inverted), or a pin.
 #[test]
