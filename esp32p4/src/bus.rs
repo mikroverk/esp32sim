@@ -479,7 +479,7 @@ impl SocBus {
     #[inline(never)]
     fn pcnt_edges(&mut self) {
         let before = self.periph.pcnt.irq();
-        self.periph.pcnt.matrix_edges(&mut self.periph.gpio.g, 0, 0x3f);
+        self.periph.pcnt.matrix_edges(&mut self.periph.gpio.g);
         if before != self.periph.pcnt.irq() { esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x500c9); self.irq_dirty = true; }
     }
 

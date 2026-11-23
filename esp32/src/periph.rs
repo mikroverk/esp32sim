@@ -1108,7 +1108,7 @@ impl Peripherals {
     #[inline(never)]
     fn pcnt_edges(&mut self) -> bool {
         let before = self.pcnt.irq();
-        self.pcnt.matrix_edges(&mut self.gpio.gpio, 0x80, 0x38);
+        self.pcnt.matrix_edges(&mut self.gpio.gpio);
         let changed = before != self.pcnt.irq();
         if changed { self.refresh_optional(0x57); }
         changed

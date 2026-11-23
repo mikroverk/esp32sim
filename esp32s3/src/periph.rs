@@ -454,7 +454,7 @@ impl Peripherals {
         let mut irq_changed = Dispatch::tick(self, cycles);
         if !self.gpio.input_changes.is_empty() {
             let before = self.pcnt.irq();
-            self.pcnt.matrix_edges(&mut self.gpio, 0x80, 0x38);
+            self.pcnt.matrix_edges(&mut self.gpio);
             irq_changed |= before != self.pcnt.irq();
         }
         irq_changed

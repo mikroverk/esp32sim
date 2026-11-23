@@ -76,10 +76,14 @@ impl Pcnt {
         }
     }
     /// Counts the queued GPIO input edges (`Gpio::input_changes`, emptied). FUNCn_IN_SEL holds the
-    /// pin in bits 5:0 and IN_INV_SEL at bit 6; `select` is SIG_IN_SEL (bit 7 on the classic ESP32,
-    /// S3 and C6, none on the P4) and `one` the constant-high input, GPIO_MATRIX_CONST_ONE_INPUT
-    /// (0x38; 0x3F on the P4), any other value past the pins being low (IDF v5.5.4 soc/gpio_pins.h).
-    pub fn matrix_edges(&mut self, gpio: &mut crate::Gpio, select: u32, one: u32) {
+    /// pin in bits 5:0, IN_INV_SEL at bit 6 and SIG_IN_SEL at bit 7 on all four chips (IDF v5.5.4
+    /// soc/<chip>/register/soc/gpio_reg.h; esp32p4 register/hw_ver1 and hw_ver3/soc/gpio_reg.h
+    /// GPIO_SIGn_IN_SEL, which `gpio_ll_set_input_signal_from` and the P4 ROM's `gpio_matrix_in`
+    /// set). An input without SIG_IN_SEL is not routed. Past the pins, the constant-high input
+    /// GPIO_MATRIX_CONST_ONE_INPUT (0x38; 0x3F on the P4, soc/gpio_pins.h) reads high and any
+    /// other value low.
+    pub fn matrix_edges(&mut self, gpio: &mut crate::Gpio) {
+        let (select, one) = (0x80, if self.layout == PcntLayout::P4 { 0x3f } else { 0x38 });
         // Each edge sees the other pins as they were at that edge: start from the levels before the
         // queued edges and replay them in order.
         let mut input = gpio.input;
@@ -166,10 +170,12 @@ mod tests {
 
     /// A quadrature encoder through the matrix, as IDF's rotary_encoder example wires it: channel 0
     /// counts A's edges with B as control, channel 1 B's edges with A; four counts per detent cycle.
-    /// The C6 routes with SIG_IN_SEL; the P4 has none, and its control constant 0x3E reads low.
+    /// Both chips route with SIG_IN_SEL (bit 7), as `gpio_matrix_in` writes it; the P4's
+    /// constants are 0x3F high and 0x3E low.
     #[test]
     fn quadrature_through_the_matrix() {
-        for (layout, select, one) in [(PcntLayout::C6, 0x80, 0x38), (PcntLayout::P4, 0, 0x3f)] {
+        let select = 0x80;
+        for (layout, one) in [(PcntLayout::C6, 0x38), (PcntLayout::P4, 0x3f)] {
             let mut p = Pcnt::new(layout);
             let mut gpio = crate::Gpio::with_pins(31);
             let (a, b) = (p.signals(0, 0), p.signals(0, 1));
@@ -180,15 +186,20 @@ mod tests {
             gpio.set_input(0, true); gpio.set_input(2, true);
             gpio.input_changes.clear();
             for (pin, level) in [(0, false), (2, false), (0, true), (2, true)] { gpio.set_input(pin, level); }
-            p.matrix_edges(&mut gpio, select, one);
+            p.matrix_edges(&mut gpio);
             assert_eq!((p.cnt[0], gpio.input_changes.len()), (4, 0), "{layout:?}");
             for (pin, level) in [(2, false), (0, false), (2, true), (0, true)] { gpio.set_input(pin, level); }
-            p.matrix_edges(&mut gpio, select, one);
+            p.matrix_edges(&mut gpio);
             assert_eq!(p.cnt[0], 0, "{layout:?}");
             // A constant control input: low (0x3C on the C6, 0x3E on the P4) inverts channel 0.
             gpio.func_in_sel[a.1 as usize] = select | if one == 0x38 { 0x3c } else { 0x3e };
             gpio.set_input(0, false);
-            p.matrix_edges(&mut gpio, select, one);
+            p.matrix_edges(&mut gpio);
+            assert_eq!(p.cnt[0], -1, "{layout:?}");
+            // Without SIG_IN_SEL the pulse input is not routed: its pin's edges do not count.
+            gpio.func_in_sel[a.0 as usize] = 0;
+            gpio.set_input(0, true);
+            p.matrix_edges(&mut gpio);
             assert_eq!(p.cnt[0], -1, "{layout:?}");
         }
     }
