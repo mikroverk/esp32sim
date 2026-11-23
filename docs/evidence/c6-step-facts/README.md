@@ -1,6 +1,6 @@
 # RV32 result-only execution (EX263)
 
-Rebased base: upstream main `c693fe897f2b6ce39aa93bf14eba7810e17cba40`. Rust 1.99.0.
+Rebased base: upstream main `c693fe897f2b6ce39aa93bf14eba7810e17cba40`. The maintainer's x86 run used Rust 1.100.0; historical measurements below retain their recorded toolchain.
 
 Earlier results below use either `3f49dad86878afca429508a7a8b2e8f0bf38ea6e` or `04f07602dba76eb6704b8901c989c9c9c1f8b42a` and their respective candidates; they are historical and do not establish current codegen or performance. EX265 added RV32 decoded blocks; this experiment instead requests inlining for the result-only interpreter path. Main retains `#[inline]` on `exec_insn` after the EX265 follow-up found forcing it inline slowed C3. This rebase only adds `#[inline(always)]` on `step_outcome`.
 
@@ -57,7 +57,7 @@ AArch64 release `--bins`, base `c693fe897f2b6ce39aa93bf14eba7810e17cba40` versus
 
 WASM release comparison (`wasm-c693.json`): 3,508 named function texts identical, 31 changed, 41 added and 41 removed; outlined `step_outcome` functions six to zero. `wasm-dis` type indices are resolved to signatures, but other symbol and layout changes remain, so this is literal text, not semantic equivalence. Module size is 4,660,205 → 4,726,598 bytes; `gzip -n` size is 1,360,880 → 1,387,586 bytes. Module SHA-256: base `96d386556edba33a291395ca1253891a66fe22325277d0720789e934687b87b2`, candidate `1feb8f96d4cc41bf6c65fd3014a0f5587d0bd263f7e96cba8d49ce11773434bc`.
 
-Reproduce with disposable base and candidate worktrees at the two revisions above and separate target directories. In each worktree, set `CARGO_TARGET_DIR` to its own absolute target directory and symlink `target` to it, then run `nice -n 10 cargo +1.99.0 build --release --bins` and save `target/release/esp32sim-c6`. Run `python3 docs/evidence/c6-step-facts/codegen.py BASE_C6 CANDIDATE_C6 OUT` from the candidate tree (uses `xcrun llvm-objdump`); it writes `OUT/codegen.json`. In each worktree run `RUSTUP_TOOLCHAIN=1.99.0 nice -n 10 tools/wasm-build.sh` and save `web/wasm/esp32sim.wasm`; run `wasm-dis BASE.wasm -o BASE.wat`, `wasm-dis CANDIDATE.wasm -o CANDIDATE.wat`, then `python3 docs/evidence/c6-step-facts/compare_wat.py BASE.wat CANDIDATE.wat OUT.json`. Use `shasum -a 256`, `wc -c` and `gzip -n -c FILE | wc -c` on the saved modules for hashes and sizes. These are selected-symbol and text comparisons, not whole-binary identity or runtime measurements.
+To repeat this comparison with Rust 1.100.0, use disposable base and candidate worktrees at the two revisions above and separate target directories. The recorded codegen and hashes above were produced with Rust 1.99.0; a 1.100.0 rerun is not expected to reproduce them byte-for-byte. In each worktree, set `CARGO_TARGET_DIR` to its own absolute target directory and symlink `target` to it, then run `nice -n 10 cargo +1.100.0 build --release --bins` and save `target/release/esp32sim-c6`. Run `python3 docs/evidence/c6-step-facts/codegen.py BASE_C6 CANDIDATE_C6 OUT` from the candidate tree (uses `xcrun llvm-objdump`); it writes `OUT/codegen.json`. In each worktree run `RUSTUP_TOOLCHAIN=1.100.0 nice -n 10 tools/wasm-build.sh` and save `web/wasm/esp32sim.wasm`; run `wasm-dis BASE.wasm -o BASE.wat`, `wasm-dis CANDIDATE.wasm -o CANDIDATE.wat`, then `python3 docs/evidence/c6-step-facts/compare_wat.py BASE.wat CANDIDATE.wat OUT.json`. Use `shasum -a 256`, `wc -c` and `gzip -n -c FILE | wc -c` on the saved modules for hashes and sizes. These are selected-symbol and text comparisons, not whole-binary identity or runtime measurements.
 
 ## Historical code generation (base 3f49dad8)
 
@@ -88,7 +88,7 @@ The selected native hot-code result is not a whole-module identity claim for WAS
 
 ## Rebase checks
 
-On `c693fe89` versus `7a0d64e7`, the ROM-enabled release workspace test with `--include-ignored --skip external_` passed 1,855 tests. Native and WASM `-D warnings` clippy both exit 101 on base and candidate on the same pre-existing `needless_range_loop` at `esp32s31/src/soc.rs:410`.
+On `c693fe89` versus `7a0d64e7`, the ROM-enabled release workspace test with `--include-ignored --skip external_` passed 1,855 tests. With Rust 1.99.0, native and WASM `-D warnings` clippy both exit 101 on base and candidate on the same pre-existing `needless_range_loop` at `esp32s31/src/soc.rs:410`. The maintainer reports both Clippy commands pass on main `c693fe89` with Rust 1.100.0.
 
 The following earlier checks were run against base `3f49dad8`, not `c693fe89`. With an empty HOME and explicit Rustup/Cargo paths, Rust 1.99.0 (the following workspace counts are from the original rebase checks before adding the CLIC test):
 
@@ -140,7 +140,26 @@ with other builds in the same worktree.
 
 ## CPU comparison
 
-PENDING against rebased base `c693fe89`; no runtime effect is established for this comparison. The table below is historical, not the rebase comparison.
+Our formal Mac CPU table against `c693fe89` is pending a quiet night window and will be added. Build both sides for that run with `nice -n 10 cargo +1.100.0 build --release --bins`. The table immediately below is the maintainer's x86 run, not our pending Mac table; the later Mac table is historical and not the rebase comparison.
+
+### Maintainer x86 comparison against c693fe89
+
+The maintainer compared the result-only `step_outcome` inline change merged with main `c693fe89` against that main, on Linux x86_64, i9-12900F, Rust 1.100.0, pinned with `taskset -c 4` to one P-core. Load was approximately 1 on 24 threads. User CPU came from child rusage; perf counters were unavailable. After one warmup, 11 rounds alternated order. Instruction counts and console SHA-256 matched across runs; a main-versus-main A/A arm stayed within ±0.43%.
+
+| Workload (guest duration) | Main user CPU | Result-only delta | Slower pairs |
+| --- | ---: | ---: | ---: |
+| c6-energy-scan (10 s) | 11.95 s | −9.9% | 0/11 |
+| c6-contiki (12 s) | 2.33 s | −6.0% | 0/11 |
+| c6-hello (30 s) | 2.40 s | −4.2% | 0/11 |
+| c6-wifi-station (14 s) | 1.58 s | −2.6% | 0/11 |
+| c3-wifi-station (14 s) | 2.34 s | −0.9% | 0/11 |
+| s31-hello (30 s) | 6.72 s | −0.5% | 0/11 |
+| c3-hello (30 s) | 4.01 s | +1.8% | 11/11 |
+| p4-hello (10 s) | 6.77 s | +2.1% | 11/11 |
+
+A second run reproduced C3 hello at +2.0% and P4 hello at +2.5% (both 11/11 slower), and the C6 gains within 0.5 percentage points. An alignment check using `-C llvm-args=-align-all-functions=6` moved main alone by up to ±5%; aligned candidate versus aligned main retained the signs (C3 hello about +4%, P4 hello about +2%, C6 −4% to −9%). Restricting forced inlining to `exec::step` gave identical numbers. The measured trade-off on this machine is a C6 gain of 2.6–9.9%, a small consistent cost on C3 and P4 hello, and a neutral S31 hello result (−0.5%); the alignment check does not suggest the C3/P4 cost is merely an alignment accident.
+
+### Historical Mac comparison (old base)
 
 Base `04f07602dba76eb6704b8901c989c9c9c1f8b42a`; candidate `dd72abaa7b30bc92ec5c0d2ce16c306b42503616`. On 2026-11-01 03:02–03:03 CET, unprobed rustc 1.99.0 release binaries ran on macOS AArch64, measuring user CPU with `/usr/bin/time -l` at 0.01 s resolution: one warmup and seven alternating pairs per workload, with sampled load 1.65–2.33. Each run stopped at scheduler count 1,600,000,000 and had identical console SHA-256 within its workload: hello `d5d1f41f315b6ba0f33ff9dc55ca01abb7256791bd21d6caac9442f665b689c0`, display starter `1e6395a895a9d9663bd4aaf22cbd3049c60d546e87b2c86e3ab248ba4547215b`. Retirement equality comes from the separate post-run reporting build described above, not from the timed binaries.
 
