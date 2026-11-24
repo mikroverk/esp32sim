@@ -1310,7 +1310,8 @@ fn a_nak_while_renewing_gives_the_address_up_and_starts_again_with_discover() {
     assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 0));
     // the DISCOVER ended the refused exchange: the new lease counts from its own REQUEST, not the renewal's
     let requests = requests_sent(&mut sta);
-    assert_eq!((requests.len(), sta.lease_times().0), (2, requests[1] + 20_000_000), "{requests:?}");
+    assert_eq!(requests.len(), 2, "{requests:?}");
+    assert_eq!(sta.lease_times().0, requests[1] + 20_000_000, "{requests:?}");
 }
 
 #[test]
