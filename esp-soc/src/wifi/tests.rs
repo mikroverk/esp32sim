@@ -1237,8 +1237,9 @@ fn an_ack_while_renewing_binds_again_with_its_new_times() {
     let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
     let sent = g.run(&mut sta, leased, leased + 50_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
     let at: Vec<u64> = dhcp_sent(&sent, leased).iter().map(|(t, r)| { assert_eq!(r.eth_dst, crate::net::VirtualNet::new(false).gw_mac); *t }).collect();
-    // each ACK starts T1 again from its REQUEST: the second renewal 20 s after the first one, and a step
-    assert!(at.len() == 2 && at[0] <= 20_000_000 && (20_000_000..20_010_000).contains(&(at[1] - at[0])), "{at:?}");
+    // each ACK starts T1 again from its REQUEST: the second renewal 20 s after the first one, in
+    // the 1 ms step after; counted from the ACK, it would be a round trip later
+    assert!(at.len() == 2 && at[0] <= 20_000_000 && (20_000_000..20_002_000).contains(&(at[1] - at[0])), "{at:?}");
     assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 2));
     assert!(sta.report().contains(", 2 lease renewals"), "{}", sta.report());
 }
@@ -1295,16 +1296,21 @@ fn a_reboot_keeps_the_keepalive_and_renewal_counts() {
 fn a_nak_while_renewing_gives_the_address_up_and_starts_again_with_discover() {
     let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
     let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
-    let mut nak_once = true;
-    let mut nak = |mut r: Vec<u8>| {
+    let (mut nak_once, mut lease_100) = (true, ack_with(100, Some((20, 40))));
+    let mut nak = |r: Vec<u8>| {
+        let mut r = lease_100(r)?;
         if let Some(i) = r.windows(3).position(|w| w == [53, 1, 5]).filter(|_| nak_once) { r[i + 2] = 6; nak_once = false; }
         Some(r)
     };
+    sta.take_sent();
     let sent = g.run(&mut sta, leased, leased + 21_000_000, &|_| {}, &mut nak);
     let kinds: Vec<(u8, bool)> = dhcp_sent(&sent, leased).iter().map(|(_, r)| (r.kind, r.ciaddr == [0; 4])).collect();
     // the renewal, then DISCOVER and REQUEST from nothing, and the address leased again
     assert_eq!(kinds, [(3, false), (1, true), (3, true)]);
     assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 0));
+    // the DISCOVER ended the refused exchange: the new lease counts from its own REQUEST, not the renewal's
+    let requests = requests_sent(&mut sta);
+    assert_eq!((requests.len(), sta.lease_times().0), (2, requests[1] + 20_000_000), "{requests:?}");
 }
 
 #[test]

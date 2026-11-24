@@ -529,7 +529,9 @@ impl VirtualSta {
     /// renewing ones' (`lease_timer` takes a new one only at T1), so an ACK may answer any REQUEST
     /// of the exchange: the station keeps the first one's time. The server counts from a REQUEST it
     /// received, never from before the first went out, so the station's lease does not end after
-    /// the server's.
+    /// the server's. A rebinding ACK so counts from T1: with a T2 past twice T1 (options 58 and 59;
+    /// ESP-IDF v5.5.4's server sends neither) its new T1 has already passed, and the station renews
+    /// again at once, counting two renewals.
     fn dhcp_send(&mut self, now_us: u64) {
         let (request, held) = (self.dhcp != Dhcp::Discovering, matches!(self.dhcp, Dhcp::Renewing | Dhcp::Rebinding));
         let ciaddr = if held { self.lease.unwrap_or([0; 4]) } else { [0; 4] };
