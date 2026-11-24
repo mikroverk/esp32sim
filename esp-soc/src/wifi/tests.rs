@@ -1418,3 +1418,145 @@ fn a_renewal_without_an_answer_is_sent_again_after_half_the_time_left_at_least_6
     assert_eq!(at.iter().find(|a| a.1 == 1).map(|a| a.0), Some(7201));
     assert_eq!(sta.lease, None);
 }
+
+// ------------------------------------------------------- `--hostfwd` through the virtual station
+/// The guest's side for the forwarding tests: `VirtualAp` as its access point, `VirtualNet`'s DHCP
+/// server behind it (10.0.2.2, which leases the station 10.0.2.15), and a web server on port 80 at
+/// the server's address that answers one request with `RESPONSE` and its FIN.
+struct WebGuest { ap: VirtualAp, net: crate::net::VirtualNet, request: Vec<u8>, our_seq: u32, syns: Vec<Vec<u8>> }
+
+const RESPONSE: &[u8] = b"HTTP/1.0 200 OK\r\n\r\nfrom the guest";
+
+impl WebGuest {
+    fn new() -> Self { WebGuest { ap: VirtualAp::new(config(), false), net: crate::net::VirtualNet::new(false), request: Vec::new(), our_seq: 7000, syns: Vec::new() } }
+
+    /// `link` and the guest from `from_us` to `to_us` in 100 us steps, as a chip's bus drives the
+    /// link: the guest's frames to the station, the network step, the station's frames to the guest.
+    fn run(&mut self, link: &mut StationLink, from_us: u64, to_us: u64) {
+        for now in (from_us..to_us).step_by(100) {
+            for a in self.ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+            link.net_step(now);
+            let Some(f) = link.next_rx(now, false) else { continue };
+            let Some(eth) = self.ap.on_station_tx(&with_fcs_slot(f), now).and_then(|d| data_to_eth(&d)) else { continue };
+            let replies = if eth.len() >= 54 && eth[12..14] == [0x08, 0x00] && eth[23] == 6 { self.tcp(&eth) } else { self.net.handle(&eth, now) };
+            for r in replies { if let Some(f) = self.ap.data_from_ds(&r) { self.ap.queue.push(AirFrame { at_us: now, frame: f }); } }
+        }
+    }
+
+    /// The web server: a SYN gets a SYN-ACK, the request the response and a FIN.
+    fn tcp(&mut self, eth: &[u8]) -> Vec<Vec<u8>> {
+        // the IP total length, as the frame still ends in the FCS slot's 4 bytes
+        let (ip, seg) = (&eth[14..34], &eth[34..14 + u16::from_be_bytes([eth[16], eth[17]]) as usize]);
+        let (src, sport, seq, flags) = ([ip[12], ip[13], ip[14], ip[15]], u16::from_be_bytes([seg[0], seg[1]]), u32::from_be_bytes(seg[4..8].try_into().unwrap()), seg[13]);
+        let data = &seg[(seg[12] >> 4) as usize * 4..];
+        let reply = |flags: u8, seq: u32, ack: u32, data: &[u8], net: &crate::net::VirtualNet| {
+            let mut t = [&80u16.to_be_bytes()[..], &sport.to_be_bytes(), &seq.to_be_bytes(), &ack.to_be_bytes(), &[0x50, flags, 0x16, 0xd0, 0, 0, 0, 0], data].concat();
+            let c = crate::net::packet::transport_checksum(&net.gw_ip, &src, 6, &t);
+            t[16..18].copy_from_slice(&c.to_be_bytes());
+            crate::net::packet::ethernet(&eth[6..12].try_into().unwrap(), &net.gw_mac, 0x0800, &crate::net::packet::ip_packet(6, &net.gw_ip, &src, &t))
+        };
+        if flags & 0x02 != 0 {
+            self.syns.push(eth.to_vec());
+            return vec![reply(0x12, self.our_seq, seq.wrapping_add(1), &[], &self.net)];
+        }
+        if data.is_empty() || !self.request.is_empty() { return Vec::new(); }
+        self.request = data.to_vec();
+        vec![reply(0x19, self.our_seq + 1, seq.wrapping_add(data.len() as u32), RESPONSE, &self.net)]   // FIN, PSH, ACK
+    }
+}
+
+/// A station link with a NAT listening for `--hostfwd tcp:127.0.0.1:0-:80` to the guest's access
+/// point, and the address it bound.
+fn forwarding_link() -> (StationLink, std::net::SocketAddr) {
+    let mut link = StationLink::default();
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    let mut transport = crate::nat::StdTransport::new();
+    let bound = transport.listen(&crate::nat::HostFwdSpec::parse_to("tcp:127.0.0.1:0-:80", crate::nat::HostFwdSpec::TO_ACCESS_POINT).unwrap()).unwrap();
+    let mut nat = crate::nat::Nat::with_transport(false, Box::new(transport));
+    nat.hostfwd = 1;
+    link.set_nat(Some(nat), false).unwrap();
+    (link, bound)
+}
+
+/// A host connection made before the station joins waits for its lease, then reaches the guest's
+/// web server from the station's address: the request in, the response and the FIN out.
+#[test]
+fn hostfwd_through_the_station_reaches_the_guests_server_from_its_lease() {
+    use std::io::{Read, Write};
+    let (mut link, bound) = forwarding_link();
+    assert!(link.has_net());
+    let mut host = std::net::TcpStream::connect(bound).unwrap();
+    host.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
+    host.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    let mut g = WebGuest::new();
+    g.run(&mut link, 0, 1_500_000);
+    let sta = link.station().unwrap();
+    assert_eq!((sta.state, sta.lease), (sta::StaLink::Joined, Some([10, 0, 2, 15])));
+    assert_eq!(g.syns.len(), 1, "one SYN, once the station had its lease");
+    let syn = &g.syns[0];
+    assert_eq!((&syn[0..6], &syn[6..12]), (&g.net.gw_mac[..], &sta.cfg.mac[..]), "to the DHCP server's MAC, from the station's");
+    assert_eq!((&syn[26..30], &syn[30..34], &syn[36..38]), (&[10u8, 0, 2, 15][..], &g.net.gw_ip[..], &[0u8, 80][..]));
+    assert_eq!(g.request, b"GET / HTTP/1.0\r\n\r\n");
+    let mut got = Vec::new();
+    host.read_to_end(&mut got).unwrap();
+    assert_eq!(got, RESPONSE);
+    let report = link.report();
+    assert!(report.contains("[emu] nat: 1 TCP connections (0 failed, 1 inbound, 1 hostfwd)"), "{report}");
+}
+
+/// The station leaving the access point ends its lease, and with it the forwarded connections:
+/// the host's is reset. The next lease takes new ones.
+#[test]
+fn hostfwd_through_the_station_resets_its_connections_when_the_lease_goes() {
+    use std::io::{Read, Write};
+    let (mut link, bound) = forwarding_link();
+    let mut g = WebGuest::new();
+    g.run(&mut link, 0, 1_000_000);
+    let mut host = std::net::TcpStream::connect(bound).unwrap();
+    host.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
+    g.run(&mut link, 1_000_000, 1_100_000);
+    assert_eq!(g.syns.len(), 1, "the connection is through");
+    let mac = link.station().unwrap().cfg.mac;
+    let mut deauth = g.ap.beacon_like(12, &mac, 0)[..24].to_vec();
+    deauth.extend_from_slice(&3u16.to_le_bytes());
+    link.station_tx(&with_fcs_slot(deauth), 1_100_000);
+    link.net_step(1_100_100);
+    let mut buf = [0; 16];
+    match host.read(&mut buf) {
+        Ok(0) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
+        r => panic!("the host's connection should be reset: {r:?}"),
+    }
+    // the station joins again from the next beacon and takes its lease; a new connection goes through
+    g.ap = VirtualAp::new(config(), false);
+    let mut again = std::net::TcpStream::connect(bound).unwrap();
+    again.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
+    again.write_all(b"GET /again").unwrap();
+    g.request.clear();
+    g.run(&mut link, 1_100_200, 4_000_000);
+    assert_eq!(g.request, b"GET /again");
+    assert!(!link.report().contains("lost"), "the new connection waited for the lease: {}", link.report());
+    let mut got = Vec::new();
+    again.read_to_end(&mut got).unwrap();
+    assert_eq!(got, RESPONSE);
+}
+
+/// Without `--hostfwd` the station has no NAT: no network to step and no `[emu] nat:` line. A NAT
+/// survives a guest reboot, waiting for the next lease.
+#[test]
+fn the_station_has_a_network_only_with_a_nat_and_keeps_it_across_a_reboot() {
+    let mut link = StationLink::default();
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    assert!(!link.has_net());
+    let mut g = WebGuest::new();
+    g.run(&mut link, 0, 1_000_000);
+    assert!(link.station().unwrap().lease.is_some() && !link.report().contains("[emu] nat:"), "{}", link.report());
+    let (link, _) = forwarding_link();
+    let link = link.surviving_reboot();
+    assert!(link.has_net() && link.report().contains("[emu] nat:"), "{}", link.report());
+    let mut plain = StationLink::default();
+    plain.attach(Some(VirtualAp::new(config(), false)), Some(crate::net::VirtualNet::new(false)));
+    assert!(plain.has_net(), "the access point's network");
+    plain.attach(None, None);
+    assert!(!plain.has_net());
+}

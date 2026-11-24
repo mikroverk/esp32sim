@@ -150,7 +150,9 @@ pub trait SocBus: Bus {
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
     /// Replace the NAT of the network `attach_wifi` put up (`StationLink::set_nat`), keeping the
-    /// access point and the lease: the browser build hands it a `QueueTransport`.
+    /// access point and the lease: the browser build hands it a `QueueTransport`. With the virtual
+    /// station of `attach_wifi_station` attached, the NAT goes behind it instead and carries the
+    /// `--hostfwd` forwards to the guest's own access point.
     fn attach_nat(&mut self, _nat: Option<crate::nat::Nat>, _local_ntp: bool) -> Result<(), String> { Err("this chip has no WiFi".into()) }
     /// Drain complete Ethernet frames without FCS, in transmit order. Empty outside relay mode.
     fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> { Vec::new() }

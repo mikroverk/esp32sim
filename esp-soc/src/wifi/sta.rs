@@ -65,6 +65,11 @@ pub enum StaLink { Listening, Authenticating, Associating, Handshake, Joined }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Dhcp { Idle, Discovering, Requesting, Bound, Renewing, Rebinding }
 
+/// The station's place on the guest's network while it holds a lease (`VirtualSta::peer`): its
+/// address, and the DHCP server that leased it, by address (option 54) and MAC (the ACK's source).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Peer { pub ip: [u8; 4], pub server: [u8; 4], pub server_mac: [u8; 6] }
+
 pub struct VirtualSta {
     pub cfg: StaConfig,
     pub log: bool,
@@ -149,6 +154,15 @@ impl VirtualSta {
     pub fn channel(&self) -> u8 { self.channel }
     /// The guest access point's BSSID, from its beacon; zero before the station heard one.
     pub fn bssid(&self) -> [u8; 6] { self.bssid }
+
+    /// The lease the station holds as the host on the guest's network, with its server; None
+    /// before the lease and after it ends, which leaving the access point and the relay switched
+    /// on (`set_host`) also do, and from a server whose ACK named no server (option 54, which
+    /// RFC 2131 4.3.1 requires).
+    pub fn peer(&self) -> Option<Peer> {
+        let ip = self.lease?;
+        (self.server != [0; 4] && self.server_mac != [0; 6]).then_some(Peer { ip, server: self.server, server_mac: self.server_mac })
+    }
 
     /// The guest rebooted: its access point and everything it knew of the station are gone.
     pub fn restart(&mut self) {

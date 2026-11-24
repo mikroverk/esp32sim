@@ -596,6 +596,7 @@ impl esp_soc::SocBus for SocBus {
         let log = self.debug.has("wifi-frames");
         self.inner.wifi_mac.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))
     }
+    fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.inner.wifi_mac.link.set_nat(nat, local_ntp) }
     /// The host on the other end of the high-speed USB-OTG port (DR_REG_USB_OTGHS_BASE).
     fn attach_usb_host(&mut self, timing: esp_periph::usb_otg::UsbTiming) -> Result<(), String> {
         let now = self.cycles;

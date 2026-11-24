@@ -31,3 +31,18 @@ fn every_chip_with_wifi_accepts_the_wifi_sta_option() {
         assert!(!stderr.contains("--pcap requires") && !stderr.contains("panicked"), "{chip}: {stderr}");
     }
 }
+
+/// `--hostfwd` beside `--wifi-sta` forwards to the guest's own access point: without a guest
+/// address to the DHCP server that leases the station its address, with one to that address.
+#[test]
+fn hostfwd_beside_wifi_sta_forwards_to_the_guests_access_point() {
+    for chip in ["esp32", "s3", "c3", "c6", "s31"] {
+        let (code, stderr) = esp32sim(&["--chip", chip, "--wifi-sta", "ssid=lab", "--hostfwd", "tcp:127.0.0.1:0-:80", "--hostfwd", "udp:127.0.0.1:0-192.168.4.1:7", "--max-insns", "1"]);
+        assert!(!stderr.contains("--hostfwd requires") && !stderr.contains("panicked"), "{chip}: {code:?} {stderr}");
+        assert!(stderr.contains("[emu] hostfwd tcp 127.0.0.1:") && stderr.contains("-> the guest's access point:80"), "{chip}: {stderr}");
+        assert!(stderr.contains("[emu] hostfwd udp 127.0.0.1:") && stderr.contains("-> 192.168.4.1:7"), "{chip}: {stderr}");
+    }
+    let (code, stderr) = esp32sim(&["--chip", "esp32", "--hostfwd", "tcp:127.0.0.1:0-:80", "--max-insns", "1"]);
+    assert_eq!(code, Some(2), "{stderr}");
+    assert!(stderr.contains("--hostfwd requires --wifi or --wifi-sta"), "{stderr}");
+}

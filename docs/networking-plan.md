@@ -19,7 +19,9 @@ MAC is handled by two layers in front of the host network:
   `/etc/resolv.conf`. `--hostfwd tcp:127.0.0.1:8080-:80` listens on the host and delivers
   accepted connections as SYNs from the gateway to the station; `--hostfwd udp:…` delivers a host
   UDP port's datagrams, each sender from a gateway port of its own, and sends the replies back. `--net none` refuses outbound
-  traffic instead (immediate RST).
+  traffic instead (immediate RST). With the guest as the access point (`--wifi-sta`), the same
+  NAT sits behind the virtual station and carries only the `--hostfwd` forwards, from the
+  station's leased address to the guest's access point.
 
 No libslirp, no tun device, no entitlement, no root. TLS works: the panel fetches
 `https://www.elprisetjustnu.se` and polls Home Assistant on the LAN. That needed the RSA/MPI
