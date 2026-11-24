@@ -41,8 +41,8 @@ pub struct Lsm6ds3 {
     pub reads: u64,
     /// Shared motion selector: mode 0 holds the posture, mode 1 replays the handling script.
     motion: Arc<ImuMotion>,
-    /// Script seconds elapsed, advanced once per read transaction so runs stay reproducible.
-    phase: f64,
+    /// Ticks per second of `motion.cycle` (the guest's CPU rate).
+    clock_hz: u64,
 }
 
 impl Default for Lsm6ds3 {
@@ -51,11 +51,11 @@ impl Default for Lsm6ds3 {
 
 impl Lsm6ds3 {
     /// At rest, face up: gravity on +Z, the gyro still.
-    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default())) }
+    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default()), 1_000_000_000) }
 
     /// Share the board's motion selector so `--imu-motion 1` replays the same 30 s handling script
     /// an on-board IMU uses; mode 0 keeps the resting posture.
-    pub fn with_motion(motion: Arc<ImuMotion>) -> Self {
+    pub fn with_motion(motion: Arc<ImuMotion>, clock_hz: u64) -> Self {
         let mut d = Self {
             regs: [0; 128],
             ptr: 0,
@@ -64,7 +64,7 @@ impl Lsm6ds3 {
             gyro: [0, 0, 0],
             reads: 0,
             motion,
-            phase: 0.0,
+            clock_hz,
         };
         d.regs[REG_WHO_AM_I as usize] = LSM6DS3_WHO_AM_I_VALUE;
         d.publish();
@@ -77,6 +77,9 @@ impl Lsm6ds3 {
         self.gyro = gyro;
         self.publish();
     }
+
+    /// Script seconds, from the board clock the guest drives.
+    fn seconds(&self) -> f64 { self.motion.cycle.load(Ordering::Relaxed) as f64 / self.clock_hz as f64 }
 
     /// The accelerometer and gyro samples a driver would decode.
     pub fn samples(&self) -> ([i16; 3], [i16; 3]) { (self.accel, self.gyro) }
@@ -106,11 +109,10 @@ impl Lsm6ds3 {
 impl I2cDevice for Lsm6ds3 {
     fn start(&mut self, read: bool) -> bool {
         if read {
-            // Each read transaction advances the script a fixed half second, so a driver polling at
-            // any rate walks the same trajectory and two runs produce identical samples.
-            self.phase += 0.5;
+            // Sampled in guest time, like an on-board IMU: two drivers polling at different rates
+            // describe the same motion, and a run with no elapsed cycles stays put.
             if self.motion.mode.load(Ordering::Relaxed) != 0 {
-                let (a, g) = motion_script_screen(self.phase);
+                let (a, g) = motion_script_screen(self.seconds());
                 self.accel = [
                     (a[0] * ONE_G as f64) as i16,
                     (a[1] * ONE_G as f64) as i16,
@@ -201,6 +203,18 @@ mod tests {
         assert_eq!((axis(0), axis(1), axis(2)), (0, 0, ONE_G));
     }
 
+    /// ST's driver resets by writing 0x01 to CTRL3_C. A model whose reset cleared nothing kept the
+    /// old ODR and full scale in CTRL1_XL, and every test still passed.
+    #[test]
+    fn a_software_reset_clears_the_control_registers() {
+        let mut d = Lsm6ds3::new();
+        d.start(false); d.write(0x10); d.write(0x60);        // CTRL1_XL: 416 Hz, ±2 g
+        assert_eq!(read_at(&mut d, 0x10, 1), [0x60]);
+        d.start(false); d.write(REG_CTRL3_C); d.write(CTRL3_SW_RESET);
+        assert_eq!(read_at(&mut d, 0x10, 1), [0x00], "the reset must clear CTRL1_XL");
+        assert_eq!(read_at(&mut d, REG_WHO_AM_I, 1), [LSM6DS3_WHO_AM_I_VALUE], "the ID survives");
+    }
+
     #[test]
     fn a_configured_sample_replaces_the_default_posture() {
         let mut d = Lsm6ds3::new();
@@ -221,13 +235,16 @@ mod tests {
         assert_eq!(i16::from_le_bytes([b[4], b[5]]), ONE_G);
     }
 
+    /// The script is sampled at `cycle / clock_hz`, so two drivers polling at different rates see
+    /// the same motion and a run without elapsed cycles never moves.
     #[test]
-    fn motion_mode_one_moves_the_accelerometer() {
+    fn motion_mode_one_moves_the_accelerometer_with_guest_time() {
         let motion = Arc::new(ImuMotion::default());
         motion.mode.store(1, Ordering::Relaxed);
-        let mut d = Lsm6ds3::with_motion(motion);
+        let mut d = Lsm6ds3::with_motion(motion.clone(), 1_000_000_000);
         let mut xs = Vec::new();
-        for _ in 0..20 {
+        for i in 0..20u64 {
+            motion.cycle.store(i * 1_500_000_000, Ordering::Relaxed);
             let b = read_at(&mut d, REG_OUTX_L_XL, 6);
             xs.push(i16::from_le_bytes([b[0], b[1]]));
         }
@@ -235,9 +252,21 @@ mod tests {
     }
 
     #[test]
+    fn reads_at_one_instant_hold_the_posture() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Ordering::Relaxed);
+        motion.cycle.store(6_000_000_000, Ordering::Relaxed);
+        let mut d = Lsm6ds3::with_motion(motion, 1_000_000_000);
+        let first = read_at(&mut d, REG_OUTX_L_XL, 6);
+        for _ in 0..4 {
+            assert_eq!(read_at(&mut d, REG_OUTX_L_XL, 6), first, "guest time has not moved");
+        }
+    }
+
+    #[test]
     fn motion_mode_zero_holds_the_resting_posture() {
         let motion = Arc::new(ImuMotion::default());
-        let mut d = Lsm6ds3::with_motion(motion);
+        let mut d = Lsm6ds3::with_motion(motion, 1_000_000_000);
         for _ in 0..10 {
             let b = read_at(&mut d, REG_OUTX_L_XL, 6);
             let axis = |i: usize| i16::from_le_bytes([b[i * 2], b[i * 2 + 1]]);

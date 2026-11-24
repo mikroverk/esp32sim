@@ -217,14 +217,19 @@ impl DeviceSpec {
                 }
                 let bus = fields[0].parse::<u32>()
                     .map_err(|_| format!("--device: bus {:?} is not a number in {s:?}", fields[0]))?;
+                // The S3 has two I2C controllers; a third index would index past the bus table.
+                if bus > 1 {
+                    return Err(format!("--device: bus {bus} outside 0..1 in {s:?}"));
+                }
                 let a = fields[1];
                 let addr = if let Some(hex) = a.strip_prefix("0x").or_else(|| a.strip_prefix("0X")) {
                     u8::from_str_radix(hex, 16).ok()
                 } else {
                     a.parse::<u32>().ok().and_then(|d| u8::try_from(d).ok())
-                }.ok_or_else(|| format!("--device: bad I2C address {a:?} (0x03..0x77)"))?;
-                if addr == 0 || addr > 0x7f {
-                    return Err(format!("--device: I2C address {a:?} outside 7-bit range 0x03..0x77"));
+                }.ok_or_else(|| format!("--device: bad I2C address {a:?} (0x08..0x77)"))?;
+                // 0x00-0x07 and 0x78-0x7f are the reserved 7-bit addresses; no part sits there.
+                if !(0x08..=0x77).contains(&addr) {
+                    return Err(format!("--device: I2C address {a:?} outside the usable 7-bit range 0x08..0x77"));
                 }
                 Ok(DeviceSpec::I2c { bus: byte(bus, "bus")?, addr, model: kind })
             }
@@ -258,6 +263,36 @@ impl DeviceSpec {
     }
 }
 
+/// Reject specs that would make the board ambiguous: two I2C parts on one address, or a second
+/// panel of a kind the board has one slot for. Without this the later spec silently replaced the
+/// earlier device or shared its framebuffer.
+pub fn validate_specs(specs: &[DeviceSpec]) -> Result<(), String> {
+    let mut addrs: Vec<(u8, u8)> = Vec::new();
+    let mut panels: Vec<&'static str> = Vec::new();
+    for spec in specs {
+        let panel = match spec {
+            DeviceSpec::St7735 { .. } | DeviceSpec::Ili9341 { .. } => Some("a DCS panel (st7735/ili9341)"),
+            DeviceSpec::Nt7534 { .. } => Some("an nt7534 panel"),
+            DeviceSpec::Co5300 { .. } => Some("a co5300 panel"),
+            DeviceSpec::Ws2812 { .. } => None,
+            DeviceSpec::I2c { bus, addr, model } => {
+                if addrs.contains(&(*bus, *addr)) {
+                    return Err(format!("--device: another device already answers on bus {bus} at address {addr:#04x}"));
+                }
+                addrs.push((*bus, *addr));
+                if model == "sh1106" { Some("an sh1106 panel") } else { None }
+            }
+        };
+        if let Some(label) = panel {
+            if panels.contains(&label) {
+                return Err(format!("--device: this board already carries {label}"));
+            }
+            panels.push(label);
+        }
+    }
+    Ok(())
+}
+
 /// A user-defined bare board: only the SoC, with the devices listed in `specs` wired on their real
 /// buses. Created by the CLI for `--board custom --device ...`. No preset peripherals are attached.
 pub struct ConfigurableBoard {
@@ -284,6 +319,11 @@ pub struct ConfigurableBoard {
     gpio_events: u64,
     /// GP-SPI master transactions, recorded for `--buslog` (host, bytes). Capped.
     spi_tx_log: Vec<(u8, Vec<u8>)>,
+    /// Ticks per second of a guest cycle, so the scripted motion is sampled in guest time.
+    clock_hz: u64,
+    /// Whether `--buslog` asked for the decoded bus activity. Off means nothing is recorded and
+    /// nothing is printed, which is what keeps a plain run's memory and stderr flat.
+    buslog: bool,
 }
 
 /// Monochrome panel RAM shared between a device (which writes it) and the board (which shows it).
@@ -312,16 +352,19 @@ impl ConfigurableBoard {
     /// Keep the bit-banged panels' decoded transactions for `--buslog`. Off by default: a guest
     /// renders megabytes of pixels through these buses, and without the flag nothing reads them.
     pub fn record_buslog(&mut self) {
+        self.buslog = true;
         if let Some(spi) = self.bitbang.as_mut() { spi.record(true); }
         if let Some(spi) = self.nt7534_spi.as_mut() { spi.record(true); }
     }
 
-    pub fn new(specs: Vec<DeviceSpec>) -> Self {
+    /// `clock_hz` is the guest's CPU rate: the scripted motion is sampled at `cycle / clock_hz`
+    /// seconds, so a sensor on this board moves on guest time like a preset board's does.
+    pub fn new(specs: Vec<DeviceSpec>, clock_hz: u64) -> Self {
         let mut board = ConfigurableBoard {
             specs, motion: std::sync::Arc::new(crate::devices::imu_motion::ImuMotion::default()),
             tft: None, tft_label: "ST7735 (SPI)", bitbang: None, dc_pin: None, panel: None, panel_host: None,
             sh1106: None, nt7534: None, nt7534_driver: None, nt7534_spi: None, nt7534_rs: None,
-            strips: Vec::new(), gpio_events: 0, spi_tx_log: Vec::new(),
+            strips: Vec::new(), gpio_events: 0, spi_tx_log: Vec::new(), clock_hz, buslog: false,
         };
         for spec in board.specs.clone() {
             match spec {
@@ -417,6 +460,13 @@ impl BoardModel for ConfigurableBoard {
     /// Only the bit-banged panels read pin levels; an I2C-only board needs no edge polling.
     fn uses_gpio_edges(&self) -> bool { self.bitbang.is_some() || self.nt7534_spi.is_some() }
 
+    fn advance_to(&mut self, cycle: VirtualCycle) {
+        // The scripted motion is sampled in guest time. Storing the clock here is what makes an
+        // I2C sensor on a bare board move like the same part on a preset board; without it the
+        // clock stayed at 0 and mode 1 never left its first frame.
+        self.motion.cycle.store(cycle, std::sync::atomic::Ordering::Relaxed);
+    }
+
     fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
         self.gpio_events += changes.len() as u64;
         for &(pin, level) in changes {
@@ -439,8 +489,9 @@ impl BoardModel for ConfigurableBoard {
 
     fn spi_tx(&mut self, host: u8, data: &[u8]) {
         // Record for `--buslog`: AI reads these transactions to verify a display's command
-        // sequence without a waveform viewer. Cap both count and bytes per transaction.
-        if self.spi_tx_log.len() < 256 {
+        // sequence without a waveform viewer. Cap both count and bytes per transaction, and keep
+        // nothing at all unless the flag asked for it.
+        if self.buslog && self.spi_tx_log.len() < 256 {
             let take = data.len().min(64);
             self.spi_tx_log.push((host, data[..take].to_vec()));
         }
@@ -460,11 +511,11 @@ impl BoardModel for ConfigurableBoard {
             DeviceSpec::I2c { bus, addr, model } => {
                 let dev: Box<dyn I2cDevice> = match model.as_str() {
                     "bmp280" => Box::new(devices::Bmp280::new()),
-                    "bmi270" => Box::new(devices::Bmi270::new(self.motion.clone(), 1_000_000)),
-                    "bmm150" => Box::new(devices::Bmm150::new(devices::Bmm150Trim::default())),
+                    "bmi270" => Box::new(devices::Bmi270::new(self.motion.clone(), self.clock_hz)),
+                    "bmm150" => Box::new(devices::Bmm150::with_motion(devices::Bmm150Trim::default(), self.motion.clone(), self.clock_hz)),
                     "ft5x06" => Box::new(devices::Ft5x06::new(pts.clone())),
-                    "aht20" => Box::new(devices::Aht20::with_motion(self.motion.clone())),
-                    "lsm6ds3" => Box::new(devices::Lsm6ds3::with_motion(self.motion.clone())),
+                    "aht20" => Box::new(devices::Aht20::with_motion(self.motion.clone(), self.clock_hz)),
+                    "lsm6ds3" => Box::new(devices::Lsm6ds3::with_motion(self.motion.clone(), self.clock_hz)),
                     "sh1106" => {
                         let ram = self.sh1106.clone().unwrap_or_else(mono_ram);
                         Box::new(devices::Sh1106::new(ram))
@@ -530,29 +581,35 @@ impl BoardModel for ConfigurableBoard {
     fn gpio_events(&self) -> u64 { self.gpio_events }
     fn report(&self) -> String {
         let mut out = String::new();
+        // Hex of at most `take` bytes, with the real length when the frame is longer. Building it
+        // from every byte is what put a 460 KB line in the report for one full-screen ILI9341 write.
+        let hex = |bytes: &[u8], take: usize| -> String {
+            let shown = &bytes[..bytes.len().min(take)];
+            let mut s = shown.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
+            if bytes.len() > take { s.push_str(&format!(" … ({} bytes)", bytes.len())); }
+            s
+        };
         // Decoded bit-bang SPI transactions — the readable form of the GPIO edges a
-        // software-driven panel (ST7735/ILI9341/NT7534) puts on the wire.
-        if !self.spi_tx_log.is_empty() {
+        // software-driven panel (ST7735/ILI9341/NT7534) puts on the wire. Neither section is
+        // printed unless `--buslog` asked: a plain run must not grow a report per frame.
+        if self.buslog && !self.spi_tx_log.is_empty() {
             out.push_str(&format!("[buslog] gpspi: {} master transactions (host, first 64 bytes)\n", self.spi_tx_log.len()));
             for (i, (host, bytes)) in self.spi_tx_log.iter().take(24).enumerate() {
-                let hex = bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
-                out.push_str(&format!("[buslog]   #{:<3} host{} {}", i + 1, host, hex));
-                out.push('\n');
+                out.push_str(&format!("[buslog]   #{:<3} host{} {}\n", i + 1, host, hex(bytes, 64)));
             }
             if self.spi_tx_log.len() > 24 { out.push_str(&format!("[buslog]   … {} more\n", self.spi_tx_log.len() - 24)); }
         }
-        for (label, spi) in [("dcs", self.bitbang.as_ref()), ("nt7534", self.nt7534_spi.as_ref())] {
-            let Some(spi) = spi else { continue };
-            let frames = spi.frames();
-            if frames.is_empty() { continue; }
-            out.push_str(&format!("[buslog] {label}: {} CS transactions (MSB-first)\n", frames.len()));
-            for (i, bytes) in frames.iter().take(24).enumerate() {
-                let hex = bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
-                out.push_str(&format!("[buslog]   #{:<3} {}", i + 1, hex));
-                if bytes.len() > 16 { out.push_str(&format!(" … ({} bytes)", bytes.len())); }
-                out.push('\n');
+        if self.buslog {
+            for (label, spi) in [("dcs", self.bitbang.as_ref()), ("nt7534", self.nt7534_spi.as_ref())] {
+                let Some(spi) = spi else { continue };
+                let frames = spi.frames();
+                if frames.is_empty() { continue; }
+                out.push_str(&format!("[buslog] {label}: {} CS transactions (MSB-first)\n", frames.len()));
+                for (i, bytes) in frames.iter().take(24).enumerate() {
+                    out.push_str(&format!("[buslog]   #{:<3} {}\n", i + 1, hex(bytes, 16)));
+                }
+                if frames.len() > 24 { out.push_str(&format!("[buslog]   … {} more transactions\n", frames.len() - 24)); }
             }
-            if frames.len() > 24 { out.push_str(&format!("[buslog]   … {} more transactions\n", frames.len() - 24)); }
         }
         if let Some(tft) = &self.tft {
             out.push_str(&format!("[emu] tft: {} RAMWR, {} pixels, madctl={:#x}\n", tft.frames, tft.pixels_written, tft.madctl));
@@ -623,7 +680,7 @@ mod configurable_tests {
             DeviceSpec::parse("0:0x38:aht20").unwrap(),
             DeviceSpec::parse("1:0x6a:lsm6ds3").unwrap(),
         ];
-        let mut board = ConfigurableBoard::new(specs);
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
         let devs = board.i2c_devices();
         assert_eq!(devs.len(), 6);
         assert_eq!((devs[0].0, devs[0].1), (0, 0x76));
@@ -639,7 +696,7 @@ mod configurable_tests {
             DeviceSpec::parse("2:1:41:40:st7735").unwrap(),
             DeviceSpec::parse("2:368:448:16:co5300").unwrap(),
         ];
-        let mut board = ConfigurableBoard::new(specs);
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
         assert!(board.i2c_devices().is_empty(), "SPI/GPIO devices must not show up on I2C");
         assert!(board.uses_gpio_edges(), "the bit-banged panel needs pin edges");
 
@@ -654,7 +711,7 @@ mod configurable_tests {
     #[test]
     fn bit_banged_panel_decodes_dc_and_clocked_bytes() {
         let specs = vec![DeviceSpec::parse("2:1:41:40:st7735").unwrap()];
-        let mut board = ConfigurableBoard::new(specs);
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
         // CS low, then clock 0x29 (display on) out MSB first with D/C low.
         board.gpio_changes(&[(41, false)]);
         for bit in 0..8 {
@@ -667,7 +724,7 @@ mod configurable_tests {
     #[test]
     fn ili9341_panel_is_the_240x320_module() {
         let specs = vec![DeviceSpec::parse("2:1:41:40:ili9341").unwrap()];
-        let mut board = ConfigurableBoard::new(specs);
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
         assert_eq!(board.display().map(|d| (d.0, d.1)), Some((240, 320)));
         assert_eq!(board.display_frames(), 0, "no RAMWR yet");
         // CS low, then a clocked 0x11 (sleep out) with D/C low: the panel leaves sleep.
@@ -685,7 +742,7 @@ mod configurable_tests {
             DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
             DeviceSpec::parse("2:1:41:40:nt7534").unwrap(),
         ];
-        let mut board = ConfigurableBoard::new(specs);
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
         assert_eq!(board.i2c_devices().len(), 1, "the SH1106 is the only I2C device");
         assert_eq!(board.display().map(|d| (d.0, d.1)), Some((128, 64)));
         assert!(board.uses_gpio_edges(), "the NT7534 needs pin edges");
@@ -714,7 +771,7 @@ mod configurable_tests {
             DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
             DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
         ];
-        let board = ConfigurableBoard::new(specs);
+        let board = ConfigurableBoard::new(specs, 1_000_000_000);
         assert_eq!(board.extra_displays(), 1, "one panel beyond what display() publishes");
         assert_eq!(board.display_label(0), "ILI9341 240×320 (SPI)");
         assert_eq!(board.display_label(1), "SH1106 1.3\" (I2C)");
@@ -727,7 +784,7 @@ mod configurable_tests {
             DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
             DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
         ];
-        let mut board = ConfigurableBoard::new(specs);
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
         let (w, h, pixels, version) = board.extra_display(0, u64::MAX).expect("the OLED is slot 1");
         assert_eq!((w, h), (128, 64));
         assert_eq!(pixels.len(), 128 * 64);
@@ -747,5 +804,116 @@ mod configurable_tests {
         }
         let moved = board.extra_display(0, version).expect("the panel moved");
         assert_ne!(moved.3, version);
+    }
+
+    /// Two I2C controllers exist on the S3, and 0x00-0x07 / 0x78-0x7f are the reserved 7-bit
+    /// addresses: a spec naming either used to index past the bus table or claim a part that
+    /// cannot exist, and the message quoted a range the check did not enforce.
+    #[test]
+    fn rejects_out_of_range_buses_and_reserved_addresses() {
+        assert!(DeviceSpec::parse("2:0x76:bmp280").is_err(), "bus 2 would index past the bus table");
+        assert!(DeviceSpec::parse("0:0x00:bmp280").is_err(), "0x00 is reserved");
+        assert!(DeviceSpec::parse("0:0x78:aht20").is_err(), "0x78 is reserved");
+        assert!(DeviceSpec::parse("0:0x08:aht20").is_ok(), "0x08 is the first usable address");
+        assert!(DeviceSpec::parse("0:0x77:bmp280").is_ok(), "0x77 is the last usable address");
+    }
+
+    /// Silently replacing the earlier device hid a wiring mistake: the board has one slot per
+    /// (bus, address) and one framebuffer per panel kind.
+    #[test]
+    fn rejects_duplicate_addresses_and_second_panels() {
+        let dup_addr = vec![
+            DeviceSpec::parse("0:0x76:bmp280").unwrap(),
+            DeviceSpec::parse("0:0x76:aht20").unwrap(),
+        ];
+        let e = validate_specs(&dup_addr).unwrap_err();
+        assert!(e.contains("bus 0") && e.contains("0x76"), "{e}");
+
+        let dup_dcs = vec![
+            DeviceSpec::parse("2:1:41:40:st7735").unwrap(),
+            DeviceSpec::parse("2:1:41:40:ili9341").unwrap(),
+        ];
+        assert!(validate_specs(&dup_dcs).is_err(), "st7735 and ili9341 share one DCS slot");
+
+        let dup_oled = vec![
+            DeviceSpec::parse("0:0x3c:sh1106").unwrap(),
+            DeviceSpec::parse("1:0x3d:sh1106").unwrap(),
+        ];
+        assert!(validate_specs(&dup_oled).is_err(), "both would share one mono RAM");
+    }
+
+    /// Clock 40 bytes into the bit-banged panel, one CS pulse.
+    fn clock_40_bytes(board: &mut ConfigurableBoard) {
+        board.gpio_changes(&[(41, false)]);
+        for byte in 0..40u8 {
+            for bit in 0..8 {
+                let level = byte & (0x80 >> bit) != 0;
+                board.gpio_changes(&[(1, level), (2, true), (2, false)]);
+            }
+        }
+    }
+
+    /// `--buslog` is what turns the decoded transactions on: without it nothing is recorded, and
+    /// with it the hex stops at 16 bytes instead of printing a whole frame (one full-screen
+    /// ILI9341 write used to put 460 KB on a single line).
+    #[test]
+    fn the_bus_log_is_off_by_default_and_truncates_when_on() {
+        let specs = vec![DeviceSpec::parse("2:1:41:40:st7735").unwrap()];
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
+        clock_40_bytes(&mut board);
+        let quiet = board.report();
+        assert!(!quiet.contains("[buslog]"), "a plain run prints no bus log:\n{quiet}");
+
+        let specs = vec![DeviceSpec::parse("2:1:41:40:st7735").unwrap()];
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
+        board.record_buslog();
+        clock_40_bytes(&mut board);
+        let loud = board.report();
+        assert!(loud.contains("[buslog] dcs: 1 CS transactions"), "{loud}");
+        assert!(loud.contains("(40 bytes)"), "the suffix must say what was left out:\n{loud}");
+        let line = loud.lines().find(|l| l.contains("#1")).expect("transaction line");
+        assert!(line.len() < 40 * 3, "the hex must be truncated, not printed whole: {line}");
+    }
+
+    /// The board has to store the guest clock: without it `--imu-motion 1` never left its first
+    /// frame on a bare board, because the sensor samples `cycle / clock_hz`.
+    #[test]
+    fn the_guest_clock_reaches_the_sensors() {
+        let specs = vec![DeviceSpec::parse("0:0x6a:lsm6ds3").unwrap()];
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
+        assert!(board.set_imu_motion(1), "a custom board accepts the motion selector");
+        let mut imu = board.i2c_devices().pop().expect("the LSM6DS3").2;
+        let read_xl = |dev: &mut Box<dyn I2cDevice>| -> [u8; 6] {
+            dev.start(false); dev.write(0x28); dev.start(true);
+            let mut out = [0u8; 6];
+            for b in out.iter_mut() { *b = dev.read(); }
+            out
+        };
+        board.advance_to(4_000_000_000);
+        let early = read_xl(&mut imu);
+        board.advance_to(18_000_000_000);
+        let late = read_xl(&mut imu);
+        assert_ne!(early, late, "the script must advance with guest time: {early:?} vs {late:?}");
+    }
+
+    /// `display_frames` divides bits by eight and bytes by 1024; a whole 128x64 frame is one frame,
+    /// not 128. Nothing caught the divisor before.
+    #[test]
+    fn a_whole_mono_frame_counts_as_one_frame() {
+        let specs = vec![DeviceSpec::parse("0:0x3c:sh1106").unwrap()];
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
+        {
+            let mut oled = board.i2c_devices().pop().expect("the SH1106").2;
+            for page in 0..8u8 {
+                oled.start(false);
+                for b in [0x00u8, 0xB0 | page, 0x00, 0x10] { oled.write(b); }
+                oled.stop();
+                oled.start(false);
+                oled.write(0x40);
+                for _ in 0..128 { oled.write(0xFF); }
+                oled.stop();
+            }
+        }
+        assert_eq!(board.display_frames(), 1, "eight pages of 128 bytes is one 128x64 frame");
     }
 }

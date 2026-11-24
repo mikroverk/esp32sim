@@ -25,20 +25,31 @@ pub struct BusLog {
     idle_fold_s: f64,
     /// Cap on emitted edge lines, so a noisy bus cannot blow up the file.
     max_lines: usize,
+    /// Cap on *recorded* edges. Writing fewer lines than were collected still meant holding every
+    /// edge: 5 s on atech14 kept 3.1 M of them and doubled the run's RSS, so recording stops here.
+    max_events: usize,
+    /// Edges seen after the cap, so the file says what it is missing.
+    dropped: usize,
 }
 
 impl BusLog {
     pub fn new(path: &str, cpu_hz: u64) -> Self {
-        Self { path: path.to_string(), cpu_hz, events: Vec::new(), idle_fold_s: 0.05, max_lines: 4000 }
+        Self { path: path.to_string(), cpu_hz, events: Vec::new(), idle_fold_s: 0.05, max_lines: 4000,
+               max_events: 200_000, dropped: 0 }
     }
     /// Override the idle-gap folding threshold (seconds).
     pub fn with_idle_fold(mut self, seconds: f64) -> Self { self.idle_fold_s = seconds; self }
+    /// Override how many edges are recorded at all; later ones are counted, not kept.
+    pub fn with_max_events(mut self, edges: usize) -> Self { self.max_events = edges; self }
 
     fn secs(&self, cycles: u64) -> f64 { cycles as f64 / self.cpu_hz as f64 }
 
     /// Record an edge. Inherent (not on the generic trait) so formatting is unit-testable
     /// without naming a concrete SoC type.
-    pub fn edge(&mut self, cycle: u64, pin: u8, level: bool) { self.events.push((cycle, pin, level)); }
+    pub fn edge(&mut self, cycle: u64, pin: u8, level: bool) {
+        if self.events.len() < self.max_events { self.events.push((cycle, pin, level)); }
+        else { self.dropped += 1; }
+    }
 
     /// Render collected edges to `self.path`; returns a one-line summary.
     pub fn render(&mut self) -> String {
@@ -49,6 +60,9 @@ impl BusLog {
         let mut out = std::io::BufWriter::new(f);
         let _ = writeln!(out, "# buslog: t=seconds since reset, g<pin>^=high g<pin>v=low");
         let _ = writeln!(out, "# {} gpio edges", self.events.len());
+        if self.dropped > 0 {
+            let _ = writeln!(out, "# {} further edges not recorded (cap {}; raise it with with_max_events)", self.dropped, self.max_events);
+        }
 
         self.events.sort_by_key(|e| e.0);
         let mut lines = 0usize;
@@ -77,9 +91,10 @@ impl BusLog {
             prev_t = t;
         }
         if i < self.events.len() {
-            let _ = writeln!(out, "# ... {} more edges omitted (raise line cap if needed)", self.events.len() - i);
+            let _ = writeln!(out, "# ... {} more recorded edges omitted (line cap {})", self.events.len() - i, self.max_lines);
         }
-        format!("[buslog] wrote {} edge lines ({}/{} edges) to {}", lines, i, self.events.len(), self.path)
+        let dropped = if self.dropped > 0 { format!(", {} not recorded", self.dropped) } else { String::new() };
+        format!("[buslog] wrote {} edge lines ({}/{} edges{}) to {}", lines, i, self.events.len(), dropped, self.path)
     }
 }
 

@@ -541,7 +541,8 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     if o.board == "custom" {
         let specs: Vec<DeviceSpec> = o.devices.iter().map(|s| DeviceSpec::parse(s).unwrap_or_else(|e| usage_error(&e))).collect();
         if specs.is_empty() { usage_error("--board custom needs at least one --device SPEC (e.g. 0:0x76:bmp280, 8:12:ws2812)"); }
-        let mut board = ConfigurableBoard::new(specs);
+        if let Err(e) = esp_soc::board::validate_specs(&specs) { usage_error(&e); }
+        let mut board = ConfigurableBoard::new(specs, esp32s3::periph::CPU_HZ);
         if o.buslog.is_some() { board.record_buslog(); }
         m.bus.board = Box::new(board);
     } else {

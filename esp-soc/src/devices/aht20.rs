@@ -52,8 +52,10 @@ pub struct Aht20 {
     pub conversions: u64,
     temperature: f32,
     humidity: f32,
-    /// Shared motion selector: mode 0 holds the reading still, mode 1 drifts it over conversions.
+    /// Shared motion selector: mode 0 holds the reading still, mode 1 drifts it.
     motion: Arc<ImuMotion>,
+    /// Ticks per second of `motion.cycle` (the guest's CPU rate).
+    clock_hz: u64,
 }
 
 impl Default for Aht20 {
@@ -61,11 +63,11 @@ impl Default for Aht20 {
 }
 
 impl Aht20 {
-    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default())) }
+    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default()), 1_000_000_000) }
 
     /// Share the board's motion selector so the same `--imu-motion` switch that moves an IMU also
-    /// drifts this sensor. Deterministic by construction: the phase is the conversion count.
-    pub fn with_motion(motion: Arc<ImuMotion>) -> Self {
+    /// drifts this sensor. Deterministic by construction: the phase is guest time, not wall clock.
+    pub fn with_motion(motion: Arc<ImuMotion>, clock_hz: u64) -> Self {
         Self {
             cmd: [0; 8],
             cmd_len: 0,
@@ -76,8 +78,12 @@ impl Aht20 {
             temperature: 25.0,
             humidity: 50.0,
             motion,
+            clock_hz,
         }
     }
+
+    /// Script seconds, from the board clock the guest drives.
+    fn seconds(&self) -> f64 { self.motion.cycle.load(Ordering::Relaxed) as f64 / self.clock_hz as f64 }
 
     /// The reading the next conversion publishes.
     pub fn set_reading(&mut self, temperature: f32, humidity: f32) {
@@ -92,15 +98,17 @@ impl Aht20 {
     /// clock would only slow a run down, so the sample is ready as soon as the trigger is taken.
     fn pack(&mut self) {
         // Mode 1 ("the 30 s handling script" switch) turns the fixed reading into a slow drift:
-        // a warm room and its humidity wandering, sampled at the conversion count. Keeping the
-        // phase on an integer counter rather than wall clock is what makes runs reproducible.
+        // a warm room and its humidity wandering, sampled in guest time like the IMU script, so
+        // two drivers converting at different rates report the same reading.
         if self.motion.mode.load(Ordering::Relaxed) != 0 {
-            let t = self.conversions as f64 * 0.5;
+            let t = self.seconds();
             self.temperature = (25.0 + 2.5 * sin(t * 0.13)) as f32;
             self.humidity = (50.0 + 12.0 * sin(t * 0.07)) as f32;
         }
-        let h = (self.humidity.clamp(0.0, 100.0) / 100.0 * FULL_SCALE).round() as u32;
-        let t = ((self.temperature.clamp(-50.0, 150.0) + 50.0) / 200.0 * FULL_SCALE).round() as u32;
+        // FULL_SCALE itself does not fit the 20-bit field (the maximum is 0xFFFFF), so 100 % or
+        // 150 °C used to wrap to 0: clamp to the largest code instead.
+        let h = (self.humidity.clamp(0.0, 100.0) / 100.0 * FULL_SCALE).round().min(FULL_SCALE - 1.0) as u32;
+        let t = ((self.temperature.clamp(-50.0, 150.0) + 50.0) / 200.0 * FULL_SCALE).round().min(FULL_SCALE - 1.0) as u32;
         self.sample[0] = STATUS_READY;
         self.sample[1] = (h >> 12) as u8;
         self.sample[2] = (h >> 4) as u8;
@@ -218,13 +226,30 @@ mod tests {
         assert_eq!(d.conversions, 0, "a reset is not a conversion");
     }
 
+    /// The 20-bit fields top out at 0xFFFFF, one below FULL_SCALE: 100 % humidity or 150 °C used
+    /// to round up to 0x100000 and read back as 0.
     #[test]
-    fn motion_mode_one_drifts_the_reading() {
+    fn the_full_scale_reading_does_not_wrap_to_zero() {
+        let mut d = Aht20::new();
+        d.set_reading(150.0, 100.0);
+        trigger(&mut d);
+        let b = read_bytes(&mut d, 7);
+        let raw_h = ((b[1] as u32) << 16 | (b[2] as u32) << 8 | b[3] as u32) >> 4;
+        let raw_t = (b[3] as u32 & 0x0f) << 16 | (b[4] as u32) << 8 | b[5] as u32;
+        assert_eq!(raw_h, 0xF_FFFF, "100 % must be the largest code, not 0");
+        assert_eq!(raw_t, 0xF_FFFF, "150 C must be the largest code, not 0");
+    }
+
+    /// The drift is a function of guest time, not of how often a driver converts: the board stores
+    /// its clock and the sensor samples it, exactly like an on-board IMU.
+    #[test]
+    fn motion_mode_one_drifts_the_reading_with_guest_time() {
         let motion = Arc::new(ImuMotion::default());
         motion.mode.store(1, Ordering::Relaxed);
-        let mut d = Aht20::with_motion(motion);
+        let mut d = Aht20::with_motion(motion.clone(), 1_000_000_000);
         let mut temps = Vec::new();
-        for _ in 0..12 {
+        for i in 0..12u64 {
+            motion.cycle.store(i * 5_000_000_000, Ordering::Relaxed);
             trigger(&mut d);
             temps.push(d.reading().0);
         }
@@ -233,9 +258,23 @@ mod tests {
     }
 
     #[test]
+    fn conversions_at_one_instant_do_not_drift() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Ordering::Relaxed);
+        motion.cycle.store(7_000_000_000, Ordering::Relaxed);
+        let mut d = Aht20::with_motion(motion, 1_000_000_000);
+        let mut temps = Vec::new();
+        for _ in 0..5 {
+            trigger(&mut d);
+            temps.push(d.reading().0);
+        }
+        assert!(temps.iter().all(|&t| t == temps[0]), "guest time has not moved: {temps:?}");
+    }
+
+    #[test]
     fn motion_mode_zero_keeps_the_reading_still() {
         let motion = Arc::new(ImuMotion::default());
-        let mut d = Aht20::with_motion(motion);
+        let mut d = Aht20::with_motion(motion, 1_000_000_000);
         let mut temps = Vec::new();
         for _ in 0..5 {
             trigger(&mut d);
