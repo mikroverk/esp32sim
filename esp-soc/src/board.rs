@@ -309,6 +309,13 @@ fn mono_display(ram: &MonoRam) -> (u32, u32, Vec<u16>, u64) {
 }
 
 impl ConfigurableBoard {
+    /// Keep the bit-banged panels' decoded transactions for `--buslog`. Off by default: a guest
+    /// renders megabytes of pixels through these buses, and without the flag nothing reads them.
+    pub fn record_buslog(&mut self) {
+        if let Some(spi) = self.bitbang.as_mut() { spi.record(true); }
+        if let Some(spi) = self.nt7534_spi.as_mut() { spi.record(true); }
+    }
+
     pub fn new(specs: Vec<DeviceSpec>) -> Self {
         let mut board = ConfigurableBoard {
             specs, motion: std::sync::Arc::new(crate::devices::imu_motion::ImuMotion::default()),
@@ -477,10 +484,8 @@ impl BoardModel for ConfigurableBoard {
             Some((tft.cols as u32, tft.rows as u32, tft.gram.clone(), tft.pixels_written))
         } else if let Some(ram) = &self.nt7534 {
             Some(mono_display(ram))
-        } else if let Some(ram) = &self.sh1106 {
-            Some(mono_display(ram))
         } else {
-            None
+            self.sh1106.as_ref().map(mono_display)
         }
     }
     fn display_version(&self) -> u64 {
@@ -695,7 +700,7 @@ mod configurable_tests {
         board.gpio_changes(&[(40, true)]);
         for _ in 0..8 {
             for bit in 0..8 {
-                let level = 0xFFu8 & (0x80 >> bit) != 0;
+                let level = (0x80 >> bit) != 0;
                 board.gpio_changes(&[(1, level), (2, true), (2, false)]);
             }
         }

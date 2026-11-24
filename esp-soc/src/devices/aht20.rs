@@ -25,6 +25,20 @@ const CMD_RESET: u8 = 0xBE;
 /// 2^20: both channels are 20-bit.
 const FULL_SCALE: f32 = 1_048_576.0;
 
+/// CRC-8 over the first six bytes of the frame, as the datasheet defines the seventh byte
+/// (v1.1 §5.4 step 4): initial value 0xFF, polynomial 0x31, no reflection, no final xor.
+/// esp-idf-lib's `aht` and Linux's `aht10` both reject a frame whose seventh byte does not match.
+fn crc8(bytes: &[u8]) -> u8 {
+    let mut crc = 0xFFu8;
+    for &b in bytes {
+        crc ^= b;
+        for _ in 0..8 {
+            crc = if crc & 0x80 != 0 { (crc << 1) ^ 0x31 } else { crc << 1 };
+        }
+    }
+    crc
+}
+
 pub struct Aht20 {
     /// Bytes written in the current transaction: a trigger/reset is three, a status read one.
     cmd: [u8; 8],
@@ -93,7 +107,10 @@ impl Aht20 {
         self.sample[3] = ((h & 0x0f) << 4) as u8 | ((t >> 16) & 0x0f) as u8;
         self.sample[4] = (t >> 8) as u8;
         self.sample[5] = t as u8;
-        self.sample[6] = 0;
+        // Byte 7 is a CRC over the six before it, not padding: the drivers named in the header
+        // drop the frame when it does not match, so an all-zero byte fails every read.
+        let crc = crc8(&self.sample[..6]);
+        self.sample[6] = crc;
         self.status = STATUS_READY;
         self.conversions += 1;
     }
@@ -172,6 +189,24 @@ mod tests {
         let b = read_bytes(&mut d, 7);
         assert_eq!(b[0], STATUS_READY);
         assert_eq!(b.len(), 7);
+    }
+
+    /// esp-idf-lib's `aht_get_data` reads seven bytes and drops the frame unless the CRC over the
+    /// first six matches (`if (size == 7 && crc8(buf, 6) != buf[6])`); Linux's `aht10` checks it
+    /// as well. The model used to send a zero there, so every reading was rejected.
+    #[test]
+    fn the_seventh_byte_is_the_crc8_over_the_first_six() {
+        let mut d = Aht20::new();
+        d.set_reading(31.9, 63.9);
+        trigger(&mut d);
+        let b = read_bytes(&mut d, 7);
+        assert_eq!(b[6], crc8(&b[..6]), "frame {b:02x?}");
+        assert_ne!(b[6], 0, "an all-zero CRC means the field is not computed");
+        // A different reading must move it: a constant would pass the check above by accident.
+        let mut e = Aht20::new();
+        e.set_reading(20.0, 40.0);
+        trigger(&mut e);
+        assert_ne!(read_bytes(&mut e, 7)[6], b[6]);
     }
 
     #[test]

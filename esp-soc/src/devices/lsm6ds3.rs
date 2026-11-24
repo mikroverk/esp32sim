@@ -92,8 +92,10 @@ impl Lsm6ds3 {
             self.regs[REG_OUTX_L_XL as usize + i * 2] = lo;
             self.regs[REG_OUTX_L_XL as usize + i * 2 + 1] = hi;
         }
-        // 25 °C at reset, in the datasheet's 1/16 °C counts, little-endian.
-        let temp = (25.0 * 16.0) as i16;
+        // 25 °C at reset. OUT_TEMP counts 1/16 °C but is zero-referenced at 25 °C, which is why
+        // ST's `lsm6ds3_from_lsb_to_celsius` divides by 16 and then adds 25: writing 25 * 16 here
+        // would read back as 50 °C.
+        let temp = 0i16;
         let [lo, hi] = temp.to_le_bytes();
         self.regs[REG_OUT_TEMP_L as usize] = lo;
         self.regs[REG_OUT_TEMP_L as usize + 1] = hi;
@@ -178,6 +180,17 @@ mod tests {
         let s = read_at(&mut d, REG_STATUS, 1)[0];
         assert_eq!(s & 0x01, 1, "XLDA: accelerometer data ready");
         assert_eq!(s & 0x02, 2, "GDA: gyroscope data ready");
+    }
+
+    /// ST's driver converts with `lsb / 16 + 25`, so the reset reading has to be 0 counts: a model
+    /// that wrote 25 * 16 reported 50 °C.
+    #[test]
+    fn the_die_temperature_reads_25_centigrade_at_reset() {
+        let mut d = Lsm6ds3::new();
+        let b = read_at(&mut d, REG_OUT_TEMP_L, 2);
+        let lsb = i16::from_le_bytes([b[0], b[1]]);
+        assert_eq!(lsb as f32 / 16.0 + 25.0, 25.0);
+        assert_eq!(lsb, 0);
     }
 
     #[test]

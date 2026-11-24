@@ -111,10 +111,8 @@ fn timing_cycles(value: &str, name: &str) -> Result<u32, String> {
 }
 
 fn validate_timing(o: &Opts) -> Result<(), String> {
-    if o.board == "custom" || !o.devices.is_empty() {
-        if !matches!(o.chip.as_str(), "s3" | "esp32s3") {
-            return Err("--board custom / --device require --chip s3".into());
-        }
+    if (o.board == "custom" || !o.devices.is_empty()) && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
+        return Err("--board custom / --device require --chip s3".into());
     }
     if o.approximate_timing && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
         return Err("--approximate-timing, --approximate-memory and --approximate-cache require --chip s3".into());
@@ -543,7 +541,9 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     if o.board == "custom" {
         let specs: Vec<DeviceSpec> = o.devices.iter().map(|s| DeviceSpec::parse(s).unwrap_or_else(|e| usage_error(&e))).collect();
         if specs.is_empty() { usage_error("--board custom needs at least one --device SPEC (e.g. 0:0x76:bmp280, 8:12:ws2812)"); }
-        m.bus.board = Box::new(ConfigurableBoard::new(specs));
+        let mut board = ConfigurableBoard::new(specs);
+        if o.buslog.is_some() { board.record_buslog(); }
+        m.bus.board = Box::new(board);
     } else {
         if !o.devices.is_empty() { usage_error("--device requires --board custom"); }
         m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none, custom)", o.board); std::process::exit(2) });

@@ -79,9 +79,9 @@ impl<S: Soc> Machine<S> {
                 }
             }
             if self.ws.px_sent_extra.len() != slots - 1 { self.ws.px_sent_extra = vec![u64::MAX; slots - 1]; }
-            for i in 0..slots - 1 {
-                let Some((w_, h_, px, version)) = board.extra_display(i, self.ws.px_sent_extra[i]) else { continue };
-                self.ws.px_sent_extra[i] = version;
+            for (i, sent) in self.ws.px_sent_extra.iter_mut().enumerate() {
+                let Some((w_, h_, px, version)) = board.extra_display(i, *sent) else { continue };
+                *sent = version;
                 w.send_binary(&display_indexed_message(i + 1, w_, h_, &px));
             }
         }
