@@ -1,8 +1,8 @@
 # RV32 result-only execution (EX263)
 
-Rebased base: upstream main `c693fe897f2b6ce39aa93bf14eba7810e17cba40`. The maintainer's x86 run used Rust 1.100.0; historical measurements below retain their recorded toolchain.
+Rebased base: upstream main `816246c86fe8395a16bbf95538e9bd9d6d8356a3` (includes #383). The maintainer's x86 run used Rust 1.100.0; historical measurements below retain their recorded toolchain.
 
-Earlier results below use either `3f49dad86878afca429508a7a8b2e8f0bf38ea6e` or `04f07602dba76eb6704b8901c989c9c9c1f8b42a` and their respective candidates; they are historical and do not establish current codegen or performance. EX265 added RV32 decoded blocks; this experiment instead requests inlining for the result-only interpreter path. Main retains `#[inline]` on `exec_insn` after the EX265 follow-up found forcing it inline slowed C3. This rebase only adds `#[inline(always)]` on `step_outcome`.
+Earlier results below use `c693fe897f2b6ce39aa93bf14eba7810e17cba40`, `3f49dad86878afca429508a7a8b2e8f0bf38ea6e` or `04f07602dba76eb6704b8901c989c9c9c1f8b42a` and their respective candidates; they are historical and do not establish current codegen or performance. EX265 added RV32 decoded blocks; this experiment instead requests inlining for the result-only interpreter path. Main retains `#[inline]` on `exec_insn` after the EX265 follow-up found forcing it inline slowed C3. This rebase only adds `#[inline(always)]` on `step_outcome`.
 
 ## Change and scope
 
@@ -10,9 +10,12 @@ Request inlining of the existing `step_outcome` into its callers. The
 result-only execution loop can discard observing-only facts without creating a
 second interpreter. Fetches, retirement, cycles, traps, IRQs, device accesses,
 and instruction budgets are unchanged. The RV32 core is shared by C3, C6 and
-P4; there is no new state or public API. Historical code size grew; current
-selected native code is compared below. Static codegen
+P4; there is no new state or public API. Historical code size grew; the selected native comparisons below are historical and have not been regenerated for this base. Static codegen
 alone does not establish a speedup or rule out a layout regression.
+
+## Interaction with code versions (#383)
+
+The C3, C6 and P4 buses now supply page versions used by the decoded-block cache. When blocks are enabled and versions are available, `Core::run` dispatches to `block::run`; writes that change fetched code advance the corresponding versions so cached blocks can be invalidated. With blocks disabled or no page versions, `Core::run` uses the result-only `exec::step` loop. The block path also calls `step_outcome` for slow-path events. The inline request changes neither the dispatch condition nor version tracking or instruction semantics. The prior results below were measured before #383; the relative frequency and performance of these paths on this base remain unmeasured.
 
 ## Historical rebase screening (base 3f49dad8, 2026-11-23)
 
@@ -51,9 +54,9 @@ offset: without that correction three base machine functions differ only in
 that address syntax. This is a selected-function check, not a whole-binary
 identity claim.
 
-## Code generation against c693fe89
+## Historical code generation against c693fe89 (not this rebase)
 
-AArch64 release `--bins`, base `c693fe897f2b6ce39aa93bf14eba7810e17cba40` versus implementation `7a0d64e7517312b2957de8a79fb65a80ddc43d5c`: `codegen-c693.json` compares 218 selected normalized symbols (186 identical, 32 changed, added or removed). C6 outlined `step_outcome` is 3,157 static operations on base and absent on the candidate. S31 `Core::run` changes from 1,452 to 1,160 operations, and `block::run` becomes a separate 2,759-operation symbol (absent as a separate symbol on base). This outlining is a compiler consequence of the sole runtime source change, the `step_outcome` inline request; there is no source-level block change. Static body sizes are not executed instruction counts; the runtime effect is unproven.
+These native and WASM measurements predate #383 and do not establish code generation on `816246c8`. AArch64 release `--bins`, base `c693fe897f2b6ce39aa93bf14eba7810e17cba40` versus implementation `7a0d64e7517312b2957de8a79fb65a80ddc43d5c`: `codegen-c693.json` compares 218 selected normalized symbols (186 identical, 32 changed, added or removed). C6 outlined `step_outcome` is 3,157 static operations on base and absent on the candidate. S31 `Core::run` changes from 1,452 to 1,160 operations, and `block::run` becomes a separate 2,759-operation symbol (absent as a separate symbol on base). This outlining is a compiler consequence of the sole runtime source change, the `step_outcome` inline request; there is no source-level block change. Static body sizes are not executed instruction counts; the runtime effect is unproven.
 
 WASM release comparison (`wasm-c693.json`): 3,508 named function texts identical, 31 changed, 41 added and 41 removed; outlined `step_outcome` functions six to zero. `wasm-dis` type indices are resolved to signatures, but other symbol and layout changes remain, so this is literal text, not semantic equivalence. Module size is 4,660,205 → 4,726,598 bytes; `gzip -n` size is 1,360,880 → 1,387,586 bytes. Module SHA-256: base `96d386556edba33a291395ca1253891a66fe22325277d0720789e934687b87b2`, candidate `1feb8f96d4cc41bf6c65fd3014a0f5587d0bd263f7e96cba8d49ce11773434bc`.
 
@@ -61,7 +64,7 @@ To repeat this comparison with Rust 1.100.0, use disposable base and candidate w
 
 ## Historical code generation (base 3f49dad8)
 
-The following native and WASM results are for `3f49dad8` and its candidate, not `c693fe89`.
+The following native and WASM results are for `3f49dad8` and its candidate, not `816246c8`.
 
 The native AArch64 release `--bins` comparison (`codegen-rebase.json`) selects 196 functions, 168 identical and 28 changed, added or removed. The outlined C6 `step_outcome` has 3,149 static operations on base and is absent in the candidate. This is a selected-symbol comparison, not a whole-binary identity or a dynamic performance proof.
 
@@ -86,11 +89,15 @@ instruction counts. P4 codegen changes because it uses the same interpreter.
 
 The selected native hot-code result is not a whole-module identity claim for WASM.
 
-## Rebase checks
+## Checks on 816246c8 rebase
+
+With empty HOME and explicit Cargo/Rustup paths, native workspace and release WASM jit-tests Clippy with Rust 1.100.0 and `-D warnings` passed. Rust 1.99.0 ROM-enabled release workspace tests with `--no-fail-fast -- --include-ignored --skip external_` passed 1,914 tests; the plain release workspace passed 1,831 with 117 ignored. The WASM build and eight demos listed below passed, as did the evidence privacy checker. In a separate worktree, `mutate-rebase.py` killed all three runtime mutants by test failures; `outline-mut-rebase.py` killed the inline-removal mutant via the emitted-code gate. These checks do not establish current-base timing or a complete codegen comparison.
+
+## Historical rebase checks (c693fe89 and earlier)
 
 On `c693fe89` versus `7a0d64e7`, the ROM-enabled release workspace test with `--include-ignored --skip external_` passed 1,855 tests. With Rust 1.99.0, native and WASM `-D warnings` clippy both exit 101 on base and candidate on the same pre-existing `needless_range_loop` at `esp32s31/src/soc.rs:410`. The maintainer reports both Clippy commands pass on main `c693fe89` with Rust 1.100.0.
 
-The following earlier checks were run against base `3f49dad8`, not `c693fe89`. With an empty HOME and explicit Rustup/Cargo paths, Rust 1.99.0 (the following workspace counts are from the original rebase checks before adding the CLIC test):
+The following earlier checks were run against base `3f49dad8`, not `816246c8`. With an empty HOME and explicit Rustup/Cargo paths, Rust 1.99.0 (the following workspace counts are from the original rebase checks before adding the CLIC test):
 
 - Native workspace/all-targets and release WASM JIT-feature clippy with `-D warnings`: both exit 101 on base and candidate. In each paired gate, error lines and locations are identical: `clippy::needless_range_loop` at `esp32s31/src/soc.rs:410`, pre-existing on main, unchanged; candidate adds zero diagnostics.
 - ROM-enabled `cargo +1.99.0 test --release --workspace --no-fail-fast -- --include-ignored --skip external_`: 1,851 passed, zero failed.
@@ -140,9 +147,9 @@ with other builds in the same worktree.
 
 ## CPU comparison
 
-Our formal Mac CPU table against `c693fe89` is pending a quiet night window and will be added. Build both sides for that run with `nice -n 10 cargo +1.100.0 build --release --bins`. The table immediately below is the maintainer's x86 run, not our pending Mac table; the later Mac table is historical and not the rebase comparison.
+Our formal Mac CPU table against `816246c8` is pending a quiet night window and will be added. Build both sides for that run with `nice -n 10 cargo +1.100.0 build --release --bins`. The table immediately below is the maintainer's x86 run, not our pending Mac table; the later Mac table is historical and not the rebase comparison.
 
-### Maintainer x86 comparison against c693fe89
+### Historical maintainer x86 comparison against c693fe89
 
 The maintainer compared the result-only `step_outcome` inline change merged with main `c693fe89` against that main, on Linux x86_64, i9-12900F, Rust 1.100.0, pinned with `taskset -c 4` to one P-core. Load was approximately 1 on 24 threads. User CPU came from child rusage; perf counters were unavailable. After one warmup, 11 rounds alternated order. Instruction counts and console SHA-256 matched across runs; a main-versus-main A/A arm stayed within ±0.43%.
 
