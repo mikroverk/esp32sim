@@ -56,12 +56,13 @@ its datagram lost (`inbound turned away` in the `[emu] nat:` line).
 
 With the guest as the access point (`--wifi-sta`), `--hostfwd` reaches the guest's servers through
 the virtual station: `--wifi-sta ssid=yourAP,psk=yourPassword --hostfwd tcp:127.0.0.1:8080-:80`,
-and a browser on the Mac opens the firmware's own pages at `http://127.0.0.1:8080/`, a captive
+and a browser on the host opens the firmware's own pages at `http://127.0.0.1:8080/`, a captive
 portal included. The SYN, or the datagram, comes from the address the guest's DHCP server leased
 the station (192.168.4.2 with ESP-IDF's SoftAP) and goes to that server's address (192.168.4.1),
 or to the GUEST address given. Connections and datagrams wait until the station has a lease; when
 it loses the lease (it left the access point, the guest rebooted or stopped its access point) the
-forwarded connections are reset, and new ones wait for the next. There is no gateway behind a
+forwarded connections are closed, and new ones wait for the next. A GUEST address given is used as
+it is: `--wifi`'s 10.0.2.15 is not on the guest's network, so leave it empty. There is no gateway behind a
 station: the guest's own connections to the station are not relayed to the host, and `--net` does
 not apply. In a manual run Arduino-ESP32's `WiFiAccessPoint` example, unmodified, served its page
 to `curl` this way on the classic ESP32, S3, C3 and C6.

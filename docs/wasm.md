@@ -312,7 +312,8 @@ The other way to give the guest the real network keeps `VirtualNet` and its NAT 
 and hands the page only socket operations, one level above the Ethernet relay: the page relays
 connects, bytes and closes per flow (a WebSocket per flow, say), not frames, and DHCP, ARP and the
 guest's TCP stay here. Configure the AP with `esp32sim_wifi`, then call `esp32sim_nat_relay(e,
-flags)`, before or after boot (S3, C3, C6, the classic ESP32, and the P4's C6). The NAT runs over
+flags)`, before or after boot (S3, C3, C6, the classic ESP32, and the P4's C6; the S31 takes the
+call too, not tried through the page). The NAT runs over
 `esp_soc::nat::QueueTransport`; after each run slice take the records and answer with events
 before the next one.
 

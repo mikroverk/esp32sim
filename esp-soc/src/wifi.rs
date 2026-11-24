@@ -557,8 +557,6 @@ pub struct StationLink {
     /// frames from the relay that the virtual station could not carry: taken while it was joined,
     /// they came up after it had left the access point
     relay_lost: u64,
-    /// frames the virtual station's NAT sent that it could not carry, as it was not joined
-    fwd_lost: u64,
     /// the network monitor (`--pcap`, the board page's Network panel): every Ethernet frame the
     /// station sends and receives; it survives `attach` and a guest reboot
     tap: Option<crate::netcap::NetTap>,
@@ -573,7 +571,9 @@ pub struct StationLink {
     /// an access point or a virtual station is attached (`on_air`): kept as one flag because
     /// the chips test it every scheduling round, WiFi in use or not
     air: bool,
-    /// a network or the virtual station's NAT is attached (`has_net`), for the same reason
+    /// a network or the virtual station's NAT is attached (`has_net`), for the same reason: kept
+    /// equal to `net.is_some() || sta_nat.is_some()` wherever either is set (`attach`, `set_nat`,
+    /// `surviving_reboot`)
     netted: bool,
 }
 
@@ -683,7 +683,10 @@ impl StationLink {
     pub fn on_air(&self) -> bool { self.air }
     /// A network to step (`net_step`): the access point's, or the NAT behind the virtual station.
     #[inline]
-    pub fn has_net(&self) -> bool { self.netted }
+    pub fn has_net(&self) -> bool {
+        debug_assert_eq!(self.netted, self.net.is_some() || self.sta_nat.is_some());
+        self.netted
+    }
     /// The address-match bits of a received frame's `rx_ctrl` word 0 (bits 28 to 30), as the S3,
     /// C3, C6 and S31 MACs set them; the classic ESP32 has its own (`esp32/src/wifi.rs`). libpp
     /// takes the interface a frame is for from them, as `wDev_ProcessRxSucData` does in the
@@ -759,7 +762,7 @@ impl StationLink {
                 let sent = self.sta.as_mut().map_or(Vec::new(), |s| {
                     s.host_rx(&eth, now_us);
                     // a forwarded flow's segment or datagram, and what the NAT answers at once
-                    if let Some(nat) = self.sta_nat.as_mut() { for e in nat.from_guest(&eth, now_us) { if !s.data_to_ds(&e, now_us) { self.fwd_lost += 1; } } }
+                    if let Some(nat) = self.sta_nat.as_mut() { for e in nat.from_guest(&eth, now_us) { s.data_to_ds(&e, now_us); } }
                     s.take_sent()
                 });
                 for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
@@ -905,8 +908,9 @@ impl StationLink {
     }
 
     /// The NAT behind the virtual station: it follows the station's lease (`VirtualSta::peer`),
-    /// aborting its flows when the lease goes or changes, and reads the host's sockets every
-    /// `NET_POLL_US`. What it sends goes to the guest through the station, while it is joined.
+    /// dropping its flows when the lease goes or changes (the host's connections are closed; the
+    /// guest hears nothing, as from a station that has gone), and reads the host's sockets every
+    /// `NET_POLL_US`. What it sends goes to the guest through the station.
     fn sta_net_step(&mut self, now_us: u64) {
         let (Some(nat), Some(s)) = (self.sta_nat.as_mut(), self.sta.as_mut()) else { return };
         let peer = s.peer();
@@ -918,7 +922,8 @@ impl StationLink {
         }
         if now_us.wrapping_sub(self.net_polled_us) < NET_POLL_US { return; }
         self.net_polled_us = now_us;
-        for e in nat.poll(now_us) { if !s.data_to_ds(&e, now_us) { self.fwd_lost += 1; } }
+        // with a lease the station is joined (leaving ends the lease), so it carries every frame
+        for e in nat.poll(now_us) { s.data_to_ds(&e, now_us); }
     }
 
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
@@ -959,7 +964,6 @@ impl StationLink {
             let mut relay = String::new();
             if self.tx_dropped > 0 { relay += &format!(", {} frames from the access point the relay could not take", self.tx_dropped); }
             if self.relay_lost > 0 { relay += &format!(", {} relayed frames lost as the station had left", self.relay_lost); }
-            if self.fwd_lost > 0 { relay += &format!(", {} forwarded frames lost as the station had left", self.fwd_lost); }
             lines.push(format!("{}{relay}", s.report()));
         }
         if let Some(t) = &self.sta_nat { lines.push(nat_line(t)); }

@@ -1505,9 +1505,10 @@ fn hostfwd_through_the_station_reaches_the_guests_server_from_its_lease() {
 }
 
 /// The station leaving the access point ends its lease, and with it the forwarded connections:
-/// the host's is reset. The next lease takes new ones.
+/// the host's is closed. A connection made while the station has no lease opens no flow; the next
+/// lease takes it.
 #[test]
-fn hostfwd_through_the_station_resets_its_connections_when_the_lease_goes() {
+fn hostfwd_through_the_station_closes_its_connections_when_the_lease_goes() {
     use std::io::{Read, Write};
     let (mut link, bound) = forwarding_link();
     let mut g = WebGuest::new();
@@ -1525,7 +1526,7 @@ fn hostfwd_through_the_station_resets_its_connections_when_the_lease_goes() {
     match host.read(&mut buf) {
         Ok(0) => {}
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
-        r => panic!("the host's connection should be reset: {r:?}"),
+        r => panic!("the host's connection should be closed: {r:?}"),
     }
     // the station joins again from the next beacon and takes its lease; a new connection goes through
     g.ap = VirtualAp::new(config(), false);
@@ -1533,9 +1534,12 @@ fn hostfwd_through_the_station_resets_its_connections_when_the_lease_goes() {
     again.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
     again.write_all(b"GET /again").unwrap();
     g.request.clear();
-    g.run(&mut link, 1_100_200, 4_000_000);
+    // the station listens again 1 s after leaving: until it has a lease the connection waits
+    g.run(&mut link, 1_100_200, 1_900_000);
+    assert!(link.station().unwrap().lease.is_none());
+    assert_eq!(link.sta_nat.as_ref().unwrap().tcp_flow_counts().active, 0, "no flow without a lease");
+    g.run(&mut link, 1_900_000, 4_000_000);
     assert_eq!(g.request, b"GET /again");
-    assert!(!link.report().contains("lost"), "the new connection waited for the lease: {}", link.report());
     let mut got = Vec::new();
     again.read_to_end(&mut got).unwrap();
     assert_eq!(got, RESPONSE);

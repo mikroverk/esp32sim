@@ -155,7 +155,7 @@ the NAT of `--wifi`'s network goes behind the station instead (`StationLink::set
 forwarded connections and datagrams come from the station's lease and MAC, to the DHCP server that
 leased it (option 54 of its ACK) or to the address given. It follows the lease: without one the
 forwards wait, and when it goes or changes (the station left, the guest rebooted or stopped its
-access point) the forwarded connections are reset. It carries nothing else: the guest's own
+access point) the forwarded connections are closed. It carries nothing else: the guest's own
 connections and datagrams to the station are not relayed. Without `--hostfwd` there is no NAT,
 and nothing of it runs.
 

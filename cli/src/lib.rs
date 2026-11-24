@@ -529,11 +529,8 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     m.bus.spi2_timing = o.spi2_timing;
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
-    if !o.wifi.is_empty() {
-        let net_log = m.bus.debug.has("net");
-        attach_wifi(&mut m.bus, o, net_log);
-    }
     let net_log = m.bus.debug.has("net");
+    if !o.wifi.is_empty() { attach_wifi(&mut m.bus, o, net_log); }
     attach_wifi_station(&mut m.bus, o, net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     set_camera_image(&mut m.bus.board, o.cam_image.as_deref());
@@ -679,11 +676,8 @@ fn setup_c3(o: &Opts) -> esp32c3::Machine {
         m.bus.enable_ble_full(o.ble_observe).unwrap_or_else(|e| usage_error(&e));
         m.bus.periph.ble_lc.scan(o.ble_scan);
     }
-    if !o.wifi.is_empty() {
-        let net_log = m.bus.debug.has("net");
-        attach_wifi(&mut m.bus, o, net_log);
-    }
     let net_log = m.bus.debug.has("net");
+    if !o.wifi.is_empty() { attach_wifi(&mut m.bus, o, net_log); }
     attach_wifi_station(&mut m.bus, o, net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     for (flag, on) in [("--board", o.board != "atech14" && o.board != "none"), ("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
@@ -700,11 +694,8 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
     m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay, cyd, ai-thinker-cam, ulanzi-tc001)")));
     m.bus.attach_board_devices();
     set_camera_image(&mut m.bus.board, o.cam_image.as_deref());
-    if !o.wifi.is_empty() {
-        let net_log = m.bus.debug.has("net");
-        attach_wifi(&mut m.bus, o, net_log);
-    }
     let net_log = m.bus.debug.has("net");
+    if !o.wifi.is_empty() { attach_wifi(&mut m.bus, o, net_log); }
     attach_wifi_station(&mut m.bus, o, net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi.link, o);
     if let Some(mb) = o.psram_mb {
@@ -724,11 +715,8 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
     let name = if o.board == "atech14" { "none" } else { o.board.as_str() };   // the S3 default means "bare module" here
     match esp32c6::board::make_board(name) { Some(b) => m.bus.board = b, None => { eprintln!("--board {}: none, waveshare-c6-lcd147 or xiao-esp32c6 on the C6", name); std::process::exit(2) } }
     m.bus.attach_board_devices();
-    if !o.wifi.is_empty() {
-        let net_log = m.bus.debug.has("net");
-        attach_wifi(&mut m.bus, o, net_log);
-    }
     let net_log = m.bus.debug.has("net");
+    if !o.wifi.is_empty() { attach_wifi(&mut m.bus, o, net_log); }
     attach_wifi_station(&mut m.bus, o, net_log);
     attach_nearby_networks(&mut m.bus.periph.wifi_mac.link, o);
     for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--cam-stream", o.cam_stream.is_some()), ("--cam-size", o.cam_size.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--flash-octal", o.flash_octal), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
@@ -794,11 +782,8 @@ fn setup_s31(o: &Opts) -> esp32s31::Machine {
         for d in &o.debug { f.parse(d); }
         m.set_debug(&f);
     }
-    if !o.wifi.is_empty() {
-        let net_log = m.bus.debug.has("net");
-        attach_wifi(&mut m.bus, o, net_log);
-    }
     let net_log = m.bus.debug.has("net");
+    if !o.wifi.is_empty() { attach_wifi(&mut m.bus, o, net_log); }
     attach_wifi_station(&mut m.bus, o, net_log);
     for (flag, on) in [
         ("--board", o.board != "atech14" && o.board != "none" && o.board != "mosaico"),
