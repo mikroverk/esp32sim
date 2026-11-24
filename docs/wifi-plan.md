@@ -140,7 +140,9 @@ two periods, disassociated a silent station about 2 s after it, kept one that fo
 As the host on the guest's network, the station renews its lease (RFC 2131 4.4.5): at T1 (option
 58, or half the lease) a REQUEST to the server, unicast, with `ciaddr` set and neither option 50 nor
 54; at T2 (option 59, or seven-eighths) the same REQUEST broadcast; at the lease's end it gives the
-address up, ARP stops answering for it, and it starts again with DISCOVER, as after a NAK.
+address up, ARP stops answering for it, and it starts again with DISCOVER, as after a NAK. T1, T2
+and the end count from when the exchange's first REQUEST went out, not from the ACK (RFC 2131
+4.4.1); retransmissions, and the rebinding REQUESTs after the renewing ones, keep its `xid`.
 ESP-IDF v5.5.4's DHCP server (`components/lwip/apps/dhcpserver/dhcpserver.c`) leases for 120
 minutes by default and acknowledges a REQUEST without option 50 whose `ciaddr` is the address it
 leased to that MAC, unicast or broadcast; its ACK carries option 51 and neither 58 nor 59. With

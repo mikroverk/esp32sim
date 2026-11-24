@@ -92,8 +92,10 @@ pub struct VirtualSta {
     /// the DHCP server's MAC, from its ACK: a renewal goes to it unicast
     server_mac: [u8; 6],
     pub lease: Option<[u8; 4]>,
+    /// when the first REQUEST of the current exchange went out; the ACK's times count from it
+    request_us: Option<u64>,
     /// when the lease reaches T1 (renew with the server), T2 (rebind with any) and its end, from
-    /// the ACK; `u64::MAX` for a lease without an end
+    /// the ACK's times and `request_us`; `u64::MAX` for a lease without an end
     t1_us: u64,
     t2_us: u64,
     lease_end_us: u64,
@@ -139,7 +141,7 @@ impl VirtualSta {
         let xid = u32::from_be_bytes([seed[0], seed[1], seed[2], seed[3]]);
         VirtualSta { cfg, log, state: StaLink::Listening, host: true, bssid: [0; 6], channel: 1, seq: 0, queue: Vec::new(), pmk,
                      snonce, anonce: [0; 32], ptk: Vec::new(), keys: false, pn: 0, deadline_us: None, rejoin_after_us: 0,
-                     dhcp: Dhcp::Idle, xid, offered: [0; 4], server: [0; 4], server_mac: [0; 6], lease: None, t1_us: u64::MAX,
+                     dhcp: Dhcp::Idle, xid, offered: [0; 4], server: [0; 4], server_mac: [0; 6], lease: None, request_us: None, t1_us: u64::MAX,
                      t2_us: u64::MAX, lease_end_us: u64::MAX, last_tx_us: 0, keepalive_us: KEEPALIVE_US, protected_keepalive: false,
                      keepalives: 0, renewals: 0, stats: (0, 0, 0), attempts: 0,
                      problem: None, last_beacon_us: 0, last_tsf: 0, sent: Vec::new(), rsn: Vec::new(), refusals: (0, 0), group_tkip: false }
@@ -521,6 +523,13 @@ impl VirtualSta {
     /// to the server while renewing, broadcast while rebinding. Then the retransmission time: 1 s
     /// while discovering or requesting; while renewing or rebinding one half of the time left to
     /// T2 or to the lease's end, at least 60 s (RFC 2131 4.4.5), and at most that time.
+    ///
+    /// The lease counts from when the original REQUEST was sent (RFC 2131 4.4.1, and 4.4.5 for a
+    /// renewal). A retransmission keeps the exchange's `xid`, and the rebinding REQUESTs keep the
+    /// renewing ones' (`lease_timer` takes a new one only at T1), so an ACK may answer any REQUEST
+    /// of the exchange: the station keeps the first one's time. The server counts from a REQUEST it
+    /// received, never from before the first went out, so the station's lease does not end after
+    /// the server's.
     fn dhcp_send(&mut self, now_us: u64) {
         let (request, held) = (self.dhcp != Dhcp::Discovering, matches!(self.dhcp, Dhcp::Renewing | Dhcp::Rebinding));
         let ciaddr = if held { self.lease.unwrap_or([0; 4]) } else { [0; 4] };
@@ -536,6 +545,7 @@ impl VirtualSta {
         let unicast = self.dhcp == Dhcp::Renewing && self.server != [0; 4] && self.server_mac != [0; 6];
         let (ip_dst, eth_dst) = if unicast { (self.server, self.server_mac) } else { ([255; 4], [0xff; 6]) };
         let ip = ipv4(17, ciaddr, ip_dst, &udp);
+        self.request_us = if request { Some(self.request_us.unwrap_or(now_us + 200)) } else { None };
         self.send_data(now_us + 200, eth_dst, 0x0800, &ip);
         let until = match self.dhcp { Dhcp::Renewing => self.t2_us, Dhcp::Rebinding => self.lease_end_us, _ => now_us + RETRY_US };
         self.deadline_us = Some(until.min(now_us + (until.saturating_sub(now_us) / 2).max(60_000_000)));
@@ -563,8 +573,8 @@ impl VirtualSta {
     /// An ACK binds `ip` with the times it gives: the lease (option 51) in seconds, T1 (58) and
     /// T2 (59), by default 0.5 and 0.875 of the lease (RFC 2131 4.4.5); ESP-IDF v5.5.4's DHCP server
     /// sends 51 and neither of the others. Without 51, or with 0xffffffff, the lease has no end and
-    /// is never renewed.
-    fn bind(&mut self, ip: [u8; 4], times: [Option<u32>; 3], now_us: u64) {
+    /// is never renewed. The times count from `sent_us`, when the exchange's first REQUEST went out.
+    fn bind(&mut self, ip: [u8; 4], times: [Option<u32>; 3], sent_us: u64) {
         // a lease, T1 or T2 under 1 s is taken as 1 s: one of 0 would have the station ask again
         // in every round
         let us = |t: Option<u32>| t.map(|s| (u64::from(s) * 1_000_000).max(RETRY_US));
@@ -574,9 +584,10 @@ impl VirtualSta {
                 // a server's T2 past the lease or T1 past T2 is held to it
                 let l = (u64::from(l) * 1_000_000).max(RETRY_US);
                 let t2 = us(times[2]).unwrap_or(l / 8 * 7).min(l);
-                (now_us + us(times[1]).unwrap_or(l / 2).min(t2), now_us + t2, now_us + l)
+                (sent_us.saturating_add(us(times[1]).unwrap_or(l / 2).min(t2)), sent_us.saturating_add(t2), sent_us.saturating_add(l))
             }
         };
+        self.request_us = None;
         if self.lease.is_some() { self.renewals += 1; }
         (self.dhcp, self.lease) = (Dhcp::Bound, Some(ip));
         self.deadline_us = (self.t1_us != u64::MAX).then_some(self.t1_us);
@@ -613,7 +624,7 @@ impl VirtualSta {
             (5, Dhcp::Requesting | Dhcp::Renewing | Dhcp::Rebinding) => {                    // ACK
                 if let Some(s) = server { self.server = s; }
                 self.server_mac = src_mac;
-                self.bind(yiaddr, times, now_us);
+                self.bind(yiaddr, times, self.request_us.unwrap_or(now_us));
             }
             (6, Dhcp::Requesting) => { self.dhcp = Dhcp::Discovering; self.dhcp_send(now_us); }   // NAK
             (6, Dhcp::Renewing | Dhcp::Rebinding) => {
@@ -625,6 +636,10 @@ impl VirtualSta {
             _ => {}
         }
     }
+
+    /// T1, T2 and the lease's end, in emulated µs.
+    #[cfg(test)]
+    pub(super) fn lease_times(&self) -> (u64, u64, u64) { (self.t1_us, self.t2_us, self.lease_end_us) }
 
     /// The end-of-run line.
     pub fn report(&self) -> String {
