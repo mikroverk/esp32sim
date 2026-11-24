@@ -151,7 +151,8 @@ guest logged each ACK as an assignment. A lease without option 51 is kept and ne
 lease, T1 or T2 under 1 s is taken as 1 s. In relay mode the host program takes its own lease:
 with the relay switched on, the station gives up its own lease and DHCP, so nothing goes out under
 the program's MAC, and with the relay off again it starts DHCP anew. The end-of-run line counts
-keep-alives and renewals (rebinds among them) when there are any.
+keep-alives and renewals (rebinds among them) when there are any; the keep-alives are among its
+frames to the access point, not beside them.
 
 Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
 AP+STA with both sides on the air; host ports forwarded to the guest's access point. In relay mode the host program is the station:
