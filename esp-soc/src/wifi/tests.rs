@@ -1278,6 +1278,20 @@ fn the_lease_counts_from_the_first_request_not_from_the_ack() {
 }
 
 #[test]
+fn a_reboot_keeps_the_keepalive_and_renewal_counts() {
+    // 30 s with T1 at 20 s: keep-alives in the silences, one renewal. The guest reboots: the
+    // station joins again from nothing, and the end-of-run line still counts the whole run
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    g.run(&mut sta, 0, 30_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
+    let (keepalives, renewals) = (sta.keepalives, sta.renewals);
+    assert!(keepalives > 0 && renewals == 1, "{}", sta.report());
+    sta.restart();
+    assert_eq!((sta.state, sta.lease, sta.keepalives, sta.renewals), (sta::StaLink::Listening, None, keepalives, renewals));
+    let report = sta.report();
+    assert!(report.contains(&format!(", {keepalives} keep-alives")) && report.contains(", 1 lease renewals"), "{report}");
+}
+
+#[test]
 fn a_nak_while_renewing_gives_the_address_up_and_starts_again_with_discover() {
     let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
     let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
