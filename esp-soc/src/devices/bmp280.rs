@@ -19,8 +19,9 @@
 //! The calibration words and the staged raw samples are the datasheet's worked example, which
 //! compensates to 25.08 °C / 100653.25 Pa; `compensate` returns those as the integer values the
 //! datasheet's own functions return, so the tests assert them exactly rather than within a
-//! tolerance. The write sequences of esp-idf-lib's `bmp280`, Linux's `bmp280-core`, Adafruit's
-//! BMP280 library and Bosch's BME280_SensorAPI are replayed in the tests.
+//! tolerance. The write sequences esp-idf-lib's `bmp280` component sends are replayed in the
+//! tests; Linux's `bmp280-core`, Adafruit's library and Bosch's BME280_SensorAPI were checked
+//! against the same register rules but are not replayed.
 use esp_periph::i2c::I2cDevice;
 
 /// SDO strapped high (the common module default). SDO low is 0x76.
@@ -96,11 +97,14 @@ impl Bmp280 {
         self.regs[REG_TEMP as usize] = 0x80;
     }
 
-    /// Stage the samples the next measurement reports. Nothing reaches the data registers until a
-    /// measurement runs, so a guest that has not configured `ctrl_meas` still reads 0x80000.
+    /// Stage the samples the next measurement reports. In sleep and forced mode nothing reaches
+    /// the data registers until a measurement runs, so a guest that has not configured
+    /// `ctrl_meas` still reads 0x80000. Normal mode (mode bits 0b11) measures again every
+    /// `t_standby` by itself (3.6.3), so there the staged sample becomes visible at once.
     pub fn set_raw(&mut self, adc_t: u32, adc_p: u32) {
         self.raw_t = adc_t & 0x000F_FFFF;
         self.raw_p = adc_p & 0x000F_FFFF;
+        if self.regs[REG_CTRL_MEAS as usize] & 0x03 == 0x03 { self.publish(); }
     }
 
     /// Write the sample a measurement produced into the data registers, MSB first, low nibble of
@@ -196,13 +200,15 @@ impl I2cDevice for Bmp280 {
                     // the sample on the write, not on a later status read (decisions.md).
                     self.publish();
                 }
-                if mode == 0x01 || mode == 0x02 {
+                if mode == 0b01 || mode == 0b10 {
                     // Forced mode returns to sleep when conversion finishes (datasheet 3.6.2).
                     // esp-idf-lib's is_measuring() polls (ctrl & 3) == FORCED, so leaving the
                     // mode bits set would hang it forever. status stays clear throughout.
                     self.regs[r as usize] = b & !0x03;
                 }
-                // mode 0x11 (normal) keeps its mode bits; mode 0x00 does nothing above.
+                // mode 0b11 (normal, i.e. 0x03) keeps its mode bits and measures again every
+                // t_standby, which is why set_raw publishes at once in that mode. mode 0b00 does
+                // nothing above.
             }
             REG_CONFIG => self.regs[r as usize] = b,
             // Datasheet 4.3.2: 0xB6 triggers a full power-on reset; other values ignored.
@@ -330,6 +336,43 @@ mod tests {
         d.write(REG_CONFIG); d.write(0xA0);
         assert_eq!(read_at(&mut d, REG_CONFIG, 1)[0], 0xA0);
         assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0] & 0x03, 0);
+    }
+
+    #[test]
+    fn a_sample_staged_in_normal_mode_is_visible_without_another_write() {
+        let mut d = Bmp280::new();
+        // osrs_t = x4, osrs_p = x4, mode = normal (0b11).
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6F);
+        assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0], 0x6F, "normal mode keeps its bits");
+        // Normal mode measures again every t_standby (3.6.3), so the staged sample shows up
+        // without a second ctrl_meas write. Adafruit's setSampling() defaults to MODE_NORMAL
+        // and Linux's bmp280-core switches to it for buffered capture; both just read the data.
+        d.set_raw(ADC_T - 100_000, ADC_P);
+        let six = read_at(&mut d, REG_PRESS, 6);
+        let p = ((six[0] as i32) << 12) | ((six[1] as i32) << 4) | ((six[2] as i32) >> 4);
+        let t = ((six[3] as i32) << 12) | ((six[4] as i32) << 4) | ((six[5] as i32) >> 4);
+        assert_eq!((t, p), ((ADC_T - 100_000) as i32, ADC_P as i32));
+    }
+
+    #[test]
+    fn a_non_magic_reset_write_and_read_only_writes_change_nothing() {
+        let mut d = Bmp280::new();
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6F);
+        // Only 0xB6 resets (4.3.2): any other value at 0xE0 is an ordinary ignored write.
+        d.start(false); d.write(REG_RESET); d.write(0x00);
+        assert_eq!(read_at(&mut d, REG_CTRL_MEAS, 1)[0], 0x6F);
+
+        // Calibration word T1 at 0x88 stays 27504 (0x6B70) whatever a guest writes.
+        d.start(false); d.write(REG_CALIB); d.write(0x00);
+        d.start(false); d.write(REG_CALIB + 1); d.write(0x00);
+        assert_eq!(read_at(&mut d, REG_CALIB, 2), [0x70, 0x6B]);
+
+        // The data registers keep what the last measurement published (adc_P = 415148).
+        let before = read_at(&mut d, REG_PRESS, 3);
+        assert_eq!(before, [0x65, 0x5A, 0xC0]);
+        d.start(false); d.write(REG_PRESS); d.write(0x00);
+        d.start(false); d.write(REG_PRESS + 1); d.write(0x00);
+        assert_eq!(read_at(&mut d, REG_PRESS, 3), before);
     }
 
     #[test]
