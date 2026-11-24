@@ -10,12 +10,20 @@ Request inlining of the existing `step_outcome` into its callers. The
 result-only execution loop can discard observing-only facts without creating a
 second interpreter. Fetches, retirement, cycles, traps, IRQs, device accesses,
 and instruction budgets are unchanged. The RV32 core is shared by C3, C6 and
-P4; there is no new state or public API. Historical code size grew; the selected native comparisons below are historical and have not been regenerated for this base. Static codegen
+P4; there is no new state or public API. Static codegen
 alone does not establish a speedup or rule out a layout regression.
 
 ## Interaction with code versions (#383)
 
-The C3, C6 and P4 buses now supply page versions used by the decoded-block cache. When blocks are enabled and versions are available, `Core::run` dispatches to `block::run`; writes that change fetched code advance the corresponding versions so cached blocks can be invalidated. With blocks disabled or no page versions, `Core::run` uses the result-only `exec::step` loop. The block path also calls `step_outcome` for slow-path events. The inline request changes neither the dispatch condition nor version tracking or instruction semantics. The prior results below were measured before #383; the relative frequency and performance of these paths on this base remain unmeasured.
+The C3, C6 and P4 buses now supply page versions used by the decoded-block cache. When blocks are enabled and versions are available, `Core::run` dispatches to `block::run`; writes that change fetched code advance the corresponding versions so cached blocks can be invalidated. With blocks disabled or no page versions, `Core::run` uses the result-only `exec::step` loop. The block path also calls `step_outcome` for slow-path events. The inline request changes neither the dispatch condition nor version tracking or instruction semantics. Historical measurements below predate #383; the relative frequency and performance of these paths on this base remain unmeasured.
+
+## Current-base native code generation
+
+The AArch64 C6 executable built with Rust 1.99.0 compares upstream main `816246c86fe8395a16bbf95538e9bd9d6d8356a3` with `b00589c0e351f13c3be753c9d4991b282fb30384` (the source is unchanged by this receipt). The EX230 normalized comparison in `codegen-816246c8.json` selects 242 functions: 216 identical and 26 changed, added or removed; the report retains only differing rows. These counts include symbol renumbering and are not whole-binary identity.
+
+On the candidate, `block::run` is newly outlined for C3, C6, P4 and S31, with respectively 2,436, 5,040, 2,481 and 2,759 static operations. `step_core` grows from 464 to 1,508 operations for C3, 466 to 1,600 for C6 and 509 to 1,601 for S31; C6 `run_until_cycle` grows from 4,590 to 5,308. These compiler changes follow the sole runtime source change, the `step_outcome` inline request, not a source-level change to the block path. Static size is not runtime cost; the runtime effect on this base is unmeasured pending the quiet-night CPU table using Rust 1.100.0.
+
+To reproduce, use separate clean base and candidate worktrees at the revisions above, separate `CARGO_TARGET_DIR` directories, and in each run `nice -n 10 cargo +1.99.0 build --release --bins`. From the candidate worktree run `python3 docs/evidence/c6-step-facts/codegen.py BASE_TARGET/release/esp32sim-c6 CANDIDATE_TARGET/release/esp32sim-c6 OUT_DIR`; the resulting `OUT_DIR/codegen.json` uses `xcrun llvm-objdump` and the EX230 normalizer. The recorded toolchain is rustc 1.99.0 (`b940084d7`, LLVM 23.1.1), host `aarch64-apple-darwin`. Binary hashes can vary with build paths; compare normalized rows and totals.
 
 ## Historical rebase screening (base 3f49dad8, 2026-11-23)
 
@@ -91,7 +99,7 @@ The selected native hot-code result is not a whole-module identity claim for WAS
 
 ## Checks on 816246c8 rebase
 
-With empty HOME and explicit Cargo/Rustup paths, native workspace and release WASM jit-tests Clippy with Rust 1.100.0 and `-D warnings` passed. Rust 1.99.0 ROM-enabled release workspace tests with `--no-fail-fast -- --include-ignored --skip external_` passed 1,914 tests; the plain release workspace passed 1,831 with 117 ignored. The WASM build and eight demos listed below passed, as did the evidence privacy checker. In a separate worktree, `mutate-rebase.py` killed all three runtime mutants by test failures; `outline-mut-rebase.py` killed the inline-removal mutant via the emitted-code gate. These checks do not establish current-base timing or a complete codegen comparison.
+With empty HOME and explicit Cargo/Rustup paths, native workspace and release WASM jit-tests Clippy with Rust 1.100.0 and `-D warnings` passed. Rust 1.99.0 ROM-enabled release workspace tests with `--no-fail-fast -- --include-ignored --skip external_` passed 1,914 tests; the plain release workspace passed 1,831 with 117 ignored. The WASM build and eight demos listed below passed, as did the evidence privacy checker. In a separate worktree, `mutate-rebase.py` killed all three runtime mutants by test failures; `outline-mut-rebase.py` killed the inline-removal mutant via the emitted-code gate. These checks do not establish current-base timing; the selected native codegen comparison is described above.
 
 ## Historical rebase checks (c693fe89 and earlier)
 
