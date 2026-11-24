@@ -186,7 +186,8 @@ impl BoardModel for NoBoard {
 pub enum DeviceSpec {
     I2c { bus: u8, addr: u8, model: String },
     Ws2812 { pin: u8, leds: usize },
-    /// A 132×162 ST7735-family panel behind bit-banged SPI.
+    /// A 160×80 ST7735 module (132×162 of GRAM, of which the glass shows 160×80) behind
+    /// bit-banged SPI — the same panel atech14 carries.
     St7735 { sclk: u8, mosi: u8, cs: u8, dc: u8 },
     /// A 240×320 ILI9341 panel behind bit-banged SPI (the common 2.4" module).
     Ili9341 { sclk: u8, mosi: u8, cs: u8, dc: u8 },
@@ -333,8 +334,8 @@ pub type MonoRam = std::sync::Arc<std::sync::Mutex<crate::devices::MonoPanel>>;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PanelSlot { Co5300, Tft, Nt7534, Sh1106 }
 
-fn mono_ram() -> MonoRam {
-    std::sync::Arc::new(std::sync::Mutex::new(crate::devices::MonoPanel::new()))
+fn mono_ram(panel: crate::devices::MonoPanel) -> MonoRam {
+    std::sync::Arc::new(std::sync::Mutex::new(panel))
 }
 
 fn mono_lock(ram: &MonoRam) -> std::sync::MutexGuard<'_, crate::devices::MonoPanel> {
@@ -386,7 +387,8 @@ impl ConfigurableBoard {
                     board.panel_host = Some(host);
                 }
                 DeviceSpec::Nt7534 { sclk, mosi, cs, rs } => {
-                    let ram = mono_ram();
+                    // The NT7534 TG12864R glass starts at GDDRAM column 1, not the SH1106's 2.
+                    let ram = mono_ram(crate::devices::MonoPanel::nt7534());
                     board.nt7534_driver = Some(crate::devices::Nt7534::new(ram.clone()));
                     board.nt7534 = Some(ram);
                     board.nt7534_spi = Some(crate::devices::SpiBitBang::new(sclk, mosi, cs));
@@ -397,7 +399,7 @@ impl ConfigurableBoard {
                 }
                 DeviceSpec::I2c { model, .. } => {
                     if model == "sh1106" {
-                        board.sh1106 = Some(mono_ram());
+                        board.sh1106 = Some(mono_ram(crate::devices::MonoPanel::new()));
                     }
                 }
             }
@@ -517,7 +519,7 @@ impl BoardModel for ConfigurableBoard {
                     "aht20" => Box::new(devices::Aht20::with_motion(self.motion.clone(), self.clock_hz)),
                     "lsm6ds3" => Box::new(devices::Lsm6ds3::with_motion(self.motion.clone(), self.clock_hz)),
                     "sh1106" => {
-                        let ram = self.sh1106.clone().unwrap_or_else(mono_ram);
+                        let ram = self.sh1106.clone().unwrap_or_else(|| mono_ram(crate::devices::MonoPanel::new()));
                         Box::new(devices::Sh1106::new(ram))
                     }
                     other => unreachable!("model {other} validated in DeviceSpec::parse"),

@@ -1,4 +1,4 @@
-//! An AHT20 temperature/humidity sensor on I2C (0x38), as esp-idf-lib's `aht20` component drives
+//! An AHT20 temperature/humidity sensor on I2C (0x38), as esp-idf-lib's `aht` component drives
 //! it: a `0xAC 0x33 0x00` write starts a conversion, the status byte reads 0x18 once the
 //! calibration bit (bit 3) is set and the busy bit (bit 7) is clear, and a seven-byte read returns
 //! that status followed by a 20-bit humidity and a 20-bit temperature. The temperature's top
@@ -16,7 +16,8 @@ use super::imu_motion::{sin, ImuMotion};
 /// AHT10 and AHT20 share the fixed address.
 pub const AHT20_ADDRESS: u8 = 0x38;
 
-/// Calibrated and idle: bit 4 (calibrated) and bit 3 (ready) set, busy clear.
+/// Calibrated and idle: CAL (bit 3) set, busy (bit 7) clear. Bit 4 reads 1 on silicon too, so
+/// the status byte a driver polls for is 0x18 (esp-idf-lib's `AHT20_STATUS_READY`).
 const STATUS_READY: u8 = 0x18;
 
 const CMD_TRIGGER: u8 = 0xAC;

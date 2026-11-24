@@ -54,9 +54,9 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --web PORT            serve the board UI at http://127.0.0.1:PORT/ in real time");
     eprintln!("  --elf F               symbols for logs, traces and profiles (repeatable)");
     eprintln!("  --trace-fn PREFIX, --break PC, --watch ADDR, --peek ADDR,N, --profile, --vcd F, --debug AREAS, --no-jit");
+    eprintln!("                        --debug AREAS logs subsystems; --no-jit is the oracle when a result looks wrong");
     eprintln!("  --buslog F            GPIO edges as readable text (CS/RS/SCK/MOSI of bit-banged panels);");
     eprintln!("                        pair with --debug i2c / --debug spi for a full bus trace");
-    eprintln!("                        debugging; --no-jit is the oracle when a result looks wrong");
     eprintln!("  --adc PIN, --adc-raw PIN=N   last ADC sample at exit / a 12-bit count into that pad");
     eprintln!("  --sd IMG, --sd-rw IMG (P4, S3) an SD card, copy-on-write / write-through;");
     eprintln!("                        --sd-prg-us N, --sd-serial HEX for its programming time and serial");

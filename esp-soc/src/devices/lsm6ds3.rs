@@ -1,5 +1,5 @@
-//! An ST LSM6DS3 six-axis IMU on I2C (0x6A with SA0 low; 0x6B with SA0 high), as ST's driver and
-//! esp-idf-lib's `lsm6ds3` component use it: WHO_AM_I at 0x0F reads 0x69, CTRL3_C at 0x12 takes a
+//! An ST LSM6DS3 six-axis IMU on I2C (0x6A with SA0 low; 0x6B with SA0 high), as ST's
+//! `lsm6ds3_reg.h` defines it: WHO_AM_I at 0x0F reads 0x69, CTRL3_C at 0x12 takes a
 //! software reset (0x01) or BDU|IF_INC (0x44), CTRL1_XL/CTRL2_G at 0x10/0x11 enable the
 //! accelerometer and gyroscope, STATUS_REG at 0x1E reports both data-ready flags, and the six out
 //! registers from 0x22 (gyro) and 0x28 (accel) hold little-endian 16-bit samples. The die

@@ -360,10 +360,10 @@ Models, and where they answer:
 | `aht20` | I2C 0x38 | temperature and humidity, CRC-checked frame |
 | `lsm6ds3` | I2C 0x6A or 0x6B | IMU with a die temperature; follows `--imu-motion` |
 | `ft5x06` | I2C 0x38 to 0x3E | touch panel points |
-| `sh1106` | I2C 0x3C or 0x3D | 128×64 monochrome OLED |
+| `sh1106` | I2C 0x3C or 0x3D | 128×64 monochrome OLED; the glass shows GDDRAM columns 2..129 |
 | `ws2812` | any output pin | addressable strip on an RMT channel |
 | `st7735` / `ili9341` | three output pins + D/C | 160×80 / 240×320 panel |
-| `nt7534` | three output pins + RS | 128×64 monochrome LCD |
+| `nt7534` | three output pins + RS | 128×64 monochrome LCD; the glass shows GDDRAM columns 1..128 |
 | `co5300` | GP-SPI host | QSPI panel with its geometry |
 
 Two rules the CLI enforces, because the board has one slot for each: no two devices may share a
