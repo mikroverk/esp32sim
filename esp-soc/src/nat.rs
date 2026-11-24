@@ -356,9 +356,11 @@ impl Nat {
 
     /// An Ethernet frame the guest sent to the station `set_peer` names: a TCP segment or a UDP
     /// datagram of a forwarded flow, to its local address. Returns the frames for the guest.
-    /// Anything else, malformed, fragmented or for no flow, is left alone.
+    /// Anything else, malformed, fragmented or for no flow, is left alone, and so is every frame
+    /// before the first `set_peer`: until then the NAT would relay the guest's own traffic (its
+    /// DHCP broadcasts, say) to the host as `--wifi`'s gateway does.
     pub fn from_guest(&mut self, eth: &[u8], now_us: u64) -> Vec<Vec<u8>> {
-        if eth.len() < 34 || eth[12..14] != [0x08, 0x00] { return Vec::new(); }
+        if !self.forwards_only || eth.len() < 34 || eth[12..14] != [0x08, 0x00] { return Vec::new(); }
         let p = &eth[14..];
         let ihl = ((p[0] & 0xf) as usize) * 4;
         let total = u16::from_be_bytes([p[2], p[3]]) as usize;

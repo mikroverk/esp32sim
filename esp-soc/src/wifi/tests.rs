@@ -1501,7 +1501,8 @@ fn hostfwd_through_the_station_reaches_the_guests_server_from_its_lease() {
     host.read_to_end(&mut got).unwrap();
     assert_eq!(got, RESPONSE);
     let report = link.report();
-    assert!(report.contains("[emu] nat: 1 TCP connections (0 failed, 1 inbound, 1 hostfwd)"), "{report}");
+    // the forward and nothing else: the guest's DHCP and ARP opened no flow of their own
+    assert!(report.contains("[emu] nat: 1 TCP connections (0 failed, 1 inbound, 1 hostfwd), 0 UDP flows (0 evicted, 0 send errors)"), "{report}");
 }
 
 /// The station leaving the access point ends its lease, and with it the forwarded connections:

@@ -1050,6 +1050,18 @@ fn behind_the_station_the_guests_own_connections_and_datagrams_go_nowhere() {
     assert!(nat.tcp.is_empty() && nat.udp.is_empty());
 }
 
+/// Before the station's first lease (`set_peer`) the guest's frames to it, its DHCP broadcasts
+/// among them, open nothing on the host either.
+#[test]
+fn before_the_first_lease_the_guests_frames_go_nowhere() {
+    let mock = Mock::default();
+    let mut nat = mock.nat();
+    let bootp = udp_packet(&AP_IP, &[255; 4], 67, 68, &[2; 300]);
+    let offer = ethernet(&[0xff; 6], &AP_MAC, 0x0800, &ip_packet(17, &AP_IP, &[255; 4], &bootp));
+    for f in [offer, from_ap(40000, 22, 1, 0, SYN, &[])] { assert!(nat.from_guest(&f, 0).is_empty()); }
+    assert!(mock.s().connects.is_empty() && mock.s().udp_opens.is_empty(), "nothing opened on the host");
+}
+
 /// Without a lease (`clear_peer`) accepted connections wait, and the next lease takes them.
 #[test]
 fn behind_the_station_forwards_wait_while_it_has_no_lease() {
