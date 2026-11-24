@@ -132,6 +132,7 @@ impl esp_soc::SocBus for SocBus {
                 for i in 0..npages {
                     self.mmu[first_entry + i as usize] = first_page + i;
                 }
+                self.invalidate_code();
             } else {
                 let data = self.flash[start..end].to_vec();
                 SocBus::load_bytes(self, s.load_addr, &data)?;
@@ -170,6 +171,8 @@ impl esp_soc::SocBus for SocBus {
         // real silicon rather than POWERON.
         p.rtc.ram.write(0x38, cause | (cause << 6));
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
+        // the MMU and the flash bytes the BLE trampoline restored
+        self.invalidate_code();
         self.attach_board_devices();
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
         self.periph.misc.log_all = self.debug.has("mmio");
@@ -211,6 +214,7 @@ impl esp_soc::SocBus for SocBus {
     }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
+        self.invalidate_code();
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.jedec[2] = cap; self.periph.spi0.jedec[2] = cap;
     }
     fn set_strap(&mut self, v: u32) { self.periph.gpio.strap = v; }

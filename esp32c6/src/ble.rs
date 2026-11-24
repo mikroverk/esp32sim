@@ -200,6 +200,7 @@ fn install(bus: &mut SocBus) -> Result<(), String> {
     }
     if bus.ble.original_flash.is_none() { bus.ble.original_flash = Some((off, bus.flash[off..off + CODE.len()].to_vec())); }
     bus.flash[off..off + CODE.len()].copy_from_slice(CODE);
+    bus.invalidate_flash_code();
     Ok(())
 }
 fn init_next(cpu: &mut Cpu, bus: &mut SocBus) {
@@ -702,8 +703,11 @@ mod tests {
     fn reboot_restores_physical_flash_and_keeps_hook_configuration() {
         let (mut bus, _) = fixture();
         let original = bus.flash[..256].to_vec();
+        let flash_code = |bus: &mut SocBus| { let i = emu_core::Bus::code_page(bus, crate::bus::FLASH_LOW); emu_core::Bus::page_versions(bus)[i as usize] };
+        let before = flash_code(&mut bus);
         install(&mut bus).unwrap();
         assert_ne!(&bus.flash[..256], &original);
+        assert_ne!(flash_code(&mut bus), before, "patched flash code must be decoded again");
         let hooks = bus.ble.hooks.clone();
         bus.mmu[0] = crate::bus::MMU_VALID | 1;
         esp_soc::SocBus::reboot(&mut bus, [0; 6]);

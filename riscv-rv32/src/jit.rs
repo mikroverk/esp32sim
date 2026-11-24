@@ -1,10 +1,9 @@
 //! Block JIT: decoded blocks (`block.rs`) compiled to host code, in regions. It runs where blocks
-//! run, so on a bus that versions its code: the ESP32-S31's; the C3, C6 and P4 buses have no code
-//! versions and keep the interpreter. A region is a hot block and the blocks its branches, jumps
-//! and fall-throughs reach on the same 4 KiB page; compiled code goes from one to the next
-//! itself. Each block is the block loop of `block::run` unrolled, with the same exit rules, so
-//! the block interpreter (and below it `exec::step`) stays the oracle and the two must leave
-//! bit-identical machine state:
+//! run, so on a bus that versions its code: the C3's, C6's, P4's and S31's (EX270). A region is a
+//! hot block and the blocks its branches, jumps and fall-throughs reach on the same 4 KiB page;
+//! compiled code goes from one to the next itself. Each block is the block loop of `block::run`
+//! unrolled, with the same exit rules, so the block interpreter (and below it `exec::step`) stays
+//! the oracle and the two must leave bit-identical machine state:
 //!
 //! - The dispatch loop enters a region only for a whole block, with no hardware loop counting
 //!   and no break pending. Inside, going to the next block re-checks what the loop's `lookup`

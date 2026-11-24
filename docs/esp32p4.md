@@ -85,6 +85,16 @@ the P4 builds core *i* with `hartid` *i*. Nothing of it is enabled on the C3 and
   store (IDF's vectors issue no SC of their own). The machine tells the bus which core it is
   about to run (`Soc::select_core`), which is how each core sees its own CLIC block at
   0x20800000 and the other's at 0x20810000.
+- **Decoded blocks and the JIT** (EX265, EX269). Both cores run decoded blocks, compiled
+  where there is a JIT backend ([cli.md](cli.md)), because the bus versions the code it fetches
+  (`Bus::page_versions`, one array for both cores): a version per 256-byte page of L2MEM, TCM and
+  LP RAM, one for the two mask ROMs, one per 64 KB page of the flash window and one per 256-byte
+  physical page of PSRAM, the uncached aliases sharing their memory's. Every write that can change
+  fetched bytes moves them: CPU stores by either core through either alias, the DMA paths (SDMMC
+  IDMAC, USB-OTG, the AXI- and AHB-GDMA descriptor write-back), SPI1 programs and erases (only the
+  flash pages the MMU maps there), the PSRAM controller's writes, a changed MMU entry, loading and
+  a chip reset. `--no-jit` runs the interpreter alone and `RV32_JIT=0` the blocks without
+  compiling them; all three give the same instruction counts and console.
 
 The CLIC and the interrupt matrices are registers (`periph::Clic`, `periph::IntMatrix`): sources
 reach each core's CLIC through its matrix; IE, the attributes and the levels read back, the control
