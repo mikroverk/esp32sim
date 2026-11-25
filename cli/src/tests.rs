@@ -230,3 +230,28 @@ fn imu_motion_reaches_the_s3_and_s31_imu_boards() {
     let o = parse(&["esp32sim", "--board", "mosaico"].map(String::from), "esp32s31");
     assert_eq!(setup_s31(&o).bus.board.imu_motion(), 0);
 }
+
+#[test]
+fn timeout_durations_and_inject_escapes_parse_as_documented() {
+    use std::time::Duration;
+    assert_eq!(duration("500ms").unwrap(), Duration::from_millis(500));
+    assert_eq!(duration("6.5s").unwrap(), Duration::from_millis(6500));
+    assert_eq!(duration("2m").unwrap(), Duration::from_secs(120));
+    assert_eq!(duration("3").unwrap(), Duration::from_secs(3));
+    assert!(duration("soon").is_err() && duration("-1s").is_err() && duration("").is_err());
+    assert_eq!(unescape(r"ot state\r\n").unwrap(), "ot state\r\n");
+    assert_eq!(unescape(r"a\tb\\c\x41\q").unwrap(), "a\tb\\cA\\q");
+    assert!(unescape(r"\x80").is_err() && unescape(r"\x4").is_err() && unescape(r"\x+1").is_err());
+}
+
+#[test]
+fn inject_pairs_go_on_the_script_timeline_untriggered_first() {
+    let o = parse(&["esp32sim".into(), "--inject".into(), "a\\n".into(), "--inject-on".into(), "login:".into(), "--inject".into(), "b".into()], "c3");
+    assert_eq!((o.injects.clone(), o.inject_ons.clone()), (vec!["a\n".to_string(), "b".to_string()], vec!["login:".to_string()]));
+    let mut m = esp32c3::machine([0; 6], 4 << 20);
+    m.add_injections(&inject_plan(&o));
+    use esp_soc::ScriptAction::{Uart, WaitUart0};
+    let ev: Vec<_> = m.script.events.iter().map(|e| format!("{:?}", e.1)).collect();
+    // the first --inject pairs with the only --inject-on; the second has no trigger and goes in at the start
+    assert!(matches!(&m.script.events[..], [(0, Uart(0, b)), (0, WaitUart0(t, u64::MAX, 0)), (0, Uart(0, a))] if t == "login:" && a == "a\n" && b == "b"), "{ev:?}");
+}

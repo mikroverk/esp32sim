@@ -63,6 +63,12 @@ impl esp_soc::SocBus for SocBus {
         self.periph.refresh_work();
         Ok(())
     }
+    fn attach_wifi_station(&mut self, cfg: esp_soc::wifi::sta::StaConfig) -> Result<(), String> {
+        let log = self.debug.has("wifi-frames");
+        self.periph.wifi.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))?;
+        self.periph.refresh_work();
+        Ok(())
+    }
     fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.periph.wifi.link.set_beacons(list).ok_or_else(|| "no virtual access point".to_string()) }
     fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.periph.wifi.link.set_nat(nat, local_ntp) }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
@@ -126,6 +132,7 @@ impl esp_soc::SocBus for SocBus {
                 for i in 0..npages {
                     self.mmu[first_entry + i as usize] = first_page + i;
                 }
+                self.invalidate_code();
             } else {
                 let data = self.flash[start..end].to_vec();
                 SocBus::load_bytes(self, s.load_addr, &data)?;
@@ -164,6 +171,8 @@ impl esp_soc::SocBus for SocBus {
         // real silicon rather than POWERON.
         p.rtc.ram.write(0x38, cause | (cause << 6));
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
+        // the MMU and the flash bytes the BLE trampoline restored
+        self.invalidate_code();
         self.board.guest_reset(self.cycles, cause);
         self.attach_board_devices();
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
@@ -206,6 +215,7 @@ impl esp_soc::SocBus for SocBus {
     }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
+        self.invalidate_code();
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.jedec[2] = cap; self.periph.spi0.jedec[2] = cap;
     }
     fn set_strap(&mut self, v: u32) { self.periph.gpio.strap = v; }

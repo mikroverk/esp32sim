@@ -1,9 +1,11 @@
 //! ESP32-S3 peripherals. The IP shared with other chips lives in `esp-periph`; here are the
-//! S3-only blocks (interrupt matrix, WiFi MAC, PCNT, GP-SPI, LCD_CAM, EXTMEM, WDEV, regi2c) and
+//! S3-only blocks (interrupt matrix, WiFi MAC, GP-SPI, LCD_CAM, EXTMEM, WDEV, regi2c) and
 //! the `Peripherals` set whose one table (`ENTRIES`) drives dispatch, sources, ticks and deadlines.
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{GpSpi, Ledc, LedcLayout, Mcpwm};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, WriteEffect};
+use esp_periph::sdmmc::{Sdmmc, SdmmcLayout, SLOTS};
+use esp_periph::usb_otg::{Dwc2, Dwc2Config};
 pub use esp_periph::rmt::RmtDma as Rmt;
 pub use esp_periph::{read_desc, reset_cause_name, Aes, DirtyMem, DmaDesc, Efuse, Gdma, GdmaInCh, GdmaOutCh, Gpio, I2s, RegRam, RmtTxCh, Rsa, RtcCntl, Sha, SpiMem, SystemRegs, Systimer, Timer, TimerGroup, Uart, UartLayout, UsbSerialJtag,
                     APB_HZ, DMA_ADDR_BASE, GDMA_CHANNELS, GDMA_CH_STRIDE, RMT_MEM_WORDS, RST_POWERON, RST_RTCWDT_CPU, RST_RTCWDT_RTC, RST_RTCWDT_SYS, RST_SW_CPU, RST_SW_SYS, RTC_SLOW_HZ, SYSTIMER_HZ, XTAL_HZ};
@@ -45,6 +47,10 @@ pub const SRC_DMA_IN_CH0: usize = 66;
 pub const SRC_DMA_OUT_CH0: usize = 71;
 pub const SRC_FROM_CPU0: usize = 79;
 pub const SRC_USB_SERIAL_JTAG: usize = 96;
+/// ETS_SDIO_HOST_INTR_SOURCE and ETS_USB_INTR_SOURCE, the USB-OTG core's (IDF v5.5.4
+/// components/soc/esp32s3/include/soc/interrupts.h:48, :54).
+pub const SRC_SDIO_HOST: usize = 30;
+pub const SRC_USB_OTG: usize = 38;
 pub const NUM_SOURCES: usize = 99;
 
 pub const CPU_HZ: u64 = 240_000_000;
@@ -76,67 +82,8 @@ pub const SRC_WIFI_MAC: usize = 0;
 pub use crate::wifi::WifiMac;
 
 // ------------------------------------------------------------------ PCNT (pulse counter)
-/// Four units, two channels each: a signal input counts on rising/falling edges (mode 0 ignore,
-/// 1 increment, 2 decrement) and a control input modifies that (hctrl/lctrl mode 0 keep, 1 invert,
-/// 2 disable). Inputs arrive through the GPIO matrix (signals 33 + 4*unit .. 36 + 4*unit).
-/// Counters are 16-bit signed; high/low limits, thresholds and zero crossings raise the unit's interrupt.
-pub struct Pcnt { pub conf: [[u32; 3]; 4], pub cnt: [i16; 4], pub status: [u32; 4], pub int_raw: u32, pub int_ena: u32, pub ctrl: u32, ram: RegRam, pub events: u64 }
-impl Default for Pcnt { fn default() -> Self { Self::new() } }
-
-impl Pcnt {
-    pub fn new() -> Self { Pcnt { conf: [[0; 3]; 4], cnt: [0; 4], status: [0; 4], int_raw: 0, int_ena: 0, ctrl: 0, ram: RegRam::new(), events: 0 } }
-    pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
-    pub fn read(&self, off: u32) -> u32 {
-        match off {
-            0x00..=0x2c => { let u = (off / 12) as usize; self.conf[u][((off % 12) / 4) as usize] }
-            0x30..=0x3c => self.cnt[((off - 0x30) / 4) as usize] as u16 as u32,
-            0x40 => self.int_raw, 0x44 => self.int_raw & self.int_ena, 0x48 => self.int_ena,
-            0x50..=0x5c => self.status[((off - 0x50) / 4) as usize],
-            0x60 => self.ctrl, 0xfc => 0x1912_0400,
-            _ => self.ram.read(off),
-        }
-    }
-    pub fn write(&mut self, off: u32, v: u32) {
-        match off {
-            0x00..=0x2c => { let u = (off / 12) as usize; self.conf[u][((off % 12) / 4) as usize] = v; }
-            0x48 => self.int_ena = v, 0x4c => self.int_raw &= !v,
-            0x60 => { self.ctrl = v; for (u, cnt) in self.cnt.iter_mut().enumerate() { if v & (1 << (2 * u)) != 0 { *cnt = 0; } } }
-            _ => self.ram.write(off, v),
-        }
-    }
-    /// A GPIO input changed: `sig(idx)` gives the level of matrix input signal `idx` (None = not routed).
-    pub fn gpio_edge(&mut self, pin: u8, level: bool, sig: &dyn Fn(u32) -> Option<(u8, bool)>) {
-        for u in 0..4 {
-            if self.ctrl & (1 << (2 * u)) != 0 || self.ctrl & (1 << (2 * u + 1)) != 0 { continue; }   // reset held / paused
-            let conf0 = self.conf[u][0];
-            for ch in 0..2u32 {
-                let Some((sp, _)) = sig(33 + 4 * u as u32 + ch) else { continue };
-                if sp != pin { continue; }
-                let sh = 16 + 8 * ch;
-                let mode = if level { (conf0 >> (sh + 2)) & 3 } else { (conf0 >> sh) & 3 };          // pos_mode / neg_mode
-                let mut delta: i32 = match mode { 1 => 1, 2 => -1, _ => 0 };
-                if delta != 0 {
-                    let ctrl_level = sig(35 + 4 * u as u32 + ch).is_none_or(|(_, l)| l);
-                    let cm = if ctrl_level { (conf0 >> (sh + 4)) & 3 } else { (conf0 >> (sh + 6)) & 3 };   // hctrl / lctrl
-                    match cm { 1 => delta = -delta, 2 => delta = 0, _ => {} }
-                }
-                if delta != 0 { self.count(u, delta); }
-            }
-        }
-    }
-    fn count(&mut self, u: usize, delta: i32) {
-        let conf0 = self.conf[u][0]; let conf1 = self.conf[u][1]; let conf2 = self.conf[u][2];
-        let old = self.cnt[u] as i32; let mut new = old + delta;
-        let mut ev = 0u32;
-        if conf0 & (1 << 12) != 0 && new >= (conf2 & 0xffff) as i16 as i32 { ev |= 1 << 5; new = 0; }         // h_lim
-        if conf0 & (1 << 13) != 0 && new <= (conf2 >> 16) as i16 as i32 { ev |= 1 << 4; new = 0; }             // l_lim
-        if conf0 & (1 << 14) != 0 && new == (conf1 & 0xffff) as i16 as i32 { ev |= 1 << 3; }                   // thres0
-        if conf0 & (1 << 15) != 0 && new == (conf1 >> 16) as i16 as i32 { ev |= 1 << 2; }                      // thres1
-        if conf0 & (1 << 11) != 0 && new == 0 && old != 0 { ev |= if delta > 0 { 1 } else { 2 }; }             // zero (mode: 1 from negative, 2 from positive)
-        self.cnt[u] = new as i16; self.events += 1;
-        if ev != 0 { self.status[u] = ev; self.int_raw |= 1 << u; }
-    }
-}
+/// Four units on matrix signals 33 + 4*unit .. 36 + 4*unit (`esp_periph::pcnt`).
+pub use esp_periph::{Pcnt, PcntLayout};
 
 // ------------------------------------------------------------------ LCD_CAM (camera side)
 /// LCD_CAM captures sensor frames through GDMA trigger 5 while CAM_START is set.
@@ -272,11 +219,6 @@ impl Device for IntMatrix {
     fn read(&mut self, off: u32) -> u32 { IntMatrix::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { IntMatrix::write(self, off, v); WriteEffect::INTMAP }
 }
-impl Device for Pcnt {
-    fn read(&mut self, off: u32) -> u32 { Pcnt::read(self, off) }
-    fn write(&mut self, off: u32, v: u32) -> WriteEffect { Pcnt::write(self, off, v); WriteEffect::NONE }
-    fn irq_sources(&self) -> u64 { self.irq() as u64 }
-}
 impl Device for LcdCam {
     fn read(&mut self, off: u32) -> u32 { LcdCam::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { LcdCam::write(self, off, v); WriteEffect::NONE }
@@ -349,7 +291,26 @@ pub struct Peripherals {
     pub intmatrix_dirty: bool,
     pub ledc: Ledc,
     pub mcpwm: [Mcpwm; 2],
+    /// the full-speed USB-OTG core (DR_REG_USB_BASE 0x60080000: `USB0` and `USB_DWC` in IDF
+    /// v5.5.4 components/soc/esp32s3/ld/esp32s3.peripherals.ld) and the cable to a host, if one
+    /// is attached
+    pub usb_otg: Box<Dwc2>,
+    /// the SD/MMC host (DR_REG_SDMMC_BASE 0x60028000, IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/reg_base.h:43) and the card on its bus
+    pub sdmmc: Box<Sdmmc>,
+    /// CPU cycles before this peripheral set was built: the card's time runs on through a chip reset
+    pub sd_cycle_base: u64,
 }
+
+/// The USB-OTG and SDMMC blocks, whose entries in the table below are optional.
+pub const USB_OTG_BLOCK: u32 = 0x80;
+pub const SDMMC_BLOCK: u32 = 0x28;
+/// GPIO matrix signals of the SDMMC host per slot: the card clock output, the card-detect and
+/// write-protect inputs (IDF v5.5.4 components/soc/esp32s3/include/soc/gpio_sig_map.h:312-314,
+/// :355-361). The S3 has no IO MUX function for SDMMC: every SD pin goes through the matrix.
+pub const SIG_SDHOST_CCLK_OUT: [u32; SLOTS] = [172, 173];
+pub const SIG_SDHOST_CARD_DETECT_N: [usize; SLOTS] = [194, 195];
+pub const SIG_SDHOST_CARD_WRITE_PRT: [usize; SLOTS] = [196, 197];
 
 // Every peripheral, where it sits, and its interrupt source numbers. Entries for one block are
 // tried in order: a range-limited entry goes before the full-block one behind it.
@@ -396,6 +357,8 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 15), 
     0x3a "AES" (aes) => [SRC_AES];
     0x3c "RSA" (rsa) => [SRC_RSA];
     0x06 "FE" (fe) @ 0x174..=0x177 => [];
+    0x80 "USB_OTG" optional (usb_otg) => [SRC_USB_OTG];
+    0x28 "SDMMC" optional (sdmmc) => [SRC_SDIO_HOST];
 }
 
 impl DeviceSet for Peripherals {
@@ -409,6 +372,7 @@ impl DeviceSet for Peripherals {
             0xc2 if !write => self.intmatrix.status = self.source_status(),   // INTERRUPT_*_STATUS reads the live sources
             0x35 => self.wifi.now_cycles = self.clock.cycles(),               // TSF timestamps
             0x08 => self.rtc.now_cycles = self.clock.cycles(),                // SENS ADC samples analog sources at this time
+            SDMMC_BLOCK => self.sdmmc_pre_access(),
             _ => {}
         }
     }
@@ -422,12 +386,72 @@ impl Peripherals {
             usb: UsbSerialJtag::new(CPU_HZ), uart: [Uart::new(UartLayout::S3), Uart::new(UartLayout::S3), Uart::new(UartLayout::S3)], systimer: Systimer::new(),
             timg: [TimerGroup::new(), TimerGroup::new()], intmatrix: IntMatrix::new(), gpio: Gpio::new(), ledc: Ledc::new(LedcLayout::S3), mcpwm: [Mcpwm::new(160, 9), Mcpwm::new(166, 9)], rtc: RtcCntl::new(),
             efuse: Efuse::new(mac), system: SystemRegs::new(0x30), extmem: Extmem::new(), spi0: SpiMem::new(false), spi1: SpiMem::new(true),
-            i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()], lcd_cam: LcdCam::new(), spi2: GpSpi::new(), spi3: GpSpi::with_host(3), pcnt: Pcnt::new(), wifi: WifiMac::new(CPU_HZ), fe: FeIq { word: 0 },
+            i2c: [crate::i2c::I2c::new(), crate::i2c::I2c::new()], lcd_cam: LcdCam::new(), spi2: GpSpi::new(), spi3: GpSpi::with_host(3), pcnt: Pcnt::new(PcntLayout::S3), wifi: WifiMac::new(CPU_HZ), fe: FeIq { word: 0 },
             aes: Aes::new(), rsa: Rsa::new(), sha: Sha::new(), wdev: Wdev::new(), i2c_mst: I2cMst::new(), gdma: Gdma::new(), i2s0: I2s::new(CPU_HZ), i2s1: I2s::new(CPU_HZ), rmt: Rmt::new(CPU_HZ),
             io_mux: RegRam::new(), misc: Misc::new(), fake_reads: std::env::var("ESP_EMU_FAKE_READ").ok().map(|v| v.split(',').filter_map(|e| { let mut p = e.split(':'); let a = u32::from_str_radix(p.next()?.trim_start_matches("0x"), 16).ok()?; let o = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).ok()?; let m = u32::from_str_radix(p.next().unwrap_or("ffffffff").trim_start_matches("0x"), 16).ok()?; Some((a, (o, m))) }).collect()).unwrap_or_default(),
             clock: Self::new_clock(),
             spi_exec: false, last_status: [0; 4], intmatrix_dirty: false,
+            usb_otg: Self::new_usb_otg(), sdmmc: Box::new(Sdmmc::new(SdmmcLayout::Esp32)), sd_cycle_base: 0,
         }
+    }
+
+    /// The core starts without the PHY: at reset the internal PHY serves USB-Serial-JTAG. Boxed, as
+    /// is the SDMMC host, so that unused they add a pointer, not their registers, to the set.
+    fn new_usb_otg() -> Box<Dwc2> { let mut d = Box::new(Dwc2::new(Dwc2Config::esp32s3_fs(CPU_HZ))); d.set_phy(false); d }
+
+    /// Which controller the internal USB PHY serves: true for USB-OTG, false for USB-Serial-JTAG.
+    /// RTC_CNTL_USB_CONF.SW_HW_USB_PHY_SEL (bit 20) hands the choice to SW_USB_PHY_SEL (bit 19),
+    /// otherwise eFuse USB_PHY_SEL (EFUSE_RD_REPEAT_DATA1 bit 25) makes it; IDF v5.5.4
+    /// components/soc/esp32s3/register/soc/rtc_cntl_reg.h:3071-3077, efuse_reg.h:510-516, and
+    /// hal/esp32s3/include/hal/usb_wrap_ll.h:56-67 (`usb_wrap_ll_phy_enable_external`, which
+    /// TinyUSB's PHY setup calls with `false`).
+    pub fn usb_phy_to_otg(&self) -> bool {
+        let conf = self.rtc.ram.read(0x120);
+        if conf & (1 << 20) != 0 { conf & (1 << 19) != 0 } else { self.efuse.read(0x34) & (1 << 25) != 0 }
+    }
+
+    /// Give the internal PHY to the controller that has it now: the OTG core reaches the cable
+    /// when it has the PHY and USB_WRAP_OTG_CONF.PHY_SEL (bit 2, usb_wrap_reg.h:130-135) does not
+    /// pick an external one; USB-Serial-JTAG loses its host (no more SOFs) while the OTG core
+    /// has the PHY.
+    pub fn route_usb_phy(&mut self) {
+        let otg = self.usb_phy_to_otg();
+        let wrap = self.misc.generic.get(&0x39).map_or(0, |r| r.read(0));
+        self.usb_otg.set_phy(otg && wrap & (1 << 2) == 0);
+        self.usb.connected = !otg;
+    }
+
+    /// A GPIO matrix input signal's level: the pin IN_SEL names, or the constant inputs 0x38
+    /// (one) and 0x3C (zero, the reset value), inverted by IN_INV_SEL (bit 6) (IDF v5.5.4
+    /// components/soc/esp32s3/include/soc/gpio_pins.h:13-14).
+    fn matrix_input(&self, signal: usize) -> bool {
+        let sel = self.gpio.func_in_sel[signal];
+        let level = match sel & 0x3f { 0x38 => true, 0x3c => false, p => self.gpio.level(p as u8) };
+        level ^ (sel & 0x40 != 0)
+    }
+
+    /// The card is on the first slot whose clock the GPIO matrix puts on a pad: the S3 routes
+    /// SD through the matrix to whatever pins the firmware chose, so the card follows them.
+    pub fn sd_routes(&self) -> [Option<usize>; SLOTS] {
+        let mut r = [None; SLOTS];
+        if self.sdmmc.devices.is_empty() { return r; }
+        let pins = &self.gpio.func_out_sel[..self.gpio.pins as usize];
+        if let Some(slot) = (0..SLOTS).find(|&s| pins.iter().any(|&sel| sel & 0x1ff == SIG_SDHOST_CCLK_OUT[s])) { r[slot] = Some(0); }
+        r
+    }
+
+    /// Before an SDMMC access: emulated time for the card, the slots' routes, and CDETECT and
+    /// WRTPRT from the card-detect and write-protect signals of the matrix (IDF's driver ties
+    /// them to constant inputs when the board has no such pin: esp_driver_sdmmc/src/sdmmc_host.c).
+    /// Out of line, so that `pre_access` stays small enough to inline into every register access.
+    #[cold]
+    #[inline(never)]
+    fn sdmmc_pre_access(&mut self) {
+        self.sdmmc.now_ns = ((self.sd_cycle_base + self.clock.cycles()) as u128 * 1_000_000_000 / CPU_HZ as u128) as u64;
+        self.sdmmc.route = self.sd_routes();
+        let (cd, wp) = (0..SLOTS).fold((0, 0), |(cd, wp), s| (cd | (self.matrix_input(SIG_SDHOST_CARD_DETECT_N[s]) as u32) << s, wp | (self.matrix_input(SIG_SDHOST_CARD_WRITE_PRT[s]) as u32) << s));
+        self.sdmmc.card_detect_n = cd;
+        self.sdmmc.write_protect = wp;
     }
 
     pub fn block_name_pub(block: u32) -> String { Self::block_name(block).to_string() }
@@ -437,7 +461,7 @@ impl Peripherals {
             0x0b => "HINF", 0x0c => "UHCI1", 0x0f => "I2S0", 0x10 => "UART1", 0x11 => "BT", 0x13 => "I2C0", 0x14 => "UHCI0", 0x15 => "SLCHOST", 0x16 => "RMT", 0x17 => "PCNT",
             0x18 => "SLC", 0x19 => "LEDC", 0x1c => "NRX", 0x1d => "BB", 0x1e => "PWM0", 0x1f => "TIMG0", 0x20 => "TIMG1", 0x21 => "RTC_SLOWMEM", 0x23 => "SYSTIMER",
             0x24 => "SPI2", 0x25 => "SPI3", 0x26 => "APB_CTRL", 0x27 => "I2C1", 0x28 => "SDMMC", 0x2a => "PERI_BACKUP", 0x2b => "TWAI", 0x2c => "PWM1", 0x2d => "I2S1", 0x2e => "UART2", 0x33 => "WIFI_MAC", 0x34 => "WIFI_MAC2", 0x35 => "WDEV", 0x0e => "I2C_MST",
-            0x38 => "USB_SERIAL_JTAG", 0x39 => "USB_WRAP", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS", 0x3e => "HMAC", 0x3f => "GDMA", 0x40 => "APB_SARADC", 0x41 => "LCD_CAM",
+            0x38 => "USB_SERIAL_JTAG", 0x39 => "USB_WRAP", 0x3a => "AES", 0x3b => "SHA", 0x3c => "RSA", 0x3d => "DS", 0x3e => "HMAC", 0x3f => "GDMA", 0x40 => "APB_SARADC", 0x41 => "LCD_CAM", 0x80 => "USB_OTG",
             0xc0 => "SYSTEM", 0xc1 => "SENSITIVE", 0xc2 => "INTERRUPT", 0xc4 => "EXTMEM", 0xc5 => "MMU", 0xce => "ASSIST_DEBUG", 0xcf => "ASSIST_DEBUG2", 0xd0 => "WCL",
             _ => "?",
         }
@@ -481,6 +505,7 @@ impl Peripherals {
             for (group, bit) in [17, 20].iter().enumerate() { if v & (1 << bit) != 0 { self.mcpwm[group] = Mcpwm::new(160 + group as u32 * 6, 9); } }
         }
         let fx = mmio::write32(self, addr, v);
+        if matches!(addr, 0x6000_8120 | 0x6003_9000 | 0x600c_0020 | 0x600c_0024) { self.usb_sd_control(addr, v); }
         if fx.contains(WriteEffect::SPI_EXEC) { self.spi_exec = true; }
         if fx.contains(WriteEffect::INTMAP) { self.intmatrix_dirty = true; }
         // ESP-IDF v5.5.4 soc/system_reg.h: PERIP_CLK_EN1/RST_EN1 LCD_CAM bit 8.
@@ -491,6 +516,23 @@ impl Peripherals {
             for (group, bit) in [17, 20].iter().enumerate() { self.mcpwm[group].clock_enabled = self.system.read(0x18) & (1 << bit) != 0 && self.system.read(0x20) & (1 << bit) == 0; }
             self.ledc.clock_enabled = self.system.read(0x18) & (1 << 11) != 0 && self.system.read(0x20) & (1 << 11) == 0;
             for block in [0x19, 0x1e, 0x2c] { self.refresh_optional(block); }
+        }
+    }
+
+    /// The registers outside the two blocks that control them: RTC_CNTL_USB_CONF and
+    /// USB_WRAP_OTG_CONF move the internal PHY between the two USB controllers;
+    /// SYSTEM_PERIP_RST_EN0.USB_RST (bit 23) holds the OTG core in reset, PERIP_RST_EN1.SDIO_HOST_RST
+    /// (bit 7) the SDMMC host (IDF v5.5.4 components/soc/esp32s3/register/soc/system_reg.h:416-418,
+    /// :580-582). SDIO_HOST_RST's silicon default is 1, but the model's PERIP_RST_EN1 reads 0 at
+    /// reset, so the host starts released; IDF sets and clears the bit before use
+    /// (`sdmmc_ll_reset_register`, hal/esp32s3/include/hal/sdmmc_ll.h:123-124).
+    #[cold]
+    #[inline(never)]
+    fn usb_sd_control(&mut self, addr: u32, v: u32) {
+        match addr {
+            0x600c_0020 => { self.usb_otg.set_reset(v & (1 << 23) != 0); Dispatch::refresh_optional(self, USB_OTG_BLOCK); }
+            0x600c_0024 => { self.sdmmc.set_reset(v & (1 << 7) != 0); Dispatch::refresh_optional(self, SDMMC_BLOCK); }
+            _ => self.route_usb_phy(),
         }
     }
 
@@ -518,16 +560,7 @@ impl Peripherals {
         let mut irq_changed = Dispatch::tick(self, cycles);
         if !self.gpio.input_changes.is_empty() {
             let before = self.pcnt.irq();
-            let gpio = &mut self.gpio;
-            let input = gpio.input;
-            let selections = &gpio.func_in_sel;
-            let sig = |idx: u32| -> Option<(u8, bool)> {
-                let sel = *selections.get(idx as usize)?;
-                if sel & 0x80 == 0 { return None; }                       // not routed through the matrix
-                let pin = (sel & 0x3f) as u8; if pin >= 49 { return None; }
-                let lvl = (input >> pin) & 1 != 0; Some((pin, lvl ^ (sel & 0x40 != 0)))
-            };
-            for (pin, level) in gpio.input_changes.drain(..) { self.pcnt.gpio_edge(pin, level, &sig); }
+            self.pcnt.matrix_edges(&mut self.gpio);
             irq_changed |= before != self.pcnt.irq();
         }
         irq_changed

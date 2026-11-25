@@ -1,8 +1,8 @@
 //! The native NAT transport, ordinary host sockets. A TCP connect runs on a
 //! worker thread (at most `MAX_CONNECTS` at once, process-wide) so the emulator never blocks on it.
-//! `--hostfwd` listeners live here too: a browser has no sockets to listen on.
+//! `--hostfwd` listeners, TCP and UDP, live here too: a browser has no sockets to listen on.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener, TcpStream, UdpSocket};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,6 +12,12 @@ use super::HostFwdSpec;
 
 pub(super) const MAX_CONNECTS: usize = 8;
 const MAX_HOSTFWD: usize = 8;
+/// Datagrams one `--hostfwd udp:` sender may have waiting for the NAT; more are dropped, as a
+/// full socket buffer drops them.
+const UDP_QUEUE: usize = 16;
+/// Datagrams read from a `--hostfwd udp:` port per `udp_accept`, so a flood cannot stall a poll;
+/// the rest wait in the socket.
+const UDP_READS: usize = 64;
 
 // A permit belongs to the blocking connect worker, not its guest flow. Removing a flow with RST
 // must not free a slot while connect_timeout is still running on the host.
@@ -40,17 +46,22 @@ fn connect(addr: SocketAddr) -> Option<Receiver<io::Result<TcpStream>>> {
 
 pub(super) enum StdTcp { Connecting(Receiver<io::Result<TcpStream>>), Connected(TcpStream), Failed(ErrorKind) }
 
-/// One `--hostfwd` listener and where its connections go.
+/// One `--hostfwd` listener and where its connections or datagrams go.
 struct HostFwd {
-    listener: TcpListener,
+    listener: Listener,
     guest_ip: [u8; 4],
     guest_port: u16,
 }
+enum Listener { Tcp(TcpListener), Udp(UdpSocket) }
+
+/// A UDP flow: a socket connected to the guest's destination, or one sender at a `--hostfwd
+/// udp:` port (`forwards[fwd]`) with the datagrams it sent that the NAT has not read yet.
+enum StdUdp { Out(UdpSocket), In { fwd: usize, peer: SocketAddr, queue: VecDeque<Vec<u8>> } }
 
 /// `NatTransport` over `std::net`: what `Nat::new` uses.
 pub struct StdTransport {
     tcp: HashMap<FlowId, StdTcp>,
-    udp: HashMap<FlowId, UdpSocket>,
+    udp: HashMap<FlowId, StdUdp>,
     forwards: Vec<HostFwd>,
     next: FlowId,
     resolver: [u8; 4],
@@ -64,16 +75,59 @@ impl StdTransport {
     pub fn new() -> Self { Self { tcp: HashMap::new(), udp: HashMap::new(), forwards: Vec::new(), next: 0, resolver: host_resolver() } }
 
     /// Bind one host TCP port; its connections reach the NAT through `tcp_accept`, which delivers
-    /// each as a SYN to `spec.guest_ip:guest_port`.
+    /// each as a SYN to `spec.guest_ip:guest_port`. A UDP port's senders reach it through
+    /// `udp_accept`, each a flow of its own.
     pub fn listen(&mut self, spec: &HostFwdSpec) -> io::Result<SocketAddr> {
         if self.forwards.len() >= MAX_HOSTFWD {
             return Err(io::Error::other("too many --hostfwd listeners"));
         }
-        let listener = TcpListener::bind(spec.bind)?;
-        listener.set_nonblocking(true)?;
-        let bound = listener.local_addr()?;
+        let (listener, bound) = if spec.udp {
+            let sock = UdpSocket::bind(spec.bind)?;
+            sock.set_nonblocking(true)?;
+            let bound = sock.local_addr()?;
+            (Listener::Udp(sock), bound)
+        } else {
+            let sock = TcpListener::bind(spec.bind)?;
+            sock.set_nonblocking(true)?;
+            let bound = sock.local_addr()?;
+            (Listener::Tcp(sock), bound)
+        };
         self.forwards.push(HostFwd { listener, guest_ip: spec.guest_ip, guest_port: spec.guest_port });
         Ok(bound)
+    }
+
+    /// Read what waits at the `--hostfwd udp:` ports into their senders' flows, starting a flow
+    /// for a sender not seen yet (or no longer: the NAT closed its flow). Reading stops at `max`
+    /// new senders; what is behind them stays in the socket.
+    fn read_udp_forwards(&mut self, max: usize) -> Vec<(FlowId, [u8; 4], u16)> {
+        let mut new = Vec::new();
+        let mut buf = [0; 2048];
+        for fwd in 0..self.forwards.len() {
+            let Listener::Udp(sock) = &self.forwards[fwd].listener else { continue };
+            for _ in 0..UDP_READS {
+                if new.len() >= max { return new; }
+                let (n, peer) = match sock.recv_from(&mut buf) {
+                    Ok(got) => got,
+                    Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+                    // WouldBlock, or an ICMP error from an earlier reply: nothing more now
+                    Err(_) => break,
+                };
+                let known = self.udp.iter_mut().find_map(|(_, f)| match f {
+                    StdUdp::In { fwd: f_fwd, peer: f_peer, queue } if *f_fwd == fwd && *f_peer == peer => Some(queue),
+                    _ => None,
+                });
+                if let Some(queue) = known {
+                    if queue.len() < UDP_QUEUE { queue.push_back(buf[..n].to_vec()); }
+                    continue;
+                }
+                self.next = self.next.wrapping_add(1);
+                let id = self.next;
+                self.udp.insert(id, StdUdp::In { fwd, peer, queue: VecDeque::from([buf[..n].to_vec()]) });
+                let f = &self.forwards[fwd];
+                new.push((id, f.guest_ip, f.guest_port));
+            }
+        }
+        new
     }
 
     fn id(&mut self) -> FlowId {
@@ -98,7 +152,7 @@ impl StdTransport {
     }
 
     fn socket(&self, id: FlowId) -> io::Result<&UdpSocket> {
-        self.udp.get(&id).ok_or_else(|| ErrorKind::NotConnected.into())
+        match self.udp.get(&id) { Some(StdUdp::Out(sock)) => Ok(sock), _ => Err(ErrorKind::NotConnected.into()) }
     }
 }
 
@@ -143,12 +197,28 @@ impl NatTransport for StdTransport {
         sock.connect(dst)?;
         sock.set_nonblocking(true)?;
         let id = self.id();
-        self.udp.insert(id, sock);
+        self.udp.insert(id, StdUdp::Out(sock));
         Ok(id)
     }
 
-    fn udp_send(&mut self, id: FlowId, data: &[u8]) -> io::Result<usize> { self.socket(id)?.send(data) }
-    fn udp_recv(&mut self, id: FlowId, buf: &mut [u8]) -> io::Result<usize> { self.socket(id)?.recv(buf) }
+    /// An inbound flow answers its sender from the forwarded port, as the sender expects.
+    fn udp_send(&mut self, id: FlowId, data: &[u8]) -> io::Result<usize> {
+        if let Some(StdUdp::In { fwd, peer, .. }) = self.udp.get(&id) {
+            let Some(Listener::Udp(sock)) = self.forwards.get(*fwd).map(|f| &f.listener) else { return Err(ErrorKind::NotConnected.into()) };
+            return sock.send_to(data, *peer);
+        }
+        self.socket(id)?.send(data)
+    }
+    /// A datagram longer than `buf` is cut short, as `recv` on a socket cuts it.
+    fn udp_recv(&mut self, id: FlowId, buf: &mut [u8]) -> io::Result<usize> {
+        if let Some(StdUdp::In { queue, .. }) = self.udp.get_mut(&id) {
+            let d = queue.pop_front().ok_or(ErrorKind::WouldBlock)?;
+            let n = d.len().min(buf.len());
+            buf[..n].copy_from_slice(&d[..n]);
+            return Ok(n);
+        }
+        self.socket(id)?.recv(buf)
+    }
     fn udp_close(&mut self, id: FlowId) { self.udp.remove(&id); }
 
     fn resolver(&self) -> [u8; 4] { self.resolver }
@@ -157,7 +227,8 @@ impl NatTransport for StdTransport {
         for i in 0..self.forwards.len() {
             loop {
                 let fwd = &self.forwards[i];
-                match fwd.listener.accept() {
+                let Listener::Tcp(listener) = &fwd.listener else { break };
+                match listener.accept() {
                     Ok((sock, _)) => {
                         if sock.set_nonblocking(true).is_err() || sock.set_nodelay(true).is_err() { continue; }
                         let (guest_ip, guest_port) = (fwd.guest_ip, fwd.guest_port);
@@ -172,6 +243,8 @@ impl NatTransport for StdTransport {
         }
         None
     }
+
+    fn udp_accept(&mut self, max: usize) -> Vec<(FlowId, [u8; 4], u16)> { self.read_udp_forwards(max) }
 }
 
 fn host_resolver() -> [u8; 4] {

@@ -1,0 +1,44 @@
+exit-done-k: killed by a_region_never_runs_past_its_budget, a_store_into_a_blocks_second_page_takes_effect, a_store_into_the_next_block_of_a_region_takes_effect, blocks_match_the_interpreter_on_random_programs
+transition-no-budget: killed by a_region_never_runs_past_its_budget, blocks_match_the_interpreter_on_random_programs
+transition-budget-off-by-one: killed by a_region_never_runs_past_its_budget, blocks_match_the_interpreter_on_random_programs
+transition-no-versions: killed by a_store_into_a_blocks_second_page_takes_effect, a_store_into_the_next_block_of_a_region_takes_effect, blocks_match_the_interpreter_on_random_programs
+store-no-stale-check: killed by a_store_into_a_blocks_second_page_takes_effect, blocks_match_the_interpreter_on_random_programs
+exec-no-stale-check: killed by blocks_match_the_interpreter_on_random_programs
+exit-last-pc: killed by a_region_never_runs_past_its_budget, blocks_match_the_interpreter_on_random_programs
+load-ignore-break: killed by blocks_match_the_interpreter_on_random_programs
+store-ignore-break: killed by blocks_match_the_interpreter_on_random_programs
+target-ignore-bloom: killed by blocks_match_the_interpreter_on_random_programs
+no-retired: killed by a_region_never_runs_past_its_budget, a_store_into_a_blocks_second_page_takes_effect, blocks_match_the_interpreter_on_random_programs
+cycle-off: killed by a_region_never_runs_past_its_budget, a_store_into_a_blocks_second_page_takes_effect, blocks_match_the_interpreter_on_random_programs
+div-no-zero: killed by blocks_match_the_interpreter_on_random_programs
+jalr-no-mask: killed by blocks_match_the_interpreter_on_random_programs
+sltiu-signed: killed by blocks_match_the_interpreter_on_random_programs
+hexec-no-leave: killed by blocks_match_the_interpreter_on_random_programs
+entry-no-hwlp: killed by blocks_match_the_interpreter_on_random_programs
+entry-no-break: killed by blocks_match_the_interpreter_on_random_programs
+entry-no-whole-block: killed by a_region_never_runs_past_its_budget, blocks_match_the_interpreter_on_random_programs
+reuse-no-versions: killed by a_store_into_a_blocks_second_page_takes_effect, a_store_into_the_next_block_of_a_region_takes_effect, blocks_match_the_interpreter_on_random_programs
+reuse-no-length: SURVIVED
+load-trap-pc: killed by blocks_match_the_interpreter_on_random_programs
+exec-pending-no-flush: killed by blocks_match_the_interpreter_on_random_programs
+bext-width: killed by blocks_match_the_interpreter_on_random_programs
+rem-quotient: killed by blocks_match_the_interpreter_on_random_programs
+rol-no-neg: killed by blocks_match_the_interpreter_on_random_programs
+ctz-as-clz: killed by blocks_match_the_interpreter_on_random_programs
+minu-signed: killed by blocks_match_the_interpreter_on_random_programs
+sh3add-as-sh2: killed by blocks_match_the_interpreter_on_random_programs
+rev8-off: killed by blocks_match_the_interpreter_on_random_programs
+bseti-as-binvi: killed by blocks_match_the_interpreter_on_random_programs
+mulhu-signed: killed by blocks_match_the_interpreter_on_random_programs
+leave-last-pc: killed by a_region_never_runs_past_its_budget, blocks_match_the_interpreter_on_random_programs
+gone-last-pc: killed by blocks_match_the_interpreter_on_random_programs
+hexec-ignore-break: killed by blocks_match_the_interpreter_on_random_programs
+andn-as-and: killed by blocks_match_the_interpreter_on_random_programs
+rebuild-keeps-slot: killed by blocks_match_the_interpreter_on_random_programs
+flush-keeps-code-refs: killed by blocks_match_the_interpreter_on_random_programs
+versions-first-page-only: killed by a_store_into_a_blocks_second_page_takes_effect
+exec-no-note-pc: killed by blocks_match_the_interpreter_on_random_programs
+load-no-note-pc: killed by blocks_match_the_interpreter_on_random_programs
+store-no-note-pc: killed by blocks_match_the_interpreter_on_random_programs
+run-no-bloom-after-region: killed by blocks_match_the_interpreter_on_random_programs
+{'killed': 42, 'SURVIVED': 1}

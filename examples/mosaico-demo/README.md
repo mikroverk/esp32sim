@@ -39,10 +39,9 @@ The images' licences (LVGL, the BSP and Espressif's components, Bosch's sensor A
 ESP-IDF) are in `web/wasm/fw/public/s31-mosaico-demo-NOTICE.txt`. The application is this
 repository's, MIT.
 
-One setting is for the emulator: `CONFIG_BSP_VCC_3V3_RAMP_MS=0`. The BSP soft-starts the 3.3 V
-rail with an LEDC fade and waits for the fade's end interrupt; the S31 model's LEDC has no fade
-engine, so the default 50 ms ramp would wait forever. 0 is the BSP's own setting for driving the
-enable pin directly. The demo has not been run on a physical board.
+No setting is there for the emulator: the BSP's 3.3 V soft start (`CONFIG_BSP_VCC_3V3_RAMP_MS`,
+50 ms, an LEDC fade waited for with its end interrupt) runs on the model as on the chip. The demo
+has not been run on a physical board.
 
 ## Run
 

@@ -716,14 +716,17 @@ fn hostfwd_spec_parses_the_documented_tcp_form() {
     let spec = HostFwdSpec::parse("tcp:0.0.0.0:0-:1").unwrap();
     assert_eq!(spec.bind.ip(), IpAddr::V4(Ipv4Addr::UNSPECIFIED));
     assert_eq!(spec.guest_port, 1);
-    for bad in ["udp:127.0.0.1:8080-:80", "tcp:127.0.0.1:8080:80", "tcp:127.0.0.1:8080-:0", "tcp:nope:8080-:80", "tcp::65536-:80", ""] {
+    let spec = HostFwdSpec::parse("udp::5353-10.0.2.15:7").unwrap();
+    assert_eq!(spec, HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 5353)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    assert!(!HostFwdSpec::parse("tcp::5353-:7").unwrap().udp);
+    for bad in ["sctp:127.0.0.1:8080-:80", "udp:127.0.0.1:8080-:0", "tcp:127.0.0.1:8080:80", "tcp:127.0.0.1:8080-:0", "tcp:nope:8080-:80", "tcp::65536-:80", ""] {
         assert!(HostFwdSpec::parse(bad).is_err(), "{bad}");
     }
 }
 
 #[test]
 fn hostfwd_holds_until_the_station_mac_is_known_then_relays_both_ways() {
-    let (mut nat, bound) = listening(HostFwdSpec { bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 80 });
+    let (mut nat, bound) = listening(HostFwdSpec { udp: false, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 80 });
     let connector = std::thread::spawn(move || {
         let sock = TcpStream::connect(bound).unwrap();
         sock.set_nonblocking(true).unwrap();
@@ -779,7 +782,7 @@ fn hostfwd_holds_until_the_station_mac_is_known_then_relays_both_ways() {
 
 #[test]
 fn hostfwd_counts_a_guest_rst_to_the_forwarded_syn_as_refused() {
-    let (mut nat, bound) = listening(HostFwdSpec { bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 4444 });
+    let (mut nat, bound) = listening(HostFwdSpec { udp: false, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 4444 });
     let connector = std::thread::spawn(move || TcpStream::connect(bound).unwrap());
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
     while !connector.is_finished() {
@@ -798,4 +801,149 @@ fn hostfwd_counts_a_guest_rst_to_the_forwarded_syn_as_refused() {
     let out = nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[10, 0, 2, 2], &segment_ports(4444, eph, 0, syn_seq + 1, RST | ACK, &[]), 2);
     assert!(out.is_empty());
     assert_eq!((nat.tcp_refused, nat.tcp_accepted), (1, 0));
+}
+
+/// A host sender's datagram, as the NAT's next poll delivers it: from the gateway's port for that
+/// sender to the forwarded guest port.
+fn hostfwd_datagram(nat: &mut Nat, now_us: u64) -> (u16, Vec<u8>) {
+    let frames = poll_ready(nat, now_us);
+    assert_eq!(frames.len(), 1);
+    let f = &frames[0];
+    assert_eq!((&f[0..6], &f[23]), (&[2u8; 6][..], &17), "UDP to the station");
+    assert_eq!((&f[26..30], &f[30..34]), (&[10u8, 0, 2, 2][..], &[10u8, 0, 2, 15][..]));
+    assert_eq!(u16::from_be_bytes([f[36], f[37]]), 7);
+    assert_eq!(transport_checksum(&[10, 0, 2, 2], &GUEST, 17, &f[34..]), 0);
+    (u16::from_be_bytes([f[34], f[35]]), f[42..].to_vec())
+}
+
+#[test]
+fn udp_hostfwd_holds_until_the_station_mac_is_known_then_answers_each_sender() {
+    let (nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    let mut net = crate::net::VirtualNet::new(false);
+    net.nat = Some(nat);
+    let (a, b) = (UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap(), UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap());
+    for s in [&a, &b] { s.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap(); }
+    a.send_to(b"ping a", bound).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    assert!(net.poll(0).is_empty(), "no datagram before the station MAC is known");
+    let nat = net.nat.as_mut().unwrap();
+    nat.set_station([2; 6]);
+    let (port_a, data) = hostfwd_datagram(nat, 1);
+    assert_eq!(data, b"ping a");
+    b.send_to(b"ping b", bound).unwrap();
+    let (port_b, data) = hostfwd_datagram(nat, 2);
+    assert_eq!(data, b"ping b");
+    assert_ne!(port_a, port_b, "each sender has a gateway port of its own");
+    a.send_to(b"again", bound).unwrap();
+    assert_eq!(hostfwd_datagram(nat, 3), (port_a, b"again".to_vec()), "a known sender keeps its port");
+    // the guest's echo, through the virtual network, goes back to each sender from the forwarded port
+    for (port, payload) in [(port_b, &b"pong b"[..]), (port_a, b"pong a")] {
+        let udp = udp_packet(&GUEST, &[10, 0, 2, 2], 7, port, payload);
+        assert!(net.handle(&ethernet(&GATEWAY_MAC, &[2; 6], 0x0800, &ip_packet(17, &GUEST, &[10, 0, 2, 2], &udp)), 4).is_empty());
+    }
+    let mut buf = [0; 16];
+    for (sock, want) in [(&a, &b"pong a"[..]), (&b, b"pong b")] {
+        let (n, from) = sock.recv_from(&mut buf).unwrap();
+        assert_eq!((&buf[..n], from), (want, bound));
+    }
+    let nat = net.nat.as_ref().unwrap();
+    assert_eq!((nat.udp_inbound, nat.udp_flows, nat.bytes_to_host), (2, 2, 12));
+}
+
+#[test]
+fn a_udp_hostfwd_sender_idle_past_the_timeout_starts_a_new_flow() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    host.send_to(b"one", bound).unwrap();
+    let (first, _) = hostfwd_datagram(&mut nat, 0);
+    assert!(nat.poll(IDLE_CLOSE_US).is_empty());
+    assert!(nat.udp.is_empty(), "the idle flow is forgotten");
+    host.send_to(b"two", bound).unwrap();
+    let (second, data) = hostfwd_datagram(&mut nat, IDLE_CLOSE_US + 1);
+    assert_eq!(data, b"two");
+    assert_ne!(first, second);
+    assert_eq!(nat.udp_inbound, 2);
+}
+
+#[test]
+fn a_udp_hostfwd_flood_is_taken_a_few_senders_a_poll_and_spares_the_guests_flows() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    // the guest's own flow, as a DNS query starts one, and a host sender it answered
+    let resolver = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    nat.udp_out(&[2; 6], &GUEST, 1234, &[127, 0, 0, 1], &[127, 0, 0, 1], resolver.local_addr().unwrap().port(), b"query", 0);
+    let peer = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    peer.send_to(b"hello", bound).unwrap();
+    let (answered, _) = hostfwd_datagram(&mut nat, 1);
+    nat.udp_out(&[2; 6], &GUEST, 7, &[10, 0, 2, 2], &[10, 0, 2, 2], answered, b"hi", 1);
+    const SENDERS: usize = 100;
+    let flood: Vec<UdpSocket> = (0..SENDERS).map(|_| UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap()).collect();
+    for s in &flood { s.send_to(b"x", bound).unwrap(); }
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let first = nat.poll(2);
+    assert_eq!((first.len(), nat.udp_inbound, nat.udp_evicted), (UDP_ACCEPT, 1 + UDP_ACCEPT as u64, 0), "one poll takes UDP_ACCEPT new senders");
+    let (mut delivered, mut now) = (first.len(), 3);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while delivered < SENDERS {
+        let frames = nat.poll(now);
+        assert!(frames.len() <= UDP_ACCEPT);
+        delivered += frames.len();
+        now += 1;
+        assert!(std::time::Instant::now() < deadline, "the rest wait in the socket for later polls");
+    }
+    assert_eq!((nat.udp_inbound, nat.udp_refused), (1 + SENDERS as u64, 0));
+    assert_eq!(nat.udp.len(), MAX_FLOWS);
+    assert_eq!(nat.udp_evicted, (2 + SENDERS - MAX_FLOWS) as u64, "only flows the guest never sent on gave way");
+    assert!(nat.udp.iter().any(|f| !f.inbound && f.guest_port == 1234), "the guest's own flow stays");
+    assert!(nat.udp.iter().any(|f| f.inbound && f.dst_port == answered), "so does the sender it answered");
+}
+
+#[test]
+fn a_udp_hostfwd_sender_is_turned_away_when_every_flow_is_the_guests() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    let receiver = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let port = receiver.local_addr().unwrap().port();
+    for sport in 0..MAX_FLOWS as u16 { nat.udp_out(&[2; 6], &GUEST, 1000 + sport, &[127, 0, 0, 1], &[127, 0, 0, 1], port, b"q", 0); }
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    host.send_to(b"knock", bound).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    while nat.udp_refused == 0 {
+        assert!(nat.poll(1).is_empty());
+        assert!(std::time::Instant::now() < deadline, "loopback delivery timed out");
+        std::thread::yield_now();
+    }
+    assert_eq!((nat.udp_refused, nat.udp_inbound, nat.udp_evicted), (1, 0, 0));
+    assert_eq!(nat.udp.len(), MAX_FLOWS);
+    assert!(nat.udp.iter().all(|f| !f.inbound));
+}
+
+#[test]
+fn udp_datagrams_over_the_mtu_are_dropped_both_ways() {
+    let (mut nat, bound) = listening(HostFwdSpec { udp: true, bind: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), guest_ip: [10, 0, 2, 15], guest_port: 7 });
+    nat.set_station([2; 6]);
+    // host to guest: through the forwarded port, then as a reply to the guest's own flow
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    for len in [MAX_UDP_PAYLOAD + 1, 9000, MAX_UDP_PAYLOAD] { host.send_to(&vec![0x55; len], bound).unwrap(); }
+    let frames = poll_ready(&mut nat, 0);
+    assert_eq!((frames.len(), nat.udp_oversize), (1, 2));
+    assert_eq!(u16::from_be_bytes([frames[0][16], frames[0][17]]), 1500);
+    let server = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    server.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
+    let sport = server.local_addr().unwrap().port();
+    nat.udp_out(&[2; 6], &GUEST, 1234, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, b"q", 1);
+    let mut buf = [0; 2048];
+    let (_, from) = server.recv_from(&mut buf).unwrap();
+    for len in [MAX_UDP_PAYLOAD + 1, MAX_UDP_PAYLOAD] { server.send_to(&vec![0x66; len], from).unwrap(); }
+    let frames = poll_ready(&mut nat, 2);
+    assert_eq!((frames.len(), nat.udp_oversize), (1, 3));
+    assert_eq!(frames[0].len(), 14 + 1500);
+    // guest to host: nothing over the limit leaves, and it starts no flow
+    let flows = nat.udp_flows;
+    nat.udp_out(&[2; 6], &GUEST, 1235, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, &[0x77; MAX_UDP_PAYLOAD + 1], 3);
+    assert_eq!((nat.udp_oversize, nat.udp_flows), (4, flows));
+    nat.udp_out(&[2; 6], &GUEST, 1235, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, &[0x77; MAX_UDP_PAYLOAD], 3);
+    assert_eq!(server.recv_from(&mut buf).unwrap().0, MAX_UDP_PAYLOAD);
+    assert_eq!(nat.udp_oversize, 4);
 }

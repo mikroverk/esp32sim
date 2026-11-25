@@ -82,11 +82,37 @@
   :root[data-theme="dark"] .theme::before { content: "☀"; }
 
   /* ----- hero ----- */
-  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding: 64px 0 40px; }
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: start; padding: 64px 0 40px; }
+  /* Right column: the device, then the release news below it. */
+  .side { display: grid; gap: 30px; }
+  /* Beside the text the device is smaller, so the news and the device fit in the first screen. */
+  @media (min-width: 961px) {
+    .side .stage { padding: 26px 28px; }
+    .side .device { width: min(330px, 100%); }
+  }
   .hero h1 { font-size: clamp(38px, 5.2vw, 62px); font-weight: 800; letter-spacing: -.035em; }
   .hero h1 span { color: var(--link); }
   .lede { margin-top: 20px; font-size: clamp(17px, 1.6vw, 20px); color: var(--text); max-width: 560px; }
   .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  /* What the latest release brought, under the device in the hero; the full list is in #releases. */
+  .latest { border-top: 3px solid var(--ink); padding-top: 10px; }
+  .latest h2 { font-size: 15px; font-weight: 750; letter-spacing: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .latest h2 time { font-size: 12.5px; font-weight: 500; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .latest ul { list-style: none; margin: 4px 0 0; padding: 0; }
+  .latest li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .latest li a { display: block; color: var(--text); font-size: 14.5px; line-height: 1.42; text-decoration: none; }
+  .latest li a b { color: var(--ink); font-weight: 750; }
+  .latest li a:hover, .latest li a:focus-visible { color: var(--ink); text-decoration: underline; }
+  .latest .all { display: inline-block; margin: 8px 16px 0 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+  .news { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-2); }
+  .news li { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 6px 32px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .news li > div { min-width: 0; }
+  .news time { color: var(--dim); font-size: 14.5px; }
+  .news .tag { display: block; font-weight: 800; font-size: 19px; letter-spacing: -.01em; }
+  .news p { color: var(--text); font-size: 15.5px; margin-top: 6px; max-width: 76ch; }
+  .news .go { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 15px; }
+  .news .go a:first-child { font-weight: 700; }
+  @media (max-width: 640px) { .news li { grid-template-columns: 1fr; } }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 26px; color: var(--dim); font: 13px/1.5 var(--mono); }
   .facts span::before { content: "◆"; color: var(--gold); margin-right: 7px; font-size: 10px; vertical-align: 1px; }
   .stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px 16px; padding: 34px; border-radius: 26px; background: radial-gradient(circle at 50% 30%, #2b2f3a, var(--stage) 70%); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -30px rgba(23,26,36,.55); }
@@ -94,7 +120,8 @@
   .device img { display: block; width: 100%; height: auto; border-radius: 9px; }
   .stage .run { grid-column: 2; background: var(--gold); color: var(--ink); min-height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
   .stage .run:hover { background: #ffc43d; }
-  .stage figcaption { color: #aeb3c2; font: 12px/1.4 var(--mono); }
+  .stage figcaption { color: #aeb3c2; font-size: 13.5px; line-height: 1.45; }
+  .stage figcaption b { display: block; color: #f1f2f6; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
 
   /* ----- sections ----- */
   section { padding: 56px 0; }
@@ -178,6 +205,7 @@
 
   @media (max-width: 960px) {
     .hero { grid-template-columns: 1fr; gap: 34px; padding-top: 40px; }
+    .latest { max-width: 560px; }
     .grid, .all, .chips { grid-template-columns: 1fr 1fr; }
     .agents .split { grid-template-columns: 1fr; }
   }
@@ -199,6 +227,7 @@
     <a href="#demos">Demos</a>
     <a href="#agents">For coding agents</a>
     <a href="#inside">What's inside</a>
+    <a href="#releases">Releases</a>
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/quick-start.md">Quick start</a>
     <a href="https://github.com/mikroverk/esp32sim#readme">Docs</a>
     <a class="gh" href="https://github.com/mikroverk/esp32sim">GitHub ↗</a>
@@ -219,11 +248,22 @@
     </div>
     <div class="facts"><span>ROM → bootloader → app</span><span>no patched firmware</span><span>no cloud, no accounts</span><span>MIT</span></div>
   </div>
-  <figure class="stage" style="margin:0">
-    <a class="device" href="run.html?wasm&amp;fw=panel" title="Run the Touch-LCD-4B energy panel"><img src="assets/demo-panel.webp" width="480" height="480" alt="The energy panel firmware's first page: a price histogram for the day and four tiles"></a>
-    <figcaption>the frame the emulator wrote with --tft-png, 5 s after power-on</figcaption>
-    <a class="run" href="run.html?wasm&amp;fw=panel">▶ Run it</a>
-  </figure>
+  <div class="side">
+    <figure class="stage" style="margin:0">
+      <a class="device" href="run.html?wasm&amp;fw=panel" title="Run the Touch-LCD-4B energy panel"><img src="assets/demo-panel.webp" width="480" height="480" alt="The energy panel firmware's first page: a price histogram for the day and four tiles"></a>
+      <figcaption><b>A home-energy panel on an ESP32-S3</b>LVGL on a 480×480 touch display, as the emulator drew it 5 s after power-on. Tap it to boot it here.</figcaption>
+      <a class="run" href="run.html?wasm&amp;fw=panel">▶ Run it</a>
+    </figure>
+    <aside class="latest" aria-labelledby="latest-h">
+      <h2 id="latest-h">New in v0.4.0 <time datetime="2026-11-15">15 Nov 2026</time></h2>
+      <ul>
+        <li><a href="run.html?wasm&amp;fw=s31-mosaico"><b>ESP32-S31 on Espressif's ESP-Mosaico:</b> the newest chip, its round AMOLED, touch and sensors, here in the browser</a></li>
+        <li><a href="run.html?wasm&amp;fw=p4-c6-hosted"><b>ESP32-P4:</b> two RISC-V cores, and WiFi through an emulated ESP32-C6 running ESP-Hosted</a></li>
+        <li><a href="https://github.com/mikroverk/esp32sim/blob/main/docs/cli.md"><b>esptool</b> flashes the S3, C3, C6 and P4 through the ROM, as on a real board</a></li>
+      </ul>
+      <a class="all" href="https://github.com/mikroverk/esp32sim/releases/tag/v0.4.0">Release notes</a> <a class="all" href="#releases">Release history</a>
+    </aside>
+  </div>
 </section>
 
 <section id="demos"><div class="wrap">
@@ -449,6 +489,47 @@ $ esp32sim <b>--board</b> waveshare-lcd4b <b>--boot</b> rom \
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/esp32s31.md">S31 status</a>
     <a href="https://github.com/mikroverk/esp32sim/blob/main/docs/decisions.md">decisions</a>
   </div>
+</div></section>
+
+<section id="releases"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="kicker">Releases</span><h2>What came when.</h2></div>
+    <p>Every release has ready-to-run downloads for Linux (x86-64 and ARM64) and macOS (Apple silicon).</p>
+  </div>
+  <ol class="news">
+    <li>
+      <time datetime="2026-11-15">15 November 2026</time>
+      <div>
+        <span class="tag">v0.4.0</span>
+        <p>Two new chips, each on a real board: the ESP32-P4 on Waveshare's LCD-3.5, with WiFi through an emulated ESP32-C6 co-processor running the unmodified ESP-Hosted firmware, and the ESP32-S31 on Espressif's ESP-Mosaico, whose factory firmware runs to its home screen. esptool flashes the S3, C3, C6 and P4 through the ROM. WiFi you can shape from the page: several access points, nearby networks and BLE devices, and a live Network panel. RISC-V runs about three times faster.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.4.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+    <li>
+      <time datetime="2026-10-20">20 October 2026</time>
+      <div>
+        <span class="tag">v0.3.0</span>
+        <p>A fourth chip, the classic ESP32, from its own mask ROM to MicroPython on a TTGO T-Display. WiFi and Bluetooth on every chip, a much wider set of peripherals, and a browser build that runs some workloads faster than real time.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.3.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+    <li>
+      <time datetime="2026-09-13">13 September 2026</time>
+      <div>
+        <span class="tag">v0.2.0</span>
+        <p>A third chip, the ESP32-C6, with an 802.15.4 radio and Contiki-NG. Linux 6.11 boots on the ESP32-S3, and the S3 gets a WebAssembly JIT in the browser.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.2.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+    <li>
+      <time datetime="2026-09-02">2 September 2026</time>
+      <div>
+        <span class="tag">v0.1.0</span>
+        <p>The first release: unmodified ESP-IDF and Arduino firmware on the ESP32-S3 and ESP32-C3, from the real mask ROM through the bootloader into the application, natively and in the browser.</p>
+        <div class="go"><a href="https://github.com/mikroverk/esp32sim/releases/tag/v0.1.0">Release notes and downloads</a></div>
+      </div>
+    </li>
+  </ol>
 </div></section>
 
 <section><div class="wrap">

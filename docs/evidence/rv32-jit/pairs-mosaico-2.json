@@ -1,0 +1,76 @@
+{
+ "rounds": 7,
+ "max_load": 3.0,
+ "workloads": {
+  "s31-mosaico": {
+   "identical_work_and_console": true,
+   "insns": [
+    2400000000,
+    2385595456
+   ],
+   "console_sha256": "1af7151ec3940d7ff5108d41f06e27b84e18e083e4704f310a59cacc8beadea3",
+   "load": [
+    2.29,
+    2.94
+   ],
+   "discarded_rounds": [
+    { "load": 3.01, "user_s": {  "main": 6.21,  "main-again": 6.43 }
+    },
+    { "load": 3.06, "user_s": {  "main": 6.37,  "main-again": 6.52,  "off": 6.43 }
+    }
+   ],
+   "summary": {
+    "main": { "user_median_s": 6.27, "host_insns_median": 155793320975, "host_cycles_median": 27497909154
+    },
+    "main-again": { "user_median_s": 6.33, "host_insns_median": 155793394542, "host_cycles_median": 27521753350, "user_paired_median_pct": 0.81, "host_insns_paired_median_pct": -0.0, "host_cycles_paired_median_pct": 0.02, "slower_pairs": 4
+    },
+    "off": { "user_median_s": 6.43, "host_insns_median": 154552756157, "host_cycles_median": 27751127167, "user_paired_median_pct": 1.29, "host_insns_paired_median_pct": -0.8, "host_cycles_paired_median_pct": 0.92, "slower_pairs": 5
+    },
+    "v2-off": { "user_median_s": 6.47, "host_insns_median": 158070572284, "host_cycles_median": 27982092285, "user_paired_median_pct": 1.78, "host_insns_paired_median_pct": 1.46, "host_cycles_paired_median_pct": 1.64, "slower_pairs": 7
+    },
+    "v2-on": { "user_median_s": 4.89, "host_insns_median": 129118101807, "host_cycles_median": 21173639253, "user_paired_median_pct": -23.28, "host_insns_paired_median_pct": -17.12, "host_cycles_paired_median_pct": -23.26, "slower_pairs": 0
+    }
+   },
+   "runs": {
+    "main": { "user_s": [  6.26,  6.19,  6.19,  6.27,  6.4,  6.45,  6.28 ], "host_insns": [  155798954327,  155793666512,  155793320975,  155792939640,  155789513076,  155823319560,  155790481402 ], "host_cycles": [  27605708149,  27456903081,  27456833472,  27497909154,  27606000113,  28070680999,  27467032733 ], "load": [  2.47,  2.34,  2.34,  2.92,  2.52,  2.63,  2.3 ]
+    },
+    "main-again": { "user_s": [  6.33,  6.17,  6.24,  6.35,  6.24,  6.37,  6.35 ], "host_insns": [  155795858363,  155792195155,  155792701404,  155791372112,  155793394542,  155817195910,  155809678807 ], "host_cycles": [  27609911168,  27397709089,  27521753350,  27524093744,  27344460638,  27509028579,  27755046338 ], "load": [  2.47,  2.31,  2.29,  2.92,  2.52,  2.63,  2.41 ]
+    },
+    "off": { "user_s": [  6.49,  6.21,  6.27,  6.45,  6.32,  6.43,  6.49 ], "host_insns": [  154552756157,  154554542335,  154555564186,  154549776701,  154554621307,  154550790559,  154551689349 ], "host_cycles": [  27950804528,  27690521985,  27733126508,  27751127167,  27796486242,  27701683833,  27918168788 ], "load": [  2.59,  2.46,  2.29,  2.91,  2.48,  2.58,  2.54 ]
+    },
+    "v2-off": { "user_s": [  6.47,  6.26,  6.3,  6.49,  6.45,  6.49,  6.51 ], "host_insns": [  158072375703,  158070572284,  158072423127,  158067257632,  158067111703,  158072650757,  158067984983 ], "host_cycles": [  28059391044,  27862047000,  27935771203,  28037796301,  27956229890,  27982092285,  27982110055 ], "load": [  2.94,  2.46,  2.4,  2.82,  2.48,  2.41,  2.74 ]
+    },
+    "v2-on": { "user_s": [  4.79,  4.71,  4.89,  4.9,  4.91,  4.88,  4.91 ], "host_insns": [  129120551804,  129119039628,  129118101807,  129113866143,  129109441875,  129111507567,  129119641553 ], "host_cycles": [  21173639253,  21042112370,  21214441934,  21170707657,  21184445826,  21057274858,  21496771224 ], "load": [  2.94,  2.45,  2.4,  2.42,  2.57,  2.44,  2.74 ]
+    }
+   }
+  }
+ },
+ "binaries": {
+  "main": {
+   "esp32sim-s31": "407ba267af5930c932a614058c37742c8fba0b0f51d2df5598b90f3145fbfa90"
+  },
+  "main-again": {
+   "esp32sim-s31": "daff10acf628d6c9d7bbcedcf10379ef51ac07f22093a5ffde9f64c30a1b0487"
+  },
+  "off": {
+   "esp32sim-s31": "4e4bb1c8fe21b49dba2581a4b54355e2778617e6e1c7bcb2897a291a9293e4db"
+  },
+  "v2-off": {
+   "esp32sim-s31": "272123b177b7546cdc32ff8ffcf98af7c39a8030d575d0caa7e9bc90a618fc57"
+  },
+  "v2-on": {
+   "esp32sim-s31": "272123b177b7546cdc32ff8ffcf98af7c39a8030d575d0caa7e9bc90a618fc57"
+  }
+ },
+ "environment": {
+  "main": {},
+  "main-again": {},
+  "off": {
+   "RV32_JIT": "0"
+  },
+  "v2-off": {
+   "RV32_JIT": "0"
+  },
+  "v2-on": {}
+ }
+}

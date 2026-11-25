@@ -286,7 +286,7 @@ fn step_outcome_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
     StepOutcome { pc, next_pc: cpu.pc, bytes: Some(bytes), length: i.len, kind, control }
 }
 
-fn control_event(cpu: &Cpu, i: &Insn) -> Option<ControlEvent> {
+pub(crate) fn control_event(cpu: &Cpu, i: &Insn) -> Option<ControlEvent> {
     use CacheOperation as Cache;
     use ControlEventKind::{Cache as CacheEvent, Tlb as TlbEvent};
     use Op::*;

@@ -11,6 +11,12 @@ cargo run --release -p esp32sim --example socket_at_peer -- /tmp/board.sock &   
 target/release/esp32sim --chip esp32 --board socket:/tmp/board.sock --boot rom ... --max-seconds 10
 ```
 
+`--uart1-tcp` ([cli.md](cli.md)) is the other way to put a serial device in another process: raw
+UART1 bytes over TCP in wall time (it implies `--realtime`). Use it for an interactive tool or a
+real device behind a bridge. Use `--board socket:` when the far end must keep emulated time and
+stay reproducible, needs the route (pins, baud) or the guest's resets, or answers at a given
+moment rather than as soon as it can.
+
 The peer in [`cli/tests/support/at_peer.rs`](../cli/tests/support/at_peer.rs) is the reference:
 CI runs it against a small guest in [`cli/tests/socket_board.rs`](../cli/tests/socket_board.rs),
 and the example above serves it on a socket.

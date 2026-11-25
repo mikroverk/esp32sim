@@ -122,13 +122,31 @@ macro_rules! device_set {
             pub const CLOCKS: $crate::__Dividers<{ $crate::__count!($($dom)*) }> = [$(($dom, $div)),*];
             pub const fn new_clock() -> $crate::__ClockTree<{ $crate::__count!($($dom)*) }> { $crate::__ClockTree::new($cpu_hz) }
 
+            /// Configured optional devices without a deadline right now (`has_deadline` false) cost
+            /// one test each; the others are asked out of line, so this loop makes no call and
+            /// needs no frame.
             #[inline(never)]
             fn optional_deadline(&self) -> u64 {
-                let mut best = u64::MAX;
-                for &block in &$crate::DeviceSet::misc(self).active_optional {
+                let mut asked = 0u64;
+                for (i, &block) in $crate::DeviceSet::misc(self).active_optional.iter().enumerate() {
                     match block {
                         $( $block if $crate::__optional!($($alias)?) => {
-                            if $crate::Device::has_deadline(&self.$($f)+) {
+                            if $crate::Device::has_deadline(&self.$($f)+) { asked |= 1 << (i & 63); }
+                        }, )*
+                        _ => unreachable!(),
+                    }
+                }
+                if asked == 0 { u64::MAX } else { self.optional_deadline_of(asked) }
+            }
+            /// The earliest deadline of the configured optional devices in `asked` (bit i: entry i).
+            #[inline(never)]
+            fn optional_deadline_of(&self, asked: u64) -> u64 {
+                let mut best = u64::MAX;
+                for (i, &block) in $crate::DeviceSet::misc(self).active_optional.iter().enumerate() {
+                    if asked & (1 << (i & 63)) == 0 { continue; }
+                    match block {
+                        $( $block if $crate::__optional!($($alias)?) => {
+                            {
                                 if let Some(t) = $crate::Device::next_deadline(&self.$($f)+) {
                                     let div = $crate::__divider(&Self::CLOCKS, match $crate::Device::clock(&self.$($f)+) { Some(c) => c, None => $crate::__ClockDomain::Cpu });
                                     best = best.min(t.saturating_sub(1) * div);

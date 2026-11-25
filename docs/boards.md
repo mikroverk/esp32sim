@@ -222,15 +222,16 @@ and idle level from them.
 Tests: `mosaico_board_s31` boots `examples/mosaico-board` (keys, the motor through LEDC and
 GPIO, both BMM150 through espressif/bmm150 1.1.0, with and without `--imu-motion 1`);
 `wifi_station_s31_mosaico` boots `examples/c6-wifi-station` built for the S31, which joins the
-virtual access point (WPA2) and takes its DHCP lease. Both images are built with ESP-IDF v6.1 by
-`tools/fetch-s31-firmware.sh` and committed in `esp32s31/firmware`.
+virtual access point (WPA2) and takes its DHCP lease; `wifi_softap_s31_mosaico` boots
+`examples/wifi-softap` built for the S31, which `--wifi-sta`'s virtual station joins (WPA2, a
+lease from the guest). The images are built with ESP-IDF v6.1 by `tools/fetch-s31-firmware.sh`
+and committed in `esp32s31/firmware`.
 
 Firmware with a display: `examples/mosaico-demo`, Espressif's esp-mosaico-bsp (`841f6245`, its
 ESP-IDF requirement patched from 6.2 to 6.1, no code change) with LVGL 9.5: a compass needle from
 the BMM150, a rolling ball from the BMI270, touch, the AI button (colour and a motor pulse) and the
-Boot key (a sensor page). The BSP runs on the model unmodified apart from one setting,
-`CONFIG_BSP_VCC_3V3_RAMP_MS=0`: its 3.3 V soft start is an LEDC fade, and LEDC fades are not
-modelled. Built and pinned by `tools/fetch-s31-firmware.sh` into
+Boot key (a sensor page). The BSP runs on the model with its own settings, including its 3.3 V
+soft start, an LEDC fade waited for with its end interrupt. Built and pinned by `tools/fetch-s31-firmware.sh` into
 `web/wasm/fw/public/s31-mosaico-demo*` (licences in `s31-mosaico-demo-NOTICE.txt`), pinned by
 the golden `mosaico_demo_s31`, and the browser demo `s31-mosaico` (`?wasm&fw=s31-mosaico`, board
 `mosaico` in the page's form, the round panel, the two buttons and the motor indicator). Not run
@@ -265,7 +266,7 @@ The wiring is Waveshare's BSP `waveshare/esp32_p4_wifi6_touch_lcd_3_5` 2.0.2
 | TF card | SDMMC slot 0 | `--sd` |
 
 Firmware for it: the Scintilla synth (`p4-scintilla-lcd35*`, fetched by `tools/fetch-p4-firmware.sh`;
-source joakimeriksson/esp32 at commit `eed6180`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
+source joakimeriksson/esp32 at commit `3a477c7`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
 `web/wasm/fw/public/p4-scintilla-NOTICE.txt`), pinned by the golden `scintilla_p4_lcd35`, and the
 page demo `p4-lcd35-synth`. It wants PSRAM: `--psram-mb 32`, as the board has (the CLI's default
 is none; the page's manifest sets 32).

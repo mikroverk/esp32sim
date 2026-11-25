@@ -563,6 +563,9 @@ pub struct StationLink {
     /// the virtual station that joins the guest's own access point (`attach_station`), instead
     /// of the access points: the guest is then the access point and the station its client
     sta: Option<sta::VirtualSta>,
+    /// an access point or a virtual station is attached (`on_air`): kept as one flag because
+    /// the chips test it every scheduling round, WiFi in use or not
+    air: bool,
 }
 
 /// A receive descriptor's `has_data` bit (word 0 bit 30), the same on the S3, C3 and C6 MACs: the
@@ -584,7 +587,7 @@ impl StationLink {
     /// Put an access point and the network behind it on the air, replacing any there were, and
     /// any station. The queues, pacing and counts start again; the relay mode stays.
     pub fn attach(&mut self, ap: Option<VirtualAp>, net: Option<crate::net::VirtualNet>) {
-        *self = StationLink { aps: ap.into_iter().collect(), net, relay: self.relay, tap: self.tap.take(), ..Default::default() };
+        *self = StationLink { air: ap.is_some(), aps: ap.into_iter().collect(), net, relay: self.relay, tap: self.tap.take(), ..Default::default() };
     }
     /// One more joinable access point for `cfg`, beside the ones attached, behind the same network.
     /// It needs an access point attached first and shares no SSID or BSSID with one there. Its
@@ -624,7 +627,7 @@ impl StationLink {
         let mut net = self.net;
         if let Some(nat) = net.as_mut().and_then(|net| net.nat.as_mut()) { nat.abort_all(); }
         let sta = self.sta.map(|mut s| { s.restart(); s });
-        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, sta, ..Default::default() }
+        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, sta, air: self.air, ..Default::default() }
     }
 
     /// Record every Ethernet frame the station sends and receives into `tap`.
@@ -649,11 +652,32 @@ impl StationLink {
     pub fn attach_station(&mut self, mut station: sta::VirtualSta) -> Result<(), String> {
         if !self.aps.is_empty() { return Err("a virtual station needs no access point attached: AP+STA is not modelled yet".into()); }
         station.host = !self.relay;
-        *self = StationLink { relay: self.relay, tap: self.tap.take(), sta: Some(station), ..Default::default() };
+        *self = StationLink { relay: self.relay, tap: self.tap.take(), sta: Some(station), air: true, ..Default::default() };
         Ok(())
     }
     /// The virtual station of `attach_station`, if there is one.
     pub fn station(&self) -> Option<&sta::VirtualSta> { self.sta.as_ref() }
+    /// Something on the air for the chip's MAC to hear: an access point, or a virtual station.
+    #[inline]
+    pub fn on_air(&self) -> bool { self.air }
+    /// The address-match bits of a received frame's `rx_ctrl` word 0 (bits 28 to 30), as the S3,
+    /// C3, C6 and S31 MACs set them; the classic ESP32 has its own (`esp32/src/wifi.rs`). libpp
+    /// takes the interface a frame is for from them, as `wDev_ProcessRxSucData` does in the
+    /// classic's (docs/wifi-plan.md); no header documents them. A frame the station hears carries
+    /// bit 28, and bit 29 too when it is unicast to it (an S3 broadcast beacon reads 0x111b20ad on
+    /// silicon). A frame from the virtual station to the guest's own access point, addressed to
+    /// the BSSID of its beacons, carries bit 29 alone, as the classic ESP32 flags its access
+    /// point's address slot on silicon (docs/evidence/wifi-softap-rx-match). Measured under
+    /// emulation with `examples/wifi-softap`: with bits 28 and 29 both set, the S3's access point
+    /// (ESP-IDF v5.5.4) never answered the station's authentication; with bit 29 alone the S3, C3
+    /// and C6 (v5.5.4) and the S31 (v6.1) take the station and lease it an address.
+    pub fn rx_match(&self, frame: &[u8]) -> u32 {
+        let to_ap = self.sta.as_ref().is_some_and(|s| s.bssid() != [0; 6] && frame.get(4..10) == Some(&s.bssid()[..]));
+        if to_ap { 1 << 29 } else if frame.get(4).is_some_and(|a| a & 1 == 1) { 1 << 28 } else { (1 << 28) | (1 << 29) }
+    }
+    /// Whether received frames are logged (`--debug wifi-frames`): the first access point's or the
+    /// virtual station's flag.
+    pub fn rx_log(&self) -> bool { self.aps.first().map_or_else(|| self.sta.as_ref().is_some_and(|s| s.log), |ap| ap.log) }
 
     /// The first access point, the one `--wifi` named first.
     pub fn ap(&self) -> Option<&VirtualAp> { self.aps.first() }
@@ -854,7 +878,7 @@ impl StationLink {
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
     pub fn set_relay(&mut self, enabled: bool) {
         if self.relay != enabled { self.eth_tx.clear(); self.eth_rx.clear(); self.relay = enabled; }
-        if let Some(s) = &mut self.sta { s.host = !enabled; }
+        if let Some(s) = &mut self.sta { s.set_host(!enabled); }
     }
 
     /// The frames the station sent since the last call, in relay mode.
@@ -894,7 +918,10 @@ impl StationLink {
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
             if let Some(t) = &n.nat {
                 let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };
-                lines.push(format!("[emu] nat: {} TCP connections ({} failed{}), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, inbound, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest));
+                let mut udp_inbound = if t.udp_inbound == 0 { String::new() } else { format!(", {} inbound", t.udp_inbound) };
+                if t.udp_refused > 0 { udp_inbound += &format!(", {} inbound turned away", t.udp_refused); }
+                if t.udp_oversize > 0 { udp_inbound += &format!(", {} datagrams over the MTU dropped", t.udp_oversize); }
+                lines.push(format!("[emu] nat: {} TCP connections ({} failed{}), {} UDP flows ({} evicted, {} send errors{}), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, inbound, t.udp_flows, t.udp_evicted, t.udp_send_errors, udp_inbound, t.bytes_to_host, t.bytes_to_guest));
             } }
         lines.join("\n")
     }

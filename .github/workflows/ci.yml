@@ -106,6 +106,6 @@ jobs:
       - name: Clippy (the AArch64-only JIT code)
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Native AArch64 core, JIT memory and encoder tests
-        run: cargo test --release -p xtensa-lx7 -p emu-core
+        run: cargo test --release -p xtensa-lx7 -p emu-core -p riscv-rv32
       - name: Golden outputs with the native JIT
         run: ESP32SIM_ROM_DIR=$PWD/roms cargo test --release -p esp32sim --test goldens -- --include-ignored --skip external_

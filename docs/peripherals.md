@@ -32,12 +32,12 @@ ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte 
 | RNG | 0x6003B000 | full | random words |
 | regi2c / I2C_MST (PLL, RF analog) | 0x6000E000 | stub | reads back what was written; BBPLL and pkdet calibration-done bits set |
 | GP-SPI2 / GP-SPI3 master | 0x60024000 / 0x60025000 | partial | CPU-driven command/address/data phases; board MISO responses (host 2 or 3 to the board model); bounded GDMA TX descriptor completion (SPI2 on GDMA trigger 0, SPI3 on trigger 1; the experimental wire timing is SPI2's only); RX DMA is not modeled |
-| PCNT | 0x60017000 | full | 4 units × 2 channels, pos/neg/ctrl modes via the GPIO matrix, limits/thresholds/zero events, counter reset/pause |
-| LEDC | 0x60019000 | partial | timers, fractional dividers, static duty latching, interrupts and GPIO-matrix output; hardware fades — |
-| MCPWM0/1 | 0x6001E000/2C000 | partial | up-counting timers, compare latching, simple generator actions, interrupts and GPIO-matrix output; sync, capture, fault, carrier and dead time — |
+| PCNT | 0x60017000 | partial | 4 units × 2 channels, pos/neg/ctrl modes via the GPIO matrix, limits/thresholds/zero events, counter reset/pause (`esp-periph/src/pcnt.rs`, also on the C6, the P4 and the classic ESP32's eight units); the glitch filter (FILTER_EN/FILTER_THRES, which IDF's `pcnt_unit_set_glitch_filter` sets: every edge counts), the P4's step counter (CHANGE_CONF) and reset-pad inputs — |
+| LEDC | 0x60019000 | partial | timers, fractional dividers, duty latching, hardware fades (DUTY_SCALE every DUTY_CYCLE periods, DUTY_NUM steps, DUTY_CHNG_END at the last; the C6 and P4 run up to 16 gamma ranges), interrupts and GPIO-matrix output on the S3, C3, C6, P4 and classic ESP32; HPOINT and the overflow counter — |
+| MCPWM0/1 | 0x6001E000/2C000 | partial | up-counting timers, compare latching, simple generator actions, interrupts and GPIO-matrix output (the same model on the C6, both P4 groups and both classic groups); sync, capture, fault, carrier and dead time — |
 | TWAI | — | — | |
-| USB-OTG | — | — | the DWC2 core is modelled in `esp-periph/src/usb_otg.rs` and wired on the ESP32-P4 only (esp32p4.md, "USB") |
-| SDMMC | 0x60028000 | — | the DesignWare host and SD card are modelled in `esp-periph/src/sdmmc.rs` and wired on the ESP32-P4 only (esp32p4.md, "SD card") |
+| USB-OTG | 0x60080000 | partial | the full-speed DWC2 core in device mode with buffer DMA ([model](../esp-periph/src/usb_otg.rs), shared with the P4; esp32p4.md, "USB"), interrupt source 38, and `--usb-host`'s host on the cable. The internal PHY follows RTC_CNTL_USB_CONF (SW_HW_USB_PHY_SEL, SW_USB_PHY_SEL) or eFuse USB_PHY_SEL: the host sees the core only while the PHY is the core's, and USB-Serial/JTAG gets no SOFs then. DMA reaches internal SRAM only; slave (FIFO) mode and host mode are not modelled |
+| SDMMC | 0x60028000 | partial | the DesignWare host with its IDMAC and `--sd`'s card ([model](../esp-periph/src/sdmmc.rs), shared with the P4; esp32p4.md, "SD card"), interrupt source 30. The S3 routes SD through the GPIO matrix, so the card answers on the first slot whose clock (SDHOST_CCLK_OUT_1/2) reaches a pin; CDETECT and WRTPRT read the matrix's card-detect and write-protect inputs. Commands and data take no bus time (no `--sd-timing`: the SDMMC clock tree is not decoded); DMA reaches internal SRAM only |
 | WiFi baseband/PHY/RF, BT | — | — | radio registers are faked, not modelled; see wifi-plan.md |
 
 CPU-side: full base ISA, FPU (single precision), MAC16, booleans, PIE (all esp-dl/esp-dsp

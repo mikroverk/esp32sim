@@ -16,6 +16,8 @@ pub struct BleLc {
     ram: RegRam,
     pub(crate) accessible: bool,
     state: Option<Box<State>>,
+    /// The SRAM indices `service` wrote, first to last, for the bus's code versions (`take_written`).
+    written: Option<(usize, usize)>,
 }
 
 #[derive(Default)]
@@ -215,6 +217,15 @@ impl BleLc {
         Err("unterminated TX descriptor chain")
     }
 
+    /// Store into SRAM, noting where for `take_written`.
+    pub(crate) fn put(&mut self, sram: &mut [u8], at: usize, bytes: &[u8]) {
+        sram[at..at + bytes.len()].copy_from_slice(bytes);
+        let (lo, hi) = self.written.unwrap_or((at, at));
+        self.written = Some((lo.min(at), hi.max(at + bytes.len() - 1)));
+    }
+    /// The first and last SRAM index the link controller has written since the last call.
+    pub(crate) fn take_written(&mut self) -> Option<(usize, usize)> { self.written.take() }
+
     pub(crate) fn service(&mut self, sram: &mut [u8]) {
         let Some(s) = &mut self.state else { return };
         let now = s.cycles;
@@ -355,7 +366,7 @@ impl BleLc {
         let buffer = half(sram, rx + 18);
         if buffer == 0 { return Err("RX descriptor has no buffer") }
         let data = self.mapped(buffer as u32, pdu.len() - 2, sram).ok_or("unmapped RX buffer")?;
-        sram[data..data + pdu.len() - 2].copy_from_slice(&pdu[2..]);
+        self.put(sram, data, &pdu[2..]);
         // Inferred success/status/header/activity: r_lld_adv_pkt_rx 0x400165cc..d8,
         // r_lld_rxdesc_check 0x400203aa..ca. Only error-free host packets are supported.
         // Inferred RSSI/channel: r_lld_con_rx_channel_assess 0x40019dbc..dc8.
@@ -370,12 +381,12 @@ impl BleLc {
         for (off, value) in [(2, 0), (4, half(pdu, 0)), (6, (channel as u16) << 8 | (-40i8 as u8 as u16)),
             (8, coarse as u16), (10, (coarse >> 16) as u16 & 0xfff),
             (12, activity << 11 | (624 - hus % 625) as u16), (14, 0)] {
-            put_half(sram, rx + off, value);
+            self.put(sram, rx + off, &value.to_le_bytes());
         }
         // RX+14 is inferred resolving-list pointer, zero for this public peer:
         // r_lld_adv_pkt_rx_send_scan_req_evt 0x40016470.
         // Publish ownership last; r_lld_rxdesc_free recycles buffers and clears this bit.
-        put_half(sram, rx, link | 0x8000);
+        self.put(sram, rx, &(link | 0x8000).to_le_bytes());
         self.ram.write(0x24, (link & 0x7fff) as u32);
         Ok(())
     }
@@ -415,7 +426,8 @@ impl BleLc {
                 if c.events == 0 { s.observe(|| "[ble-state] connected interval_us=30000 csa=1".into()); }
                 s.observe(|| format!("[ble-connection] event={} window_hus={} anchor_hus={} channel={}",
                     c.events, event.due / HALF_US_CYCLES, c.anchor / HALF_US_CYCLES, c.channel));
-                put_half(sram, event.entry, (half(sram, event.entry) & !0x38) | (2 << 3));
+                let active = (half(sram, event.entry) & !0x38) | (2 << 3);
+                self.put(sram, event.entry, &active.to_le_bytes());
                 // Inferred CS+26: r_lld_con_evt_start_cbk 0x4001aec0..af14 /
                 // 0x4001b172..18c uses 2-us units, or 625-us units with bit 15.
                 let window = half(sram, cs + 26);
@@ -454,8 +466,8 @@ impl BleLc {
                     if let Some(packet) = c.pending.take() {
                         if let Some(tx) = packet.descriptor {
                             let next = half(sram, tx) & 0x7fff;
-                            put_half(sram, tx, next | 0x8000);
-                            put_half(sram, cs + 28, next);
+                            self.put(sram, tx, &(next | 0x8000).to_le_bytes());
+                            self.put(sram, cs + 28, &next.to_le_bytes());
                             // Inferred TX IRQ bit 1: r_rwble_isr_hack 0x40386ad2..ec.
                             // Live ip+0x6d4 -> 0x4000154c -> r_sch_prog_tx_isr.
                             // Bit 6 routes ip+0x6d0 to r_sch_prog_skip_isr instead.
@@ -562,7 +574,7 @@ impl BleLc {
         // Inferred successful ET state 3 / aborted state 4:
         // r_sch_prog_end_isr_handler supplies callback a2=(state==4).
         let value = (half(sram, entry) & !0x38) | (status << 3);
-        sram[entry..entry + 2].copy_from_slice(&value.to_le_bytes());
+        self.put(sram, entry, &value.to_le_bytes());
         // Inferred END interrupt bit 5: r_rwble_isr_hack;
         // r_ip_funcs_p+0x6c0 resolves to r_sch_prog_end_isr_hack.
         self.state.as_mut().unwrap().raise(1 << 5);
@@ -636,6 +648,7 @@ fn csa1(previous: u8, hop: u8, map: u64) -> Result<u8, &'static str> {
     Ok((0..37).filter(|channel| map & (1 << channel) != 0).nth(index as usize).unwrap())
 }
 
+#[cfg(test)]
 fn put_half(sram: &mut [u8], off: usize, value: u16) { sram[off..off + 2].copy_from_slice(&value.to_le_bytes()); }
 
 fn connect_request(advertising: &[u8]) -> Vec<u8> {

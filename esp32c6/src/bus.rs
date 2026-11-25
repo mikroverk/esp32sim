@@ -6,7 +6,7 @@
 //! registers (item index / item content), not a memory-mapped table as on the C3.
 
 use crate::periph::{Peripherals, CPU_SUB_BASE, CPU_SUB_END, PERIPH_BASE, PERIPH_END};
-use riscv_rv32::bus::{Bus, Fault};
+use riscv_rv32::bus::{Bus, Fault, PREV_PAGE_BYTES, VPAGE_SHIFT};
 
 /// GPIO matrix output signal of RMT TX channel 0 (soc/gpio_sig_map.h); channel n is this + n.
 pub const RMT_SIG_OUT0: u32 = 71;
@@ -21,10 +21,45 @@ pub const FLASH_HIGH: u32 = 0x4300_0000;
 pub const MMU_ENTRIES: usize = 256;
 /// bit 9 marks an entry valid; bits 8:0 are the flash page
 pub const MMU_VALID: u32 = 1 << 9;
-/// SPI0 registers the MMU is driven through
+/// SPI0 registers the MMU is driven through (IDF v5.5.4 soc/esp32c6/register/soc/spi_mem_reg.h:3002-3018)
 pub const SPI_MMU_ITEM_CONTENT: u32 = 0x37c;
 pub const SPI_MMU_ITEM_INDEX: u32 = 0x380;
 pub const SPI_MMU_POWER_CTRL: u32 = 0x384;
+
+/// Decoded-code versions (`Bus::page_versions`, EX265): one counter per 256-byte page of HP SRAM,
+/// then of LP SRAM, one for the mask ROM and one for everything the flash window shows. HP SRAM
+/// has one address for instruction and data access (IDF v5.5.4 soc/esp32c6/include/soc/soc.h:162-165,
+/// SOC_IRAM_LOW == SOC_DRAM_LOW), and so has LP SRAM (:166-168), so a page has one version.
+pub(crate) const SRAM_PAGES: usize = ((SRAM_HIGH - SRAM_LOW) >> VPAGE_SHIFT) as usize;
+const LP_PAGES: usize = ((LP_SRAM_HIGH - LP_SRAM_LOW) >> VPAGE_SHIFT) as usize;
+const ROM_CODE: usize = SRAM_PAGES + LP_PAGES;
+const FLASH_CODE: usize = ROM_CODE + 1;
+const CODE_PAGES: usize = FLASH_CODE + 1;
+/// Every bus starts its versions where no earlier bus's can still be.
+static CODE_EPOCH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+/// A write of `n` bytes at `addr` into the memory at `base` whose page versions are `ver`: move
+/// the versions of the pages it touches, and of the page before when it reaches into its first
+/// three bytes (a four-byte instruction there starts on that page). Addresses outside are ignored.
+#[inline(always)]
+pub(crate) fn bump_code(ver: &mut [u32], base: u32, addr: u32, n: usize) {
+    let Some(off) = addr.checked_sub(base) else { return };
+    let first = (off.saturating_sub(PREV_PAGE_BYTES) >> VPAGE_SHIFT) as usize;
+    let last = ((off as usize).saturating_add(n.max(1) - 1)) >> VPAGE_SHIFT;
+    for v in ver.iter_mut().take(last.saturating_add(1)).skip(first) { *v = v.wrapping_add(1); }
+}
+
+/// A GDMA OUT walk over HP SRAM whose descriptor write-backs move the code versions.
+struct VersionedOut<'a> { out: esp_periph::gdma::SramOut<'a>, ver: &'a mut [u32] }
+impl esp_periph::gdma::OutMemory for VersionedOut<'_> {
+    fn out_channel(&mut self) -> &mut esp_periph::gdma::GdmaOutCh { self.out.out_channel() }
+    fn word(&mut self, address: u32) -> Result<u32, Fault> { self.out.word(address) }
+    fn append(&mut self, address: u32, count: usize, out: &mut Vec<u8>) -> Result<(), (u32, Fault)> { self.out.append(address, count, out) }
+    fn writeback(&mut self, address: u32, value: u32) -> Result<(), Fault> {
+        self.out.writeback(address, value)?;
+        bump_code(self.ver, SRAM_LOW, address, 4);
+        Ok(())
+    }
+}
 
 pub struct SocBus {
     pub ble: crate::ble::Ble,
@@ -37,6 +72,9 @@ pub struct SocBus {
     /// SPI_MEM_MMU_POWER_CTRL: bits 4:3 select the page size (0 = 64 KB, 1 = 32, 2 = 16, 3 = 8)
     pub mmu_power_ctrl: u32,
     pub periph: Peripherals,
+    /// `Bus::page_versions`: see `CODE_PAGES`. Code that changes `sram`, `lp_sram`, `rom`,
+    /// `flash` or `mmu` directly instead of through the bus calls `invalidate_code`.
+    pub(crate) code_ver: Vec<u32>,
     /// a bare module: nothing on the pins
     pub board: esp_soc::Board,
     uart_pins: bool,
@@ -80,9 +118,41 @@ impl SocBus {
             lp_sram: vec![0; (LP_SRAM_HIGH - LP_SRAM_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [0; MMU_ENTRIES], mmu_index: 0, mmu_power_ctrl: 0,
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), uart_pins: false,
+            periph: Peripherals::new(mac), code_ver: vec![CODE_EPOCH.fetch_add(1 << 20, std::sync::atomic::Ordering::Relaxed); CODE_PAGES], board: Box::new(esp_soc::NoBoard), uart_pins: false,
             cycles: 0, last_fault: None, irq_dirty: true, ena_latency: Default::default(), uart_busy: false, gpio_events: None, debug: Default::default(), board_edges: false,
         }
+    }
+
+    /// Decoded code may no longer match anything: after changing memory or the MMU from outside
+    /// the guest's own accesses.
+    pub fn invalidate_code(&mut self) { for v in &mut self.code_ver { *v = v.wrapping_add(1); } }
+    /// What the flash window shows may have changed: the array or the MMU.
+    pub(crate) fn invalidate_flash_code(&mut self) { self.code_ver[FLASH_CODE] = self.code_ver[FLASH_CODE].wrapping_add(1); }
+    /// `n` bytes at `addr` changed outside a guest store: move the versions of what they overlap.
+    fn bump_range(&mut self, addr: u32, n: usize) {
+        let end = u64::from(addr) + n.max(1) as u64;
+        for (low, high, pages) in [(SRAM_LOW, SRAM_HIGH, 0..SRAM_PAGES), (LP_SRAM_LOW, LP_SRAM_HIGH, SRAM_PAGES..ROM_CODE), (ROM_LOW, ROM_HIGH, ROM_CODE..ROM_CODE + 1)] {
+            if u64::from(low) >= end || addr >= high { continue; }
+            let start = addr.max(low);
+            if low == ROM_LOW { self.code_ver[ROM_CODE] = self.code_ver[ROM_CODE].wrapping_add(1); }
+            else { bump_code(&mut self.code_ver[pages], low, start, (end.min(u64::from(high)) - u64::from(start)) as usize); }
+        }
+    }
+
+    /// A guest store of the low `n` bytes of `v` to HP or LP SRAM, moving its pages' versions.
+    /// False where there is no writable memory (the caller faults).
+    #[inline(always)]
+    fn store(&mut self, addr: u32, v: u32, n: usize) -> bool {
+        let (mem, ver, base) = match addr {
+            SRAM_LOW..SRAM_HIGH => (&mut self.sram[..], &mut self.code_ver[..SRAM_PAGES], SRAM_LOW),
+            LP_SRAM_LOW..LP_SRAM_HIGH => (&mut self.lp_sram[..], &mut self.code_ver[SRAM_PAGES..ROM_CODE], LP_SRAM_LOW),
+            _ => return false,
+        };
+        let o = (addr - base) as usize;
+        let Some(dst) = mem.get_mut(o..o + n) else { return false };
+        dst.copy_from_slice(&v.to_le_bytes()[..n]);
+        bump_code(ver, base, addr, n);
+        true
     }
 
     /// log2 of the MMU page size
@@ -103,6 +173,21 @@ impl SocBus {
                 if entry & MMU_VALID == 0 { return None; }
                 let off = (((entry & 0x1ff) as usize) << shift) + (addr & ((1 << shift) - 1)) as usize;
                 if off < self.flash.len() { Some((&mut self.flash, off, false)) } else { None }
+            }
+            _ => None,
+        }
+    }
+
+    /// The four bytes `fetch` returns at `pc`; past the end of a backing buffer they read as zero.
+    /// One word read when the whole window is in the buffer.
+    #[inline(always)]
+    fn fetch_bytes(&mut self, pc: u32) -> Option<[u8; 4]> {
+        match self.resolve(pc) {
+            Some((b, o, _)) if o < b.len() => {
+                if let Some(w) = b.get(o..o + 4) { return Some([w[0], w[1], w[2], w[3]]); }
+                let mut r = [0u8; 4];
+                for i in 0..4 { if o + i < b.len() { r[i] = b[o + i]; } }
+                Some(r)
             }
             _ => None,
         }
@@ -153,9 +238,19 @@ impl SocBus {
         }
         if (a & !0xfff) == PERIPH_BASE + 0x2000 {
             match a & 0xfff {
-                SPI_MMU_ITEM_CONTENT => { self.mmu[(self.mmu_index as usize) & (MMU_ENTRIES - 1)] = merge(self.mmu[(self.mmu_index as usize) & (MMU_ENTRIES - 1)]) & 0x7ff; return; }
+                // What the flash window shows changes with an entry or the page size.
+                SPI_MMU_ITEM_CONTENT => {
+                    let e = &mut self.mmu[(self.mmu_index as usize) & (MMU_ENTRIES - 1)];
+                    let new = merge(*e) & 0x7ff;
+                    if new != *e { *e = new; self.invalidate_flash_code(); }
+                    return;
+                }
                 SPI_MMU_ITEM_INDEX => { self.mmu_index = merge(self.mmu_index) & 0xff; return; }
-                SPI_MMU_POWER_CTRL => { self.mmu_power_ctrl = merge(self.mmu_power_ctrl); return; }
+                SPI_MMU_POWER_CTRL => {
+                    let new = merge(self.mmu_power_ctrl);
+                    if new != self.mmu_power_ctrl { self.mmu_power_ctrl = new; self.invalidate_flash_code(); }
+                    return;
+                }
                 _ => {}
             }
         }
@@ -203,8 +298,8 @@ impl SocBus {
     fn sha_dma_write(&mut self, a: u32) {
         if !matches!(a & !0xfff, 0x6008_9000 | 0x6008_0000) { return; }
         if let Some(ch) = self.periph.gdma.gdma.out_channel_for(7) {
-            let mut memory = esp_periph::gdma::SramOut { base: SRAM_LOW, bytes: &mut self.sram, channel: &mut self.periph.gdma.gdma.out[ch] };
-            self.periph.sha.dma_step(&mut memory);
+            let out = esp_periph::gdma::SramOut { base: SRAM_LOW, bytes: &mut self.sram, channel: &mut self.periph.gdma.gdma.out[ch] };
+            self.periph.sha.dma_step(&mut VersionedOut { out, ver: &mut self.code_ver[..SRAM_PAGES] });
         }
     }
 
@@ -235,7 +330,7 @@ impl SocBus {
     fn radio_rx_store(&mut self) {
         let Some((addr, buf)) = self.periph.radio.rx_write.take() else { return };
         let o = addr.wrapping_sub(SRAM_LOW) as usize;
-        if o.checked_add(buf.len()).is_some_and(|end| end <= self.sram.len()) { self.sram[o..o + buf.len()].copy_from_slice(&buf); }
+        if o.checked_add(buf.len()).is_some_and(|end| end <= self.sram.len()) { self.sram[o..o + buf.len()].copy_from_slice(&buf); bump_code(&mut self.code_ver[..SRAM_PAGES], SRAM_LOW, addr, buf.len()); }
         else { eprintln!("[802.15.4] RX_DONE: DMA_RX_ADDR {:#010x} is not in SRAM, frame lost", addr); }
     }
 
@@ -260,7 +355,7 @@ impl SocBus {
     fn sram_store(&mut self, addr: u32, data: &[u8]) -> bool {
         let o = addr.wrapping_sub(SRAM_LOW) as usize;
         match o.checked_add(data.len()).filter(|&end| end <= self.sram.len()) {
-            Some(end) => { self.sram[o..end].copy_from_slice(data); true }
+            Some(end) => { self.sram[o..end].copy_from_slice(data); bump_code(&mut self.code_ver[..SRAM_PAGES], SRAM_LOW, addr, data.len()); true }
             None => false,
         }
     }
@@ -311,15 +406,14 @@ impl SocBus {
         let mac = &self.periph.wifi_mac;
         if mac.rx_next == 0 { self.periph.wifi_mac.link.drop_rx_unarmed(); return; }
         let desc = mac.addr(mac.rx_next);
-        let log = mac.link.ap().is_some_and(|ap| ap.log);
+        let log = mac.link.rx_log();
         let (dw0, buf, next) = (self.sram32(desc), self.sram32(desc.wrapping_add(4)), self.sram32(desc.wrapping_add(8)));
         let total = RX_CTRL + frame.len() + 4;
         // hardware-owned, empty, and big enough (size is the low 14 bits)
         if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.link.drop_rx(); return; }
-        let group = frame.len() >= 5 && frame[4] & 1 == 1;
         let mut words = [0u32; RX_CTRL / 4];
-        let rssi = self.periph.wifi_mac.link.rx_meta(frame).1;
-        words[0] = (rssi as u8 as u32) | 1 << 28 | if group { 0 } else { 1 << 29 };   // rssi (-40 dBm for the access point), 1 Mbps legacy; match 0, and match 1 for our own address
+        let link = &self.periph.wifi_mac.link;
+        words[0] = (link.rx_meta(frame).1 as u8 as u32) | link.rx_match(frame);   // rssi (-40 dBm for the access point), 1 Mbps legacy; the address match (`StationLink::rx_match`)
         words[3] = now_us as u32;                                       // timestamp
         words[5] = 0xa6;                                                // noise floor -90 dBm
         words[21] = (frame.len() as u32 + 4) & 0x3fff;                  // byte 84: the frame's length with its FCS
@@ -340,8 +434,8 @@ impl SocBus {
     /// OUT_DSCR_ERR on a descriptor fault. `out` keeps what was gathered before a fault.
     /// GDMA fields: IDF v5.5.4 soc/esp32c6/register/soc/gdma_reg.h:1665-1716.
     fn gather_dma_out(&mut self, ch: usize, limit: usize, out: &mut Vec<u8>) -> bool {
-        let mut memory = esp_periph::gdma::SramOut { base: SRAM_LOW, bytes: &mut self.sram, channel: &mut self.periph.gdma.gdma.out[ch] };
-        let result = esp_periph::gdma::gather_out(&mut memory, limit, out);
+        let out_mem = esp_periph::gdma::SramOut { base: SRAM_LOW, bytes: &mut self.sram, channel: &mut self.periph.gdma.gdma.out[ch] };
+        let result = esp_periph::gdma::gather_out(&mut VersionedOut { out: out_mem, ver: &mut self.code_ver[..SRAM_PAGES] }, limit, out);
         let c = &mut self.periph.gdma.gdma.out[ch];
         c.running = false; c.buf_pos = 0;
         match result {
@@ -432,6 +526,8 @@ impl SocBus {
         self.periph.spi_exec = false;
         let mut no_psram = Vec::new();
         self.periph.spi1.0.execute(&mut self.flash, &mut no_psram);
+        // Only a program or erase (a dirty range) changes what the flash window shows.
+        if !self.periph.spi1.0.dirty.is_empty() { self.invalidate_flash_code(); }
         self.periph.spi1.0.dirty.clear();
         self.periph.refresh_work();
     }
@@ -441,6 +537,7 @@ impl SocBus {
         let target = self.flash.get_mut(offset..).and_then(|tail| tail.get_mut(..data.len()))
             .ok_or("flash image too large")?;
         target.copy_from_slice(data);
+        self.invalidate_flash_code();
         Ok(())
     }
 
@@ -452,6 +549,7 @@ impl SocBus {
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {
         // The mask ROM ELF links its .eh_frame at the flash window; nothing ever reads it.
         if (FLASH_LOW..FLASH_HIGH).contains(&addr) { return Ok(()); }
+        self.bump_range(addr, data.len());
         for (i, b) in data.iter().enumerate() {
             let a = addr.wrapping_add(i as u32);
             match self.resolve(a) {
@@ -566,6 +664,17 @@ impl SocBus {
         input.into_iter().chain(self.ena_latency.deadline()).min()
     }
 
+    /// GPIO input edges reach the pulse counter. Its table entry is static: the source is read when
+    /// the lines are refreshed, and a static entry keeps the optional devices' tick and refresh
+    /// dispatch (hot while the LEDC runs) as it was.
+    #[cold]
+    #[inline(never)]
+    fn pcnt_edges(&mut self) {
+        let before = self.periph.pcnt.irq();
+        self.periph.pcnt.matrix_edges(&mut self.periph.gpio);
+        if before != self.periph.pcnt.irq() { self.irq_dirty = true; }
+    }
+
     fn devices(&mut self, cycles: u32) {
         if self.periph.work_pending { self.pending_work(cycles); }
         // Board time advances before peripheral callbacks; inputs are delivered after them.
@@ -575,7 +684,7 @@ impl SocBus {
         // when a source can have moved; time still advances on every round.
         self.irq_dirty |= esp_periph::Dispatch::tick(&mut self.periph, cycles as u64);
         if self.uart_busy { self.pace_uart_input(cycles); }
-        self.periph.gpio.input_changes.clear();
+        if !self.periph.gpio.input_changes.is_empty() { self.pcnt_edges(); }
         if self.board_edges { self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
         if self.uart_pins {
             for input in self.board.uart_rx(self.cycles) {
@@ -587,7 +696,7 @@ impl SocBus {
         if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_tx(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if !self.periph.wifi_mac.tx_pending.is_empty() { self.wifi_tx_step(); }
-        if self.periph.wifi_mac.link.ap().is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi_mac.link.net_step(now_us); }
+        if self.periph.wifi_mac.link.on_air() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi_mac.link.net_step(now_us); }
         self.deliver_board_events();
     }
 }
@@ -603,7 +712,6 @@ macro_rules! rd {
 }
 
 impl Bus for SocBus {
-    fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
     fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
         if Self::is_periph(addr) { return Ok(self.periph_read(addr, 1) as u8); }
         rd!(self, addr, 1, |b: &[u8]| b[0])
@@ -616,39 +724,43 @@ impl Bus for SocBus {
         if Self::is_periph(addr) { return Ok(self.periph_read(addr, 4)); }
         rd!(self, addr, 4, |b: &[u8]| u32::from_le_bytes(b.try_into().unwrap()))
     }
+    // Only HP and LP SRAM are writable (`resolve`); the mask ROM and the flash window fault.
     fn write8(&mut self, addr: u32, v: u8) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.periph_write(addr, v as u32, 1); return Ok(()); }
-        match self.resolve(addr) {
-            Some((b, o, true)) if o < b.len() => { b[o] = v; Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
-        }
+        if self.store(addr, v as u32, 1) { Ok(()) } else { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
     }
     fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.periph_write(addr, v as u32, 2); return Ok(()); }
-        match self.resolve(addr) {
-            Some((b, o, true)) if o + 2 <= b.len() => { b[o..o + 2].copy_from_slice(&v.to_le_bytes()); Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
-        }
+        if self.store(addr, v as u32, 2) { Ok(()) } else { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
     }
     fn write32(&mut self, addr: u32, v: u32) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.periph_write(addr, v, 4); return Ok(()); }
-        match self.resolve(addr) {
-            Some((b, o, true)) if o + 4 <= b.len() => { b[o..o + 4].copy_from_slice(&v.to_le_bytes()); Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
-        }
+        if self.store(addr, v, 4) { Ok(()) } else { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
     }
     /// Every instruction comes through here: inlined into the step, and one word read when the
     /// whole window is in the buffer. The bytes past a buffer's end still read as zero.
     #[inline(always)]
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
-        match self.resolve(pc) {
-            Some((b, o, _)) if o < b.len() => {
-                if let Some(w) = b.get(o..o + 4) { return Ok([w[0], w[1], w[2], w[3]]); }
-                let mut r = [0u8; 4];
-                for i in 0..4 { if o + i < b.len() { r[i] = b[o + i]; } }
-                Ok(r)
-            }
-            _ => { self.last_fault = Some((pc, false)); Err(Fault::Unmapped) }
+        match self.fetch_bytes(pc) {
+            Some(r) => Ok(r),
+            None => { self.last_fault = Some((pc, false)); Err(Fault::Unmapped) }
+        }
+    }
+    /// `fetch` without its fault record.
+    #[inline(always)]
+    fn fetch_ahead(&mut self, pc: u32) -> Option<[u8; 4]> { self.fetch_bytes(pc) }
+    fn note_code_page(&mut self, _vidx: u32) {} // Every write that can change code moves its version.
+    #[inline(always)]
+    fn page_versions(&self) -> &[u32] { &self.code_ver }
+    /// `CODE_PAGES`; `u32::MAX` (no version) outside SRAM, LP SRAM, the ROM and the flash window.
+    #[inline(always)]
+    fn code_page(&mut self, pc: u32) -> u32 {
+        match pc {
+            SRAM_LOW..SRAM_HIGH => (pc - SRAM_LOW) >> VPAGE_SHIFT,
+            LP_SRAM_LOW..LP_SRAM_HIGH => SRAM_PAGES as u32 + ((pc - LP_SRAM_LOW) >> VPAGE_SHIFT),
+            ROM_LOW..ROM_HIGH => ROM_CODE as u32,
+            FLASH_LOW..FLASH_HIGH => FLASH_CODE as u32,
+            _ => u32::MAX,
         }
     }
     fn tick(&mut self, cycles: u32) -> u32 {
@@ -886,6 +998,28 @@ mod parlio_dma_tests {
 }
 
 #[cfg(test)]
+mod pcnt_tests {
+    use super::*;
+    use emu_core::Bus;
+
+    /// Rising edges on a pin routed to PCNT unit 0 reach its threshold; source 62 asserts and
+    /// clears with INT_CLR (pcnt_reg.h: CONF0 POS_MODE 19:18, THR_THRES0_EN 14; INT_ENA 0x48).
+    #[test]
+    fn pulse_counter_interrupt_reaches_the_source_status() {
+        let mut bus = SocBus::new(0x1_0003, [0; 6]);
+        bus.write32(0x6009_1154 + 4 * 101, 0x80 | 5).unwrap();         // PCNT_SIG_CH0_IN0 from GPIO5
+        bus.write32(0x6001_2000, (1 << 18) | (1 << 14)).unwrap();
+        bus.write32(0x6001_2004, 2).unwrap();
+        bus.write32(0x6001_2048, 1).unwrap();
+        for level in [false, true, false, true] { esp_soc::SocBus::gpio_set_input(&mut bus, 5, level); bus.tick(64); }
+        assert_eq!(bus.periph.pcnt.cnt[0], 2);
+        assert_eq!(bus.periph.source_status()[1] & (1 << 30), 1 << 30);
+        bus.write32(0x6001_204c, 1).unwrap();
+        assert_eq!(bus.periph.source_status()[1] & (1 << 30), 0);
+    }
+}
+
+#[cfg(test)]
 mod fetch_tests {
     use super::*;
     use emu_core::Bus;
@@ -917,5 +1051,205 @@ mod fetch_tests {
         assert_eq!(b.fetch(FLASH_LOW + 2), Ok([0xc3, 0, 0, 0]));
         assert_eq!(b.fetch(FLASH_LOW + 3), Err(Fault::Unmapped));
         assert_eq!(b.last_fault, Some((FLASH_LOW + 3, false)));
+    }
+}
+
+#[cfg(test)]
+mod code_version_tests {
+    use super::*;
+    use emu_core::{Bus, Core};
+
+    fn ver(b: &mut SocBus, pc: u32) -> u32 { let i = b.code_page(pc); b.page_versions()[i as usize] }
+    fn moves(b: &mut SocBus, pc: u32, f: impl FnOnce(&mut SocBus)) -> bool { let v = ver(b, pc); f(b); ver(b, pc) != v }
+
+    /// EX265: `fetch_ahead` returns exactly what `fetch` returns where it succeeds, `None` where
+    /// it faults, and records no fault itself.
+    #[test]
+    fn fetch_ahead_is_fetch_without_its_fault_records() {
+        let mut b = SocBus::new(0x2_0000, [0; 6]);
+        for (i, v) in b.sram.iter_mut().enumerate() { *v = i as u8; }
+        for (i, v) in b.lp_sram.iter_mut().enumerate() { *v = !(i as u8); }
+        for (i, v) in b.rom.iter_mut().enumerate() { *v = (i >> 3) as u8; }
+        for (i, v) in b.flash.iter_mut().enumerate() { *v = (i * 7) as u8; }
+        b.mmu[0] = MMU_VALID | 1;
+        b.mmu[2] = MMU_VALID | 5;   // beyond the flash image
+        for pc in [SRAM_LOW, SRAM_LOW + 6, SRAM_LOW + 0xff, SRAM_HIGH - 4, SRAM_HIGH - 2, SRAM_HIGH, LP_SRAM_LOW + 8, LP_SRAM_HIGH - 1, LP_SRAM_HIGH,
+                   ROM_LOW, ROM_HIGH - 3, ROM_HIGH, FLASH_LOW, FLASH_LOW + 0xfffe, FLASH_LOW + 0xffff, FLASH_LOW + 0x1_0000, FLASH_LOW + 0x2_0000,
+                   FLASH_HIGH, 0x6000_0000, 0x3fff_fffe, u32::MAX - 1] {
+            b.last_fault = None;
+            let ahead = b.fetch_ahead(pc);
+            assert_eq!(b.last_fault, None, "{pc:#x}: fetch_ahead recorded a fault");
+            assert_eq!(ahead, b.fetch(pc).ok(), "{pc:#x}");
+        }
+    }
+
+    /// EX265: the version layout; `u32::MAX` where nothing can be fetched.
+    #[test]
+    fn code_pages_index_physical_memory() {
+        let mut b = SocBus::new(0x1_0000, [0; 6]);
+        assert_eq!(b.page_versions().len(), CODE_PAGES);
+        assert_eq!(b.code_page(SRAM_LOW), 0);
+        assert_eq!(b.code_page(SRAM_LOW + 0x1ff), 1);
+        assert_eq!(b.code_page(SRAM_HIGH - 1), SRAM_PAGES as u32 - 1);
+        assert_eq!(b.code_page(LP_SRAM_LOW), SRAM_PAGES as u32);
+        assert_eq!(b.code_page(LP_SRAM_HIGH - 1), ROM_CODE as u32 - 1);
+        assert_eq!((b.code_page(ROM_LOW), b.code_page(ROM_HIGH - 1)), (ROM_CODE as u32, ROM_CODE as u32));
+        assert_eq!((b.code_page(FLASH_LOW), b.code_page(FLASH_HIGH - 1)), (FLASH_CODE as u32, FLASH_CODE as u32));
+        for pc in [SRAM_HIGH, LP_SRAM_HIGH, ROM_HIGH, FLASH_HIGH, 0x6000_0000, 0, u32::MAX] { assert_eq!(b.code_page(pc), u32::MAX, "{pc:#x}"); }
+    }
+
+    /// EX265: what moves the code versions and what leaves them alone: CPU stores to HP and LP
+    /// SRAM, every DMA that writes SRAM, loaders, the flash array and the MMU.
+    #[test]
+    fn code_versions_move_with_every_write_that_can_change_fetched_code() {
+        let mut b = SocBus::new(0x4_0000, [0; 6]);
+        let pc = SRAM_LOW + 0x1000;
+        // CPU stores
+        assert!(moves(&mut b, pc, |b| b.write32(pc + 8, 1).unwrap()), "a word store on the page");
+        assert!(moves(&mut b, pc, |b| b.write16(pc + 0xfe, 1).unwrap()), "a halfword store on the page");
+        assert!(moves(&mut b, pc, |b| b.write8(pc + 0x102, 1).unwrap()), "a store in the first three bytes of the next page");
+        assert!(!moves(&mut b, pc, |b| b.write8(pc + 0x103, 1).unwrap()), "a store past them");
+        assert!(!moves(&mut b, pc, |b| b.write32(pc + 0x400, 1).unwrap()), "a store elsewhere");
+        assert!(!moves(&mut b, pc, |b| b.write32(LP_SRAM_LOW, 1).unwrap()), "an LP SRAM store");
+        assert!(moves(&mut b, LP_SRAM_LOW + 0x40, |b| b.write32(LP_SRAM_LOW + 0x44, 1).unwrap()), "an LP SRAM store on the page");
+        assert!(!moves(&mut b, pc, |b| { let _ = b.write32(ROM_LOW, 1); let _ = b.write32(FLASH_LOW, 1); }), "faulting stores");
+        assert!(!moves(&mut b, pc, |b| b.write32(0x6000_0004, 1).unwrap()), "a peripheral write");
+        // DMA: 802.15.4 RX, WiFi RX, SDIO
+        assert!(moves(&mut b, pc, |b| { b.periph.radio.rx_write = Some((pc + 0x10, vec![1, 2, 3])); b.radio_rx_store(); }), "802.15.4 RX DMA");
+        assert!(moves(&mut b, pc, |b| assert!(b.sram_store(pc + 0xf0, &[1; 32]))), "WiFi RX DMA");
+        assert!(moves(&mut b, pc + 0x100, |b| assert!(b.sram_store(pc + 0xf0, &[1; 32]))), "WiFi RX DMA, the second page");
+        assert!(moves(&mut b, pc, |b| {
+            let mut m = crate::sdio::Sram { base: SRAM_LOW, bytes: &mut b.sram, ver: &mut b.code_ver[..SRAM_PAGES] };
+            crate::sdio::DmaMem::write(&mut m, pc + 0x20, &[1; 8]).unwrap();
+        }), "SDIO SLC DMA");
+        // loaders
+        assert!(moves(&mut b, pc, |b| b.load_bytes(pc + 0x80, &[0x13]).unwrap()), "loading SRAM");
+        assert!(moves(&mut b, ROM_LOW + 0x40, |b| b.load_bytes(ROM_HIGH - 8, &[0x13]).unwrap()), "loading the ROM");
+        assert!(!moves(&mut b, ROM_LOW, |b| b.write32(pc, 1).unwrap()), "an SRAM store leaves the ROM");
+        // the flash window
+        assert!(!moves(&mut b, FLASH_LOW, |b| b.write32(pc, 1).unwrap()), "an SRAM store leaves the flash");
+        assert!(moves(&mut b, FLASH_LOW, |b| b.write_flash(0x1000, &[0x13]).unwrap()), "writing the flash image");
+        assert!(moves(&mut b, FLASH_LOW, |b| esp_soc::SocBus::set_flash_size(b, 0x4_0000)), "a new flash image");
+        let spi0 = PERIPH_BASE + 0x2000;
+        assert!(!moves(&mut b, FLASH_LOW, |b| b.write32(spi0 + SPI_MMU_ITEM_INDEX, 3).unwrap()), "an MMU index write");
+        assert!(moves(&mut b, FLASH_LOW, |b| b.write32(spi0 + SPI_MMU_ITEM_CONTENT, MMU_VALID | 2).unwrap()), "an MMU entry write");
+        assert!(!moves(&mut b, FLASH_LOW, |b| b.write32(spi0 + SPI_MMU_ITEM_CONTENT, MMU_VALID | 2).unwrap()), "the same MMU entry again");
+        assert!(moves(&mut b, FLASH_LOW, |b| b.write32(spi0 + SPI_MMU_POWER_CTRL, 1 << 3).unwrap()), "an MMU page size write");
+        assert!(moves(&mut b, FLASH_LOW, |b| { esp_soc::SocBus::reboot(b, [0; 6]); }), "a reset clears the MMU");
+        // SPI1 (IDF v5.5.4 soc/esp32c6/register/soc/spi_mem_reg.h: CMD 0x0 bit 24 FLASH_SE, bit 18 USR; ADDR 0x4):
+        // a sector erase changes the array, a status read does not.
+        let spi1 = PERIPH_BASE + 0x3000;
+        b.write32(spi1 + 4, 0x1000).unwrap();
+        assert!(moves(&mut b, FLASH_LOW, |b| b.write32(spi1, 1 << 24).unwrap()), "a sector erase");
+        assert!(!moves(&mut b, FLASH_LOW, |b| b.write32(spi1, 1 << 30).unwrap()), "a write enable");
+        assert!(!moves(&mut b, FLASH_LOW, |b| b.write32(spi1, 1 << 27).unwrap()), "a status read (FLASH_RDSR)");
+        assert!(!moves(&mut b, pc, |b| b.write32(spi1, 1 << 24).unwrap()), "a sector erase leaves SRAM");
+    }
+
+    /// GDMA: OUT descriptor write-backs (SPI2/AES/PARLIO through `gather_dma_out`, SHA) and the IN
+    /// scatter of AES (and I2S RX: the same `GdmaInCh::receive` through the bus's stores).
+    #[test]
+    fn gdma_write_backs_and_scatter_move_code_versions() {
+        // OUT_AUTO_WRBACK (conf0 bit 2) hands the descriptor back: a write to SRAM.
+        let setup = |b: &mut SocBus, peri: u32, desc: u32, data: u32, len: u32| {
+            for (a, w) in [(desc, (1 << 31) | (1 << 30) | (len << 12) | len), (desc + 4, data), (desc + 8, 0)] { b.write32(a, w).unwrap(); }
+            let c = &mut b.periph.gdma.gdma.out[0];
+            c.running = true; c.desc = desc; c.peri_sel = peri; c.conf0 = 4; c.conf1 = 1 << 12;
+        };
+        let mut b = SocBus::new(0x1_0000, [0; 6]);
+        let desc = SRAM_LOW + 0x2000;
+        setup(&mut b, 0, desc, SRAM_LOW + 0x3000, 16);
+        assert!(moves(&mut b, desc, |b| { b.gather_dma_out(0, 16, &mut Vec::new()); }), "an OUT write-back");
+        assert_eq!(b.sram32(desc) >> 31, 0);
+        assert!(!moves(&mut b, SRAM_LOW + 0x3000, |b| { setup(b, 0, desc, SRAM_LOW + 0x3000, 16); b.gather_dma_out(0, 16, &mut Vec::new()); }), "the OUT buffer is only read");
+
+        // SHA-256 of one block through trigger 7 (sha_reg.h: MODE 0x0, DMA_BLOCK_NUM 0xc, DMA_START 0x1c).
+        let mut b = SocBus::new(0x1_0000, [0; 6]);
+        setup(&mut b, 7, desc, SRAM_LOW + 0x3000, 64);
+        b.write32(0x6008_9000, 2).unwrap();
+        b.write32(0x6008_900c, 1).unwrap();
+        assert!(moves(&mut b, desc, |b| b.write32(0x6008_901c, 1).unwrap()), "a SHA write-back");
+        assert_eq!(b.sram32(desc) >> 31, 0);
+
+        // AES: the result lands in the IN chain's buffer.
+        let mut b = SocBus::new(0x1_0000, [0; 6]);
+        let dest = SRAM_LOW + 0x5000;
+        setup(&mut b, 6, desc, SRAM_LOW + 0x3000, 16);
+        for (a, w) in [(desc + 16, (1 << 31) | 16), (desc + 20, dest), (desc + 24, 0)] { b.write32(a, w).unwrap(); }
+        let c = &mut b.periph.gdma.gdma.inp[0];
+        c.running = true; c.desc = desc + 16; c.peri_sel = 6;
+        assert!(moves(&mut b, dest, |b| b.aes_dma_step()), "the AES IN scatter");
+    }
+
+    // RV32IMAC encodings (RISC-V unprivileged ISA, RV32I base): addi a0, zero, n; jal zero, 0.
+    const fn li_a0(n: u32) -> u32 { (n << 20) | 0x513 }
+    const J_SELF: u32 = 0x0000_006f;
+
+    /// Run `pc` for `budget` instructions, many times over so that its blocks are built and,
+    /// where there is a JIT backend, compiled; return a0 after each.
+    fn run_at(b: &mut SocBus, cpu: &mut riscv_rv32::Cpu, pc: u32, budget: u32) -> u32 {
+        let mut a0 = None;
+        for _ in 0..80 {
+            cpu.pc = pc; cpu.x[10] = 0;
+            b.irq_dirty = false;   // nothing refreshes the lines here: a pending break would stop each run
+            let (_, trap) = cpu.run(b, budget);
+            assert_eq!(trap, None);
+            assert!(a0.is_none_or(|v| v == cpu.x[10]));
+            a0 = Some(cpu.x[10]);
+        }
+        a0.unwrap()
+    }
+
+    /// Self-modifying code (EX265 correctness): code rewritten by a CPU store inside its own
+    /// block, by DMA, by an SPI1 program and by an MMU change runs as the new code. On the
+    /// interpreter alone every case holds trivially; here blocks (and the JIT) must notice.
+    #[test]
+    fn rewritten_code_runs_as_rewritten() {
+        let mut b = SocBus::new(0x2_0000, [0; 6]);
+        let mut cpu = riscv_rv32::Cpu::new_rv32imac();
+        let a = SRAM_LOW + 0x1000;
+        // a CPU store to an instruction later in the same block
+        let prog = [0x4080_12b7, 0x0020_0337, 0x5133_0313, 0x0062_a823, li_a0(1), J_SELF];   // lui t0,0x40801; lui t1,0x200; addi t1,t1,0x513; sw t1,16(t0); li a0,1; j .
+        for _ in 0..3 {
+            for (i, w) in prog.iter().enumerate() { b.write32(a + 4 * i as u32, *w).unwrap(); }
+            assert_eq!(run_at(&mut b, &mut cpu, a, 8), 2, "the store rewrote `li a0, 1`");
+        }
+        // DMA (WiFi RX) over code that has run as blocks
+        for (i, w) in [li_a0(3), J_SELF].iter().enumerate() { b.write32(a + 0x200 + 4 * i as u32, *w).unwrap(); }
+        assert_eq!(run_at(&mut b, &mut cpu, a + 0x200, 4), 3);
+        assert!(b.sram_store(a + 0x200, &li_a0(4).to_le_bytes()));
+        assert_eq!(run_at(&mut b, &mut cpu, a + 0x200, 4), 4, "DMA rewrote the block");
+        // LP SRAM
+        for (i, w) in [li_a0(5), J_SELF].iter().enumerate() { b.write32(LP_SRAM_LOW + 4 * i as u32, *w).unwrap(); }
+        assert_eq!(run_at(&mut b, &mut cpu, LP_SRAM_LOW, 4), 5);
+        b.write32(LP_SRAM_LOW, li_a0(6)).unwrap();
+        assert_eq!(run_at(&mut b, &mut cpu, LP_SRAM_LOW, 4), 6, "a store rewrote LP SRAM code");
+        // flash: two 64 KB pages with different code, mapped in turn, then page 1 erased and programmed
+        for (page, n) in [(0usize, 7), (1, 8)] {
+            for (i, w) in [li_a0(n), J_SELF].iter().enumerate() { b.flash[(page << 16) + 4 * i..][..4].copy_from_slice(&w.to_le_bytes()); }
+        }
+        b.invalidate_code();
+        let spi0 = PERIPH_BASE + 0x2000;
+        b.write32(spi0 + SPI_MMU_ITEM_INDEX, 0).unwrap();
+        b.write32(spi0 + SPI_MMU_ITEM_CONTENT, MMU_VALID).unwrap();
+        assert_eq!(run_at(&mut b, &mut cpu, FLASH_LOW, 4), 7);
+        b.write32(spi0 + SPI_MMU_ITEM_CONTENT, MMU_VALID | 1).unwrap();
+        assert_eq!(run_at(&mut b, &mut cpu, FLASH_LOW, 4), 8, "the MMU remapped the window");
+        // SPI1 (spi_mem_reg.h: CMD 0x0, ADDR 0x4, W0 0x58): a sector erase (FLASH_SE, bit 24) of
+        // the mapped sector leaves all ones (not code), then a page program (FLASH_PP, bit 25; the
+        // byte count in ADDR bits 31:24) writes `li a0, 9; j .`.
+        let spi1 = PERIPH_BASE + 0x3000;
+        b.write32(spi1 + 4, 0x1_0000).unwrap();
+        b.write32(spi1, 1 << 24).unwrap();
+        assert_eq!(b.fetch(FLASH_LOW), Ok([0xff; 4]));
+        b.write32(spi1 + 0x58, li_a0(9)).unwrap();
+        b.write32(spi1 + 0x5c, J_SELF).unwrap();
+        b.write32(spi1 + 4, 0x1_0000 | 8 << 24).unwrap();
+        b.write32(spi1, 1 << 25).unwrap();
+        assert_eq!(b.fetch(FLASH_LOW), Ok(li_a0(9).to_le_bytes()), "the page program reached the array");
+        assert_eq!(run_at(&mut b, &mut cpu, FLASH_LOW, 4), 9, "SPI1 rewrote flash code");
+        let (builds, _, compiled, _) = cpu.code_cache_stats().unwrap();
+        assert!(builds > 0, "blocks ran");
+        if riscv_rv32::jit::AVAILABLE && std::env::var_os("RV32_JIT").is_none_or(|v| v != "0") { assert!(compiled > 0, "the JIT ran"); }
     }
 }

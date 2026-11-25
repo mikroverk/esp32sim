@@ -1,0 +1,126 @@
+{
+ "esp32sim": {
+  "symbols": 3515,
+  "differing": {
+   "code": 4,
+   "renumbered": 14,
+   "suffix-only": 11,
+   "pageoff": 10
+  },
+  "code": {
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 91
+   },
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 92
+   },
+   "__RNvXs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+    "class": "code",
+    "base_insns": 187,
+    "cand_insns": 457
+   },
+   "__RNvXs_NtCscEJTrNIf2sp_5esp324ledcNtB5_11ClassicLedcNtNtCscAZNUd9xZ60_10esp_periph6device6Device4tick": {
+    "class": "code",
+    "base_insns": 434,
+    "cand_insns": 567
+   }
+  }
+ },
+ "esp32sim-c3": {
+  "symbols": 3515,
+  "differing": {
+   "code": 4,
+   "renumbered": 14,
+   "suffix-only": 11,
+   "pageoff": 13
+  },
+  "code": {
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 91
+   },
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 92
+   },
+   "__RNvXs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+    "class": "code",
+    "base_insns": 187,
+    "cand_insns": 457
+   },
+   "__RNvXs_NtCscEJTrNIf2sp_5esp324ledcNtB5_11ClassicLedcNtNtCscAZNUd9xZ60_10esp_periph6device6Device4tick": {
+    "class": "code",
+    "base_insns": 434,
+    "cand_insns": 567
+   }
+  }
+ },
+ "esp32sim-c6": {
+  "symbols": 3515,
+  "differing": {
+   "code": 4,
+   "renumbered": 14,
+   "suffix-only": 11,
+   "pageoff": 13
+  },
+  "code": {
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 91
+   },
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 92
+   },
+   "__RNvXs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+    "class": "code",
+    "base_insns": 187,
+    "cand_insns": 457
+   },
+   "__RNvXs_NtCscEJTrNIf2sp_5esp324ledcNtB5_11ClassicLedcNtNtCscAZNUd9xZ60_10esp_periph6device6Device4tick": {
+    "class": "code",
+    "base_insns": 434,
+    "cand_insns": 567
+   }
+  }
+ },
+ "esp32sim-p4": {
+  "symbols": 3515,
+  "differing": {
+   "code": 4,
+   "renumbered": 14,
+   "suffix-only": 11,
+   "pageoff": 10
+  },
+  "code": {
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcINtB5_4LedcKb1_E10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 91
+   },
+   "__RNvMs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4Ledc10wrap_timer": {
+    "class": "code",
+    "base_insns": null,
+    "cand_insns": 92
+   },
+   "__RNvXs_NtCscAZNUd9xZ60_10esp_periph4ledcNtB5_4LedcNtNtB7_6device6Device4tick": {
+    "class": "code",
+    "base_insns": 187,
+    "cand_insns": 457
+   },
+   "__RNvXs_NtCscEJTrNIf2sp_5esp324ledcNtB5_11ClassicLedcNtNtCscAZNUd9xZ60_10esp_periph6device6Device4tick": {
+    "class": "code",
+    "base_insns": 434,
+    "cand_insns": 567
+   }
+  }
+ }
+}

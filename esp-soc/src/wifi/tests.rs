@@ -976,3 +976,501 @@ fn station_link_counts_relayed_frames_a_leaving_station_drops() {
     assert_eq!((link.relay_lost(), link.tx_dropped()), (1, 0));
     assert!(link.report().contains("1 relayed frames lost as the station had left"), "{}", link.report());
 }
+
+// ------------------------------------------------------------------ keep-alive and lease renewal
+/// The guest's side for the keep-alive and lease tests: `VirtualAp` as its access point and
+/// `VirtualNet`'s DHCP server behind it.
+struct Guest { ap: VirtualAp, net: crate::net::VirtualNet }
+
+impl Guest {
+    fn new() -> Self { Guest { ap: VirtualAp::new(config(), false), net: crate::net::VirtualNet::new(false) } }
+
+    /// Run the station against the guest from `from_us` to `to_us` in 1 ms steps. `ap_edit` may
+    /// change each frame the access point sends; `reply` may rewrite or drop each Ethernet frame
+    /// the network sends the station. Returns what the station sent, with when.
+    fn run(&mut self, sta: &mut sta::VirtualSta, from_us: u64, to_us: u64, ap_edit: &dyn Fn(&mut Vec<u8>),
+           reply: &mut dyn FnMut(Vec<u8>) -> Option<Vec<u8>>) -> Vec<(u64, Vec<u8>)> {
+        let mut sent = Vec::new();
+        for now in (from_us..to_us).step_by(1_000) {
+            for a in self.ap.step(now) {
+                let mut f = a.frame;
+                ap_edit(&mut f);
+                if let Some(eth) = sta.on_ap_tx(&with_fcs_slot(f), now) { sta.host_rx(&eth, now); }
+            }
+            for a in sta.step(now) {
+                sent.push((now, a.frame.clone()));
+                // a protected frame's CCMP header off: the payload behind it is in the clear
+                let clear = |d: Vec<u8>| if d.len() >= 32 && d[1] & 0x40 != 0 { [&d[..24], &d[32..]].concat() } else { d };
+                let Some(eth) = self.ap.on_station_tx(&with_fcs_slot(a.frame), now).and_then(|d| data_to_eth(&clear(d))) else { continue };
+                self.net.sta_mac = sta.cfg.mac;
+                for r in self.net.handle(&eth, now) {
+                    let Some(r) = reply(r) else { continue };
+                    if let Some(f) = self.ap.data_from_ds(&r) { self.ap.queue.push(AirFrame { at_us: now, frame: f }); }
+                }
+            }
+        }
+        sent
+    }
+
+    /// Join with an open network and take the lease, with `reply` applied as in `run`: the time
+    /// the station has the lease, and what it sent.
+    fn lease(&mut self, sta: &mut sta::VirtualSta, reply: &mut dyn FnMut(Vec<u8>) -> Option<Vec<u8>>) -> u64 {
+        for t in (0..2_000_000).step_by(1_000) {
+            self.run(sta, t, t + 1_000, &|_| {}, reply);
+            if sta.lease.is_some() { return t + 1_000; }
+        }
+        panic!("no lease: {}", sta.report())
+    }
+}
+
+fn no_edit(r: Vec<u8>) -> Option<Vec<u8>> { Some(r) }
+
+/// A null data frame to the DS: frame control 0x0148.
+fn is_null(f: &[u8]) -> bool { f.len() >= 24 && f[..2] == [0x48, 0x01] }
+
+/// What a DHCP message from the station says: the Ethernet and IP destinations, the IP source,
+/// the broadcast flag, `ciaddr`, the message type and the options it carries.
+#[derive(Debug)]
+struct DhcpOut { eth_dst: [u8; 6], ip_src: [u8; 4], ip_dst: [u8; 4], broadcast: bool, ciaddr: [u8; 4], kind: u8, options: Vec<u8> }
+
+fn dhcp_out(f: &[u8]) -> Option<DhcpOut> {
+    // an open network's data frame to the DS: the header, LLC/SNAP, IPv4, UDP, BOOTP
+    if f.len() < 24 + 8 + 28 + 240 || f[..2] != [0x08, 0x01] || f[30..32] != [0x08, 0x00] { return None; }
+    let (ip, m) = (&f[32..], &f[60..]);
+    if ip[9] != 17 || ip[22..24] != [0, 67] { return None; }
+    let (mut kind, mut options, mut i) = (0, Vec::new(), 240);
+    while i + 1 < m.len() && m[i] != 255 {
+        if m[i] == 53 { kind = m[i + 2]; }
+        options.push(m[i]);
+        i += 2 + m[i + 1] as usize;
+    }
+    let a = |s: &[u8]| -> [u8; 4] { s[..4].try_into().unwrap() };
+    Some(DhcpOut { eth_dst: f[16..22].try_into().unwrap(), ip_src: a(&ip[12..]), ip_dst: a(&ip[16..]), broadcast: m[10] & 0x80 != 0,
+                   ciaddr: a(&m[12..]), kind, options })
+}
+
+/// `VirtualNet`'s ACK with its 86400 s lease (option 51) given as `lease_s`, and options 58 and 59
+/// added when given; other frames as they are.
+fn ack_with(lease_s: u32, t1_t2: Option<(u32, u32)>) -> impl FnMut(Vec<u8>) -> Option<Vec<u8>> {
+    move |mut r: Vec<u8>| {
+        let Some(i) = r.windows(6).position(|w| w == [51, 4, 0, 1, 0x51, 0x80]) else { return Some(r) };
+        r[i + 2..i + 6].copy_from_slice(&lease_s.to_be_bytes());
+        if let Some((t1, t2)) = t1_t2 {
+            let extra = [&[58, 4][..], &t1.to_be_bytes(), &[59, 4], &t2.to_be_bytes()].concat();
+            r.splice(i + 6..i + 6, extra);
+            // the IP total length and UDP length grow by the 12 bytes; IPv4's checksum is not checked
+            for at in [16, 38] { let n = u16::from_be_bytes([r[at], r[at + 1]]) + 12; r[at..at + 2].copy_from_slice(&n.to_be_bytes()); }
+        }
+        Some(r)
+    }
+}
+
+#[test]
+fn station_sends_no_keepalive_before_it_has_joined() {
+    // the wrong passphrase: beacons, authentication, association and handshakes, never joined
+    let (mut sta, mut g) = (station("ssid=esp32sim,psk=not-the-pass"), Guest::new());
+    g.ap = VirtualAp::new(ApConfig { psk: Some("esp32sim-pass".into()), ..config() }, false);
+    let sent = g.run(&mut sta, 0, 30_000_000, &|_| {}, &mut no_edit);
+    assert!(sta.attempts >= 5 && sta.stats.0 == 0, "{}", sta.report());
+    assert!(!sent.iter().any(|(_, f)| is_null(f)), "a keep-alive before the join");
+    assert_eq!(sta.keepalives, 0);
+    // nothing on the air: the station sends nothing at all, and is idle throughout
+    let mut sta = station("ssid=esp32sim");
+    for t in (0..30_000_000).step_by(1_000) { assert!(sta.idle_at(t) && sta.step(t).is_empty(), "at {t}"); }
+    // a station that left an access point which then went silent
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut no_edit);
+    let mut deauth = g.ap.beacon_like(12, &sta.cfg.mac, 0)[..24].to_vec();
+    deauth.extend_from_slice(&3u16.to_le_bytes());
+    sta.on_ap_tx(&with_fcs_slot(deauth), leased);
+    for t in (leased..leased + 30_000_000).step_by(1_000) { assert!(sta.step(t).is_empty(), "at {t}"); }
+    assert_eq!((sta.state, sta.keepalives), (sta::StaLink::Listening, 0));
+}
+
+#[test]
+fn a_joined_station_sends_a_keepalive_after_the_interval_with_nothing_else_sent() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut no_edit);
+    let sent = g.run(&mut sta, leased, leased + 10_000_000, &|_| {}, &mut no_edit);
+    // the REQUEST went out just before the lease; nothing then until the keep-alive, 8 s after it
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    let (due, null) = &sent[0];
+    assert!(is_null(null), "{null:02x?}");
+    assert_eq!((&null[4..10], &null[10..16], &null[16..22], null.len()), (&config().bssid[..], &sta.cfg.mac[..], &config().bssid[..], 24));
+    assert!(*due > leased + 7_000_000 && *due <= leased + 8_000_000, "the keep-alive at {due}, the lease at {leased}");
+    assert!(sta.report().contains(", 1 keep-alives"), "{}", sta.report());
+    // the next one 8 s after it, as nothing else went out
+    let sent = g.run(&mut sta, due + 1_000, due + 9_000_000, &|_| {}, &mut no_edit);
+    assert_eq!(sent.iter().map(|(t, f)| (*t - due, is_null(f))).collect::<Vec<_>>(), [(8_000_000, true)]);
+}
+
+#[test]
+fn idle_at_is_false_exactly_when_a_keepalive_is_due() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut no_edit);
+    let at = g.run(&mut sta, leased, leased + 9_000_000, &|_| {}, &mut no_edit)[0].0;
+    // the same run again, stopped 1 ms before the 1-ms step that sent it
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut no_edit);
+    assert!(g.run(&mut sta, leased, at - 1_000, &|_| {}, &mut no_edit).is_empty());
+    let due = (at - 1_000..=at).find(|&t| !sta.idle_at(t)).expect("idle_at true through the step that sent it");
+    assert!(sta.step(due - 1).is_empty() && sta.keepalives == 0, "idle just before");
+    let f = sta.step(due);
+    assert!(f.len() == 1 && is_null(&f[0].frame) && sta.keepalives == 1, "{} frames", f.len());
+    assert!(sta.idle_at(due), "and idle again once sent");
+}
+
+#[test]
+fn a_station_whose_relay_carries_frames_sends_no_keepalive() {
+    let mut link = StationLink::default();
+    link.set_relay(true);
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    let mut ap = VirtualAp::new(config(), false);
+    let mac = link.station().unwrap().cfg.mac;
+    let eth = [vec![0xff; 6], mac.to_vec(), vec![0x08, 0x06], vec![0; 28]].concat();
+    let mut nulls = Vec::new();
+    for now in (0..60_000_000u64).step_by(1_000) {
+        for a in ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+        // the host program sends every 5 s for 30 s, then stops
+        if now < 30_000_000 && now % 5_000_000 == 0 && link.station().unwrap().state == sta::StaLink::Joined { link.receive_relay_frame(&eth).unwrap(); }
+        if let Some(f) = link.next_rx(now, false) {
+            if is_null(&f) { nulls.push(now); }
+            ap.on_station_tx(&with_fcs_slot(f), now);
+        }
+        link.take_relay_frames();
+    }
+    // the relay's last frame at 25 s: keep-alives at 33, 41, 49 and 57 s, none while it talked
+    assert_eq!(nulls, [33_000_000, 41_000_000, 49_000_000, 57_000_000]);
+    assert!(link.report().contains(", 4 keep-alives"), "{}", link.report());
+}
+
+/// A BSS Max Idle Period element (ID 90) of `period` units of 1000 TU, appended to the access
+/// point's association response.
+fn max_idle(period: u16, options: u8) -> impl Fn(&mut Vec<u8>) {
+    move |f: &mut Vec<u8>| if f[0] == 0x10 { f.extend_from_slice(&[90, 3]); f.extend_from_slice(&period.to_le_bytes()); f.push(options); }
+}
+
+#[test]
+fn a_bss_max_idle_period_shortens_the_keepalive_interval() {
+    // 4 units: 4.096 s, so a keep-alive every 2.048 s
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let sent = g.run(&mut sta, 0, 12_000_000, &max_idle(4, 0), &mut no_edit);
+    let nulls: Vec<u64> = sent.iter().filter(|(_, f)| is_null(f)).map(|(t, _)| *t).collect();
+    assert!(nulls.len() >= 4, "{nulls:?}");
+    assert!(nulls.windows(2).all(|w| w[1] - w[0] == 2_048_000), "{nulls:?}");
+    // a long period leaves the station's own interval: the access point may also have a shorter
+    // inactive time of its own
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let sent = g.run(&mut sta, 0, 20_000_000, &max_idle(100, 0), &mut no_edit);
+    let nulls: Vec<u64> = sent.iter().filter(|(_, f)| is_null(f)).map(|(t, _)| *t).collect();
+    assert!(nulls.windows(2).all(|w| w[1] - w[0] == 8_000_000) && !nulls.is_empty(), "{nulls:?}");
+}
+
+#[test]
+fn the_keepalive_timer_starts_again_after_leaving_and_joining() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut no_edit);
+    // 5 s in, the access point deauthenticates the station, which listens and joins again
+    g.run(&mut sta, leased, leased + 5_000_000, &|_| {}, &mut no_edit);
+    let mut deauth = g.ap.beacon_like(12, &sta.cfg.mac, 0)[..24].to_vec();
+    deauth.extend_from_slice(&3u16.to_le_bytes());
+    sta.on_ap_tx(&with_fcs_slot(deauth), leased + 5_000_000);
+    assert_eq!(sta.state, sta::StaLink::Listening);
+    let sent = g.run(&mut sta, leased + 5_000_000, leased + 20_000_000, &|_| {}, &mut no_edit);
+    assert_eq!((sta.stats.0, sta.state), (2, sta::StaLink::Joined), "joined again: {}", sta.report());
+    let last = sent.iter().filter(|(_, f)| !is_null(f)).map(|(t, _)| *t).max().unwrap();
+    let nulls: Vec<u64> = sent.iter().filter(|(_, f)| is_null(f)).map(|(t, _)| *t).collect();
+    // none at the first join's 8 s, none while listening: the first one 8 s after the second
+    // join's last frame (which went out up to 1 ms before the step that sent it)
+    assert!(!nulls.is_empty() && nulls[0] > last + 7_999_000 && nulls[0] <= last + 8_000_000, "{nulls:?}, the last frame at {last}");
+    assert!(nulls.windows(2).all(|w| w[1] - w[0] == 8_000_000), "{nulls:?}");
+}
+
+/// The DHCP messages among what the station sent, with when, relative to `since`.
+fn dhcp_sent(sent: &[(u64, Vec<u8>)], since: u64) -> Vec<(u64, DhcpOut)> {
+    sent.iter().filter_map(|(t, f)| dhcp_out(f).map(|d| (t - since, d))).collect()
+}
+
+/// Every ACK dropped, as a server that does not answer.
+fn no_ack(r: Vec<u8>) -> Option<Vec<u8>> { if r.windows(3).any(|w| w == [53, 1, 5]) { None } else { Some(r) } }
+
+/// An ARP request for `ip` from the gateway, as the network would send it.
+fn arp_for(ip: [u8; 4]) -> Vec<u8> {
+    let gw = crate::net::VirtualNet::new(false).gw_mac;
+    [&[0xff; 6][..], &gw, &[0x08, 0x06], &[0, 1, 8, 0, 6, 4, 0, 1], &gw, &[10, 0, 2, 2], &[0; 6], &ip].concat()
+}
+
+#[test]
+fn the_lease_renews_at_t1_unicast_and_rebinds_at_t2_broadcast() {
+    // options 58 and 59: T1 20 s, T2 40 s of a 100 s lease; then the server stops answering
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    let sent = g.run(&mut sta, leased, leased + 60_000_000, &|_| {}, &mut no_ack);
+    let d = dhcp_sent(&sent, leased);
+    assert_eq!(d.len(), 2, "{d:?}");
+    let (gw, me) = (crate::net::VirtualNet::new(false).gw_mac, [10, 0, 2, 15]);
+    // RENEWING: a REQUEST to the server, unicast, from the address held, `ciaddr` set, no 50 or 54
+    let (t, r) = &d[0];
+    assert!((19_998_000..=20_000_000).contains(t), "renewing at {t}");
+    assert_eq!((r.kind, r.eth_dst, r.ip_src, r.ip_dst, r.ciaddr, r.broadcast), (3, gw, me, [10, 0, 2, 2], me, false));
+    assert!(!r.options.contains(&50) && !r.options.contains(&54), "{:?}", r.options);
+    // REBINDING: the same REQUEST to every server; no retransmission between, as the 60 s minimum is past T2
+    let (t, r) = &d[1];
+    assert!((39_998_000..=40_000_000).contains(t), "rebinding at {t}");
+    assert_eq!((r.kind, r.eth_dst, r.ip_src, r.ip_dst, r.ciaddr, r.broadcast), (3, [0xff; 6], me, [255; 4], me, false));
+    assert!(!r.options.contains(&50) && !r.options.contains(&54), "{:?}", r.options);
+    assert_eq!(sta.lease, Some(me), "still held until its end");
+}
+
+#[test]
+fn without_options_58_and_59_t1_and_t2_are_half_and_seven_eighths_of_the_lease() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(80, None));
+    let sent = g.run(&mut sta, leased, leased + 79_000_000, &|_| {}, &mut no_ack);
+    let at: Vec<(u64, bool)> = dhcp_sent(&sent, leased).iter().map(|(t, r)| (t.div_ceil(1_000_000), r.eth_dst == [0xff; 6])).collect();
+    assert_eq!(at, [(40, false), (70, true)], "renewing at T1 = 40 s, rebinding at T2 = 70 s");
+}
+
+#[test]
+fn an_ack_while_renewing_binds_again_with_its_new_times() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    let sent = g.run(&mut sta, leased, leased + 50_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
+    let at: Vec<u64> = dhcp_sent(&sent, leased).iter().map(|(t, r)| { assert_eq!(r.eth_dst, crate::net::VirtualNet::new(false).gw_mac); *t }).collect();
+    // each ACK starts T1 again from its REQUEST: the second renewal 20 s after the first one, in
+    // the 1 ms step after; counted from the ACK, it would be a round trip later
+    assert!(at.len() == 2 && at[0] <= 20_000_000 && (20_000_000..20_002_000).contains(&(at[1] - at[0])), "{at:?}");
+    assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 2));
+    assert!(sta.report().contains(", 2 lease renewals"), "{}", sta.report());
+}
+
+/// When the station sent each DHCP REQUEST since the last `take_sent`, to the microsecond.
+fn requests_sent(sta: &mut sta::VirtualSta) -> Vec<u64> {
+    sta.take_sent().into_iter().filter(|(_, e)| e.windows(3).any(|w| w == [53, 1, 3])).map(|(t, _)| t).collect()
+}
+
+#[test]
+fn the_lease_counts_from_the_first_request_not_from_the_ack() {
+    // RFC 2131 4.4.1 and 4.4.5: T1, T2 and the end count from when the original REQUEST was sent.
+    // A 100 s lease, so T1 50 s and T2 87.5 s after it, whenever the ACK comes
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let times = |at: u64| (at + 50_000_000, at + 87_500_000, at + 100_000_000);
+    let mut lease_100 = ack_with(100, None);
+    // the first lease: every ACK held back for 1.5 s, so the REQUEST goes again after 1 s with the
+    // same xid; the last ACK, to the retransmission, still counts from the first
+    let mut held = Vec::new();
+    g.run(&mut sta, 0, 1_500_000, &|_| {}, &mut |r| { let r = lease_100(r)?; if r.windows(3).any(|w| w == [53, 1, 5]) { held.push(r); None } else { Some(r) } });
+    let sent = requests_sent(&mut sta);
+    assert!(sta.lease.is_none() && sent.len() == 2 && sent[1] - sent[0] == 1_000_000 && held.len() == 2, "{sent:?}, {} ACKs", held.len());
+    let f = g.ap.data_from_ds(&held[1]).unwrap();
+    g.ap.queue.push(AirFrame { at_us: 1_500_000, frame: f });
+    g.run(&mut sta, 1_500_000, 1_502_000, &|_| {}, &mut no_edit);
+    assert_eq!((sta.lease, sta.lease_times()), (Some([10, 0, 2, 15]), times(sent[0])));
+    // the renewal at T1: its ACK held back 300 ms
+    let mut held = Vec::new();
+    let t1 = times(sent[0]).0;
+    g.run(&mut sta, 1_502_000, t1 + 2_000, &|_| {}, &mut |r| { let r = lease_100(r)?; if r.windows(3).any(|w| w == [53, 1, 5]) { held.push(r); None } else { Some(r) } });
+    let renewal = requests_sent(&mut sta);
+    assert!(renewal.len() == 1 && (t1..t1 + 2_000).contains(&renewal[0]) && held.len() == 1, "{renewal:?}, {} ACKs", held.len());
+    let f = g.ap.data_from_ds(&held[0]).unwrap();
+    g.ap.queue.push(AirFrame { at_us: t1 + 300_000, frame: f });
+    g.run(&mut sta, t1 + 2_000, t1 + 302_000, &|_| {}, &mut no_edit);
+    assert_eq!((sta.renewals, sta.lease_times()), (1, times(renewal[0])));
+}
+
+#[test]
+fn a_reboot_keeps_the_keepalive_and_renewal_counts() {
+    // 30 s with T1 at 20 s: keep-alives in the silences, one renewal. The guest reboots: the
+    // station joins again from nothing, and the end-of-run line still counts the whole run
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    g.run(&mut sta, 0, 30_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
+    let (keepalives, renewals) = (sta.keepalives, sta.renewals);
+    assert!(keepalives > 0 && renewals == 1, "{}", sta.report());
+    sta.restart();
+    assert_eq!((sta.state, sta.lease, sta.keepalives, sta.renewals), (sta::StaLink::Listening, None, keepalives, renewals));
+    let report = sta.report();
+    assert!(report.contains(&format!(", {keepalives} keep-alives")) && report.contains(", 1 lease renewals"), "{report}");
+}
+
+#[test]
+fn a_nak_while_renewing_gives_the_address_up_and_starts_again_with_discover() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    let (mut nak_once, mut lease_100) = (true, ack_with(100, Some((20, 40))));
+    let mut nak = |r: Vec<u8>| {
+        let mut r = lease_100(r)?;
+        if let Some(i) = r.windows(3).position(|w| w == [53, 1, 5]).filter(|_| nak_once) { r[i + 2] = 6; nak_once = false; }
+        Some(r)
+    };
+    sta.take_sent();
+    let sent = g.run(&mut sta, leased, leased + 21_000_000, &|_| {}, &mut nak);
+    let kinds: Vec<(u8, bool)> = dhcp_sent(&sent, leased).iter().map(|(_, r)| (r.kind, r.ciaddr == [0; 4])).collect();
+    // the renewal, then DISCOVER and REQUEST from nothing, and the address leased again
+    assert_eq!(kinds, [(3, false), (1, true), (3, true)]);
+    assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 0));
+    // the DISCOVER ended the refused exchange: the new lease counts from its own REQUEST, not the renewal's
+    let requests = requests_sent(&mut sta);
+    assert_eq!(requests.len(), 2, "{requests:?}");
+    assert_eq!(sta.lease_times().0, requests[1] + 20_000_000, "{requests:?}");
+}
+
+#[test]
+fn at_the_leases_end_arp_stops_answering_and_the_station_discovers_again() {
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    g.run(&mut sta, leased, leased + 99_000_000, &|_| {}, &mut no_ack);
+    // still held: ARP answers
+    sta.take_sent();
+    sta.host_rx(&arp_for([10, 0, 2, 15]), leased + 99_000_000);
+    assert_eq!(sta.take_sent().len(), 1, "an ARP reply before the end");
+    sta.step(leased + 99_001_000);
+    // to half a second past the end, before the DISCOVER's retransmission 1 s after it
+    let sent = g.run(&mut sta, leased + 99_002_000, leased + 100_500_000, &|_| {}, &mut |_| None);
+    let d = dhcp_sent(&sent, leased);
+    assert_eq!(d.iter().map(|(t, r)| (t.div_ceil(1_000_000), r.kind, r.ciaddr)).collect::<Vec<_>>(), [(100, 1, [0; 4])], "DISCOVER at the end");
+    assert_eq!(sta.lease, None);
+    sta.take_sent();
+    sta.host_rx(&arp_for([10, 0, 2, 15]), leased + 101_000_000);
+    assert!(!sta.take_sent().iter().any(|(_, e)| e[12..14] == [0x08, 0x06]), "no ARP reply for the address given up");
+    assert!(sta.report().contains("lease none"), "{}", sta.report());
+}
+
+#[test]
+fn a_lease_without_a_lease_time_is_never_renewed() {
+    // option 51 taken out (its six bytes as padding), and 0xffffffff, the infinite lease
+    for lease in [None, Some(u32::MAX)] {
+        let edit = move |mut r: Vec<u8>| {
+            if let Some(i) = r.windows(6).position(|w| w == [51, 4, 0, 1, 0x51, 0x80]) {
+                match lease { Some(l) => r[i + 2..i + 6].copy_from_slice(&l.to_be_bytes()), None => r[i..i + 6].fill(0) }
+            }
+            Some(r)
+        };
+        let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+        let mut edit = edit;
+        let leased = g.lease(&mut sta, &mut edit);
+        let sent = g.run(&mut sta, leased, leased + 200_000_000, &|_| {}, &mut edit);
+        assert!(dhcp_sent(&sent, leased).is_empty(), "{lease:?}");
+        assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    }
+}
+
+#[test]
+fn where_the_access_point_requires_protected_keepalives_the_station_sends_protected_data() {
+    // WPA2, period 4 with "protected keep-alive required"; no host on the station, so nothing but
+    // keep-alives once joined
+    for (options, protected) in [(1, true), (0, false)] {
+        let (mut sta, mut g) = (station("ssid=esp32sim,psk=esp32sim-pass"), Guest::new());
+        g.ap = VirtualAp::new(ApConfig { psk: Some("esp32sim-pass".into()), ..config() }, false);
+        sta.host = false;
+        let sent = g.run(&mut sta, 0, 10_000_000, &max_idle(4, options), &mut no_edit);
+        assert_eq!(sta.state, sta::StaLink::Joined, "{}", sta.report());
+        let (eapol_out, rest): (Vec<_>, Vec<_>) = sent.iter().filter(|(_, f)| f[0] & 0x0c == 0x08).partition(|(_, f)| f.windows(2).any(|w| w == [0x88, 0x8e]));
+        assert_eq!(eapol_out.len(), 2, "messages 2 and 4");
+        assert!(rest.len() >= 3 && rest.windows(2).all(|w| w[1].0 - w[0].0 == 2_048_000), "{:?}", rest.iter().map(|r| r.0).collect::<Vec<_>>());
+        for (_, f) in &rest {
+            if protected {
+                // data, to-DS, protected; the CCMP header, LLC/SNAP for IPv4, no payload, the MIC
+                assert_eq!((&f[..2], f.len(), &f[32..38], &f[38..40]), (&[0x08, 0x41][..], 24 + 8 + 8 + 8, &[0xaa, 0xaa, 3, 0, 0, 0][..], &[0x08, 0x00][..]));
+            } else { assert!(is_null(f), "{f:02x?}"); }
+        }
+        assert_eq!(sta.keepalives as usize, rest.len());
+    }
+}
+
+#[test]
+fn a_protected_keepalive_is_not_captured_and_an_open_network_gets_null_frames() {
+    // WPA2 with protected keep-alives, the station the host: a lease, then keep-alives that are
+    // protected data frames and stay out of the capture, which holds what the guest's network sees
+    let (mut sta, mut g) = (station("ssid=esp32sim,psk=esp32sim-pass"), Guest::new());
+    g.ap = VirtualAp::new(ApConfig { psk: Some("esp32sim-pass".into()), ..config() }, false);
+    let mut t = 0;
+    while sta.lease.is_none() { g.run(&mut sta, t, t + 1_000, &max_idle(4, 1), &mut no_edit); t += 1_000; assert!(t < 3_000_000, "{}", sta.report()); }
+    sta.take_sent();
+    let sent = g.run(&mut sta, t, t + 10_000_000, &max_idle(4, 1), &mut no_edit);
+    assert!(sent.len() >= 4 && sent.iter().all(|(_, f)| f[..2] == [0x08, 0x41]), "protected data frames only");
+    assert!(sta.take_sent().is_empty(), "keep-alives in the capture");
+    // an open network has no key to protect one with: null frames
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    sta.host = false;
+    let sent = g.run(&mut sta, 0, 10_000_000, &max_idle(4, 1), &mut no_edit);
+    let after_join: Vec<_> = sent.iter().filter(|(_, f)| f[0] & 0x0c == 0x08).collect();
+    assert!(after_join.len() >= 4 && after_join.iter().all(|(_, f)| is_null(f)), "{:?}", after_join.iter().map(|(_, f)| &f[..2]).collect::<Vec<_>>());
+}
+
+#[test]
+fn with_the_relay_switched_on_the_station_gives_up_its_own_dhcp() {
+    // a lease with T1 at 20 s, then the station stops being the host
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    sta.set_host(false);
+    assert_eq!(sta.lease, None);
+    let sent = g.run(&mut sta, leased, leased + 200_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
+    assert!(dhcp_sent(&sent, leased).is_empty(), "DHCP under the host program's MAC");
+    assert_eq!(sta.state, sta::StaLink::Joined, "still carrying the relay");
+    // the relay off again: the station is the host once more and takes a lease
+    sta.set_host(true);
+    g.run(&mut sta, leased + 200_000_000, leased + 201_000_000, &|_| {}, &mut no_edit);
+    assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    // and through `StationLink`, as the relay is switched
+    let mut link = StationLink::default();
+    link.attach_station(station("ssid=esp32sim")).unwrap();
+    let (mut ap, mut net) = (VirtualAp::new(config(), false), crate::net::VirtualNet::new(false));
+    for now in (0..1_000_000).step_by(100) {
+        for a in ap.step(now) { link.station_tx(&with_fcs_slot(a.frame), now); }
+        let Some(f) = link.next_rx(now, false) else { continue };
+        let Some(eth) = ap.on_station_tx(&with_fcs_slot(f), now).and_then(|d| data_to_eth(&d)) else { continue };
+        net.sta_mac = link.station().unwrap().cfg.mac;
+        for reply in net.handle(&eth, now) { if let Some(f) = ap.data_from_ds(&reply) { ap.queue.push(AirFrame { at_us: now, frame: f }); } }
+    }
+    assert!(link.station().unwrap().lease.is_some());
+    link.set_relay(true);
+    assert_eq!(link.station().unwrap().lease, None);
+}
+
+#[test]
+fn a_lease_of_0_s_is_taken_as_1_s() {
+    // a server that leases for 0 s: the station renews twice a second, not in every round
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(0, None));
+    let sent = g.run(&mut sta, leased, leased + 10_000_000, &|_| {}, &mut ack_with(0, None));
+    let n = dhcp_sent(&sent, leased).len();
+    assert!((18..=22).contains(&n), "{n} DHCP messages in 10 s");
+    assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+}
+
+#[test]
+fn a_t1_or_t2_of_0_s_is_taken_as_1_s() {
+    // options 58 and 59 of 0 s with a 100 s lease: one renewal a second, not one in every round
+    for (t1, t2) in [(0, 50), (0, 0), (100, 0)] {
+        let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+        let leased = g.lease(&mut sta, &mut ack_with(100, Some((t1, t2))));
+        let sent = g.run(&mut sta, leased, leased + 10_000_000, &|_| {}, &mut ack_with(100, Some((t1, t2))));
+        let n = dhcp_sent(&sent, leased).len();
+        assert!((9..=11).contains(&n), "T1 {t1}, T2 {t2}: {n} DHCP messages in 10 s");
+        assert_eq!(sta.lease, Some([10, 0, 2, 15]));
+    }
+}
+
+#[test]
+fn a_renewal_without_an_answer_is_sent_again_after_half_the_time_left_at_least_60_s() {
+    // ESP-IDF's default lease, 7200 s: T1 3600 s, T2 6300 s. The server stops answering. Time goes
+    // on in 1 s steps with a beacon each, which `idle_at` makes exact for the station
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(7200, None));
+    let mut at = Vec::new();
+    for s in 1..=7300u64 {
+        let now = leased + s * 1_000_000;
+        sta.on_ap_tx(&with_fcs_slot(g.ap.beacon_like(8, &[0xff; 6], now)), now);
+        for a in sta.step(now) { if let Some(d) = dhcp_out(&a.frame) { at.push((s, d.kind, d.eth_dst == [0xff; 6])); } }
+    }
+    // renewing: 3600, then half of what is left to T2, at least 60 s (4950, 5625, 5962.5, 6131.25,
+    // 6215.6, 6275.6); rebinding at T2, 6300, then half of what is left to the end (6750, 6975,
+    // 7087.5, 7147.5); DISCOVER at the end, 7200. Each goes out 200 us after its time, so in the
+    // 1 s step after it
+    let renewing: Vec<u64> = at.iter().filter(|a| a.1 == 3 && !a.2).map(|a| a.0).collect();
+    let rebinding: Vec<u64> = at.iter().filter(|a| a.1 == 3 && a.2).map(|a| a.0).collect();
+    assert_eq!(renewing, [3601, 4951, 5626, 5964, 6133, 6217, 6277]);
+    assert_eq!(rebinding, [6301, 6751, 6976, 7089, 7149]);
+    assert_eq!(at.iter().find(|a| a.1 == 1).map(|a| a.0), Some(7201));
+    assert_eq!(sta.lease, None);
+}

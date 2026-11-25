@@ -85,6 +85,16 @@ the P4 builds core *i* with `hartid` *i*. Nothing of it is enabled on the C3 and
   store (IDF's vectors issue no SC of their own). The machine tells the bus which core it is
   about to run (`Soc::select_core`), which is how each core sees its own CLIC block at
   0x20800000 and the other's at 0x20810000.
+- **Decoded blocks and the JIT** (EX265, EX269). Both cores run decoded blocks, compiled
+  where there is a JIT backend ([cli.md](cli.md)), because the bus versions the code it fetches
+  (`Bus::page_versions`, one array for both cores): a version per 256-byte page of L2MEM, TCM and
+  LP RAM, one for the two mask ROMs, one per 64 KB page of the flash window and one per 256-byte
+  physical page of PSRAM, the uncached aliases sharing their memory's. Every write that can change
+  fetched bytes moves them: CPU stores by either core through either alias, the DMA paths (SDMMC
+  IDMAC, USB-OTG, the AXI- and AHB-GDMA descriptor write-back), SPI1 programs and erases (only the
+  flash pages the MMU maps there), the PSRAM controller's writes, a changed MMU entry, loading and
+  a chip reset. `--no-jit` runs the interpreter alone and `RV32_JIT=0` the blocks without
+  compiling them; all three give the same instruction counts and console.
 
 The CLIC and the interrupt matrices are registers (`periph::Clic`, `periph::IntMatrix`): sources
 reach each core's CLIC through its matrix; IE, the attributes and the levels read back, the control
@@ -542,9 +552,11 @@ cycle). `UsbHost` learns that a request finished at the next microframe boundary
 there, so the firmware runs between the transfers of a command:
 
 - `enumerate`: VBUS, waiting for the pull-up, the 100 ms connect debounce (TATTDB, §7.1.7.3), the
-  port reset, 10 ms of reset recovery (§9.2.6.2), the device descriptor's first 64 bytes at address
-  0, SET_ADDRESS and its 2 ms recovery (§9.2.6.3), the device and configuration descriptors, the
-  strings, SET_CONFIGURATION (§9.1.2, §9.4); control transfers time out after 5 s.
+  port reset, 10 ms of reset recovery (§9.2.6.2), GET_DESCRIPTOR(DEVICE, 64) at address 0 with a
+  64-byte EP0 for bMaxPacketSize0 alone (a device whose EP0 takes 8 bytes answers with its first
+  8; `hub_port_init` does the same), SET_ADDRESS and its 2 ms recovery (§9.2.6.3), the device and
+  configuration descriptors, the strings, SET_CONFIGURATION (§9.1.2, §9.4); control transfers
+  time out after 5 s.
 - `reset_device`: Linux's `usb_reset_device` (v6.12 drivers/usb/core/hub.c,
   `usb_reset_and_verify_device` at 6090 and `hub_port_init`'s new scheme at 4985-5034): reset,
   GET_DESCRIPTOR(64) at address 0, reset again, SET_ADDRESS to the old address, the device and
@@ -1065,7 +1077,7 @@ Beyond that, the ROMs and IDF's own sources are what this page is checked agains
 | CPU | two RV32IMAFC cores (`Cpu::new_esp32p4`, `misa` 0x40001125): F with the lazy FPU traps, EXT_ILL, Zicntr, CLIC mode, `mhartid`; on rev ≥ 3 the specification's CLIC CSRs (`Cpu::new_esp32p4_rev3`); core 1 held in reset until HP_SYS_CLKRST releases it. The hardware loops (Xesploop) are modelled; Xesppie decodes as illegal |
 | Memory | 128 KB mask ROM at 0x4FC00000 (reset vector), 768 KB L2MEM at 0x4FF00000 and its uncached alias at 0x8FF00000, 8 KB TCM at 0x30100000, LP ROM (empty) and 32 KB LP RAM; flash (0x40000000) and PSRAM (0x48000000) windows behind two 1024-entry MMUs of 64 KB pages, reached through SPI_MEM_C / SPI_MEM_S item registers, with their uncached aliases |
 | Interrupts | both interrupt matrices (128 sources, rev < 3) and both CLIC register blocks, delivered through the cores' CLIC mode |
-| Peripherals | UART0/1, USB-Serial/JTAG, systimer (16 MHz from XTAL), TIMG0/1, SHA, efuse (v1.0 or v3.1, block v0.3, security efuses zero), the flash controller (SPI0 cache side, SPI1 commands, a GigaDevice part answering RDID), the PSRAM controller with an AP Memory x16 PSRAM, the cache controller, HP_SYSTEM (cross-core interrupts, stall status), HP_SYS_CLKRST (divider update, PLL calibration done, core 1 clock and reset), LP_SYSTEM / LP_CLKRST / LP_TIMER (reset cause, software reset, core 1 boot address, RTC counter, the SDMMC reset), the analog I2C master (regi2c read-back), ASSIST_DEBUG's saved PC, the RNG (LP_SYSTEM's RNG_DATA, and LP_TRNG's that rev ≥ 3 builds read), GPIO with the P4's register layout, the SDMMC host with its IDMAC and an SD card in the board's socket (`--sd`), the high-speed USB-OTG core as a device with buffer DMA and a host on its port (`--usb-host`), an SDIO function on slot 1 with its interrupt on DAT1 (`--coproc`: an ESP32-C6 running ESP-Hosted's slave, "The co-processor"), and for `--board waveshare-p4-lcd35` ([boards.md](boards.md)): GPSPI2 (the shared model) with transmit DMA through the AXI-GDMA, I2C1 (its clock from HP_SYS_CLKRST), I2S1 transmitting through the AHB-GDMA at 44.1 kHz, LEDC, and GPIO's pins 49–56 and its interrupt status words; everything else is register RAM, listed by `--log-periph` |
+| Peripherals | UART0/1, USB-Serial/JTAG, systimer (16 MHz from XTAL), TIMG0/1, SHA, efuse (v1.0 or v3.1, block v0.3, security efuses zero), the flash controller (SPI0 cache side, SPI1 commands, a GigaDevice part answering RDID), the PSRAM controller with an AP Memory x16 PSRAM, the cache controller, HP_SYSTEM (cross-core interrupts, stall status), HP_SYS_CLKRST (divider update, PLL calibration done, core 1 clock and reset), LP_SYSTEM / LP_CLKRST / LP_TIMER (reset cause, software reset, core 1 boot address, RTC counter, the SDMMC reset), the analog I2C master (regi2c read-back), ASSIST_DEBUG's saved PC, the RNG (LP_SYSTEM's RNG_DATA, and LP_TRNG's that rev ≥ 3 builds read), GPIO with the P4's register layout, PCNT (four units on the GPIO matrix's inputs), MCPWM0/1 (clocked from HP_SYS_CLKRST; `--pwm PIN`), the SDMMC host with its IDMAC and an SD card in the board's socket (`--sd`), the high-speed USB-OTG core as a device with buffer DMA and a host on its port (`--usb-host`), an SDIO function on slot 1 with its interrupt on DAT1 (`--coproc`: an ESP32-C6 running ESP-Hosted's slave, "The co-processor"), and for `--board waveshare-p4-lcd35` ([boards.md](boards.md)): GPSPI2 (the shared model) with transmit DMA through the AXI-GDMA, I2C1 (its clock from HP_SYS_CLKRST), I2S1 transmitting through the AHB-GDMA at 44.1 kHz, LEDC (duty updates and gamma fades; `--pwm PIN`), and GPIO's pins 49–56 and its interrupt status words; everything else is register RAM, listed by `--log-periph` |
 | Time base | 360 MHz, the rev < 3 application clock, on both revisions; one instruction is one cycle |
 
 The revision is a type parameter (`esp32p4::Revision`): `RevLt3` and `RevGe3`, with its own ROM

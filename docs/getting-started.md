@@ -27,7 +27,7 @@ How to build esp32sim and run firmware on each chip. For every flag, see the
 | Boots | ROM, bootloader, FreeRTOS, app | ROM, bootloader, FreeRTOS, app | ROM, bootloader, FreeRTOS, app |
 | Boards / displays | ST7735, ST7701S 480x480 + touch, WS2812, camera, audio | none, console only | ST7789 172x320 over SPI+DMA, WS2812, an 802.15.4 energy-detect stand-in |
 | WiFi | virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station) | the same virtual AP and network: scan, WPA2, DHCP, NAT (one station, legacy rates) |
-| Speed | block interpreter and AArch64 JIT, about 150 to 240 Minsn/s | decoded basic blocks (EX265, #356), no JIT yet; well above real time on hello_world | the same decoded blocks |
+| Speed | block interpreter and AArch64 JIT, about 150 to 240 Minsn/s | decoded blocks and the RV32 JIT (AArch64 and WebAssembly; elsewhere the blocks alone): EX265, EX269, EX270 | the same |
 | In the browser | yes (WebAssembly) | yes (WebAssembly) | yes (WebAssembly) |
 | Status | mature | draft, see [esp32c3.md](esp32c3.md) | draft, see [esp32c6.md](esp32c6.md) |
 
@@ -300,7 +300,8 @@ fetch above puts there). Booting again replaces the machine and keeps the chosen
 - hello_world, the Touch-LCD-4B panel with its SID player, the Atech board, the ESP32-C3 and the
   ESP32-C6 all run at real time in Chrome.
 - There is no NAT, because the browser has no sockets.
-- The S3 has a WebAssembly JIT of its own (hot blocks and regions, PIE on WASM SIMD).
+- The S3 has a WebAssembly JIT of its own (hot blocks and regions, PIE on WASM SIMD), the ESP32-S31 one for
+  its RISC-V blocks (EX269).
 
 See [wasm.md](wasm.md).
 

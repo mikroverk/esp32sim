@@ -77,18 +77,18 @@ Bugs found on the way to a TLS session, each one a place where the model was pla
   answered with a fatal alert rather than an error we could read.
 
 Not yet working:
-- UDP inbound, multicast and mDNS, so `esp-web.local` and Home Assistant discovery do not cross;
-  use IP addresses. TCP servers in the guest are reachable with `--hostfwd`.
+- Multicast and mDNS, so `esp-web.local` and Home Assistant discovery do not cross; use IP
+  addresses. TCP and UDP servers in the guest are reachable with `--hostfwd`.
 - Hardware AES-GCM (block mode 6) and the DS/HMAC peripherals; mbedTLS has not asked for them yet.
 - Roaming, power save, 802.11n rates, multiple stations, WPA3/SAE, PMF.
-- The guest as an access point beyond the classic ESP32's first steps (below): AP+STA, the S3, C3
-  and C6, more than one station, and host ports forwarded to the guest's access point.
+- The guest as an access point beyond the first steps (below): AP+STA, more than one station, and
+  host ports forwarded to the guest's access point.
 
 ## The guest as an access point (`--wifi-sta`)
 
-On the classic ESP32 a guest in `WIFI_MODE_AP` already works with the MAC as modelled: libpp sends
-its beacons, probe and authentication responses and EAPOL frames through TX queue 0 like any
-other frame. What it needs is something on the air that answers, and received frames flagged for
+On the classic ESP32, S3, C3, C6 and S31 a guest in `WIFI_MODE_AP` already works with the MAC as
+modelled: libpp sends its beacons, probe and authentication responses and EAPOL frames through
+the TX queues like any other frame (queue 0 on the classic). What it needs is something on the air that answers, and received frames flagged for
 the right interface. `--wifi-sta` puts a virtual station (`esp-soc/src/wifi/sta.rs`) where the
 access points would be: it follows the guest's beacons, authenticates and associates, takes the
 supplicant's side of the WPA2 four-way handshake (the PTK from the guest's ANonce, the MIC on
@@ -116,11 +116,46 @@ A guest in `WIFI_MODE_APSTA` whose station scans is joined too: its access point
 channel for the scans (21 beacons in 12 s against about 117), with gaps under the 3 s the station
 waits.
 
-Not yet: probe requests, so an access point with a hidden SSID is not found; renewing the lease
-(ESP-IDF's DHCP server leases for 120 minutes); keep-alive frames; a second station. The station
-sends nothing once it holds a lease, so a guest idles it out: `examples/wifi-softap` (ESP-IDF
-v5.5.4, a 300 s inactivity time by default) disassociated it with reason 4 at 302 s, and it joined
-again and took the lease again a second later. In relay mode the host program is the station:
+Joined, the station keeps its place. An access point disassociates a station it has not heard
+from for its inactive time: `examples/wifi-softap` (ESP-IDF v5.5.4, 300 s by default) logged
+`wifi:inactive timer: … leave` and disassociated a station that sent nothing after its lease with
+reason 4 at 302 s, having sent it nothing but beacons in between, so no poll to answer. When the
+station has sent the access point nothing for 8 s, it sends a null data frame (type 2, subtype 4,
+to the DS). Every frame counts, its own DHCP and ARP and the relay's, so a host program that talks
+needs none. 8 s is under the shortest inactive time ESP-IDF's SoftAP takes, 10 s
+(`esp_wifi_set_inactive_time` returns ESP_ERR_INVALID_ARG below it): set to 10 s, the example
+disassociated a silent station 12 s after its last frame and one sending a null frame every 11 s,
+and kept one sending every 10 s. With the default, the station stayed joined for 650 s with 81
+keep-alives. A BSS Max Idle Period element (IEEE 802.11-2020 9.4.2.79) in the association response
+shortens the interval to half its period, never lengthens it; when it says "protected keep-alive
+required", the keep-alive is a protected data frame of ethertype 0x0800 with no payload, as
+wpa_supplicant 2.11 sends (a null frame on an open network, which has no key). Keep-alives carry
+nothing for the guest's network and are not in the capture. ESP-IDF v5.5.4's SoftAP, with
+`CONFIG_ESP_WIFI_BSS_MAX_IDLE_SUPPORT` and `bss_max_idle_cfg` set, sends the element only to a
+station whose association request carries one, which this station's does not, so against it the
+8 s apply. With a request changed locally to carry one, the guest answered with the smaller of the
+two periods, disassociated a silent station about 2 s after it, kept one that followed it, and with
+"protected keep-alive required" counted the protected data frames and not the null frames.
+
+As the host on the guest's network, the station renews its lease (RFC 2131 4.4.5): at T1 (option
+58, or half the lease) a REQUEST to the server, unicast, with `ciaddr` set and neither option 50 nor
+54; at T2 (option 59, or seven-eighths) the same REQUEST broadcast; at the lease's end it gives the
+address up, ARP stops answering for it, and it starts again with DISCOVER, as after a NAK. T1, T2
+and the end count from when the exchange's first REQUEST went out, not from the ACK (RFC 2131
+4.4.1); retransmissions, and the rebinding REQUESTs after the renewing ones, keep its `xid`.
+ESP-IDF v5.5.4's DHCP server (`components/lwip/apps/dhcpserver/dhcpserver.c`) leases for 120
+minutes by default and acknowledges a REQUEST without option 50 whose `ciaddr` is the address it
+leased to that MAC, unicast or broadcast; its ACK carries option 51 and neither 58 nor 59. With
+the lease set to 1 minute, the example's station renewed every 30 s and kept 192.168.4.2, and the
+guest logged each ACK as an assignment. A lease without option 51 is kept and never renewed; a
+lease, T1 or T2 under 1 s is taken as 1 s. In relay mode the host program takes its own lease:
+with the relay switched on, the station gives up its own lease and DHCP, so nothing goes out under
+the program's MAC, and with the relay off again it starts DHCP anew. The end-of-run line counts
+keep-alives and renewals (rebinds among them) when there are any; the keep-alives are among its
+frames to the access point, not beside them.
+
+Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
+AP+STA with both sides on the air; host ports forwarded to the guest's access point. In relay mode the host program is the station:
 without four-address frames it sends from and receives at the station's MAC, and a frame it relays
 before the station has joined is refused; one the station takes and cannot carry, because it left
 the access point in between, is counted in the end-of-run line. The CLI's `--wifi-sta` and
@@ -150,6 +185,17 @@ optional, as Arduino-ESP32 3.3.9's `WiFi.softAP` configures it) and an Arduino-E
 application: the firmware logs the station joining and its DHCP server leasing 192.168.4.2. The
 `wifi_softap_classic` golden pins `examples/wifi-softap`. With WPA3-SAE the guest refuses the
 association (status 43), as the station offers WPA2-PSK only.
+
+The S3, C3, C6 and S31 MACs (`esp-soc/src/wifi/mac.rs` for the S3 and C3, the C6's and S31's own)
+flag received frames in the same `rx_ctrl` word 0 bits (`StationLink::rx_match`). No slot
+registers are read there: with a virtual station on the air, a frame whose first address is the
+BSSID the station took from the guest's beacons gets bit 29 alone, and every other frame keeps
+bit 28, and 29 for unicast, as before. With bits 28 and 29 both set on the station's frames, the
+S3's softAP never answered its authentication (three attempts in 6 s, no response); with bit 29
+alone the S3, C3 and C6 (ESP-IDF v5.5.4) and the S31 (ESP-IDF v6.1) logged the join and the lease
+within the first seconds. Not compared with silicon on these chips. `examples/wifi-softap` built
+for each is pinned by `wifi_softap_s3`, `wifi_softap_c3`, `wifi_softap_c6` (the console and counts
+as on the classic) and `wifi_softap_s31_mosaico` (the firmware's lines).
 
 ## Scope
 

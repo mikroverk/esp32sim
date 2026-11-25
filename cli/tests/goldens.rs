@@ -487,6 +487,65 @@ fn external_energy_scan_c6() {
     expect_u64("energy-scan-c6.insns", r.insns);
 }
 
+/// A stock IDF example built for the S3 (examples/usb-sd-s3/README.md): the project directory
+/// from `var`, its app `name`, and the run's extra arguments.
+fn s3_example(var: &str, name: &str, flash_mb: &str, extra: &[&str]) -> Run {
+    let dir = std::env::var(var).unwrap_or_else(|_| panic!("{var}=/path/to/the example project (built for esp32s3) is required for this test"));
+    let b = format!("{dir}/build"); let rom = rom("esp32s3_rev0");
+    let mut args = vec!["--rom".to_string(), rom.to_str().unwrap().to_string(), "--board".into(), "none".into(), "--boot".into(), "rom".into(), "--no-dump".into(),
+        "--flash-mb".into(), flash_mb.into(), "--bootloader".into(), format!("{b}/bootloader/bootloader.bin"),
+        "--ptable".into(), format!("{b}/partition_table/partition-table.bin"), "--app".into(), format!("{b}/{name}.bin")];
+    args.extend(extra.iter().map(|s| s.to_string()));
+    run(BIN, &args.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+}
+
+fn usb_host_log(r: &Run) -> String { r.stderr.lines().filter(|l| l.starts_with("[usb-host]")).map(|l| format!("{l}\n")).collect() }
+
+/// IDF's sdmmc example on the S3: slot 1 routed through the GPIO matrix to the example's pins,
+/// four lines, FatFs on the card; the files it leaves are read back from the image.
+#[test] #[ignore = "set S3_SDMMC_DIR=/path/to/sdmmc (IDF v5.5.4 examples/storage/sd_card/sdmmc built for esp32s3); needs the ESP32-S3 mask ROM ELF"]
+fn external_s3_sdmmc() {
+    let card = tmp("sdcard-s3.img");
+    sd_image::fat32(&card, 64 << 20, 512, "").unwrap();
+    let r = s3_example("S3_SDMMC_DIR", "sd_card", "2", &["--sd-rw", card.to_str().unwrap(), "--max-seconds", "1"]);
+    for line in ["Using SDMMC peripheral", "SSR: bus_width=4", "Read from file: 'Nihao SIMSD!'", "Card unmounted"] {
+        assert!(r.stdout.contains(line), "missing {line:?} in:\n{}", r.stdout);
+    }
+    let files = sd_image::Volume::open(&card).unwrap().root_files();
+    let want: Vec<(String, Vec<u8>)> = vec![("NIHAO.TXT".into(), b"Nihao SIMSD!\n".to_vec()), ("FOO.TXT".into(), b"Hello SIMSD!\n".to_vec())];
+    assert_eq!(files, want, "the files the example left on the card");
+}
+
+/// IDF's tusb_serial_device example on the S3: TinyUSB takes the internal PHY from
+/// USB-Serial-JTAG, the host enumerates it at full speed and the CDC-ACM port echoes a line.
+#[test] #[ignore = "set S3_TUSB_SERIAL_DIR=/path/to/tusb_serial_device (IDF v5.5.4, built for esp32s3); needs the ESP32-S3 mask ROM ELF"]
+fn external_s3_usb_cdc() {
+    let r = s3_example("S3_TUSB_SERIAL_DIR", "tusb_serial_device", "2", &["--usb-host", "examples/usb-sd-s3/cdc.txt", "--max-seconds", "1"]);
+    let host = usb_host_log(&r);
+    for line in ["port reset: Full speed", "device 303a:4001", "EP0 64 bytes", "interface 1: class 0a/00/00, endpoints 02 (64 bytes) 82 (64 bytes)",
+                 "CDC: sent \"hello from the host\"", "CDC: 21 bytes received", "script done"] {
+        assert!(host.contains(line), "missing {line:?} in the host's log:\n{host}");
+    }
+    assert!(r.stdout.contains("Line state changed on channel 0: DTR:1, RTS:1") && r.stdout.contains("|hello from the h|"), "{}", r.stdout);
+}
+
+/// IDF's tusb_msc example with its SD card storage on the S3: both blocks at once, the card
+/// exposed over USB mass storage, a FAT32 file written and read back by the host.
+#[test] #[ignore = "set S3_TUSB_MSC_SD_DIR=/path/to/tusb_msc (IDF v5.5.4, CONFIG_EXAMPLE_STORAGE_MEDIA_SDMMC=y, built for esp32s3); needs the ESP32-S3 mask ROM ELF"]
+fn external_s3_usb_msc_sd() {
+    let card = tmp("usbmsc-s3.img");
+    sd_image::fat32(&card, 64 << 20, 512, "").unwrap();
+    let r = s3_example("S3_TUSB_MSC_SD_DIR", "tusb_msc", "4", &["--sd-rw", card.to_str().unwrap(), "--usb-host", "examples/usb-sd-s3/msc-sd.txt", "--max-seconds", "2"]);
+    let host = usb_host_log(&r);
+    for line in ["port reset: Full speed", "device 303a:4002", "interface 0: class 08/06/50, endpoints 01 (64 bytes) 81 (64 bytes)",
+                 "READ CAPACITY: 131072 blocks of 512 bytes", "fat-read FILE0001.BIN: 262144 bytes", "matches what was written", "verify 16 blocks at 131056: all a5", "script done"] {
+        assert!(host.contains(line), "missing {line:?} in the host's log:\n{host}");
+    }
+    let files = sd_image::Volume::open(&card).unwrap().root_files();
+    assert_eq!(files.iter().map(|f| f.0.as_str()).collect::<Vec<_>>(), ["FILE0001.BIN"]);
+    assert!(files[0].1 == esp_soc::usb_host::fat32::file_bytes("FILE0001.BIN", 1 << 18), "the file on the card is the one the host wrote");
+}
+
 /// AWTRIX 3 on the Ulanzi TC001 (the stock release image, not in this repository): `AWTRIX_FLASH`
 /// is a 4 MB flash image of its bootloader, partitions, boot_app0 and firmware. With no network
 /// configured it starts its access point and shows "AP MODE", drawn through RMT and the zigzag map.
@@ -617,8 +676,9 @@ fn mosaico_board_s31() {
 /// brings up the CO5300 over GP-SPI2 in QSPI mode with LVGL 9 and TE-synchronised full frames, the
 /// CST9220, the BMI270 and both BMM150, and the keys through iot_button. With the board's scripted
 /// motion, a touch reaches LVGL, the AI button pulses the motor through LEDC and recolours the UI,
-/// the Boot key turns to the sensor page and back. Pinned: the demo's lines, the last frame, the
-/// instruction count.
+/// the Boot key turns to the sensor page and back. The BSP's 3.3 V soft start (an LEDC fade, waited
+/// for with its end interrupt) runs at its default 50 ms. Pinned: the demo's lines, the last frame,
+/// the instruction count.
 #[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
 fn mosaico_demo_s31() {
     let rom = rom("esp32s31_rev0");
@@ -628,6 +688,8 @@ fn mosaico_demo_s31() {
         "--bootloader", &format!("{FW}/s31-mosaico-demo-bootloader.bin"), "--ptable", &format!("{FW}/s31-mosaico-demo-ptable.bin"), "--app", &format!("{FW}/s31-mosaico-demo.bin"),
         "--script", script.to_str().unwrap(), "--imu-motion", "1", "--tft-png", png.to_str().unwrap(), "--max-seconds", "7.5"]);
     assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    // The BSP's stock 3.3 V soft start: an LEDC fade the app waits for (its end interrupt).
+    assert!(r.stdout.contains("VCC_3V3 power on: VCC_PW GPIO60 ramped to 0 over 50 ms"), "{}", r.stdout);
     let demo: String = r.stdout.lines().filter_map(|l| l.split_once("demo: ").map(|(_, rest)| format!("{rest}\n"))).collect();
     for want in ["sensors imu=1 mag0=1 mag1=1", "ui up", "touch 1 at 300,200", "AI button 1: accent 1, motor pulse", "BOOT key 1: sensors page", "BOOT key 2: compass page"] {
         assert!(demo.contains(want), "missing {want:?}:\n{demo}");
@@ -687,12 +749,12 @@ fn hosted_p4_rev3() {
     expect_u64("hosted-p4-rev3.insns", r.insns);
 }
 
-/// Scintilla (the Elka Synthex in integer C, GPL-3.0, joakimeriksson/esp32 `eed6180`, directory
+/// Scintilla (the Elka Synthex in integer C, GPL-3.0, joakimeriksson/esp32 `3a477c7`, scintilla-fm1's engine 0.3.2, directory
 /// `scintilla-p4-lcd35`; licences in web/wasm/fw/public/p4-scintilla-NOTICE.txt) on
 /// the model of Waveshare's ESP32-P4-WIFI6-Touch-LCD-3.5, with no C6 on the SDIO bus: Waveshare's
 /// BSP 2.0.2 and LVGL 9 bring up the ST7796 over GPSPI2 and the AXI-GDMA, the FT5x06 on I2C1 and
 /// the ES8311 on I2S1 and the AHB-GDMA. A4 (the thirteenth white key, at the panel's (290, 160)
-/// under the firmware's landscape touch mapping) held for 0.6 s sounds at 440 Hz; a tap on the
+/// under the firmware's landscape touch mapping) held for 0.6 s sounds at 220.5 Hz (Chunky Synth is an octave down); a tap on the
 /// program display opens the patch picker. Pinned: the audio, the last frame, the instruction count.
 #[test] #[ignore = "needs the ESP32-P4 rev 3 mask ROM ELF"]
 fn scintilla_p4_lcd35() {
@@ -715,7 +777,10 @@ fn scintilla_p4_lcd35() {
     let w = &pcm[onset + 2205..onset + 2205 + 1764];
     let lag = (44100 / 1000..44100 / 100).max_by_key(|&l| w[..w.len() - l].iter().zip(&w[l..]).map(|(&a, &b)| a as i64 * b as i64).sum::<i64>()).unwrap();
     let hz = 44100.0 / lag as f64;
-    assert!((hz - 440.0).abs() < 440.0 * 0.03, "A4 sounds at {hz:.1} Hz");
+    // The key is A4; Chunky Synth sounds it an octave down, at 220.5 Hz as scintilla-fm1's engine
+    // renders it on the host. (Before the P4's I2S read its own field layout, every second
+    // sample was dropped and this measured 440.)
+    assert!((hz - 220.5).abs() < 220.5 * 0.03, "the key sounds at {hz:.1} Hz");
     expect_sha("scintilla-p4-lcd35.wav.sha256", &data);
     expect_sha("scintilla-p4-lcd35.png.sha256", &std::fs::read(&png).unwrap());
     expect_u64("scintilla-p4-lcd35.insns", r.insns);
@@ -837,6 +902,58 @@ fn wifi_softap_classic() {
         .map(|l| format!("{l}\n")).collect();
     expect_text("wifi-softap-classic.report.txt", &report);
     expect_u64("wifi-softap-classic.insns", r.insns);
+}
+
+/// The same access point on the S3, C3 and C6 (`examples/wifi-softap` built with ESP-IDF 5.5.4 for
+/// each, `{chip}-softap-*`, `{chip}-wifi_softap.bin`): the virtual station joins through the WPA2
+/// four-way handshake and takes a lease from the guest's DHCP server; the console on USB
+/// Serial/JTAG, as for the station goldens. The firmware's lines, the console, the radio counts
+/// and the instruction count are pinned.
+fn wifi_softap(chip: &str, bin: &str, rom_name: &str, extra: &[&str]) {
+    let rom = rom(rom_name);
+    let (bl, pt, app) = (format!("{FW}/{chip}-softap-bootloader.bin"), format!("{FW}/{chip}-softap-ptable.bin"), format!("{FW}/{chip}-wifi_softap.bin"));
+    let mut args = vec!["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--console", "usb", "--no-dump",
+        "--bootloader", &bl, "--ptable", &pt, "--app", &app, "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "6"];
+    args.extend(extra);
+    let r = run(bin, &args);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
+    assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    expect_text(&format!("wifi-softap-{chip}.softap.txt"), &softap);
+    expect_text(&format!("wifi-softap-{chip}.console.txt"), &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("[emu] wifi")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text(&format!("wifi-softap-{chip}.report.txt"), &report);
+    expect_u64(&format!("wifi-softap-{chip}.insns"), r.insns);
+}
+
+#[test] #[ignore = "needs the ESP32-S3 mask ROM ELF"]
+fn wifi_softap_s3() { wifi_softap("s3", BIN, "esp32s3_rev0", &["--board", "none"]); }
+
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF"]
+fn wifi_softap_c3() { wifi_softap("c3", BIN_C3, "esp32c3_rev3", &[]); }
+
+#[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
+fn wifi_softap_c6() { wifi_softap("c6", BIN_C6, "esp32c6_rev0", &[]); }
+
+/// The access point on the S31 of the ESP-Mosaico: `examples/wifi-softap` built with ESP-IDF v6.1
+/// by `tools/fetch-s31-firmware.sh` (`s31-wifi_softap.bin`, committed in `esp32s31/firmware`; its
+/// bootloader and partition table are the station's and hello's). The virtual station joins and
+/// takes a lease. Pinned: the firmware's own lines, as for the S31 station.
+#[test] #[ignore = "needs the ESP32-S31 mask ROM ELF"]
+fn wifi_softap_s31_mosaico() {
+    let rom = rom("esp32s31_rev0"); let fw = "esp32s31/firmware";
+    let r = run(BIN_S31, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--board", "mosaico", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{fw}/s31-wifi-bootloader.bin"), "--ptable", &format!("{fw}/s31-hello-ptable.bin"), "--app", &format!("{fw}/s31-wifi_softap.bin"),
+        "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "6"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("abort()"), "the app panicked:\n{}", r.stdout);
+    let softap: String = r.stdout.lines().filter_map(|l| l.split_once("softap: ").map(|(_, rest)| rest)).map(|l| format!("{l}\n")).collect();
+    assert!(softap.contains("JOINED mac=02:53:54:41:00:01 aid=1") && softap.contains("LEASED ip=192.168.4.2"), "the station did not get through:\n{}\n{}", softap, r.stderr);
+    // the end-of-run lines, as on the other chips (their counts are not pinned here)
+    assert!(r.stderr.lines().any(|l| l.starts_with("[emu] wifi: ") && l.contains("frames sent by the guest's access point"))
+        && r.stderr.lines().any(|l| l.starts_with("[emu] wifi-sta: 'esp32sim-ap' Joined") && l.contains("lease 192.168.4.2")), "no WiFi report:\n{}", r.stderr);
+    expect_text("wifi-softap-s31.softap.txt", &softap);
 }
 
 /// Classic ECO3 ROM, stock IDF bootloader and hello_world application.

@@ -27,10 +27,10 @@ default too, with 16 MB of flash ([esp32p4.md](esp32p4.md)).
 | `--elf F` (repeatable) | symbols for logs/profiles (app ELF, bootloader ELF) |
 | `--flash-mb N`, `--psram-mb N` | flash size (JEDEC follows it) and PSRAM size. S3 defaults: 8 / 2, or 16 / 8 for StopWatch; octal MR2 density follows 4, 8, 16, 32 and 64 MiB. Classic ESP32 defaults: 4 / 0; `--psram-mb 4` enables quad PSRAM, `0` disables it; other classic sizes are rejected. S31: 2 MiB by default (16 MiB with `--board mosaico`, which also has 16 MiB in-package PSRAM); 1, 2, 4, 8 or 16 |
 | `--flash-octal` | octal SPI flash (ESP32-S3-WROOM-2): Macronix octal commands, JEDEC C2 80 xx, efuse FLASH_TYPE octal; S3 only. An `--efuse-regs` dump is loaded after it: a dump that includes RD_REPEAT_DATA3 (efuse +0x3c) replaces that word, FLASH_TYPE (bit 9) with it |
-| `--sd IMAGE`, `--sd-rw IMAGE` | (P4) an SD card in the reference board's socket (CLK 43, CMD 44, D0-D3 39-42), holding the image: a high capacity card of the image's size, rounded down to 512 KiB. `--sd` is copy-on-write: what the firmware writes stays in memory and the file is never modified. `--sd-rw` writes through to the file. See [esp32p4.md](esp32p4.md), "SD card" |
-| `--sd-prg-us N`, `--sd-serial HEX` | (P4) the card's programming time after a write or an erase, in microseconds of emulated time (default 0: instant), and its CID serial number (default: derived from the image size) |
-| `--sd-timing` | (P4) commands and data take their time on the SD bus at the slot's card clock and width: CMD_DONE, DATA_OVER and the auto-stop come when the bits are through (default: at once); with `--coproc` the SDIO link's too. See [esp32p4.md](esp32p4.md), "The host" |
-| `--usb-host F` | (P4, S31) a USB host on the high-speed USB-OTG port, running the commands in F (below) from power-up; the run then goes on to `--max-seconds`. See [esp32p4.md](esp32p4.md), "USB" |
+| `--sd IMAGE`, `--sd-rw IMAGE` | (P4, S3) an SD card holding the image; on the P4 in the reference board's socket (CLK 43, CMD 44, D0-D3 39-42), on the S3 on whichever pins the firmware routes an SDMMC slot's clock to through the GPIO matrix (the first slot that has one). The card is a high capacity card of the image's size, rounded down to 512 KiB. `--sd` is copy-on-write: what the firmware writes stays in memory and the file is never modified. `--sd-rw` writes through to the file. See [esp32p4.md](esp32p4.md), "SD card" |
+| `--sd-prg-us N`, `--sd-serial HEX` | (P4, S3) the card's programming time after a write or an erase, in microseconds of emulated time (default 0: instant), and its CID serial number (default: derived from the image size) |
+| `--sd-timing` | (P4 only: the S3 refuses it, its SDMMC clock tree is not decoded) commands and data take their time on the SD bus at the slot's card clock and width: CMD_DONE, DATA_OVER and the auto-stop come when the bits are through (default: at once); with `--coproc` the SDIO link's too. See [esp32p4.md](esp32p4.md), "The host" |
+| `--usb-host F` | (P4, S3, S31) a USB host on the USB-OTG port (high speed on the P4 and S31, full speed on the S3), running the commands in F (below) from power-up; the run then goes on to `--max-seconds`. On the S3 the host sees the device only once the firmware gives the internal PHY to USB-OTG (TinyUSB does). See [esp32p4.md](esp32p4.md), "USB", and [peripherals.md](peripherals.md) |
 | `--coproc c6:KEY=VALUE,...` | (P4) an ESP32-C6 co-processor on SDIO slot 1, run in lock-step with the P4 (below); `--wifi` and `--net` then go to the C6's radio |
 | `--board atech14\|waveshare-cam\|waveshare-lcd4b\|waveshare-amoled18-v2\|stopwatch\|none` | board model (default atech14); on the C6: `waveshare-c6-lcd147`, `xiao-esp32c6` or `none`; on the P4: `waveshare-p4-lcd35` (rev ≥ 3) or `none`; on the S31: `mosaico` (alias `esp-mosaico`) or `none`; on the classic ESP32: `ttgo-tdisplay` (alias `tdisplay`), `cyd` (alias `esp32-2432s028`), `ulanzi-tc001` (alias `tc001`), `ai-thinker-cam` (alias `esp32cam`), `esp32dev-loopback` or `none`/`esp32dev`; and `socket:PATH` or `tcp:HOST:PORT`, a board in another process ([socket-board.md](socket-board.md)) |
 | `--strap HEX`, `--reset-cause HEX`, `--efuse-regs F`, `--regs-init F` | reproduce a real chip's boot state (used by the differential tests) |
@@ -42,11 +42,11 @@ default too, with 16 MB of flash ([esp32p4.md](esp32p4.md)).
 | `--ble-observe` | passive full-mode PDU log: half-microsecond timestamp, channel, type, AdvA, decoded AD and raw PDU |
 | `--ble` | opt-in virtual BLE controller on S3/C3/C6; requires the matching application `--elf` |
 | `--ble-nearby SPEC` (repeatable) | a Bluetooth LE device around the station, heard but not connectable: the guest's scans report it (ADV_SCAN_IND, plus SCAN_RSP for an active scan) next to the virtual peer — `name=Thermo,rssi=-60` (`name` 1 to 26 bytes, a Complete Local Name after the Flags; `adv` / `rsp` the advertising data / scan response as hex, at most 31 bytes each, `adv` instead of `name`; `addr` aa:bb:cc:dd:ee:ff, default a random static address derived from the data, a random one not with the reserved top bits 10; `type` random (default) or public; `rssi` -127 to 20 dBm or 127 for not available, default -60; a `name` cannot hold `,`, use `adv` for one that does); reported as scannable and not connectable (ADV_SCAN_IND); up to 32, each on an address of its own, needs `--ble` |
-| `--wifi SPEC` (repeatable) | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md). `--hostfwd` publishes a guest TCP port on the host. Given several times, each spec is one more joinable access point (up to 8): every one beacons and answers probes, so a scan lists them all, and the station joins one at a time (associating with another leaves the first), e.g. `--wifi ssid=guest --wifi ssid=home,psk=home-pass`. Without `bssid` the first keeps 02:53:49:4d:00:01 and later ones derive a locally administered BSSID from their SSID; two access points may share neither SSID nor BSSID. All of them sit in front of the same virtual network, and the network's clock is the first spec's `epoch` (or `--net`'s); `epoch=` in a later spec is an error |
-| `--wifi-sta SPEC` | a virtual station that joins the guest's own access point (the guest in `WIFI_MODE_AP`): `ssid=NAME[,psk=PASSPHRASE][,mac=xx:xx:xx:xx:xx:xx]` (`password` and `pass` alias `psk`, 8 to 63 characters; `mac` default 02:53:54:41:00:01). It follows the guest's beacons for that SSID, authenticates (open system), associates, takes the supplicant's side of the WPA2 four-way handshake when given a passphrase, then takes a lease from the guest's DHCP server and answers ARP for it. With the Ethernet relay on (`set_ethernet_relay`), a host program is that host instead, sending and taking the station's MAC. The end-of-run line `[emu] wifi-sta:` gives its state, joins, lease and frame counts; `--debug wifi-frames` logs each step. It leaves a network it cannot join alone and says why in that line: WEP and WPA, WPA3-SAE only, and protected management frames required. It takes the access point's group cipher (CCMP or TKIP) and needs CCMP pairwise. It listens again after a refusal, a deauthentication or disassociation (to it or to every station), 3 s without a beacon, or a beacon whose timestamp is lower than the last one's, and stops after three refusals in a row with the same authentication or association status, until the guest reboots. A wrong passphrase is not a refusal: message 3 of the handshake never comes, the station gives up after 1 s and tries again a second later, so every 2 s or so for the whole run, with "wrong passphrase?" in the end-of-run line. `--wifi-sta` can be given once, and is refused with `--net`, which configures `--wifi`'s network. With the Ethernet relay on, frames the host program relayed that the station could not carry, because it left the access point after taking them, are counted in the end-of-run line. Classic ESP32 only so far, open and WPA2-PSK networks. The CLI refuses it beside `--wifi`: a virtual access point and a virtual station at once are not modelled. `--pcap` captures the Ethernet frames the station and the guest's access point exchange (docs/wifi-plan.md) |
+| `--wifi SPEC` (repeatable) | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end, on S3, C3, C6 and the classic ESP32 (docs/wifi-plan.md, docs/esp32c3.md, docs/wifi-c6-plan.md). `--hostfwd` publishes a guest TCP or UDP port on the host. Given several times, each spec is one more joinable access point (up to 8): every one beacons and answers probes, so a scan lists them all, and the station joins one at a time (associating with another leaves the first), e.g. `--wifi ssid=guest --wifi ssid=home,psk=home-pass`. Without `bssid` the first keeps 02:53:49:4d:00:01 and later ones derive a locally administered BSSID from their SSID; two access points may share neither SSID nor BSSID. All of them sit in front of the same virtual network, and the network's clock is the first spec's `epoch` (or `--net`'s); `epoch=` in a later spec is an error |
+| `--wifi-sta SPEC` | a virtual station that joins the guest's own access point (the guest in `WIFI_MODE_AP`): `ssid=NAME[,psk=PASSPHRASE][,mac=xx:xx:xx:xx:xx:xx]` (`password` and `pass` alias `psk`, 8 to 63 characters; `mac` default 02:53:54:41:00:01). It follows the guest's beacons for that SSID, authenticates (open system), associates, takes the supplicant's side of the WPA2 four-way handshake when given a passphrase, then takes a lease from the guest's DHCP server and answers ARP for it. Joined, it sends a null data frame whenever it has sent the access point nothing for 8 s (or half the BSS Max Idle Period the access point gives, if that is shorter; a protected data frame if it requires protected keep-alives), so the guest does not disassociate it as inactive, and it renews its lease at T1 (unicast to the server), rebinds at T2 (broadcast) and starts again with DISCOVER at the lease's end. With the Ethernet relay on (`set_ethernet_relay`), a host program is that host instead, sending and taking the station's MAC; switched on while the station holds a lease, the station gives it up and does not renew it. The end-of-run line `[emu] wifi-sta:` gives its state, joins, lease and frame counts, and the keep-alives and lease renewals (rebinds among them) when there are any; the keep-alives are among the frames to the access point, so `87 frames to the access point, …, 81 keep-alives` is 87 frames, 81 of them keep-alives; `--debug wifi-frames` logs each step. It leaves a network it cannot join alone and says why in that line: WEP and WPA, WPA3-SAE only, and protected management frames required. It takes the access point's group cipher (CCMP or TKIP) and needs CCMP pairwise. It listens again after a refusal, a deauthentication or disassociation (to it or to every station), 3 s without a beacon, or a beacon whose timestamp is lower than the last one's, and stops after three refusals in a row with the same authentication or association status, until the guest reboots. A wrong passphrase is not a refusal: message 3 of the handshake never comes, the station gives up after 1 s and tries again a second later, so every 2 s or so for the whole run, with "wrong passphrase?" in the end-of-run line. `--wifi-sta` can be given once, and is refused with `--net`, which configures `--wifi`'s network. With the Ethernet relay on, frames the host program relayed that the station could not carry, because it left the access point after taking them, are counted in the end-of-run line. On the classic ESP32, S3, C3, C6 and S31 (each with `examples/wifi-softap`: joined, WPA2, a lease from the guest; not the P4, which has no WiFi of its own), open and WPA2-PSK networks. The CLI refuses it beside `--wifi`: a virtual access point and a virtual station at once are not modelled. `--pcap` captures the Ethernet frames the station and the guest's access point exchange (docs/wifi-plan.md) |
 | `--wifi-nearby SPEC` (repeatable) | a network around the station, heard but not joinable: a scan lists it with its channel, signal and security, joining it fails as out of reach — `ssid=Home,chan=1,rssi=-60,secure=1` (`chan` 1 through 14, default 1; `rssi` in dBm, default -60; `secure` 0 or 1, default 1; `bssid` optional, derived from the SSID otherwise); up to 32, each on a BSSID of its own, needs `--wifi`; one with an access point's SSID or BSSID is left out with a log line |
 | `--net nat\|none[,epoch=S]` | what the virtual network does with traffic it is not itself answering: `nat` (default; `user` is an alias) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it. `epoch=S` sets the network's clock at power-on (seconds since 1970, at most 4294967295): its SNTP answers are that plus emulated time, so a run that asks for the time is reproducible; without it the host's clock at the first answer fixes it. `epoch=` in the `--wifi` spec does the same |
-| `--hostfwd tcp:HOST:HOSTPORT-GUEST:GUESTPORT` | (repeatable) listen on the host and deliver accepted TCP connections as SYNs to the station. Empty HOST binds 127.0.0.1; empty GUEST is 10.0.2.15. Example: `tcp:127.0.0.1:8080-:80`. Requires `--wifi` and `--net nat`. UDP is not forwarded |
+| `--hostfwd tcp:HOST:HOSTPORT-GUEST:GUESTPORT`, `--hostfwd udp:HOST:HOSTPORT-GUEST:GUESTPORT` | (repeatable) listen on the host and deliver accepted TCP connections as SYNs to the station, or the datagrams arriving at a UDP port: each sender's come from a gateway port of its own (10.0.2.2, 50000 up), and what the guest sends back there goes to that sender from HOSTPORT. Empty HOST binds 127.0.0.1; empty GUEST is 10.0.2.15. Examples: `tcp:127.0.0.1:8080-:80`, `udp::5353-:3333`. Up to 8 listeners, TCP and UDP together. New UDP senders never push the guest's own UDP flows out of the NAT's table, and datagrams over 1472 bytes are dropped either way (docs/networking-howto.md). Requires `--wifi` and `--net nat` |
 | `--pcap FILE` | write every Ethernet frame the WiFi station sends and receives (what the virtual network, the NAT or the host relay sees, both directions) to a classic pcap: linktype 1 (Ethernet), microsecond timestamps in emulated time, flushed per frame so the file can be read during the run (`tcpdump -r`, Wireshark, dpkt-js). One capture of the station's traffic, however many `--wifi` access points; every chip with `--wifi`, and the co-processor's C6 on a P4 run. With `--wifi-sta` it holds what the guest's access point and the virtual station exchange. The 4 bytes of the 802.11 FCS slot that end a frame the guest sends are left out, so both directions hold the Ethernet frame as it went on the wire. Requires `--wifi` or `--wifi-sta` |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller; append `$` for an exact name |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |
@@ -62,6 +62,11 @@ default too, with 16 MB of flash ([esp32p4.md](esp32p4.md)).
 | `--i2s-tone PORT:HZ:AMPLITUDE` | continuous RX sine on I2S controller 0 or 1; amplitude 0..1, for example `0:1000:0.5`; repeat for multiple controllers |
 | `--mic-wav [PORT:]FILE` | a host WAV file as the microphone on I2S controller PORT (default 0): 16-bit integer PCM, mono or stereo (mono goes to both slots), any rate from 1 to 192 kHz, resampled to the firmware's RX rate by zero-order hold (no filter); other formats are refused. Played once from the first frame the receiver takes, then silence; repeat for several controllers |
 | `--script F` | host actions at emulated times (below) |
+| `--exit-on TEXT` | end the run as soon as UART0 or the USB-Serial/JTAG console prints TEXT (also when it arrives in two pieces), with exit status 0. A run given `--exit-on` that ends any other way exits with status 1 (124 at `--timeout`). TEXT is taken as written, without the escapes `--inject` reads. The text is matched from the start of the run, and on UART0 also while `--uart-tcp` carries it |
+| `--timeout DURATION` | end the run after this much wall-clock time — `500ms`, `5s`, `6.5s`, `2m`, `1h`, a bare number is seconds — with exit status 124 (as coreutils `timeout`). The run stops as at `--max-seconds`, report included; `--max-seconds` counts emulated time instead |
+| `--inject DATA`, `--inject-on TEXT` (both repeatable) | DATA into UART0's receive FIFO, with `\n`, `\r`, `\t`, `\\` and `\xNN` (00 to 7f) for control characters. The first `--inject-on` pairs with the first `--inject`, and so on, and holds it back until UART0 has printed TEXT; an `--inject` left without a trigger goes in at the start. They are action-script steps (`waituart0` without a timeout, then `uart0`), so the triggered pairs form one chain: each trigger is looked for after the previous payload went in, as the prompts of a dialogue come in turn. `--inject-on` is not available with `--script`, whose actions its waits would hold back: put `waituart0` and `uart0` lines in the script instead; a plain `--inject` goes in at the start alongside the script. TEXT is taken as written |
+| `--uart-tcp HOST:PORT` | UART0's bytes both ways over a TCP socket, raw, to one client at a time: esptool and espefuse connect with `--port socket://HOST:PORT` (below). Port 0 picks a free port; the address is printed as `[emu] UART0 on tcp ...`. A second client waits until the first closes; without a client UART0's output is dropped. UART0 no longer goes to stdout, the USB-Serial/JTAG console still does. Implies `--realtime`, whose pacing step polls the socket |
+| `--uart1-tcp HOST:PORT` | the same for UART1: a host script plays a serial device (a GPS, a modem) wired to the firmware's UART1, while UART0 stays on stdout (checked with IDF's `peripherals/uart/uart_echo` on the C3) |
 | `--console usb\|uart0\|both\|all\|none`, `--console-prefix` | which consoles to print |
 | `--realtime` | pace to wall time without the UI |
 | `--web PORT [--web-dir DIR]` | browser UI (implies real time). With `--wifi` the page gets a Network panel: the station's Ethernet frames live (time, ↑ sent / ↓ received, a dissection summary from [dpkt-js](https://www.npmjs.com/package/dpkt-js) 0.1.0, vendored under web/vendor/dpkt-js and loaded when the panel is first opened or a row clicked; until then, length and hex), a filter, pause, clear, the dissection tree of a clicked frame and a pcap download of the frames the page received. They arrive as binary WebSocket messages `[5][dir: 0 sent, 1 received][emulated µs, u64 LE][frame]`, only while a page is connected; at most 512 frames or 1 MiB wait between pushes, the rest are dropped |
@@ -78,6 +83,51 @@ the current round past the requested number. With an approximate cost model, it 
 scheduled events. Use `--max-seconds` for a predictable duration. The final execution report
 separately lists the actual instruction count for each core.
 
+### esptool over a socket
+
+`--uart-tcp` puts UART0 on a TCP port, and with the strapping pins set for download mode the mask
+ROM's UART download protocol is on it: stock esptool and espefuse drive the emulator as they drive a
+board on a serial port, through pyserial's `socket://` (the QEMU-Espressif workflow). The socket is
+raw: `rfc2217://` would send its telnet negotiation to the ROM as data.
+The `--strap` value is the chip's own GPIO_STRAP: download boot is bits [3:2] = 0 on the S3, C3, C6
+and P4 and bits [4:3] = 0 on the classic ESP32 (`components/soc/<chip>/include/soc/boot_mode.h`, IDF
+v5.5.4), so `0x2` on the S3, C3, C6 and P4 and `0x3` on the classic ESP32.
+
+```sh
+esp32sim-c3 --boot rom --flash-mb 4 --strap 0x2 --uart-tcp 127.0.0.1:5555
+# in another shell
+python -m esptool --port socket://127.0.0.1:5555 --chip esp32c3 --before no-reset --after no-reset flash-id
+python -m esptool --port socket://127.0.0.1:5555 --chip esp32c3 --before no-reset --after no-reset write-flash 0x10000 app.bin
+python -m esptool --port socket://127.0.0.1:5555 --chip esp32c3 --before no-reset --after no-reset read-flash 0x10000 0x1000 back.bin
+```
+
+A socket has no DTR and RTS, so esptool cannot reset the chip into the bootloader: pass
+`--before no-reset --after no-reset` (`no_reset` in esptool 4.x). With esptool v5 the stub it uploads
+keeps running between commands, and the next command finds it ("Stub flasher is already running"). The
+emulator holds emulated time to wall time while the socket is open (as `--realtime`), so the
+UART runs at its baud rate in real time. Flash written this way lasts as long as the run: nothing
+writes it back to a file at exit.
+
+Checked with stock esptool v5.6.0 on all five chips (`chip-id`, `flash-id`, `write-flash` of 8 KiB
+of random data with its hash verified, `verify-flash`, `read-flash` compared byte for byte), and
+espefuse v5.6.0 `summary` on the C3; `idf.py flash` with `ESPPORT=socket://...` runs the same esptool
+but was not tried. esptool v4.12 (the one ESP-IDF 5.5 installs) works with `--no-stub` (checked on
+the C3). Its default stub faults when it unlocks the flash, on the C3 in `write_flash` and in the
+return to the ROM that ends each command, on the S3 in that return: it hands the ROM a flash-chip
+pointer whose status mask lies at an address the emulator does not map (0x3fce0008 on the C3,
+0x3ffae284 on the S3), and the emulator raises a load fault there.
+
+Where esp32sim differs from Espressif's esp-emu, whose flag names these follow:
+
+- `--strap` is the chip's raw GPIO_STRAP value; esp-emu's `--strap-mode 0x02` means "UART download" on
+  every chip and remaps it.
+- `--exit-on` matches UART0 and USB-Serial/JTAG output, whichever console the firmware uses;
+  `--inject-on` matches UART0 only and `--inject` writes UART0 only, the console UART.
+- The `--inject-on` triggers are a chain, each looked for after the previous payload went in.
+- `--timeout` exits with status 124; a run given `--exit-on` that never matched exits with 1.
+- There is no `--control-tcp` (resets and flash operations over a second socket), and flash and eFuse
+  changes are not saved back to a file at exit.
+
 ## Outputs
 | Flag | Meaning |
 | --- | --- |
@@ -91,11 +141,12 @@ separately lists the actual instruction count for each core.
 
 `--pwm PIN` reports the GPIO-matrix PWM frequency in Hz and duty percentage when the run stops.
 Repeat it to observe several pins. PIN is an unsigned 8-bit decimal number.
-LEDC is supported on S3, C3, C6 and the classic ESP32; MCPWM on S3 and C6.
+LEDC is supported on S3, C3, C6, P4 and the classic ESP32; MCPWM on S3, C6, P4 and the classic ESP32. During an LEDC hardware fade
+it reports the duty in effect when the run stops.
 A running timer with 0% or 100% duty still has a snapshot. "No supported running PWM" means
 unrouted, disabled, paused or unsupported configuration; it does not imply a low GPIO level.
 A paused hardware timer can hold its last level. This reports register-derived steady state,
-not sampled edges. LEDC fades and MCPWM dead time, carrier and extra generator actions are unsupported.
+not sampled edges. MCPWM dead time, carrier and extra generator actions are unsupported.
 
 ### ADC observation
 
@@ -120,7 +171,7 @@ Pads, units and the voltage curve are in [peripherals.md](peripherals.md#host-ad
 | `--coverage`, `--coverage-file F` | block starts reached, per function; with a file, one `addr symbol` line each |
 | `--irq-latency` | cycles from an interrupt line appearing at a core to the core taking it, per line; retains block execution |
 | `--vcd F` | GPIO edges and interrupt lines as a VCD waveform (1 ps units); retains block execution |
-| `--debug AREAS` | what the model prints: device names or prefixes (`spi`, `usb`, `i2c`, `wifi`, `gdma`, `sha`, `rsa`, `lcd_cam`, `sdmmc`, `usb_otg` for the P4's USB-OTG core and the host's link; `usb` also takes USB-Serial/JTAG), `net`, `wifi-frames`, `aes`, `rom`, `mmio`, `rt`; also `ESP_EMU_DEBUG=a,b` |
+| `--debug AREAS` | what the model prints: device names or prefixes (`spi`, `usb`, `i2c`, `wifi`, `gdma`, `sha`, `rsa`, `lcd_cam`, `sdmmc`, `usb_otg` for the USB-OTG core and the host's link; `usb` also takes USB-Serial/JTAG), `net`, `wifi-frames`, `aes`, `rom`, `mmio`, `rt`; also `ESP_EMU_DEBUG=a,b` |
 | `--log-periph` | log the first access to every unknown peripheral register |
 | `--no-jit` | run blocks through the interpreter instead of native code (aarch64 hosts compile blocks to machine code by default); the two must produce identical results, so this is the oracle when something looks wrong |
 | `--stop-after-exceptions N` | stop after N exceptions |
@@ -128,6 +179,10 @@ Pads, units and the voltage curve are in [peripherals.md](peripherals.md#host-ad
 
 Environment: `ESP_EMU_DEBUG=wifi,spi,net` is `--debug` for every run (the older
 `ESP_EMU_DEBUG_SPI`, `ESP_EMU_DEBUG_NET`, `ESP_EMU_LOG_ALL`, `ESP_EMU_RT_LOG`... still work as aliases).
+`RV32_JIT=0` keeps the RISC-V chips' decoded blocks (C3, C6, P4 and S31) but runs them through the interpreter
+(`--no-jit` runs no blocks either), and `RV32_JIT_HOT=N` compiles a block after N whole runs instead of 32.
+Both are read once per process. The JIT has AArch64 and WebAssembly backends; on other hosts the blocks run
+without it.
 `XTENSA_DIS_FILES=a.dis:b.dis` feeds the decoder equivalence test.
 
 ## Action scripts
@@ -171,9 +226,10 @@ the timeout expires. Raw counts and completed-conversion observations are expose
 through the [host ADC API](peripherals.md#host-adc-inputs). `--adc PIN` prints the last completed
 sample at exit; `--adc-raw PIN=COUNT` injects a 12-bit count before the run.
 
-## USB host (P4)
+## USB host (P4, S3, S31)
 
-`--usb-host FILE` plugs a host into the P4's high-speed USB-OTG port and runs FILE's commands in
+`--usb-host FILE` plugs a host into the chip's USB-OTG port (the P4's high-speed one, the S3's
+full-speed one) and runs FILE's commands in
 order, one a line (`#` starts a comment), each taking the emulated time it takes on the bus while
 the firmware runs, within the run's `--max-insns` and `--max-seconds` and its reboot policy
 (`--no-reboot`, an app-mode Restart). The first command that fails ends the file, unless its line

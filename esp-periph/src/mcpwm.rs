@@ -12,6 +12,8 @@ pub struct Mcpwm {
     raw: u32,
     pub clock_enabled: bool,
     pub source_hz: u64,
+    /// The rate of the ticks `tick` counts (its Apb clock domain): 80 MHz, 40 MHz on the P4.
+    pub tick_hz: u64,
     signal_base: u32,
     matrix_bits: u32,
 }
@@ -25,7 +27,7 @@ impl Mcpwm {
             regs.write(0x58 + i * 0x38, 3 << 15);
         }
         Self { regs, timers: [255 << 8; 3], compare: [[0; 2]; 3], pending: [[false; 2]; 3],
-            phase: [0; 3], clock_remainder: [0; 3], raw: 0, clock_enabled: false, source_hz: 160_000_000, signal_base, matrix_bits }
+            phase: [0; 3], clock_remainder: [0; 3], raw: 0, clock_enabled: false, source_hz: 160_000_000, tick_hz: APB_HZ, signal_base, matrix_bits }
     }
     fn timer_for(&self, operator: usize) -> usize { ((self.regs.read(0x38) >> (operator * 2)) & 3) as usize }
     fn settings(&self, timer: usize) -> Option<(u64, u64)> {
@@ -147,9 +149,9 @@ impl Device for Mcpwm {
         for timer in 0..3 {
             let Some((divider, period)) = self.settings(timer) else { continue; };
             let scaled = self.clock_remainder[timer] as u128 + ticks as u128 * self.source_hz as u128;
-            self.clock_remainder[timer] = (scaled % APB_HZ as u128) as u64;
+            self.clock_remainder[timer] = (scaled % self.tick_hz.max(1) as u128) as u64;
             let old = self.phase[timer] as u128;
-            let total = old + scaled / APB_HZ as u128;
+            let total = old + scaled / self.tick_hz.max(1) as u128;
             let wrap = (divider * period) as u128;
             let full = total >= wrap;
             for operator in 0..3 {
@@ -215,6 +217,28 @@ mod tests {
         gpio.enable = 1 << 4;
         pwm.clock_enabled = false;
         assert!(pwm.output(&gpio, 4).is_none());
+    }
+    /// On the P4 the Apb ticks are 40 MHz: a 50 Hz period (PLL_F160M / 16 / 10, 20000 counts) is
+    /// 800000 of them, and the compare loaded at the first wrap takes effect then.
+    #[test]
+    fn forty_megahertz_ticks_keep_the_period() {
+        let mut pwm = Mcpwm::new(89, 9);
+        pwm.clock_enabled = true;
+        pwm.tick_hz = 40_000_000;
+        pwm.write(0, 15);
+        pwm.write(4, (19999 << 8) | 9);
+        pwm.write(0x3c, 1);
+        pwm.write(0x40, 1500);
+        pwm.write(0x50, 2 | (1 << 4));
+        pwm.write(8, 2 | (1 << 3));
+        let mut gpio = Gpio::with_pins(57);
+        gpio.enable = 1;
+        gpio.func_out_sel[0] = 89;
+        pwm.tick(400_000);
+        assert_eq!(pwm.read(0x10), 10000);
+        assert_eq!(pwm.output(&gpio, 0), Some((50.0, 0)));
+        pwm.tick(400_000);
+        assert_eq!(pwm.output(&gpio, 0), Some((50.0, 4915)));
     }
     #[test]
     fn generators_keep_independent_compare_values_and_reject_unsupported_waveforms() {

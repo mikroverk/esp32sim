@@ -104,6 +104,8 @@ pub struct SocBus {
     cache_resource: CacheResource,
     pub(crate) fetch_cache: xtensa_lx7::state::SharedFetchCache,
     board_edges: bool,
+    /// a USB host is on the OTG port (`attach_usb_host`): only then can the core's work fall due
+    pub(crate) usb_host: bool,
 }
 
 /// One shared external resource, occupied only by priced fills/writebacks.
@@ -119,6 +121,36 @@ struct CacheResource {
     flash_timing: Option<(u32, u32)>, // demand readiness and shared-bus occupancy
     writeback_cycles: u32,
     wait_cycles: [u64; 2],
+}
+
+/// What the SDMMC host's IDMAC and the USB-OTG core's DMA reach: internal SRAM through the data
+/// bus (DRAM_LOW..DRAM_HIGH). IDF keeps their buffers there: the S3 has no
+/// SOC_SDMMC_PSRAM_DMA_CAPABLE, so esp_driver_sdmmc bounces PSRAM buffers through internal RAM,
+/// and esp_tinyusb allocates DMA-capable memory. Anything else is a bus error to the DMA.
+struct SramDma<'a> { sram: &'a mut Vec<u8>, page_ver: &'a mut Vec<u32>, vbase: usize }
+impl SramDma<'_> {
+    /// The SRAM offset of `len` bytes at `addr`, if they are all on the data bus.
+    fn offset(addr: u32, len: usize) -> Result<usize, Fault> {
+        if (DRAM_LOW..DRAM_HIGH).contains(&addr) && (DRAM_HIGH - addr) as usize >= len { Ok((addr - DRAM_LOW) as usize + 0x8000) } else { Err(Fault::Unmapped) }
+    }
+}
+impl esp_periph::sdmmc::SdmmcMemory for SramDma<'_> {
+    fn read(&mut self, addr: u32, buf: &mut [u8]) -> Result<(), Fault> {
+        let o = Self::offset(addr, buf.len())?;
+        buf.copy_from_slice(&self.sram[o..o + buf.len()]);
+        Ok(())
+    }
+    /// The written pages' versions move, as `note_written` moves them, so no decoded code there
+    /// survives. SRAM is outside `stable_pages`, so the flash epoch stays.
+    fn write(&mut self, addr: u32, data: &[u8]) -> Result<(), Fault> {
+        if data.is_empty() { return Ok(()); }
+        let o = Self::offset(addr, data.len())?;
+        self.sram[o..o + data.len()].copy_from_slice(data);
+        let (first, last) = (o >> VPAGE_SHIFT, (o + data.len() - 1) >> VPAGE_SHIFT);
+        let from = if o & VPAGE_MASK < emu_core::bus::PREV_PAGE_BYTES as usize && first > 0 { first - 1 } else { first };
+        for p in from..=last { if let Some(v) = self.page_ver.get_mut(self.vbase + p) { *v = v.wrapping_add(1); } }
+        Ok(())
+    }
 }
 
 /// Preserve the original cadence whenever an active device lacks a deadline.
@@ -160,7 +192,7 @@ impl SocBus {
             spi2_timing: false, spi2_scheduled: None, spi2_pins: None, spi3_dma_fault: None, spi3_pins: None,
             tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
-            approximate_cache_yield_miss: false,
+            approximate_cache_yield_miss: false, usb_host: false,
             cache_resource: CacheResource::default(),
             fetch_cache: xtensa_lx7::state::SharedFetchCache::default(),
         };
@@ -475,6 +507,7 @@ impl SocBus {
             self.refresh_tick_budget();
         }
         let a = addr & !3;
+        if a >> 12 == 0x60028 { return self.sdmmc_read(addr); }
         let Some(port) = UART_FIFOS.iter().position(|&f| f == a) else { return self.periph.read32(addr) };
         // RXFIFO_FULL follows the FIFO level (`Uart::read`): the mask ROM's shared UART handler reads one FIFO and never
         // clears the interrupt, so a falling level must reach the CPU.
@@ -550,6 +583,8 @@ impl SocBus {
             self.spi3_pins = self.board.uses_spi_pins().then(|| self.periph.spi3_pins());
         }
         self.periph.write32(a, v);
+        // Only an SDMMC register write starts a command, only a USB-OTG one can make the cable's work due.
+        if matches!(a >> 12, 0x60028 | 0x60080) && (self.periph.sdmmc.pending() || self.periph.usb_otg.pending()) { self.run_dma_hosts(); }
         if matches!(a & !0xfff, 0x6000_4000 | 0x6000_9000) && self.board.uses_gpio_waveform() {
             self.board.gpio_waveform_at(self.cycles, esp_soc::pins::ChipPins::S3.routes(&self.periph.gpio, &self.periph.io_mux));
         }
@@ -647,18 +682,13 @@ impl SocBus {
             self.periph.wifi.link.drop_rx(); return;
         };
         // A network around's frames carry its own channel and signal (`VirtualAp::rx_meta`)
-        let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.ap().unwrap().log) };
+        let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.rx_log()) };
         let mut b = Vec::with_capacity(total);
         // rx_ctrl word 0 (silicon: a real broadcast beacon reads 0x111b20ad — bit 28 set, signed rssi in the low
-        // byte). The MAC has already address-filtered, so every delivered frame is "for us"; use the same flags
-        // for unicast and broadcast (an invented "filter_match" nibble made the blob discard unicast frames).
-        // filter-match nibble (silicon: broadcast beacon reads bit 28). A frame the hardware accepted because
-        // addr1 is our unicast MAC must carry the unicast-match bit (29), not the broadcast bit (28), or
+        // byte). The address-match bits say which interface the frame is for (`StationLink::rx_match`): a frame
+        // the hardware accepted because addr1 is our unicast MAC must carry the unicast-match bit (29) too, or
         // wDev_IndicateFrame drops it as "not for me".
-        let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
-        // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
-        // requires (silicon: a broadcast beacon reads 0x111b20ad); unicast frames add bit 29.
-        let fm = if bcast { 1u32 << 28 } else { (1u32 << 28) | (1u32 << 29) };
+        let fm = self.periph.wifi.link.rx_match(frame);
         let w0: u32 = fm | (rssi as u8 as u32);   // rssi as the network reports it (`rx_meta`), 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
         let w5: u32 = 0xa6;                                                                // noise floor -90
@@ -890,7 +920,7 @@ impl SocBus {
             // (capture or VSYNC enabled), AES (dma_pending) and mem-to-mem (needs the OUT side running),
             // all listed here, so an armed-but-idle receive channel does not hold the cadence.
             || p.gdma.out.iter().any(|c| c.running)
-            || p.wifi.link.ap().is_some() || p.wifi.link.net().is_some() || !p.wifi.tx_pending.is_empty()
+            || p.wifi.link.on_air() || p.wifi.link.net().is_some() || !p.wifi.tx_pending.is_empty()
             || p.aes.dma_pending || p.sha.dma_pending
             || p.spi2.has_pending_transfer() || p.spi2.dma_tx_pending.is_some()
             || p.spi3.has_pending_transfer() || p.spi3.dma_tx_pending.is_some()
@@ -981,7 +1011,7 @@ impl SocBus {
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if self.periph.sha.dma_pending { self.sha_dma_step(); }
-        if self.periph.wifi.link.ap().is_some() { self.wifi_air_step(); }
+        if self.periph.wifi.link.on_air() { self.wifi_air_step(); }
         // the S3 runs its network even without an access point (the C3 and C6 only with one); nothing
         // reaches it then, but the host sockets are still read
         if self.periph.wifi.link.net().is_some() { let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
@@ -994,8 +1024,39 @@ impl SocBus {
         self.deliver_spi2_transfer();
         self.deliver_spi3_transfer();
         if !self.periph.rmt.done.is_empty() { self.deliver_rmt_frames(); }
+        if self.usb_host && self.periph.usb_otg.pending() { self.run_dma_hosts(); }
         0
     }
+
+    /// A STATUS read can raise the SDMMC host's busy-clear interrupt (`Sdmmc::take_read_irq`).
+    #[cold]
+    #[inline(never)]
+    fn sdmmc_read(&mut self, addr: u32) -> u32 {
+        let w = self.periph.read32(addr);
+        if self.periph.sdmmc.take_read_irq() { esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::SDMMC_BLOCK); self.irq_dirty = true; }
+        w
+    }
+
+    /// Carry out the SDMMC command or IDMAC resume the last write started, and what the USB host
+    /// on the cable has due, both moving data through their DMA in internal SRAM.
+    #[cold]
+    #[inline(never)]
+    fn run_dma_hosts(&mut self) {
+        let mut dma = SramDma { sram: &mut self.sram, page_ver: &mut self.page_ver, vbase: self.ver_base[SRC_SRAM as usize] as usize };
+        if self.periph.sdmmc.pending() {
+            self.periph.sdmmc.route = self.periph.sd_routes();
+            self.periph.sdmmc.run(&mut dma);
+            esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::SDMMC_BLOCK);
+        }
+        if self.periph.usb_otg.pending() {
+            self.periph.usb_otg.run(&mut dma);
+            esp_periph::Dispatch::refresh_optional(&mut self.periph, crate::periph::USB_OTG_BLOCK);
+        }
+        self.irq_dirty = true;
+    }
+
+    /// The host changed the USB cable's schedule: re-derive the tick budget at the next tick.
+    pub(crate) fn expire_tick_budget(&mut self) { self.flush_ticks(); self.tick_budget = 1; }
     /// Every routed pin of a completed transmitter receives its frame (mirrored strips).
     #[cold]
     #[inline(never)]
@@ -1019,6 +1080,9 @@ mod dma_tests;
 #[cfg(test)]
 #[path = "bus/memory_origin_tests.rs"]
 mod memory_origin_regressions;
+#[cfg(test)]
+#[path = "bus/usb_sd_tests.rs"]
+mod usb_sd_tests;
 
 #[path = "bus/pins.rs"]
 mod pins;

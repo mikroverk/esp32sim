@@ -42,14 +42,14 @@ esp32s3/      the SoC and boards
   bus.rs      SocBus: memory map, cache MMU, software TLB, peripheral dispatch; bus/dma.rs the
               GDMA pumps (I2S, SPI2/3, RMT, camera, memory-to-memory)
   periph.rs   the S3's device table (`device_set!`) and its S3-only models (interrupt matrix,
-              WiFi MAC, PCNT, LCD_CAM, EXTMEM, WDEV, the I2C_MST front of esp-periph's regi2c);
+              WiFi MAC, LCD_CAM, EXTMEM, WDEV, the I2C_MST front of esp-periph's regi2c);
               the rest come from esp-periph
   i2c.rs      the I2C devices boards hang on esp-periph's controller (CH32V003, TCA9554, GT911,
               CST820, QMI8658)
   board/      one file per board: Atech14, WaveshareCam, WaveshareLcd4b, WaveshareAmoled18V2,
               Stopwatch (BoardModel from esp-soc)
 esp-periph/   the peripheral IP Espressif chips share, one file each (UART, USB-Serial/JTAG,
-              systimer, TIMG, GPIO, LEDC, MCPWM, RTC_CNTL, SAR ADC, efuse, SYSTEM, SPI_MEM, GDMA,
+              systimer, TIMG, GPIO, LEDC, MCPWM, PCNT, RTC_CNTL, SAR ADC, efuse, SYSTEM, SPI_MEM, GDMA,
               SHA/AES/RSA, I2S, RMT, GP-SPI, I2C, SDMMC, USB-OTG), the `Device` trait they
               implement, and `device_set!`: the one table per chip that generates dispatch,
               interrupt sources, clock ticks and timer deadlines
@@ -274,7 +274,8 @@ esp_wifi + libpp/libnet80211        unmodified blob, drives the MAC registers
   the host's own resolver, unless the transport resolves names itself, in which case the NAT
   answers the guest's A/AAAA queries from the emulated resolver's address. `--hostfwd` listeners
   live on `StdTransport`; it hands each accepted connection to the NAT (`tcp_accept`), which sends
-  the station a SYN from the gateway once it knows the station's MAC. A guest reboot aborts the
+  the station a SYN from the gateway once it knows the station's MAC, and each new sender at a UDP
+  listener (`udp_accept`), whose datagrams go to the station from a gateway port of its own. A guest reboot aborts the
   NAT's flows (`Nat::abort_all`).
 - **Crypto accelerators**: mbedTLS drives AES (block + GDMA, ECB/CBC/CTR/OFB), SHA (block + GDMA,
   SHA-1 through SHA-512) and the RSA/MPI unit; the WPA supplicant unwraps the group key on AES.

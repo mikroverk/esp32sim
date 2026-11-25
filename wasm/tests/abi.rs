@@ -184,14 +184,16 @@ fn camera_binary_input_reports_boards_without_a_camera() {
 }
 
 #[test]
-fn sd_card_images_load_into_the_p4_socket_only() {
+fn sd_card_images_load_into_the_p4_and_s3_sd_hosts() {
     // SAFETY: each emulator is live and used by this thread alone; `d` is readable for the call.
     let load = |e: &Emu, d: &[u8]| unsafe { esp32sim_load(e.0, 8, d.as_ptr(), d.len()) };
     let p4 = Emu::new("esp32p4", 2, 0);
     assert_eq!(load(&p4, &vec![0; 1 << 20]), 0, "a 1 MiB card on the P4");
     assert_eq!(load(&p4, &[0; 512]), 1, "smaller than the card's 512 KiB capacity unit");
     let s3 = Emu::new("none", 4, 0);
-    assert_eq!(load(&s3, &vec![0; 1 << 20]), 1, "no SD host on the S3 model");
+    assert_eq!(load(&s3, &vec![0; 1 << 20]), 0, "a card on the S3's SDMMC host");
+    let c3 = Emu::new("c3", 4, 0);
+    assert_eq!(load(&c3, &vec![0; 1 << 20]), 1, "no SD host on the C3 model");
 }
 
 /// An ELF32 with `symbols` (name, value, size) in its symbol table and nothing else.
