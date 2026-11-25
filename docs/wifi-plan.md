@@ -140,7 +140,9 @@ two periods, disassociated a silent station about 2 s after it, kept one that fo
 As the host on the guest's network, the station renews its lease (RFC 2131 4.4.5): at T1 (option
 58, or half the lease) a REQUEST to the server, unicast, with `ciaddr` set and neither option 50 nor
 54; at T2 (option 59, or seven-eighths) the same REQUEST broadcast; at the lease's end it gives the
-address up, ARP stops answering for it, and it starts again with DISCOVER, as after a NAK.
+address up, ARP stops answering for it, and it starts again with DISCOVER, as after a NAK. T1, T2
+and the end count from when the exchange's first REQUEST went out, not from the ACK (RFC 2131
+4.4.1); retransmissions, and the rebinding REQUESTs after the renewing ones, keep its `xid`.
 ESP-IDF v5.5.4's DHCP server (`components/lwip/apps/dhcpserver/dhcpserver.c`) leases for 120
 minutes by default and acknowledges a REQUEST without option 50 whose `ciaddr` is the address it
 leased to that MAC, unicast or broadcast; its ACK carries option 51 and neither 58 nor 59. With
@@ -149,7 +151,8 @@ guest logged each ACK as an assignment. A lease without option 51 is kept and ne
 lease, T1 or T2 under 1 s is taken as 1 s. In relay mode the host program takes its own lease:
 with the relay switched on, the station gives up its own lease and DHCP, so nothing goes out under
 the program's MAC, and with the relay off again it starts DHCP anew. The end-of-run line counts
-keep-alives and renewals (rebinds among them) when there are any.
+keep-alives and renewals (rebinds among them) when there are any; the keep-alives are among its
+frames to the access point, not beside them.
 
 Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
 AP+STA with both sides on the air; host ports forwarded to the guest's access point. In relay mode the host program is the station:

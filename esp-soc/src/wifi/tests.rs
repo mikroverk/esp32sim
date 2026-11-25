@@ -1237,26 +1237,81 @@ fn an_ack_while_renewing_binds_again_with_its_new_times() {
     let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
     let sent = g.run(&mut sta, leased, leased + 50_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
     let at: Vec<u64> = dhcp_sent(&sent, leased).iter().map(|(t, r)| { assert_eq!(r.eth_dst, crate::net::VirtualNet::new(false).gw_mac); *t }).collect();
-    // each ACK starts T1 again: the second renewal 20 s after the first one's ACK, a few ms after it
-    assert!(at.len() == 2 && at[0] <= 20_000_000 && (20_000_000..20_010_000).contains(&(at[1] - at[0])), "{at:?}");
+    // each ACK starts T1 again from its REQUEST: the second renewal 20 s after the first one, in
+    // the 1 ms step after; counted from the ACK, it would be a round trip later
+    assert!(at.len() == 2 && at[0] <= 20_000_000 && (20_000_000..20_002_000).contains(&(at[1] - at[0])), "{at:?}");
     assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 2));
     assert!(sta.report().contains(", 2 lease renewals"), "{}", sta.report());
+}
+
+/// When the station sent each DHCP REQUEST since the last `take_sent`, to the microsecond.
+fn requests_sent(sta: &mut sta::VirtualSta) -> Vec<u64> {
+    sta.take_sent().into_iter().filter(|(_, e)| e.windows(3).any(|w| w == [53, 1, 3])).map(|(t, _)| t).collect()
+}
+
+#[test]
+fn the_lease_counts_from_the_first_request_not_from_the_ack() {
+    // RFC 2131 4.4.1 and 4.4.5: T1, T2 and the end count from when the original REQUEST was sent.
+    // A 100 s lease, so T1 50 s and T2 87.5 s after it, whenever the ACK comes
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let times = |at: u64| (at + 50_000_000, at + 87_500_000, at + 100_000_000);
+    let mut lease_100 = ack_with(100, None);
+    // the first lease: every ACK held back for 1.5 s, so the REQUEST goes again after 1 s with the
+    // same xid; the last ACK, to the retransmission, still counts from the first
+    let mut held = Vec::new();
+    g.run(&mut sta, 0, 1_500_000, &|_| {}, &mut |r| { let r = lease_100(r)?; if r.windows(3).any(|w| w == [53, 1, 5]) { held.push(r); None } else { Some(r) } });
+    let sent = requests_sent(&mut sta);
+    assert!(sta.lease.is_none() && sent.len() == 2 && sent[1] - sent[0] == 1_000_000 && held.len() == 2, "{sent:?}, {} ACKs", held.len());
+    let f = g.ap.data_from_ds(&held[1]).unwrap();
+    g.ap.queue.push(AirFrame { at_us: 1_500_000, frame: f });
+    g.run(&mut sta, 1_500_000, 1_502_000, &|_| {}, &mut no_edit);
+    assert_eq!((sta.lease, sta.lease_times()), (Some([10, 0, 2, 15]), times(sent[0])));
+    // the renewal at T1: its ACK held back 300 ms
+    let mut held = Vec::new();
+    let t1 = times(sent[0]).0;
+    g.run(&mut sta, 1_502_000, t1 + 2_000, &|_| {}, &mut |r| { let r = lease_100(r)?; if r.windows(3).any(|w| w == [53, 1, 5]) { held.push(r); None } else { Some(r) } });
+    let renewal = requests_sent(&mut sta);
+    assert!(renewal.len() == 1 && (t1..t1 + 2_000).contains(&renewal[0]) && held.len() == 1, "{renewal:?}, {} ACKs", held.len());
+    let f = g.ap.data_from_ds(&held[0]).unwrap();
+    g.ap.queue.push(AirFrame { at_us: t1 + 300_000, frame: f });
+    g.run(&mut sta, t1 + 2_000, t1 + 302_000, &|_| {}, &mut no_edit);
+    assert_eq!((sta.renewals, sta.lease_times()), (1, times(renewal[0])));
+}
+
+#[test]
+fn a_reboot_keeps_the_keepalive_and_renewal_counts() {
+    // 30 s with T1 at 20 s: keep-alives in the silences, one renewal. The guest reboots: the
+    // station joins again from nothing, and the end-of-run line still counts the whole run
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    g.run(&mut sta, 0, 30_000_000, &|_| {}, &mut ack_with(100, Some((20, 40))));
+    let (keepalives, renewals) = (sta.keepalives, sta.renewals);
+    assert!(keepalives > 0 && renewals == 1, "{}", sta.report());
+    sta.restart();
+    assert_eq!((sta.state, sta.lease, sta.keepalives, sta.renewals), (sta::StaLink::Listening, None, keepalives, renewals));
+    let report = sta.report();
+    assert!(report.contains(&format!(", {keepalives} keep-alives")) && report.contains(", 1 lease renewals"), "{report}");
 }
 
 #[test]
 fn a_nak_while_renewing_gives_the_address_up_and_starts_again_with_discover() {
     let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
     let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
-    let mut nak_once = true;
-    let mut nak = |mut r: Vec<u8>| {
+    let (mut nak_once, mut lease_100) = (true, ack_with(100, Some((20, 40))));
+    let mut nak = |r: Vec<u8>| {
+        let mut r = lease_100(r)?;
         if let Some(i) = r.windows(3).position(|w| w == [53, 1, 5]).filter(|_| nak_once) { r[i + 2] = 6; nak_once = false; }
         Some(r)
     };
+    sta.take_sent();
     let sent = g.run(&mut sta, leased, leased + 21_000_000, &|_| {}, &mut nak);
     let kinds: Vec<(u8, bool)> = dhcp_sent(&sent, leased).iter().map(|(_, r)| (r.kind, r.ciaddr == [0; 4])).collect();
     // the renewal, then DISCOVER and REQUEST from nothing, and the address leased again
     assert_eq!(kinds, [(3, false), (1, true), (3, true)]);
     assert_eq!((sta.lease, sta.renewals), (Some([10, 0, 2, 15]), 0));
+    // the DISCOVER ended the refused exchange: the new lease counts from its own REQUEST, not the renewal's
+    let requests = requests_sent(&mut sta);
+    assert_eq!(requests.len(), 2, "{requests:?}");
+    assert_eq!(sta.lease_times().0, requests[1] + 20_000_000, "{requests:?}");
 }
 
 #[test]
@@ -1269,7 +1324,8 @@ fn at_the_leases_end_arp_stops_answering_and_the_station_discovers_again() {
     sta.host_rx(&arp_for([10, 0, 2, 15]), leased + 99_000_000);
     assert_eq!(sta.take_sent().len(), 1, "an ARP reply before the end");
     sta.step(leased + 99_001_000);
-    let sent = g.run(&mut sta, leased + 99_002_000, leased + 101_000_000, &|_| {}, &mut |_| None);
+    // to half a second past the end, before the DISCOVER's retransmission 1 s after it
+    let sent = g.run(&mut sta, leased + 99_002_000, leased + 100_500_000, &|_| {}, &mut |_| None);
     let d = dhcp_sent(&sent, leased);
     assert_eq!(d.iter().map(|(t, r)| (t.div_ceil(1_000_000), r.kind, r.ciaddr)).collect::<Vec<_>>(), [(100, 1, [0; 4])], "DISCOVER at the end");
     assert_eq!(sta.lease, None);
