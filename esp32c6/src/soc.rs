@@ -145,6 +145,7 @@ impl esp_soc::SocBus for SocBus {
         self.mmu = [0; MMU_ENTRIES];
         self.mmu_index = 0;
         self.mmu_power_ctrl = 0;
+        self.board.guest_reset(self.cycles, cause);
         self.attach_board_devices();
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
         self.periph.misc.log_all = self.debug.has("mmio");

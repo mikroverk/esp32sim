@@ -169,6 +169,7 @@ impl esp_soc::SocBus for SocBus {
         // ESP-IDF v5.5.4 esp32/rtc_cntl_reg.h:1615: WDTCONFIG0, not S3's +0x98.
         self.periph.rtc.0.ram.write(0x8c, 0);
         self.periph.rtc.0.reset_cause = cause;
+        self.board.guest_reset(self.cycles, cause);
         self.attach_board_devices();
         for area in self.debug.iter() {
             esp_periph::Dispatch::debug(&mut self.periph, area, true);
