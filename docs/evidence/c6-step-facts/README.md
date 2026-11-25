@@ -2,7 +2,7 @@
 
 Rebased base: upstream main `816246c86fe8395a16bbf95538e9bd9d6d8356a3` (includes #383). The maintainer's x86 run used Rust 1.100.0; historical measurements below retain their recorded toolchain.
 
-Earlier results below use `c693fe897f2b6ce39aa93bf14eba7810e17cba40`, `3f49dad86878afca429508a7a8b2e8f0bf38ea6e` or `04f07602dba76eb6704b8901c989c9c9c1f8b42a` and their respective candidates; they are historical and do not establish current codegen or performance. EX265 added RV32 decoded blocks; this experiment instead requests inlining for the result-only interpreter path. Main retains `#[inline]` on `exec_insn` after the EX265 follow-up found forcing it inline slowed C3. This rebase only adds `#[inline(always)]` on `step_outcome`.
+Earlier results below use `c693fe897f2b6ce39aa93bf14eba7810e17cba40`, `3f49dad86878afca429508a7a8b2e8f0bf38ea6e` or `04f07602dba76eb6704b8901c989c9c9c1f8b42a` and their respective candidates; they are historical and do not establish current codegen or performance. EX265 added RV32 decoded blocks; this experiment instead requested inlining for the result-only interpreter path. Main retains `#[inline]` on `exec_insn` after the EX265 follow-up found forcing it inline slowed C3. The later candidate added only `#[inline(always)]` on `step_outcome`; that request is now dropped. Adoption: not adopted, superseded by EX270.
 
 ## Change and scope
 
@@ -15,13 +15,28 @@ alone does not establish a speedup or rule out a layout regression.
 
 ## Interaction with code versions (#383)
 
-The C3, C6 and P4 buses now supply page versions used by the decoded-block cache. When blocks are enabled and versions are available, `Core::run` dispatches to `block::run`; writes that change fetched code advance the corresponding versions so cached blocks can be invalidated. With blocks disabled or no page versions, `Core::run` uses the result-only `exec::step` loop. The block path also calls `step_outcome` for slow-path events. The inline request changes neither the dispatch condition nor version tracking or instruction semantics. Historical measurements below predate #383; the relative frequency and performance of these paths on this base remain unmeasured.
+The C3, C6 and P4 buses now supply page versions used by the decoded-block cache. When blocks are enabled and versions are available, `Core::run` dispatches to `block::run`; writes that change fetched code advance the corresponding versions so cached blocks can be invalidated. With blocks disabled or no page versions, `Core::run` uses the result-only `exec::step` loop. The block path also calls `step_outcome` for slow-path events. The inline request changes neither the dispatch condition nor version tracking or instruction semantics. The historical x86 table below measured the interpreter loop that `816246c8` runs only with `--no-jit`; `RV32_JIT=0` still uses blocks and is the default on hosts without a JIT backend. The following current-base measurements cover all three modes; they do not quantify path frequency.
+
+### Maintainer's current-base measurement
+
+Maintainer review of PR #335, 2026-11-25: main `816246c86fe8395a16bbf95538e9bd9d6d8356a3` versus candidate `72639f00a0cd5eabfe944b9073d823849a341900`, native AArch64, Rust 1.100.0, host instructions retired via `/usr/bin/time -l`. Each cell is the median of three alternating runs; within-arm spread was at most 0.2%. Console and complete end-of-run reports (guest instructions, interrupts, blocks built, JIT regions) matched in every cell. Hello uses the CONTRIBUTING commands (C3/C6 30 s, P4 10 s); Espressif `test_apps/coremark` ran as in EX270 until `CPU frequency`, checking `crcfinal 0xa14c` on every run. User CPU was not reported because the machine was loaded; these are instruction counts, not a CPU timing table.
+
+| workload | default (blocks + JIT) | `RV32_JIT=0` (blocks only) | `--no-jit` (interpreter) |
+|---|---|---|---|
+| c3-hello | −0.01% | +0.03% | −0.31% |
+| c6-hello | +0.02% | +0.04% | −0.54% |
+| p4-hello | +0.10% | +0.00% | −0.09% |
+| C3 CoreMark | +0.81% (92.9 → 93.6 G) | +1.75% (202.6 → 206.1 G) | −10.90% (421.7 → 375.7 G) |
+| C6 CoreMark | +1.44% (79.3 → 80.5 G) | +2.07% (189.5 → 193.4 G) | −13.22% (358.1 → 310.8 G) |
+| P4 CoreMark | +0.59% (133.8 → 134.5 G) | +1.42% (243.8 → 247.3 G) | −9.83% (466.2 → 420.4 G) |
+
+The maintainer also tested two variants isolating the interpreter: both retained its gain but cost +0.2% to +0.6% in default CoreMark and +2.5% to +4.1% with blocks alone. The default-path costs outweigh adopting the attribute for the debugging oracle; no new Mac timing table was run.
 
 ## Current-base native code generation
 
 The AArch64 C6 executable built with Rust 1.99.0 compares upstream main `816246c86fe8395a16bbf95538e9bd9d6d8356a3` with `b00589c0e351f13c3be753c9d4991b282fb30384` (the source is unchanged by this receipt). The EX230 normalized comparison in `codegen-816246c8.json` selects 242 functions: 216 identical and 26 changed, added or removed; the report retains only differing rows. These counts include symbol renumbering and are not whole-binary identity.
 
-On the candidate, `block::run` is newly outlined for C3, C6, P4 and S31, with respectively 2,436, 5,040, 2,481 and 2,759 static operations. `step_core` grows from 464 to 1,508 operations for C3, 466 to 1,600 for C6 and 509 to 1,601 for S31; C6 `run_until_cycle` grows from 4,590 to 5,308. These compiler changes follow the sole runtime source change, the `step_outcome` inline request, not a source-level change to the block path. Static size is not runtime cost; the runtime effect on this base is unmeasured pending the quiet-night CPU table using Rust 1.100.0.
+On the candidate, `block::run` is newly outlined for C3, C6, P4 and S31, with respectively 2,436, 5,040, 2,481 and 2,759 static operations. `step_core` grows from 464 to 1,508 operations for C3, 466 to 1,600 for C6 and 509 to 1,601 for S31; C6 `run_until_cycle` grows from 4,590 to 5,308. These compiler changes follow the sole runtime source change, the `step_outcome` inline request, not a source-level change to the block path. Static size is not runtime cost; see the host-instruction measurements above. The maintainer reports the same outlining with Rust 1.100.0: candidate `block::run` outlined and `step_outcome` absent, vice versa on main.
 
 To reproduce, use separate clean base and candidate worktrees at the revisions above, separate `CARGO_TARGET_DIR` directories, and in each run `nice -n 10 cargo +1.99.0 build --release --bins`. From the candidate worktree run `python3 docs/evidence/c6-step-facts/codegen.py BASE_TARGET/release/esp32sim-c6 CANDIDATE_TARGET/release/esp32sim-c6 OUT_DIR`; the resulting `OUT_DIR/codegen.json` uses `xcrun llvm-objdump` and the EX230 normalizer. The recorded toolchain is rustc 1.99.0 (`b940084d7`, LLVM 23.1.1), host `aarch64-apple-darwin`. Binary hashes can vary with build paths; compare normalized rows and totals.
 
@@ -35,7 +50,7 @@ A daytime screen compared main `3f49dad8` with the rebased implementation `58543
 | C6 hello | -9.58%, -0.54%, -11.78% | -11.14%, -24.57%, -17.58% |
 | C6 display starter | -7.85%, -8.19%, -9.57% | -0.14%, +1.10%, +0.56% |
 
-The display screen suggests a remaining benefit but does not establish a formal CPU result. C3 and C6 hello are inconclusive under this noise. A quiet-machine table remains pending.
+On that earlier base the display screen suggested a benefit but did not establish a formal CPU result; C3 and C6 hello were inconclusive under this noise. This is not evidence for the current base.
 
 ## Historical exact work (old base)
 
@@ -99,7 +114,7 @@ The selected native hot-code result is not a whole-module identity claim for WAS
 
 ## Checks on 816246c8 rebase
 
-With empty HOME and explicit Cargo/Rustup paths, native workspace and release WASM jit-tests Clippy with Rust 1.100.0 and `-D warnings` passed. Rust 1.99.0 ROM-enabled release workspace tests with `--no-fail-fast -- --include-ignored --skip external_` passed 1,914 tests; the plain release workspace passed 1,831 with 117 ignored. The WASM build and eight demos listed below passed, as did the evidence privacy checker. In a separate worktree, `mutate-rebase.py` killed all three runtime mutants by test failures; `outline-mut-rebase.py` killed the inline-removal mutant via the emitted-code gate. These checks do not establish current-base timing; the selected native codegen comparison is described above.
+With empty HOME and explicit Cargo/Rustup paths, native workspace and release WASM jit-tests Clippy with Rust 1.100.0 and `-D warnings` passed. Rust 1.99.0 ROM-enabled release workspace tests with `--no-fail-fast -- --include-ignored --skip external_` passed 1,914 tests; the plain release workspace passed 1,831 with 117 ignored. The maintainer independently reports 1,914 passing ROM-enabled tests with Rust 1.100.0 on `72639f00`. The WASM build and eight demos listed below passed, as did the evidence privacy checker. In a separate worktree, `mutate-rebase.py` killed all three runtime mutants by test failures; `outline-mut-rebase.py` killed the inline-removal mutant via the emitted-code gate. These checks do not establish current-base timing; the selected native codegen comparison is described above.
 
 ## Historical rebase checks (c693fe89 and earlier)
 
@@ -112,7 +127,7 @@ The following earlier checks were run against base `3f49dad8`, not `816246c8`. W
 - Plain `cargo +1.99.0 test --release --workspace --no-fail-fast`: 1,778 passed, 104 ignored, zero failed.
 - `RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh` and `node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel`: passed all eight demos.
 - `node tools/check-evidence-privacy.mjs`: passed before staging.
-- CLIC follow-up: focused three-crate release tests passed; ROM-enabled workspace passed 1,852 tests and plain workspace passed 1,779 (104 ignored), with no failures. Native and WASM clippy again matched base's existing diagnostic; all eight WASM demos passed. The current CPU table remains pending.
+- CLIC follow-up: focused three-crate release tests passed; ROM-enabled workspace passed 1,852 tests and plain workspace passed 1,779 (104 ignored), with no failures. Native and WASM clippy again matched base's existing diagnostic; all eight WASM demos passed.
 - CLIC differential: mtvec modes 0 and 3 with a pending level-5 interrupt both pass on this candidate and main `3f49dad8`, comparing observing, result-only and one-instruction run state. Setting the CLINT-mode delivery's `mil` to zero instead of the delivered level causes `clic_interrupt_delivery_matches_all_paths` to fail its independent level assertion (runtime assertion, not compile failure).
 - `mutate-rebase.py` killed three runtime mutants without compile errors: omitted retirement, doubled instruction cycles, and omitted observer fetch bytes (`mutations-rebase.json`). `outline-mut-rebase.py` also killed removal of the `step_outcome` inline request via the native emitted-code gate (`outline-result-rebase.json`). The old `exec_insn` inline mutation no longer applies: this rebase intentionally retains main's plain inline hint.
 
@@ -155,7 +170,7 @@ with other builds in the same worktree.
 
 ## CPU comparison
 
-Our formal Mac CPU table against `816246c8` is pending a quiet night window and will be added. Build both sides for that run with `nice -n 10 cargo +1.100.0 build --release --bins`. The table immediately below is the maintainer's x86 run, not our pending Mac table; the later Mac table is historical and not the rebase comparison.
+No new Mac CPU table was run against `816246c8`. The table immediately below is the maintainer's historical x86 run against `c693fe89`; it measured the interpreter loop that `816246c8` runs only with `--no-jit`. The later Mac table is also historical, not the current-base comparison.
 
 ### Historical maintainer x86 comparison against c693fe89
 

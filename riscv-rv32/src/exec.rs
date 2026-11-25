@@ -74,8 +74,6 @@ fn clic_take<B: Bus>(cpu: &mut Cpu, bus: &mut B, irq: u32, pc: u32) -> StepOutco
 }
 
 /// Execute one slow-path event and retain its exact fetch window and trap timing.
-// Let result-only execution eliminate facts used only by observing callers.
-#[inline(always)]
 pub fn step_outcome<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
     let pc = cpu.pc;
     // The SoC's INTC decides enable/priority and hands us the line (`Core::set_irq`); the CPU
