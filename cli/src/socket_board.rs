@@ -18,17 +18,34 @@ use esp_soc::json::{parse_json, Json};
 use esp_soc::uart::{UartInput, UartRoute};
 use esp_soc::web::{hex_decode, hex_encode, json_escape};
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
-use std::time::Duration;
+use std::io::{BufWriter, ErrorKind, Read, Write};
+use std::time::{Duration, Instant};
 
 pub const VERSION: i64 = 1;
-/// How long the board waits for the peer's answer to one message, in wall time.
+/// Wall time the peer has to answer a message (from the moment it was sent to its `hello` or
+/// `done`), and to take what the board writes.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Bytes of one `uart_tx` message at most; consecutive bytes on one route share a message.
 const TX_RUN_MAX: usize = 256;
+/// The longest line accepted from the peer.
+const LINE_MAX: usize = 16 << 20;
 
-/// The two halves of a connection.
-type Streams = (Box<dyn Read>, Box<dyn Write>);
+/// A connection to the peer: a stream the board can put wall-time limits on.
+pub trait Conn: Read + Write {
+    fn set_timeouts(&self, read: Option<Duration>, write: Option<Duration>) -> std::io::Result<()>;
+    fn try_clone_conn(&self) -> std::io::Result<Box<dyn Conn>>;
+}
+macro_rules! conn {
+    ($t:ty) => {
+        impl Conn for $t {
+            fn set_timeouts(&self, read: Option<Duration>, write: Option<Duration>) -> std::io::Result<()> { self.set_read_timeout(read)?; self.set_write_timeout(write) }
+            fn try_clone_conn(&self) -> std::io::Result<Box<dyn Conn>> { Ok(Box::new(self.try_clone()?)) }
+        }
+    };
+}
+conn!(std::net::TcpStream);
+#[cfg(unix)]
+conn!(std::os::unix::net::UnixStream);
 
 /// Where the peer listens.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,21 +63,22 @@ impl Endpoint {
             _ => Err(format!("--board tcp:HOST:PORT: expected a host and a port, got {addr:?}")),
         })
     }
-    fn connect(&self, timeout: Duration) -> Result<Streams, String> {
+    fn connect(&self, timeout: Duration) -> Result<Box<dyn Conn>, String> {
         match self {
             #[cfg(unix)]
-            Endpoint::Unix(path) => {
-                let s = std::os::unix::net::UnixStream::connect(path).map_err(|e| format!("cannot connect: {e}"))?;
-                s.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
-                Ok((Box::new(s.try_clone().map_err(|e| e.to_string())?), Box::new(s)))
-            }
+            Endpoint::Unix(path) => Ok(Box::new(std::os::unix::net::UnixStream::connect(path).map_err(|e| format!("cannot connect: {e}"))?)),
             #[cfg(not(unix))]
             Endpoint::Unix(_) => Err("Unix sockets need a Unix host; use tcp:HOST:PORT".into()),
             Endpoint::Tcp(addr) => {
-                let s = std::net::TcpStream::connect(addr.as_str()).map_err(|e| format!("cannot connect: {e}"))?;
-                s.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
-                s.set_nodelay(true).map_err(|e| e.to_string())?;
-                Ok((Box::new(s.try_clone().map_err(|e| e.to_string())?), Box::new(s)))
+                use std::net::ToSocketAddrs;
+                let mut last = format!("{addr} resolves to no address");
+                for a in addr.to_socket_addrs().map_err(|e| format!("cannot resolve: {e}"))? {
+                    match std::net::TcpStream::connect_timeout(&a, timeout) {
+                        Ok(s) => { s.set_nodelay(true).map_err(|e| e.to_string())?; return Ok(Box::new(s)); }
+                        Err(e) => last = format!("{a}: {e}"),
+                    }
+                }
+                Err(format!("cannot connect: {last}"))
             }
         }
     }
@@ -83,8 +101,13 @@ pub struct SocketBoard {
     peer: String,
     /// What the peer's `hello` called itself.
     name: String,
-    input: BufReader<Box<dyn Read>>,
-    output: BufWriter<Box<dyn Write>>,
+    input: Box<dyn Conn>,
+    /// Received bytes not yet taken as lines.
+    pending: Vec<u8>,
+    output: BufWriter<Box<dyn Conn>>,
+    timeout: Duration,
+    /// Warned once that the peer asks for a sync at every device tick.
+    warned_busy: bool,
     hz: u64,
     now: VirtualCycle,
     /// No unprompted output before this (ns); `None`: none ever.
@@ -119,6 +142,15 @@ fn time_field(msg: &Json, key: &str) -> Result<Option<u64>, String> {
         Some(v) => Err(format!("{key}: expected nanoseconds or null, got {v:?}")),
     }
 }
+/// A promise the peer must always state: a missing one is an error, `null` means never.
+fn required_time(msg: &Json, key: &str) -> Result<Option<u64>, String> {
+    match msg.get(key) {
+        None => Err(format!("{} without {key} (null: never)", msg.str_or("type", "message"))),
+        Some(Json::Null) => Ok(None),
+        Some(Json::Int(t)) if *t >= 0 => Ok(Some(*t as u64)),
+        Some(v) => Err(format!("{key}: expected nanoseconds or null, got {v:?}")),
+    }
+}
 fn int_field(msg: &Json, key: &str, range: std::ops::RangeInclusive<i64>) -> Result<i64, String> {
     match msg.get(key) {
         Some(Json::Int(v)) if range.contains(v) => Ok(*v),
@@ -129,16 +161,21 @@ fn int_field(msg: &Json, key: &str, range: std::ops::RangeInclusive<i64>) -> Res
 impl SocketBoard {
     /// Connect to the peer and exchange `hello`. `hz` is the bus cycle rate of `chip`.
     pub fn connect(endpoint: &Endpoint, chip: &str, hz: u64) -> Result<Self, String> {
-        let (input, output) = endpoint.connect(DEFAULT_TIMEOUT).map_err(|e| format!("[socket] peer {endpoint}: {e}"))?;
-        Self::over(endpoint.to_string(), input, output, chip, hz)
+        let conn = endpoint.connect(DEFAULT_TIMEOUT).map_err(|e| format!("[socket] peer {endpoint}: {e}"))?;
+        Self::over(endpoint.to_string(), conn, chip, hz, DEFAULT_TIMEOUT)
     }
     /// End the process when the peer fails, as the CLI does, instead of going inert.
     pub fn exit_on_failure(mut self) -> Self { self.exit_on_error = true; self }
 
-    /// The board over an established connection (tests use a socket pair). Exchanges `hello`.
-    pub fn over(peer: String, input: Box<dyn Read>, output: Box<dyn Write>, chip: &str, hz: u64) -> Result<Self, String> {
+    /// The board over an established connection (tests use a socket pair), with `timeout` for
+    /// each answer and each write. Exchanges `hello`.
+    pub fn over(peer: String, conn: Box<dyn Conn>, chip: &str, hz: u64, timeout: Duration) -> Result<Self, String> {
+        let timeout = timeout.max(Duration::from_millis(1));
+        let setup = |e: std::io::Error| format!("[socket] peer {peer}: {e}");
+        conn.set_timeouts(Some(timeout), Some(timeout)).map_err(setup)?;
+        let output = BufWriter::new(conn.try_clone_conn().map_err(setup)?);
         let mut b = SocketBoard {
-            peer, name: String::new(), input: BufReader::new(input), output: BufWriter::new(output), hz: hz.max(1), now: 0,
+            peer, name: String::new(), input: conn, pending: Vec::new(), output, timeout, warned_busy: false, hz: hz.max(1), now: 0,
             quiet_until: None, latency: None, unanswered: None, uarts: u32::MAX, tx: None, rx: BTreeMap::new(), rx_seq: 0,
             line_free: [0; 64], stats: Stats::default(), failed: None, exit_on_error: false,
         };
@@ -152,14 +189,15 @@ impl SocketBoard {
 
     fn hello(&mut self, chip: &str) -> Result<(), String> {
         self.send(&format!("{{\"type\":\"hello\",\"version\":{VERSION},\"chip\":\"{}\"}}", json_escape(chip)))?;
-        self.output.flush().map_err(|e| format!("write: {e}"))?;
-        let msg = self.read_msg("hello")?;
+        self.flush()?;
+        let deadline = Instant::now() + self.timeout;
+        let msg = self.read_msg("hello", deadline)?;
         if msg.str_or("type", "") != "hello" { return Err(format!("expected hello, got {:?}", msg.str_or("type", ""))); }
         let version = msg.i64_or("version", 0);
         if version != VERSION { return Err(format!("speaks protocol version {version}, this emulator {VERSION}")); }
         self.name = msg.str_or("name", "").to_string();
-        self.quiet_until = time_field(&msg, "quiet_until")?;
-        self.latency = time_field(&msg, "latency")?;
+        self.quiet_until = required_time(&msg, "quiet_until")?;
+        self.latency = required_time(&msg, "latency")?;
         if let Some(ports) = msg.get("uarts") {
             let ports = ports.as_arr().ok_or("uarts: expected an array of port numbers")?;
             self.uarts = 0;
@@ -168,25 +206,37 @@ impl SocketBoard {
         Ok(())
     }
 
-    fn send(&mut self, line: &str) -> Result<(), String> {
-        self.output.write_all(line.as_bytes()).and_then(|_| self.output.write_all(b"\n")).map_err(|e| format!("write: {e}"))
+    fn write_error(&self, e: std::io::Error) -> String {
+        if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) { format!("took nothing the emulator wrote for {:?}", self.timeout) } else { format!("write: {e}") }
     }
+    fn send(&mut self, line: &str) -> Result<(), String> {
+        self.output.write_all(line.as_bytes()).and_then(|_| self.output.write_all(b"\n")).map_err(|e| self.write_error(e))
+    }
+    fn flush(&mut self) -> Result<(), String> { self.output.flush().map_err(|e| self.write_error(e)) }
 
-    fn read_msg(&mut self, waiting_for: &str) -> Result<Json, String> {
-        let mut line = String::new();
+    /// The next message, which must be complete by `deadline` (wall time).
+    fn read_msg(&mut self, waiting_for: &str, deadline: Instant) -> Result<Json, String> {
+        let mut chunk = [0u8; 4096];
         loop {
-            line.clear();
-            match self.input.read_line(&mut line) {
+            while let Some(nl) = self.pending.iter().position(|&b| b == b'\n') {
+                let line: Vec<u8> = self.pending.drain(..=nl).collect();
+                let text = String::from_utf8_lossy(&line);
+                let text = text.trim_end();
+                if text.is_empty() { continue; }
+                return parse_json(text).map_err(|e| format!("bad message ({e}): {text:.120}"));
+            }
+            if self.pending.len() > LINE_MAX { return Err(format!("sent a line longer than {LINE_MAX} bytes")); }
+            let timeout = || format!("no answer within {:?} while the emulator waited for {waiting_for}", self.timeout);
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() { return Err(timeout()); }
+            self.input.set_timeouts(Some(left), Some(self.timeout)).map_err(|e| format!("read: {e}"))?;
+            match self.input.read(&mut chunk) {
                 Ok(0) => return Err(format!("closed the connection while the emulator waited for {waiting_for}")),
-                Ok(_) => {}
-                Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {
-                    return Err(format!("no answer within the read timeout while the emulator waited for {waiting_for}"));
-                }
+                Ok(n) => self.pending.extend_from_slice(&chunk[..n]),
+                Err(e) if e.kind() == ErrorKind::Interrupted => {}
+                Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => return Err(timeout()),
                 Err(e) => return Err(format!("read: {e}")),
             }
-            let text = line.trim_end();
-            if text.is_empty() { continue; }
-            return parse_json(text).map_err(|e| format!("bad message ({e}): {text:.120}"));
         }
     }
 
@@ -215,17 +265,24 @@ impl SocketBoard {
         let t = self.ns(cycle);
         self.flush_tx()?;
         self.send(&format!("{{\"type\":\"sync\",\"t\":{t}}}"))?;
-        self.output.flush().map_err(|e| format!("write: {e}"))?;
+        self.flush()?;
+        let deadline = Instant::now() + self.timeout;
         self.stats.syncs += 1;
+        // The peer answers everything it has been sent in this exchange (with later `t` where it
+        // must), or names the time it will speak next in `quiet_until`.
         self.unanswered = None;
         loop {
-            let msg = self.read_msg(&format!("done after sync t={t}"))?;
+            let msg = self.read_msg(&format!("done after sync t={t}"), deadline)?;
             match msg.str_or("type", "") {
                 "uart_rx" => self.schedule_rx(&msg, cycle)?,
                 "log" => eprintln!("[socket] {}: {}", if self.name.is_empty() { &self.peer } else { &self.name }, msg.str_or("line", "")),
                 "done" => {
-                    self.quiet_until = time_field(&msg, "quiet_until")?;
+                    self.quiet_until = required_time(&msg, "quiet_until")?;
                     if msg.get("latency").is_some() { self.latency = time_field(&msg, "latency")?; }
+                    if self.quiet_until.is_some_and(|q| q <= t) && !self.warned_busy {
+                        self.warned_busy = true;
+                        eprintln!("[socket] peer {}: quiet_until {} is not after the sync at t={t}: the board syncs at every device tick until it is", self.peer, self.quiet_until.unwrap_or(0));
+                    }
                     return Ok(());
                 }
                 other => return Err(format!("unexpected message {other:?} after sync t={t}")),
@@ -256,13 +313,14 @@ impl SocketBoard {
 
     /// Give up on the peer: the CLI ends the run, a test reads `report()`.
     fn fail(&mut self, e: String) {
-        let text = format!("[socket] peer {}: {e}", self.peer);
+        self.failed = Some(format!("[socket] peer {}: {e}", self.peer));
         if self.exit_on_error {
-            eprintln!("{text}");
-            eprintln!("[emu] stop: the board's peer failed at t={} ns", self.ns(self.now));
+            // A board cannot stop the run, so the process ends here: no end-of-run report, and
+            // output files (--vcd, --pcap, --wav, profiles) may be incomplete.
+            eprintln!("{}", self.report());
+            eprintln!("[emu] stop: the board's peer failed at t={} ns; output files may be incomplete", self.ns(self.now));
             std::process::exit(1);
         }
-        self.failed = Some(text);
         self.quiet_until = None; self.latency = None; self.unanswered = None; self.tx = None; self.rx.clear();
     }
     fn check(&mut self, r: Result<(), String>) { if let Err(e) = r { self.fail(e); } }
@@ -316,7 +374,7 @@ impl BoardModel for SocketBoard {
     fn report(&self) -> String {
         let who = if self.name.is_empty() { self.peer.clone() } else { format!("{} ({})", self.peer, self.name) };
         let s = self.stats;
-        let mut r = format!("[socket] peer {who}: {} syncs, {} bytes to it, {} from it, {} guest resets", s.syncs, s.tx_bytes, s.rx_bytes, s.resets);
+        let mut r = format!("[socket] peer {who}: {} syncs, {} bytes to it, {} from it, {} guest reset{}", s.syncs, s.tx_bytes, s.rx_bytes, s.resets, if s.resets == 1 { "" } else { "s" });
         if let Some(e) = &self.failed { r.push('\n'); r.push_str(e); }
         r
     }
@@ -328,7 +386,7 @@ impl Drop for SocketBoard {
         if self.failed.is_some() { return; }
         let t = self.ns(self.now);
         let _ = self.flush_tx().and_then(|_| self.send(&format!("{{\"type\":\"stop\",\"t\":{t}}}")));
-        let _ = self.output.flush();
+        let _ = self.flush();
     }
 }
 

@@ -1,6 +1,6 @@
 //! `--board socket:` against the in-repo AT peer (`support/at_peer.rs`), on a classic ESP32 guest
 //! small enough to reason about: `MODEM` routes UART1 TX to GPIO27 and RX from GPIO26 through the
-//! GPIO matrix at 115200 baud, sends `AT\r`, then echoes every byte it receives back out of UART1.
+//! GPIO matrix at 115273 baud (the peer's 115200 is within the 3 % match), sends `AT\r`, then echoes every byte it receives back out of UART1.
 //! The peer answers `OK` after its latency, sends a line of its own at 5 ms and a 1500-byte burst at
 //! 10 ms, so the run checks the exchange times, the receive pacing (the burst would overflow the
 //! 128-byte RX FIFO if it arrived at once), that a sync is not needed per byte, guest resets, and
@@ -23,7 +23,9 @@ use std::io::BufReader;
 ///         l32r a2, 0x3ff44024; l32r a3, 1 << 27; s32i a3, a2, 0 # ENABLE_W1TS GPIO27
 ///         l32r a2, 0x3ff44174; movi a3, 0x9a; s32i a3, a2, 0    # FUNC17_IN_SEL (U1RXD) = SIG_IN_SEL | 26
 ///         l32r a2, 0x3ff50000      # UART1
-///         movi a3, 694; s32i a3, a2, 0x14                       # CLKDIV: 80 MHz / 694 = 115273 baud
+///         movi a3, 694; s32i a3, a2, 0x14                       # CLKDIV 694: 115273 baud
+///                                   # at the emulator's fixed 80 MHz APB; at the 40 MHz XTAL reset
+///                                   # clock silicon would run 57636 baud
 ///         l32r a3, 0x0800001c; s32i a3, a2, 0x20                # CONF0: TICK_REF_ALWAYS_ON, 8N1
 ///         movi a3, 'A'; s32i a3, a2, 0; movi a3, 'T'; s32i a3, a2, 0; movi a3, 13; s32i a3, a2, 0
 /// loop:   l32i a4, a2, 0x1c; extui a4, a4, 0, 8; beqz a4, loop  # STATUS.RXFIFO_CNT
@@ -51,6 +53,8 @@ const CHAR_NS: u64 = 10 * 1_000_000_000 / 115_200;
 /// The board sees time at device ticks (one 64-instruction quantum, 1.6 µs at the 40 MHz reset
 /// clock) and the guest needs a few instructions to echo a byte.
 const SLACK: u64 = 5_000;
+/// Wall time a test peer has to answer; the silent-peer test waits this long.
+const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(300);
 
 fn burst() -> Vec<u8> { (0..1500u32).map(|i| (i * 7 + 1) as u8).collect() }
 
@@ -115,6 +119,7 @@ fn at_session_is_paced_exact_and_reproducible() {
     assert_eq!(sent.len(), expect.len(), "{:?}", String::from_utf8_lossy(&sent[..sent.len().min(40)]));
     assert!(sent == expect, "the echo differs from what the peer sent");
     assert_eq!(tr.commands, ["AT"]);
+    assert!(tr.unknown.is_empty(), "{:?}", tr.unknown);
 
     // Byte times, at the FIFO write: the echo of byte k of an answer comes (k + 1) characters
     // after the answer's time. A message carries its first and last byte's times.
@@ -130,7 +135,7 @@ fn at_session_is_paced_exact_and_reproducible() {
 
     // Not a round trip per byte: one sync per latency window of echo, plus the peer's own times.
     assert!(tr.syncs < 200, "{} syncs for {} bytes", tr.syncs, sent.len());
-    assert!(report.contains(&format!("{} syncs, {} bytes to it, {} from it, 1 guest resets", tr.syncs, sent.len(), 6 + 7 + 1500)), "{report}");
+    assert!(report.contains(&format!("{} syncs, {} bytes to it, {} from it, 1 guest reset", tr.syncs, sent.len(), 6 + 7 + 1500)), "{report}");
 
     // The reset reaches the peer at the time it happened, then the run's end.
     let end = 150 * MS;
@@ -160,13 +165,14 @@ fn a_peer_that_hangs_up_is_named_in_the_error() {
 fn bad_peer_messages_are_errors() {
     for (reply, expect) in [
         ("{\"type\":\"hello\",\"version\":2}", "speaks protocol version 2"),
-        ("{\"type\":\"hello\",\"version\":1,\"latency\":-5}", "latency: expected nanoseconds or null"),
-        ("{\"type\":\"hello\",\"version\":1,\"uarts\":[40]}", "uarts: bad port"),
+        ("{\"type\":\"hello\",\"version\":1,\"quiet_until\":null,\"latency\":-5}", "latency: expected nanoseconds or null"),
+        ("{\"type\":\"hello\",\"version\":1,\"latency\":null}", "hello without quiet_until (null: never)"),
+        ("{\"type\":\"hello\",\"version\":1,\"quiet_until\":null,\"latency\":null,\"uarts\":[40]}", "uarts: bad port"),
         ("not json", "bad message"),
     ] {
         let (a, b) = std::os::unix::net::UnixStream::pair().unwrap();
         std::io::Write::write_all(&mut &b, format!("{reply}\n").as_bytes()).unwrap();
-        let e = SocketBoard::over("test".into(), Box::new(a.try_clone().unwrap()), Box::new(a), "esp32", HZ).err().expect(reply);
+        let e = SocketBoard::over("test".into(), Box::new(a), "esp32", HZ, TIMEOUT).err().expect(reply);
         assert!(e.starts_with("[socket] peer test: ") && e.contains(expect), "{reply}: {e}");
     }
     for (rx, expect) in [
@@ -174,10 +180,11 @@ fn bad_peer_messages_are_errors() {
         ("{\"type\":\"uart_rx\",\"t\":0,\"pin\":26,\"baud\":0,\"data\":\"41\"}", "baud: expected an integer"),
         ("{\"type\":\"uart_rx\",\"t\":0,\"pin\":26,\"baud\":115200,\"data\":\"4\"}", "data must be hex"),
         ("{\"type\":\"gpio_in\",\"t\":0}", "unexpected message \"gpio_in\""),
+        ("{\"type\":\"done\",\"latency\":0}", "done without quiet_until (null: never)"),
     ] {
         let (a, b) = std::os::unix::net::UnixStream::pair().unwrap();
-        std::io::Write::write_all(&mut &b, format!("{{\"type\":\"hello\",\"version\":1,\"quiet_until\":0}}\n{rx}\n").as_bytes()).unwrap();
-        let board = SocketBoard::over("test".into(), Box::new(a.try_clone().unwrap()), Box::new(a), "esp32", HZ).unwrap();
+        std::io::Write::write_all(&mut &b, format!("{{\"type\":\"hello\",\"version\":1,\"quiet_until\":0,\"latency\":null}}\n{rx}\n").as_bytes()).unwrap();
+        let board = SocketBoard::over("test".into(), Box::new(a), "esp32", HZ, TIMEOUT).unwrap();
         let mut m = machine(board);
         m.max_cycles = HZ / 1000;
         assert!(matches!(m.run(u64::MAX), Stop::Halted));
@@ -187,27 +194,57 @@ fn bad_peer_messages_are_errors() {
     }
 }
 
-/// Every chip whose reboot path calls `guest_reset` does so once per chip reset, with the cause
-/// the ROM will report, and not at power-on.
+/// A peer that stops answering (or never reads what it is sent) is given up on after the timeout,
+/// from the moment the sync went out, not left to stall the run.
+#[cfg(unix)]
 #[test]
-fn guest_reset_reaches_the_board_on_the_classic_s3_and_c6() {
+fn a_silent_peer_times_out() {
+    let (a, b) = std::os::unix::net::UnixStream::pair().unwrap();
+    std::io::Write::write_all(&mut &b, b"{\"type\":\"hello\",\"version\":1,\"quiet_until\":1000,\"latency\":null}\n{\"type\":\"log\",").unwrap();
+    let board = SocketBoard::over("test".into(), Box::new(a), "esp32", HZ, TIMEOUT).unwrap();
+    let mut m = machine(board);
+    m.max_cycles = HZ / 1000;
+    let t0 = std::time::Instant::now();
+    assert!(matches!(m.run(u64::MAX), Stop::Halted));
+    let waited = t0.elapsed();
+    let report = m.bus.board.report();
+    // the sync comes at the first device tick at or after quiet_until (one 64-instruction quantum, 1.6 µs)
+    assert!(report.contains("[socket] peer test: no answer within 300ms while the emulator waited for done after sync t=1600"), "{report}");
+    assert!(waited >= TIMEOUT && waited < TIMEOUT * 10, "{waited:?}");
+    drop(b);
+}
+
+/// Every chip's reboot path calls `guest_reset` once per chip reset, with the cause the ROM will
+/// report, and not at power-on. (The time is the board's clock: bus cycles, emulated ns on the
+/// S31; both are 0 here, where no time passes.)
+#[test]
+fn guest_reset_reaches_the_board_on_every_chip() {
     use std::{cell::RefCell, rc::Rc};
     struct Probe(Rc<RefCell<Vec<(u64, u32)>>>);
     impl esp_soc::BoardModel for Probe {
         fn name(&self) -> &'static str { "reset-probe" }
         fn guest_reset(&mut self, cycle: u64, cause: u32) { self.0.borrow_mut().push((cycle, cause)); }
     }
-    fn check<S: Soc>(mut m: esp_soc::Machine<S>, board: impl FnOnce(&mut esp_soc::Machine<S>, Probe)) {
-        let seen = Rc::new(RefCell::new(Vec::new()));
-        board(&mut m, Probe(seen.clone()));
-        assert!(seen.borrow().is_empty(), "{}: attaching is not a reset", S::NAME);
-        m.bus.request_reset(12);
-        let cause = m.reboot();
-        assert_eq!(*seen.borrow(), [(m.bus.cycles(), cause)], "{}", S::NAME);
-        assert_eq!(cause, 12, "{}", S::NAME);
+    fn chip<S: Soc>(_: &esp_soc::Machine<S>) -> &'static str { S::NAME }
+    macro_rules! check {
+        ($m:expr) => {{
+            let mut m = $m;
+            let seen = Rc::new(RefCell::new(Vec::new()));
+            m.bus.board = Box::new(Probe(seen.clone()));
+            m.bus.attach_board_devices();
+            let name = chip(&m);
+            assert!(seen.borrow().is_empty(), "{name}: attaching is not a reset");
+            m.bus.request_reset(12);
+            let cause = m.reboot();
+            assert_eq!(cause, 12, "{name}");
+            assert_eq!(*seen.borrow(), [(m.bus.cycles(), 12)], "{name}");
+        }};
     }
     use esp_soc::SocBus as _;
-    check(esp32::machine([0; 6], 4 << 20), |m, p| { m.bus.board = Box::new(p); m.bus.attach_board_devices(); });
-    check(esp32s3::machine([0; 6]), |m, p| { m.bus.board = Box::new(p); m.bus.attach_board_devices(); });
-    check(esp32c6::machine([0; 6], 4 << 20), |m, p| { m.bus.board = Box::new(p); m.bus.attach_board_devices(); });
+    check!(esp32::machine([0; 6], 4 << 20));
+    check!(esp32s3::machine([0; 6]));
+    check!(esp32c3::machine([0; 6], 4 << 20));
+    check!(esp32c6::machine([0; 6], 4 << 20));
+    check!(esp32p4::machine_rev::<esp32p4::RevLt3>([0; 6], 16 << 20));
+    check!(esp32s31::machine([0; 6], 2 << 20));
 }

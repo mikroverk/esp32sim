@@ -35,9 +35,26 @@ byte, can come up to one scheduling quantum (64 instructions) after the time it 
 peer answers only after a `sync` and stops at `done`; with a deterministic peer the whole run is
 reproducible.
 
-If the peer closes the connection, sends something malformed, or does not answer a message
-within 30 s of wall time, the run stops with exit status 1 and an error naming the peer. It never
-waits silently or carries on without the board.
+**At a sync, send everything you will say in reply to what you have received so far, with a
+later `t` where needed, or set `quiet_until` to the time you will next speak.** A sync settles the
+events sent before it: the emulator does not come back for them. An answer due at `t_end + latency`
+is usually later than the sync that brought the command, so it goes out at that sync with its own
+`t`; the emulator holds it until then. A peer that waits for the next sync to answer instead may
+never get one, because none comes until the guest transmits again or `quiet_until` is reached.
+
+`quiet_until` at or before the sync's `t` means "I may speak at any moment": the board then syncs
+at every device tick until a later one, which is correct but costs a round trip per quantum (the
+board says so once on stderr).
+
+If the peer closes the connection, sends something malformed, does not finish its answer
+(`hello` or `done`) within 30 s of wall time from when the message went out, or takes nothing the
+emulator writes for 30 s, the run stops with exit status 1, the board's line of the report and an
+error naming the peer. It never waits silently or carries on without the board. A board cannot
+stop the run cleanly, so the rest of the end-of-run report is skipped, and output files (`--vcd`,
+`--pcap`, `--wav`, profiles) may be incomplete.
+
+`--realtime` and `--web` pace the run to wall time as usual; the peer still sees only emulated
+time, and a slow answer stalls the run (and the page) while it is awaited.
 
 ## Messages
 
@@ -51,9 +68,13 @@ message types only on request in `hello`.
 | --- | --- |
 | `{"type":"hello","version":1,"chip":"esp32"}` | first, once |
 | `{"type":"uart_tx","t":T,"t_end":T2,"port":1,"tx":[27],"rx":26,"baud":115273,"data":"41540d"}` | the guest wrote these bytes to a UART's TX FIFO, the first at `t`, the last at `t_end`; consecutive bytes on one route share a message (at most 256) |
-| `{"type":"reset","t":T,"cause":12}` | the guest came out of a chip reset with this RESET_REASON code (a wake from deep sleep is one too); the board, and the peer, are not reset |
+| `{"type":"reset","t":T,"cause":12}` | the guest came out of a chip reset with the reset-reason code the ROM reports (a wake from deep sleep is one too); the board, and the peer, are not reset |
 | `{"type":"sync","t":T}` | emulated time is at `t`; answer with your output, then `done` |
 | `{"type":"stop","t":T}` | the run is over; then the connection closes |
+
+On the classic ESP32 the codes are `RESET_REASON` in `components/esp_rom/esp32/include/esp32/rom/rtc.h`
+(ESP-IDF v5.5.5; `components/esp_rom/include/esp32/rom/rtc.h` in v4.4.8, the same values):
+12 is `SW_CPU_RESET` (`esp_restart`), 5 `DEEPSLEEP_RESET`, 1 `POWERON_RESET`.
 
 `uart_tx` carries the route at the FIFO write: `port`, every GPIO the TX signal is routed to
 (`tx`), the GPIO the port receives from (`rx`, `null` if none) and the configured baud (`null`
@@ -65,10 +86,10 @@ wire times captured from a device.
 
 | Message | When |
 | --- | --- |
-| `{"type":"hello","version":1,"name":"at-modem","quiet_until":0,"latency":1000000,"uarts":[1]}` | the answer to `hello`. `uarts` (optional) lists the ports whose transmissions it wants; the default is all of them, the console included |
+| `{"type":"hello","version":1,"name":"at-modem","quiet_until":0,"latency":1000000,"uarts":[1]}` | the answer to `hello`. `quiet_until` and `latency` are required (`null` where they do not apply); `uarts` (optional) lists the ports whose transmissions it wants, by default all of them, the console included |
 | `{"type":"uart_rx","t":T,"pin":26,"baud":115200,"data":"0d0a4f4b0d0a","bits":10}` | bytes on the line into chip GPIO `pin`, the first character starting at `t`; only after a `sync` |
 | `{"type":"log","line":"..."}` | a line for the emulator's stderr; only after a `sync` |
-| `{"type":"done","quiet_until":T,"latency":L}` | the end of the answer to a `sync`. `latency` is optional (unchanged if absent) |
+| `{"type":"done","quiet_until":T,"latency":L}` | the end of the answer to a `sync`. `quiet_until` is required (`null`: nothing of its own any more); `latency` is optional (unchanged if absent) |
 
 The emulator releases `uart_rx` bytes one character time apart at `baud`: byte i is complete
 `(i + 1) × bits` bit times after the line is free, which is `t` or the end of what that pin
@@ -81,7 +102,8 @@ is within 3 % of `baud`, a baud mismatch raises its framing-error interrupt ([ua
 ## Not yet
 
 - GPIO (`gpio_out`, `gpio_in`, `release`): the next pull request.
-- The ESP32-S3 and ESP32-C6. Their buses already call the same UART hooks and reset hook.
+- The other chips on the CLI. The S3 and C6 buses already call the same UART hooks, and every
+  chip calls `guest_reset`.
 - SPI and I2C. An I2C read needs its answer at once, so forwarding it costs a round trip per byte.
 - Real devices on the far end with `--realtime`: stamping wall time as emulated time needs its own
   design.

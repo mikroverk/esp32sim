@@ -2,6 +2,9 @@
 //! that answers `AT` with `OK`, `ATI` with its name and anything else starting with `AT` with
 //! `ERROR`, after `latency`, plus output of its own at fixed times (`unprompted`), the way a GNSS
 //! receiver streams NMEA. It is deterministic: what it sends depends only on what it received.
+//! At each `sync` it sends every answer it owes, stamped at the command's end plus `latency` (a
+//! later time than the sync's, which is allowed), and its due output; `quiet_until` names its next
+//! unprompted line.
 //! The CI test (`cli/tests/socket_board.rs`) runs it in a thread; `cli/examples/socket_at_peer.rs`
 //! serves it on a socket for a real run.
 #![allow(dead_code)]
@@ -41,6 +44,8 @@ pub struct Transcript {
     pub stop: Option<u64>,
     /// Commands recognised, in order.
     pub commands: Vec<String>,
+    /// Message types it did not know, which a peer ignores.
+    pub unknown: Vec<String>,
 }
 
 fn answer(cmd: &str) -> &'static [u8] {
@@ -95,7 +100,7 @@ pub fn serve(input: &mut dyn BufRead, output: &mut dyn Write, s: &Script) -> Tra
                 output.flush().unwrap();
             }
             "stop" => { tr.stop = Some(t); break; }
-            other => panic!("unknown message {other}"),
+            other => tr.unknown.push(other.to_string()),
         }
     }
     tr
