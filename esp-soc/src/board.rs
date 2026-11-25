@@ -155,9 +155,11 @@ pub trait BoardModel {
     /// Whether `camera_frame_with_clock` currently returns one whole JPEG file (its length
     /// is the file's) rather than `w`x`h` raw pixels. Queried only by capture adapters.
     fn camera_frame_is_jpeg(&self) -> bool { false }
-    /// The guest is coming out of a chip reset with `cause` (the chip's RESET_REASON code; a wake
-    /// from deep sleep is one too), before `attach_board_devices` reconnects the board. The board
-    /// itself persists across it, as a modem with its own supply does. Not called at power-on.
+    /// The guest is coming out of a chip reset with `cause` (the reset-reason code the ROM reports;
+    /// a wake from deep sleep is one too), called by every chip's reboot path before
+    /// `attach_board_devices` reconnects the board. `cycle` is the board's clock, as in its other
+    /// callbacks (emulated ns on the S31). The board itself persists across the reset, as a modem
+    /// with its own supply does. Not called at power-on.
     /// Appended to preserve the existing board vtable's hot-call offsets.
     fn guest_reset(&mut self, _cycle: VirtualCycle, _cause: u32) {}
 }

@@ -696,6 +696,7 @@ impl esp_soc::SocBus for SocBus {
         // The virtual AP is outside the chip: it survives the reset, as on the C6 (surviving_reboot).
         inner.wifi_mac.link = std::mem::take(&mut self.inner.wifi_mac.link).surviving_reboot();
         self.inner = inner;
+        self.board.guest_reset(self.board_ns, cause);    // the board's clock here is emulated ns
         self.attach_board_devices();                     // the board's I2C devices, on the new controllers
         self.deliver_pin_levels();                       // the pads are back to their reset state
         self.mac = mac;
