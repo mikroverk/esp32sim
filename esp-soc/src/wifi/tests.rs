@@ -1279,6 +1279,35 @@ fn the_lease_counts_from_the_first_request_not_from_the_ack() {
 }
 
 #[test]
+fn a_rebinding_ack_counts_from_its_own_request_and_a_late_renewing_ack_is_discarded() {
+    // 100 s with T1 20 s and T2 40 s. Every ACK withheld: the renewal at T1 and the rebinding at
+    // T2 go unanswered, each in an exchange with an xid of its own (RFC 2131 4.4.5)
+    let (mut sta, mut g) = (station("ssid=esp32sim"), Guest::new());
+    let leased = g.lease(&mut sta, &mut ack_with(100, Some((20, 40))));
+    sta.take_sent();
+    let mut held = Vec::new();
+    g.run(&mut sta, leased, leased + 41_000_000, &|_| {}, &mut |r| if r.windows(3).any(|w| w == [53, 1, 5]) { held.push(r); None } else { Some(r) });
+    let sent = requests_sent(&mut sta);
+    assert!(sent.len() == 2 && held.len() == 2, "{sent:?}, {} ACKs", held.len());
+    let before = sta.lease_times();
+    let deliver = |g: &mut Guest, sta: &mut sta::VirtualSta, ack: Vec<u8>, at: u64| {
+        let f = g.ap.data_from_ds(&ack).unwrap();
+        g.ap.queue.push(AirFrame { at_us: at, frame: f });
+        g.run(sta, at, at + 2_000, &|_| {}, &mut no_edit);
+    };
+    // the renewing REQUEST's ACK, late: its xid is the renewal's, so the rebinding station drops it
+    let t = leased + 41_000_000;
+    deliver(&mut g, &mut sta, ack_with(100, Some((20, 40)))(held[0].clone()).unwrap(), t);
+    assert_eq!((sta.renewals, sta.lease_times()), (0, before), "a late renewing ACK taken");
+    // the rebinding REQUEST's ACK, shortening the lease to 10 s: it counts from the rebinding
+    // REQUEST, so the lease is held to 50 s; counted from T1 it would have ended at 30 s, before it came
+    deliver(&mut g, &mut sta, ack_with(10, None)(held[1].clone()).unwrap(), t + 2_000);
+    let r = sent[1];
+    assert_eq!((sta.lease, sta.renewals, sta.lease_times()), (Some([10, 0, 2, 15]), 1, (r + 5_000_000, r + 8_750_000, r + 10_000_000)));
+    assert!(requests_sent(&mut sta).is_empty(), "no DHCP after the ACK");
+}
+
+#[test]
 fn a_reboot_keeps_the_keepalive_and_renewal_counts() {
     // 30 s with T1 at 20 s: keep-alives in the silences, one renewal. The guest reboots: the
     // station joins again from nothing, and the end-of-run line still counts the whole run
