@@ -23,7 +23,8 @@ restarts, not even across a chip reset. The peer never needs to know a chip's cl
 
 The peer makes two promises, in `hello` and again in each `done`:
 
-- **`quiet_until`**: it will produce nothing of its own before this time. `null`: never.
+- **`quiet_until`**: it will produce nothing, neither output of its own nor a deferred answer,
+  before this time. `null`: never.
 - **`latency`**: it answers something it is sent no sooner than this long after it. `null`: it
   never answers (a recorder).
 

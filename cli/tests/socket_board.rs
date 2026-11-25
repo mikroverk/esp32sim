@@ -208,43 +208,77 @@ fn a_silent_peer_times_out() {
     assert!(matches!(m.run(u64::MAX), Stop::Halted));
     let waited = t0.elapsed();
     let report = m.bus.board.report();
-    // the sync comes at the first device tick at or after quiet_until (one 64-instruction quantum, 1.6 µs)
-    assert!(report.contains("[socket] peer test: no answer within 300ms while the emulator waited for done after sync t=1600"), "{report}");
+    let prefix = "[socket] peer test: no answer within 300ms while the emulator waited for done after sync t=";
+    let t: u64 = report.split(prefix).nth(1).and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next()).and_then(|t| t.parse().ok()).unwrap_or_else(|| panic!("{report}"));
+    // the first device tick at or after quiet_until (1600 ns, one 64-instruction quantum, when written)
+    assert!((1000..1000 + SLACK).contains(&t), "sync at {t} ns: {report}");
     assert!(waited >= TIMEOUT && waited < TIMEOUT * 10, "{waited:?}");
     drop(b);
 }
 
+/// A long line (a recording replayed as one `uart_rx`) arrives in many reads and is taken whole.
+#[cfg(unix)]
+#[test]
+fn a_long_line_arrives_in_pieces() {
+    let (a, b) = std::os::unix::net::UnixStream::pair().unwrap();
+    let data = "41".repeat(200_000);
+    let feeder = std::thread::spawn(move || {
+        let mut w = &b;
+        std::io::Write::write_all(&mut w, b"{\"type\":\"hello\",\"version\":1,\"quiet_until\":0,\"latency\":null}\n").unwrap();
+        let line = format!("{{\"type\":\"uart_rx\",\"t\":0,\"pin\":26,\"baud\":115200,\"data\":\"{data}\"}}\n{{\"type\":\"done\",\"quiet_until\":null}}\n");
+        for piece in line.as_bytes().chunks(1000) { std::io::Write::write_all(&mut w, piece).unwrap(); }
+        b
+    });
+    let board = SocketBoard::over("test".into(), Box::new(a), "esp32", HZ, std::time::Duration::from_secs(10)).unwrap();
+    let mut m = machine(board);
+    m.max_cycles = HZ / 1000;
+    assert!(matches!(m.run(u64::MAX), Stop::Halted));
+    let report = m.bus.board.report();
+    // all of it scheduled; in 1 ms the guest echoes the first 11 characters (86.8 µs each) after its AT\r
+    assert!(report.contains("1 syncs, 14 bytes to it, 200000 from it, 0 guest resets") && !report.contains('\n'), "{report}");
+    drop(feeder.join().unwrap());
+}
+
 /// Every chip's reboot path calls `guest_reset` once per chip reset, with the cause the ROM will
-/// report, and not at power-on. (The time is the board's clock: bus cycles, emulated ns on the
-/// S31; both are 0 here, where no time passes.)
+/// report and the board's own clock (the time of its last `advance_to`: bus cycles, emulated ns on
+/// the S31), and not at power-on.
 #[test]
 fn guest_reset_reaches_the_board_on_every_chip() {
     use std::{cell::RefCell, rc::Rc};
-    struct Probe(Rc<RefCell<Vec<(u64, u32)>>>);
+    #[derive(Default)]
+    struct Seen { advanced: u64, resets: Vec<(u64, u32)> }
+    struct Probe(Rc<RefCell<Seen>>);
     impl esp_soc::BoardModel for Probe {
         fn name(&self) -> &'static str { "reset-probe" }
-        fn guest_reset(&mut self, cycle: u64, cause: u32) { self.0.borrow_mut().push((cycle, cause)); }
+        fn advance_to(&mut self, cycle: u64) { self.0.borrow_mut().advanced = cycle; }
+        // always due, so every chip advances the board each tick (the C3 only advances a due board)
+        fn next_deadline(&self) -> Option<u64> { Some(self.0.borrow().advanced + 1) }
+        fn guest_reset(&mut self, cycle: u64, cause: u32) { self.0.borrow_mut().resets.push((cycle, cause)); }
     }
     fn chip<S: Soc>(_: &esp_soc::Machine<S>) -> &'static str { S::NAME }
     macro_rules! check {
-        ($m:expr) => {{
+        ($m:expr, $clock_is_cycles:expr) => {{
             let mut m = $m;
-            let seen = Rc::new(RefCell::new(Vec::new()));
+            let seen = Rc::new(RefCell::new(Seen::default()));
             m.bus.board = Box::new(Probe(seen.clone()));
             m.bus.attach_board_devices();
             let name = chip(&m);
-            assert!(seen.borrow().is_empty(), "{name}: attaching is not a reset");
+            assert!(seen.borrow().resets.is_empty(), "{name}: attaching is not a reset");
+            for _ in 0..100 { emu_core::Bus::tick(&mut m.bus, 1000); }
             m.bus.request_reset(12);
             let cause = m.reboot();
             assert_eq!(cause, 12, "{name}");
-            assert_eq!(*seen.borrow(), [(m.bus.cycles(), 12)], "{name}");
+            let s = seen.borrow();
+            assert!(s.advanced > 0, "{name}: the board's clock did not move");
+            assert_eq!(s.resets, [(s.advanced, 12)], "{name}: reset at the board's clock");
+            assert_eq!(s.advanced == m.bus.cycles(), $clock_is_cycles, "{name}: board clock {} vs bus cycles {}", s.advanced, m.bus.cycles());
         }};
     }
     use esp_soc::SocBus as _;
-    check!(esp32::machine([0; 6], 4 << 20));
-    check!(esp32s3::machine([0; 6]));
-    check!(esp32c3::machine([0; 6], 4 << 20));
-    check!(esp32c6::machine([0; 6], 4 << 20));
-    check!(esp32p4::machine_rev::<esp32p4::RevLt3>([0; 6], 16 << 20));
-    check!(esp32s31::machine([0; 6], 2 << 20));
+    check!(esp32::machine([0; 6], 4 << 20), true);
+    check!(esp32s3::machine([0; 6]), true);
+    check!(esp32c3::machine([0; 6], 4 << 20), true);
+    check!(esp32c6::machine([0; 6], 4 << 20), true);
+    check!(esp32p4::machine_rev::<esp32p4::RevLt3>([0; 6], 16 << 20), true);
+    check!(esp32s31::machine([0; 6], 2 << 20), false);
 }

@@ -102,8 +102,9 @@ pub struct SocketBoard {
     /// What the peer's `hello` called itself.
     name: String,
     input: Box<dyn Conn>,
-    /// Received bytes not yet taken as lines.
+    /// Received bytes not yet taken as lines, and how far they hold no newline.
     pending: Vec<u8>,
+    scanned: usize,
     output: BufWriter<Box<dyn Conn>>,
     timeout: Duration,
     /// Warned once that the peer asks for a sync at every device tick.
@@ -175,7 +176,7 @@ impl SocketBoard {
         conn.set_timeouts(Some(timeout), Some(timeout)).map_err(setup)?;
         let output = BufWriter::new(conn.try_clone_conn().map_err(setup)?);
         let mut b = SocketBoard {
-            peer, name: String::new(), input: conn, pending: Vec::new(), output, timeout, warned_busy: false, hz: hz.max(1), now: 0,
+            peer, name: String::new(), input: conn, pending: Vec::new(), scanned: 0, output, timeout, warned_busy: false, hz: hz.max(1), now: 0,
             quiet_until: None, latency: None, unanswered: None, uarts: u32::MAX, tx: None, rx: BTreeMap::new(), rx_seq: 0,
             line_free: [0; 64], stats: Stats::default(), failed: None, exit_on_error: false,
         };
@@ -218,13 +219,15 @@ impl SocketBoard {
     fn read_msg(&mut self, waiting_for: &str, deadline: Instant) -> Result<Json, String> {
         let mut chunk = [0u8; 4096];
         loop {
-            while let Some(nl) = self.pending.iter().position(|&b| b == b'\n') {
+            while let Some(nl) = self.pending[self.scanned..].iter().position(|&b| b == b'\n').map(|i| self.scanned + i) {
                 let line: Vec<u8> = self.pending.drain(..=nl).collect();
+                self.scanned = 0;
                 let text = String::from_utf8_lossy(&line);
                 let text = text.trim_end();
                 if text.is_empty() { continue; }
                 return parse_json(text).map_err(|e| format!("bad message ({e}): {text:.120}"));
             }
+            self.scanned = self.pending.len();
             if self.pending.len() > LINE_MAX { return Err(format!("sent a line longer than {LINE_MAX} bytes")); }
             let timeout = || format!("no answer within {:?} while the emulator waited for {waiting_for}", self.timeout);
             let left = deadline.saturating_duration_since(Instant::now());
