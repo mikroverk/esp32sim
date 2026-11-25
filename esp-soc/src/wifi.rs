@@ -910,7 +910,9 @@ impl StationLink {
     /// The NAT behind the virtual station: it follows the station's lease (`VirtualSta::peer`),
     /// dropping its flows when the lease goes or changes (the host's connections are closed; the
     /// guest hears nothing, as from a station that has gone), and reads the host's sockets every
-    /// `NET_POLL_US`. What it sends goes to the guest through the station.
+    /// `NET_POLL_US`. What it sends goes to the guest through the station, and into the capture
+    /// at once, as `station_tx` does, so a frame from the guest that comes up before the next
+    /// one is received does not land before it.
     fn sta_net_step(&mut self, now_us: u64) {
         let (Some(nat), Some(s)) = (self.sta_nat.as_mut(), self.sta.as_mut()) else { return };
         let peer = s.peer();
@@ -924,6 +926,7 @@ impl StationLink {
         self.net_polled_us = now_us;
         // with a lease the station is joined (leaving ends the lease), so it carries every frame
         for e in nat.poll(now_us) { s.data_to_ds(&e, now_us); }
+        for (at, e) in s.take_sent() { self.capture(crate::netcap::Dir::ToStation, at, &e); }
     }
 
     /// Switch the host's Ethernet relay on or off; a change empties both queues.

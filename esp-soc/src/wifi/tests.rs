@@ -1546,6 +1546,33 @@ fn hostfwd_through_the_station_closes_its_connections_when_the_lease_goes() {
     assert_eq!(got, RESPONSE);
 }
 
+/// What the NAT sends from a poll goes into the capture at once, so a frame from the guest that
+/// comes up before the next one is received lands after it: the capture stays in time order.
+#[test]
+fn hostfwd_through_the_station_captures_the_nats_frames_in_time_order() {
+    use std::io::Write;
+    let (mut link, bound) = forwarding_link();
+    let tap = live_tap();
+    link.set_tap(tap.clone());
+    let mut g = WebGuest::new();
+    g.run(&mut link, 0, 1_000_000);
+    let mut host = std::net::TcpStream::connect(bound).unwrap();
+    g.run(&mut link, 1_000_000, 1_100_000);
+    assert_eq!(g.syns.len(), 1, "the connection is through");
+    tap.lock().unwrap().take_live();
+    // the host's bytes go out at the NAT's next poll; the guest sends the station a frame (an ARP
+    // request for its address) before anything is received
+    host.write_all(b"GET /").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    link.net_step(1_200_000);
+    let arp = g.ap.data_from_ds(&arp_for([10, 0, 2, 15])).unwrap();
+    link.station_tx(&with_fcs_slot(arp), 1_200_050);
+    let got: Vec<(u8, u64)> = tap.lock().unwrap().take_live().iter().map(|m| (m[1], u64::from_le_bytes(m[2..10].try_into().unwrap()))).collect();
+    let to_guest = crate::netcap::Dir::ToStation as u8;
+    assert_eq!(got.first(), Some(&(to_guest, 1_200_000)), "the NAT's segment first: {got:?}");
+    assert!(got.windows(2).all(|w| w[0].1 <= w[1].1), "{got:?}");
+}
+
 /// Without `--hostfwd` the station has no NAT: no network to step and no `[emu] nat:` line. A NAT
 /// survives a guest reboot, waiting for the next lease.
 #[test]

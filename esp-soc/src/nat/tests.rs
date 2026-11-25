@@ -1045,7 +1045,10 @@ fn behind_the_station_the_guests_own_connections_and_datagrams_go_nowhere() {
     other[30..34].copy_from_slice(&[192, 168, 4, 3]);
     let mut fragment = datagram.clone();
     fragment[20] = 0x20;
-    for f in [other, fragment] { assert!(nat.from_guest(&f, 2).is_empty()); }
+    // a UDP length past the IP payload: the slice of the datagram would run off its end
+    let mut long = datagram.clone();
+    long[38..40].copy_from_slice(&[0xff, 0xff]);
+    for f in [other, fragment, long] { assert!(nat.from_guest(&f, 2).is_empty()); }
     for len in 0..datagram.len() { assert!(nat.from_guest(&datagram[..len], 3).is_empty()); }
     assert!(nat.tcp.is_empty() && nat.udp.is_empty());
 }
