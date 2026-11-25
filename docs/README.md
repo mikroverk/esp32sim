@@ -21,6 +21,7 @@ New here? [quick-start.md](quick-start.md) runs your own firmware from a release
 | [peripherals.md](peripherals.md) | Every modelled block, what part of it is modelled, what is missing |
 | [boards.md](boards.md) | The `BoardModel` trait, the boards, pin maps, how to add one |
 | [uart.md](uart.md) | UART devices on a board: routed bytes to and from a `BoardModel` |
+| [socket-board.md](socket-board.md) | `--board socket:`: a board in another process, over NDJSON, with emulated time |
 | [m5-i2c.md](m5-i2c.md) | The StopWatch's M5PM1 and M5IOE1 I2C devices |
 | [cli.md](cli.md) | Command-line flags, environment variables, action scripts, output files |
 | [web-ui.md](web-ui.md) | The browser UI and its WebSocket protocol |

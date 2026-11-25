@@ -8,6 +8,7 @@ use emu_core::{Bus, Core};
 use std::path::PathBuf;
 
 pub mod cooja;
+pub mod socket_board;
 /// The P4 and its ESP32-C6 co-processor in lock-step (`esp32p4::coproc`), as the CLI's `--coproc` runs them.
 pub use esp32p4::coproc as cosim;
 mod camera;
@@ -24,7 +25,8 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("                        (Espressif's, not in the tarball: tools/fetch-rom-elfs.sh DIR downloads all of them)");
     eprintln!("  --board NAME          board model (S3: atech14, waveshare-lcd4b, waveshare-amoled18-v2, waveshare-cam, stopwatch, none;");
     eprintln!("                        C6: waveshare-c6-lcd147, xiao-esp32c6, none; P4: waveshare-p4-lcd35, none; S31: mosaico, none;");
-    eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, ai-thinker-cam, esp32dev, none)");
+    eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, ai-thinker-cam, esp32dev, none;");
+    eprintln!("                        socket:PATH or tcp:HOST:PORT, a board in another process: docs/socket-board.md)");
     eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
@@ -268,6 +270,10 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if !o.hostfwd.is_empty() && !matches!(o.net.split(',').next(), Some("nat" | "user")) { usage_error("--hostfwd requires --net nat"); }
     for spec in &o.hostfwd {
         if let Err(e) = esp_soc::nat::HostFwdSpec::parse(spec) { usage_error(&format!("--hostfwd: {e}")); }
+    }
+    if let Some(spec) = socket_board::Endpoint::parse(&o.board) {
+        if let Err(e) = spec { usage_error(&e); }
+        if o.chip != "esp32" { usage_error("--board socket:/tcp: only the classic ESP32 so far (--chip esp32)"); }
     }
     if (o.ble_observe || o.ble_scan) && !o.ble_full { usage_error("BLE central/observer use requires --ble full"); }
     if o.ble_full && o.ble { usage_error("--ble full and --ble are mutually exclusive"); }
@@ -612,7 +618,14 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
     m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     let board = if o.board == "atech14" { "none" } else { &o.board };
-    m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay, cyd, ai-thinker-cam, ulanzi-tc001)")));
+    m.bus.board = match socket_board::Endpoint::parse(board) {
+        Some(endpoint) => {
+            let endpoint = endpoint.unwrap_or_else(|e| usage_error(&e));
+            let b = socket_board::SocketBoard::connect(&endpoint, "esp32", <esp32::Esp32 as Soc>::CPU_HZ).unwrap_or_else(|e| { eprintln!("{e}"); std::process::exit(1) });
+            Box::new(b.exit_on_failure())
+        }
+        None => esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay, cyd, ai-thinker-cam, ulanzi-tc001, socket:PATH, tcp:HOST:PORT)"))),
+    };
     m.bus.attach_board_devices();
     set_camera_image(&mut m.bus.board, o.cam_image.as_deref());
     if !o.wifi.is_empty() {

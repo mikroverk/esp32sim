@@ -29,6 +29,9 @@ return them from `uart_rx` when their deadline has passed. Delivery occurs at
 the next device tick, not at individual serial bit boundaries. The existing
 host console queues and `SocBus::uart_input` retain their behavior.
 
+`--board socket:` puts the far end of these callbacks in another process, with
+the receive side paced at the line rate ([socket-board.md](socket-board.md)).
+
 [The echo example](../cli/examples/uart_echo.rs) connects a board endpoint to
 GPIO5/4 at 9600 baud. Its executable checks the supplied Arduino sketch on any
 of the three chips. See the [validation receipt](evidence/uart-endpoint-2026-10-02/README.md)
