@@ -248,7 +248,9 @@ pub fn hex_decode(s: &str) -> Option<Vec<u8>> {
     let s = s.as_bytes();
     if !s.len().is_multiple_of(2) { return None; }
     let nibble = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
-    s.chunks(2).map(|p| Some(nibble(p[0])? << 4 | nibble(p[1])?)).collect()
+    let mut out = Vec::with_capacity(s.len() / 2);
+    for p in s.chunks(2) { out.push(nibble(p[0])? << 4 | nibble(p[1])?); }
+    Some(out)
 }
 /// Bytes to lowercase hex text, without separators.
 pub fn hex_encode(b: &[u8]) -> String {

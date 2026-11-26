@@ -17,7 +17,6 @@ use esp_soc::board::{BoardModel, VirtualCycle};
 use esp_soc::json::{parse_json, Json};
 use esp_soc::uart::{UartInput, UartRoute};
 use esp_soc::web::{hex_decode, hex_encode, json_escape};
-use std::collections::BTreeMap;
 use std::io::{BufWriter, ErrorKind, Read, Write};
 use std::time::{Duration, Instant};
 
@@ -27,8 +26,13 @@ pub const VERSION: i64 = 1;
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Bytes of one `uart_tx` message at most; consecutive bytes on one route share a message.
 const TX_RUN_MAX: usize = 256;
-/// The longest line accepted from the peer.
-const LINE_MAX: usize = 16 << 20;
+/// The longest line accepted from the peer, by default.
+pub const LINE_MAX: usize = 16 << 20;
+/// Received bytes not yet on the line, at most, by default: 64 MiB is 97 minutes at 115200 baud.
+pub const RX_QUEUE_MAX: usize = 64 << 20;
+/// A `quiet_until` at or before its sync means "at any moment"; the board then comes back this
+/// much later, so such a peer costs at most one exchange per 10 µs of emulated time.
+pub const MIN_QUIET_NS: u64 = 10_000;
 
 /// A connection to the peer: a stream the board can put wall-time limits on.
 pub trait Conn: Read + Write {
@@ -89,12 +93,23 @@ impl std::fmt::Display for Endpoint {
     }
 }
 
-/// Exchange counts for the end-of-run report.
+/// Exchange counts for the end-of-run report. `late_rx`: `uart_rx` messages stamped before the
+/// peer's own promises allowed, delivered at the sync that brought them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Stats { pub syncs: u64, pub tx_bytes: u64, pub rx_bytes: u64, pub resets: u64 }
+pub struct Stats { pub syncs: u64, pub tx_bytes: u64, pub rx_bytes: u64, pub resets: u64, pub late_rx: u64 }
 
-/// Consecutive transmitted bytes on one route, not yet sent.
+/// Transmitted bytes on one route written closer together than half a character time (a FIFO
+/// fill), not yet sent.
 struct TxRun { route: UartRoute, t: u64, t_end: u64, data: Vec<u8> }
+
+/// One `uart_rx` message on the line: byte i completes at `start + (i + 1) * bits * hz / baud`.
+struct RxRun { pin: u8, baud: u32, bits: u64, start: VirtualCycle, data: Vec<u8>, next: usize }
+impl RxRun {
+    fn due(&self, i: usize, hz: u64) -> VirtualCycle {
+        let c = ((i as u128 + 1) * self.bits as u128 * hz as u128).div_ceil(self.baud as u128);
+        self.start.saturating_add(c.min(u64::MAX as u128) as u64)
+    }
+}
 
 pub struct SocketBoard {
     /// The endpoint as given, which every error names.
@@ -120,9 +135,14 @@ pub struct SocketBoard {
     /// UART ports the peer listens to (bit n = port n).
     uarts: u32,
     tx: Option<TxRun>,
-    /// Paced receive bytes by (due cycle, sequence): (pin, baud, byte).
-    rx: BTreeMap<(VirtualCycle, u64), (u8, u32, u8)>,
-    rx_seq: u64,
+    /// Messages on the line, in arrival order, and their bytes not yet delivered.
+    rx: Vec<RxRun>,
+    rx_queued: usize,
+    line_max: usize,
+    rx_max: usize,
+    /// The cycle of the last sync: the next one comes later.
+    last_sync: Option<VirtualCycle>,
+    warned_late: bool,
     /// Per pin, the cycle its line is free again after the bytes already scheduled.
     line_free: [VirtualCycle; 64],
     stats: Stats,
@@ -177,7 +197,7 @@ impl SocketBoard {
         let output = BufWriter::new(conn.try_clone_conn().map_err(setup)?);
         let mut b = SocketBoard {
             peer, name: String::new(), input: conn, pending: Vec::new(), scanned: 0, output, timeout, warned_busy: false, hz: hz.max(1), now: 0,
-            quiet_until: None, latency: None, unanswered: None, uarts: u32::MAX, tx: None, rx: BTreeMap::new(), rx_seq: 0,
+            quiet_until: None, latency: None, unanswered: None, uarts: u32::MAX, tx: None, rx: Vec::new(), rx_queued: 0, line_max: LINE_MAX, rx_max: RX_QUEUE_MAX, last_sync: None, warned_late: false,
             line_free: [0; 64], stats: Stats::default(), failed: None, exit_on_error: false,
         };
         b.hello(chip).map_err(|e| format!("[socket] peer {}: {e}", b.peer))?;
@@ -185,6 +205,11 @@ impl SocketBoard {
     }
 
     pub fn stats(&self) -> Stats { self.stats }
+    /// The longest line accepted and the most received bytes held before they are on the line
+    /// (`LINE_MAX`, `RX_QUEUE_MAX` by default); beyond either the peer is given up on.
+    pub fn set_limits(&mut self, line_max: usize, rx_queue_max: usize) { self.line_max = line_max; self.rx_max = rx_queue_max; }
+    /// Memory the receive queue holds, in bytes of payload capacity.
+    pub fn rx_queue_memory(&self) -> usize { self.rx.iter().map(|r| r.data.capacity()).sum() }
     /// Why the peer was given up on, if it was.
     pub fn error(&self) -> Option<&str> { self.failed.as_deref() }
 
@@ -220,7 +245,10 @@ impl SocketBoard {
         let mut chunk = [0u8; 4096];
         loop {
             while let Some(nl) = self.pending[self.scanned..].iter().position(|&b| b == b'\n').map(|i| self.scanned + i) {
-                let line: Vec<u8> = self.pending.drain(..=nl).collect();
+                if nl > self.line_max { return Err(format!("sent a line longer than {} bytes", self.line_max)); }
+                // The line keeps the buffer it arrived in; only what follows it is copied.
+                let rest = self.pending.split_off(nl + 1);
+                let line = std::mem::replace(&mut self.pending, rest);
                 self.scanned = 0;
                 let text = String::from_utf8_lossy(&line);
                 let text = text.trim_end();
@@ -228,7 +256,7 @@ impl SocketBoard {
                 return parse_json(text).map_err(|e| format!("bad message ({e}): {text:.120}"));
             }
             self.scanned = self.pending.len();
-            if self.pending.len() > LINE_MAX { return Err(format!("sent a line longer than {LINE_MAX} bytes")); }
+            if self.pending.len() > self.line_max { return Err(format!("sent a line longer than {} bytes", self.line_max)); }
             let timeout = || format!("no answer within {:?} while the emulator waited for {waiting_for}", self.timeout);
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() { return Err(timeout()); }
@@ -245,11 +273,15 @@ impl SocketBoard {
 
     fn ns(&self, cycle: VirtualCycle) -> u64 { ns_of_cycle(cycle, self.hz) }
 
-    /// The first cycle at which the board must hear from the peer.
-    fn horizon(&self) -> Option<VirtualCycle> {
+    /// The earliest time (ns) the peer's promises let it speak: the next sync's due time.
+    fn horizon_ns(&self) -> Option<u64> {
         let answer = self.unanswered.zip(self.latency).map(|(t, l)| t.saturating_add(l));
-        let ns = match (self.quiet_until, answer) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }?;
-        Some(cycle_of_ns(ns, self.hz))
+        match (self.quiet_until, answer) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
+    }
+    /// The first cycle at which the board must hear from the peer, never the last sync's.
+    fn horizon(&self) -> Option<VirtualCycle> {
+        let c = cycle_of_ns(self.horizon_ns()?, self.hz);
+        Some(self.last_sync.map_or(c, |l| c.max(l.saturating_add(1))))
     }
 
     fn flush_tx(&mut self) -> Result<(), String> {
@@ -271,20 +303,26 @@ impl SocketBoard {
         self.flush()?;
         let deadline = Instant::now() + self.timeout;
         self.stats.syncs += 1;
+        // Nothing the peer says can be stamped before this without breaking a promise.
+        let promised = self.horizon_ns().unwrap_or(t).min(t);
+        self.last_sync = Some(cycle);
         // The peer answers everything it has been sent in this exchange (with later `t` where it
         // must), or names the time it will speak next in `quiet_until`.
         self.unanswered = None;
         loop {
             let msg = self.read_msg(&format!("done after sync t={t}"), deadline)?;
             match msg.str_or("type", "") {
-                "uart_rx" => self.schedule_rx(&msg, cycle)?,
+                "uart_rx" => self.schedule_rx(&msg, cycle, promised)?,
                 "log" => eprintln!("[socket] {}: {}", if self.name.is_empty() { &self.peer } else { &self.name }, msg.str_or("line", "")),
                 "done" => {
                     self.quiet_until = required_time(&msg, "quiet_until")?;
                     if msg.get("latency").is_some() { self.latency = time_field(&msg, "latency")?; }
-                    if self.quiet_until.is_some_and(|q| q <= t) && !self.warned_busy {
-                        self.warned_busy = true;
-                        eprintln!("[socket] peer {}: quiet_until {} is not after the sync at t={t}: the board syncs at every device tick until it is", self.peer, self.quiet_until.unwrap_or(0));
+                    if let Some(q) = self.quiet_until.filter(|&q| q <= t) {
+                        if !self.warned_busy {
+                            self.warned_busy = true;
+                            eprintln!("[socket] peer {}: quiet_until {q} is not after the sync at t={t}: taken as t + {MIN_QUIET_NS} ns, an exchange every {} µs while it lasts", self.peer, MIN_QUIET_NS / 1000);
+                        }
+                        self.quiet_until = Some(t.saturating_add(MIN_QUIET_NS));
                     }
                     return Ok(());
                 }
@@ -295,23 +333,37 @@ impl SocketBoard {
 
     /// `uart_rx {t, pin, baud, data, bits?}`: byte i completes `(i + 1) * bits` bit times after
     /// its line is free, which is `t` or the end of what that pin already carries, and never
-    /// before the sync that delivered it.
-    fn schedule_rx(&mut self, msg: &Json, now: VirtualCycle) -> Result<(), String> {
+    /// before the sync that delivered it. A `t` before `promised` broke a promise: counted, and
+    /// warned about once.
+    fn schedule_rx(&mut self, msg: &Json, now: VirtualCycle, promised: u64) -> Result<(), String> {
         let t = time_field(msg, "t")?.ok_or("uart_rx without t")?;
         let pin = int_field(msg, "pin", 0..=63)? as u8;
         let baud = int_field(msg, "baud", 1..=20_000_000)? as u32;
         let bits = match msg.get("bits") { None => 10, Some(_) => int_field(msg, "bits", 1..=32)? as u64 };
-        let data = msg.get("data").and_then(|d| d.as_str()).and_then(hex_decode).ok_or("uart_rx: data must be hex")?;
-        let start = cycle_of_ns(t, self.hz).max(self.line_free[pin as usize]).max(now);
-        let char_cycles = |n: u64| (n as u128 * bits as u128 * self.hz as u128).div_ceil(baud as u128).min(u64::MAX as u128) as u64;
-        for (i, &byte) in data.iter().enumerate() {
-            let due = start.saturating_add(char_cycles(i as u64 + 1));
-            self.rx.insert((due, self.rx_seq), (pin, baud, byte));
-            self.rx_seq += 1;
-            self.line_free[pin as usize] = due;
+        let mut data = msg.get("data").and_then(|d| d.as_str()).and_then(hex_decode).ok_or("uart_rx: data must be hex")?;
+        if t < promised {
+            self.stats.late_rx += 1;
+            if !self.warned_late {
+                self.warned_late = true;
+                eprintln!("[socket] peer {}: uart_rx at t={t} is earlier than its quiet_until/latency allowed (t={promised}); delivered from the sync at t={}", self.peer, self.ns(now));
+            }
         }
-        self.stats.rx_bytes += data.len() as u64;
+        if data.is_empty() { return Ok(()); }
+        if self.rx_queued.saturating_add(data.len()) > self.rx_max {
+            return Err(format!("would hold {} received bytes not yet on the line; the limit is {}", self.rx_queued + data.len(), self.rx_max));
+        }
+        data.shrink_to_fit();
+        let start = cycle_of_ns(t, self.hz).max(self.line_free[pin as usize]).max(now);
+        let run = RxRun { pin, baud, bits, start, data, next: 0 };
+        self.line_free[pin as usize] = run.due(run.data.len() - 1, self.hz);
+        self.stats.rx_bytes += run.data.len() as u64;
+        self.rx_queued += run.data.len();
+        self.rx.push(run);
         Ok(())
+    }
+    /// The run whose next byte is due first (the earlier message on a tie), and when.
+    fn next_rx(&self) -> Option<(usize, VirtualCycle)> {
+        self.rx.iter().enumerate().map(|(i, r)| (i, r.due(r.next, self.hz))).min_by_key(|&(i, due)| (due, i))
     }
 
     /// Give up on the peer: the CLI ends the run, a test reads `report()`.
@@ -324,7 +376,7 @@ impl SocketBoard {
             eprintln!("[emu] stop: the board's peer failed at t={} ns; output files may be incomplete", self.ns(self.now));
             std::process::exit(1);
         }
-        self.quiet_until = None; self.latency = None; self.unanswered = None; self.tx = None; self.rx.clear();
+        self.quiet_until = None; self.latency = None; self.unanswered = None; self.tx = None; self.rx.clear(); self.rx_queued = 0;
     }
     fn check(&mut self, r: Result<(), String>) { if let Err(e) = r { self.fail(e); } }
 }
@@ -338,7 +390,11 @@ impl BoardModel for SocketBoard {
         let t = self.ns(cycle);
         self.stats.tx_bytes += 1;
         if let Some(run) = &mut self.tx {
-            if run.route == route && run.data.len() < TX_RUN_MAX { run.data.push(byte); run.t_end = t; self.note_event(t); return; }
+            // Bytes written faster than the line drains them share a message; a byte written half
+            // a character time or more after the last one starts a new one (no baud: a new time).
+            let gap = t.saturating_sub(run.t_end) as u128;
+            let together = route.baud.map_or(gap == 0, |b| gap * b as u128 * 2 < 10 * 1_000_000_000);
+            if run.route == route && run.data.len() < TX_RUN_MAX && together { run.data.push(byte); run.t_end = t; self.note_event(t); return; }
         }
         let r = self.flush_tx();
         self.check(r);
@@ -347,9 +403,13 @@ impl BoardModel for SocketBoard {
     }
     fn uart_rx(&mut self, cycle: VirtualCycle) -> Vec<UartInput> {
         let mut out: Vec<UartInput> = Vec::new();
-        while let Some((&(due, seq), &(pin, baud, byte))) = self.rx.first_key_value() {
+        while let Some((i, due)) = self.next_rx() {
             if due > cycle { break; }
-            self.rx.remove(&(due, seq));
+            let run = &mut self.rx[i];
+            let (pin, baud, byte) = (run.pin, run.baud, run.data[run.next]);
+            run.next += 1;
+            if run.next == run.data.len() { self.rx.remove(i); }
+            self.rx_queued -= 1;
             match out.last_mut() {
                 Some(last) if last.pin == pin && last.baud == baud => last.data.push(byte),
                 _ => out.push(UartInput::new(pin, baud, vec![byte])),
@@ -358,7 +418,7 @@ impl BoardModel for SocketBoard {
         out
     }
     fn next_deadline(&self) -> Option<VirtualCycle> {
-        let rx = self.rx.first_key_value().map(|(&(due, _), _)| due);
+        let rx = self.next_rx().map(|(_, due)| due);
         match (rx, self.horizon()) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
     }
     fn advance_to(&mut self, cycle: VirtualCycle) {
@@ -378,6 +438,7 @@ impl BoardModel for SocketBoard {
         let who = if self.name.is_empty() { self.peer.clone() } else { format!("{} ({})", self.peer, self.name) };
         let s = self.stats;
         let mut r = format!("[socket] peer {who}: {} syncs, {} bytes to it, {} from it, {} guest reset{}", s.syncs, s.tx_bytes, s.rx_bytes, s.resets, if s.resets == 1 { "" } else { "s" });
+        if s.late_rx > 0 { r.push_str(&format!(", {} uart_rx stamped before the peer's promises allowed", s.late_rx)); }
         if let Some(e) = &self.failed { r.push('\n'); r.push_str(e); }
         r
     }

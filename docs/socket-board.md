@@ -38,9 +38,10 @@ The emulator runs freely until `min(quiet_until, first event since the last sync
 then sends `sync` and waits for the peer's `done`. A GNSS source that speaks once a second costs
 one exchange per emulated second; a modem with a 1 ms latency costs at most one per millisecond of
 traffic, not one per byte. The board sees time at device ticks, so a sync, and a received
-byte, can come up to one scheduling quantum (64 instructions) after the time it was due. The
-peer answers only after a `sync` and stops at `done`; with a deterministic peer the whole run is
-reproducible.
+byte, can come up to one scheduling quantum (64 instructions) after the time it was due. There
+is never more than one sync at one emulated cycle. The emulator reads what the peer sends only
+during a sync, up to `done` (lines sent between syncs are read at the next one, as if sent then);
+with a deterministic peer the whole run is reproducible.
 
 **At a sync, send everything you will say in reply to what you have received so far, with a
 later `t` where needed, or set `quiet_until` to the time you will next speak.** A sync settles the
@@ -49,14 +50,24 @@ is usually later than the sync that brought the command, so it goes out at that 
 `t`; the emulator holds it until then. A peer that waits for the next sync to answer instead may
 never get one, because none comes until the guest transmits again or `quiet_until` is reached.
 
-`quiet_until` at or before the sync's `t` means "I may speak at any moment": the board then syncs
-at every device tick until a later one, which is correct but costs a round trip per quantum (the
-board says so once on stderr).
+A `uart_rx` stamped before the sync that brings it starts on the line at that sync. One stamped
+earlier than the peer's own promises allowed (before `quiet_until`, or less than `latency` after
+what it answers) is delivered the same way, counted in the board's report line and warned about
+once on stderr: the run stays deterministic, but the peer has a bug.
+
+`quiet_until` at or before the sync's `t` means "I may speak at any moment". The board takes it as
+`t` + 10 µs (`MIN_QUIET_NS`), and says so once on stderr: such a peer costs one exchange per 10 µs
+of emulated time, 100,000 per emulated second, while it lasts. Name a real time instead.
 
 If the peer closes the connection, sends something malformed, does not finish its answer
 (`hello` or `done`) within 30 s of wall time from when the message went out, or takes nothing the
 emulator writes for 30 s, the run stops with exit status 1, the board's line of the report and an
-error naming the peer. It never waits silently or carries on without the board. A board cannot
+error naming the peer. So does a line longer than 16 MiB, or received bytes beyond 64 MiB held
+before they are on the line (97 minutes at 115200 baud). The queue keeps one byte of memory per
+received byte; send a long recording as `uart_rx` messages of about 1 MiB of data, because each
+message is held twice more while it is parsed (64 MiB in 1 MiB messages peaked at 70 MB above an
+idle run on macOS, in 4 MiB messages at 208 MB). It never waits silently or carries on without the
+board. A board cannot
 stop the run cleanly, so the rest of the end-of-run report is skipped, and output files (`--vcd`,
 `--pcap`, `--wav`, profiles) may be incomplete.
 
@@ -74,7 +85,7 @@ message types only on request in `hello`.
 | Message | When |
 | --- | --- |
 | `{"type":"hello","version":1,"chip":"esp32"}` | first, once |
-| `{"type":"uart_tx","t":T,"t_end":T2,"port":1,"tx":[27],"rx":26,"baud":115273,"data":"41540d"}` | the guest wrote these bytes to a UART's TX FIFO, the first at `t`, the last at `t_end`; consecutive bytes on one route share a message (at most 256) |
+| `{"type":"uart_tx","t":T,"t_end":T2,"port":1,"tx":[27],"rx":26,"baud":115273,"data":"41540d"}` | the guest wrote these bytes to a UART's TX FIFO, the first at `t`, the last at `t_end`. Bytes on one route written less than half a character time apart at its baud share a message (a FIFO fill, at most 256 bytes); a later byte starts a new one, so separate writes, such as two commands, keep their own times. Without a configured baud only bytes written at the same time share one |
 | `{"type":"reset","t":T,"cause":12}` | the guest came out of a chip reset with the reset-reason code the ROM reports (a wake from deep sleep is one too); the board, and the peer, are not reset |
 | `{"type":"sync","t":T}` | emulated time is at `t`; answer with your output, then `done` |
 | `{"type":"stop","t":T}` | the run is over; then the connection closes |

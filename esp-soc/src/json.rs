@@ -149,7 +149,11 @@ impl Parser<'_> {
     }
     fn string(&mut self) -> Result<String, String> {
         self.expect(b'"')?;
-        let mut out = Vec::new();
+        // The plain run up to the first quote, escape or control character is copied at once, so
+        // a long string (hex payloads) is one exact allocation rather than a doubling buffer.
+        let start = self.i;
+        while self.peek().is_some_and(|c| c != b'"' && c != b'\\' && c >= 32) { self.i += 1; }
+        let mut out = self.s[start..self.i].to_vec();
         loop {
             let Some(c) = self.peek() else { return Err("unterminated string".into()); };
             self.i += 1;
