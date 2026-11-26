@@ -8,7 +8,8 @@ classic-softap-NOTICE.txt and softap-NOTICE.txt.
 
 They are examples/wifi-apsta (this repository, MIT) built with ESP-IDF v5.5.4 for each chip, as
 described in that example's README: Xtensa GCC esp-14.2.0_20260121 for the classic ESP32 and the
-S3, RISC-V GCC esp-14.2.0_20260121 for the C3 and C6. ESP-IDF sources and pinned submodules:
+S3, RISC-V GCC esp-14.2.0_20260121 for the C3 and C6. Two clean builds in different directories
+produced identical binaries. ESP-IDF sources and pinned submodules:
 https://github.com/espressif/esp-idf/tree/v5.5.4
 
 Linked components and licences

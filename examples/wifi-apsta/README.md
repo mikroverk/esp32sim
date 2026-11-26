@@ -38,8 +38,8 @@ cp build/wifi_apsta.bin ../../web/wasm/fw/public/classic-wifi_apsta.bin   # s3-,
 
 The bootloader and partition table come out byte for byte as `examples/wifi-softap`'s for each
 chip, so the images run with `web/wasm/fw/public/{classic,s3,c3,c6}-softap-bootloader.bin` and
-`…-softap-ptable.bin`. The committed images, one build each (ESP-IDF v5.5.4, GCC
-esp-14.2.0_20260121):
+`…-softap-ptable.bin`. Two clean builds in different build directories produced identical
+binaries (ESP-IDF v5.5.4, GCC esp-14.2.0_20260121):
 
     91edbc46bb89ab596d04a4b77d6c5fe4b0e666797023c4bacfe66e3a95a20e71  classic-wifi_apsta.bin
     469a3e4da43100bafc41936d4ced7a42ba821466509394aa0f0b888db7b6898b  s3-wifi_apsta.bin
