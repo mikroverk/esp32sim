@@ -1,0 +1,139 @@
+{
+  "method": "SHA-256 of type-resolved wasm-dis body text after normalizing numeric symbol suffixes; same hashes may map multiple duplicate bodies",
+  "renamed_body_matches": {
+    "$_RNvMNtCs7BN0Qgg7Pxq_10esp_periph4gpioNtB2_4Gpio14set_pin_config_1149": [
+      "$_RNvMNtCs7BN0Qgg7Pxq_10esp_periph4gpioNtB2_4Gpio14set_pin_config_1145"
+    ],
+    "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4mret_1145": [
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4mret_1151",
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4mret_1376"
+    ],
+    "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4mret_1355": [
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4mret_1151",
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4mret_1376"
+    ],
+    "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4trap_1144": [
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4trap_1150",
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4trap_1353"
+    ],
+    "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4trap_1348": [
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4trap_1150",
+      "$_RNvMs_NtCs90MCovhM7DA_10riscv_rv325stateNtB4_3Cpu4trap_1353"
+    ],
+    "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1049": [
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1048",
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1166",
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_775"
+    ],
+    "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1167": [
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1048",
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1166",
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_775"
+    ],
+    "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_776": [
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1048",
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1166",
+      "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_775"
+    ],
+    "$_RNvNtCshrt81WbuBY1_5alloc5boxed14box_new_uninit_1029": [
+      "$_RNvNtCshrt81WbuBY1_5alloc5boxed14box_new_uninit_1028"
+    ],
+    "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1057": [
+      "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1056",
+      "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1178"
+    ],
+    "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1179": [
+      "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1056",
+      "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1178"
+    ],
+    "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1058": [
+      "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1057"
+    ],
+    "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1180": [
+      "$_RNvXNtCs9VM8swl6xFI_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1179"
+    ],
+    "$_RNvXs0_NtCs9VM8swl6xFI_7esp_soc3socNtB5_4StopNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1170": [
+      "$_RNvXs0_NtCs9VM8swl6xFI_7esp_soc3socNtB5_4StopNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1169"
+    ],
+    "$_RNvXs0_NtCs9VM8swl6xFI_7esp_soc7machineNtB5_12ScriptActionNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1375": [
+      "$_RNvXs0_NtCs9VM8swl6xFI_7esp_soc7machineNtB5_12ScriptActionNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1369"
+    ],
+    "$_RNvXs13_NtCseMiYMGtzinh_8emu_core4coreNtB6_13LifecycleKindNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1204": [
+      "$_RNvXs13_NtCseMiYMGtzinh_8emu_core4coreNtB6_13LifecycleKindNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1203"
+    ],
+    "$_RNvXs6_NtCs90MCovhM7DA_10riscv_rv326decodeNtB5_2OpNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1345": [
+      "$_RNvXs6_NtCs90MCovhM7DA_10riscv_rv326decodeNtB5_2OpNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1344"
+    ],
+    "$_RNvXs7_NtCseMiYMGtzinh_8emu_core3busNtB5_5FaultNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_775": [
+      "$_RNvXs7_NtCseMiYMGtzinh_8emu_core3busNtB5_5FaultNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_774"
+    ],
+    "$_RNvXsW_NtNtCs8hZryZq3oeI_4core3fmt3nummNtB7_5Debug3fmt_1247": [
+      "$_RNvXsW_NtNtCs8hZryZq3oeI_4core3fmt3nummNtB7_5Debug3fmt_1246"
+    ],
+    "$_RNvXsZ_NtNtCs8hZryZq3oeI_4core3fmt3numjNtB7_5Debug3fmt_1248": [
+      "$_RNvXsZ_NtNtCs8hZryZq3oeI_4core3fmt3numjNtB7_5Debug3fmt_1247"
+    ],
+    "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1135": [
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1134",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1335",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_754",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_995"
+    ],
+    "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1336": [
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1134",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1335",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_754",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_995"
+    ],
+    "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_755": [
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1134",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1335",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_754",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_995"
+    ],
+    "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_996": [
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1134",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1335",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_754",
+      "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_995"
+    ],
+    "$_RNvXsr_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1376": [
+      "$_RNvXsr_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1370"
+    ]
+  },
+  "unmatched_removed": [
+    "$_RINvNtCs90MCovhM7DA_10riscv_rv324exec12step_outcomeNtNtCs2LlbBbCcGAn_7esp32p43bus6SocBusECsiFoDlLiyFRl_13esp32sim_wasm",
+    "$_RINvNtCs90MCovhM7DA_10riscv_rv324exec12step_outcomeNtNtCs3m4JQJ6BpI6_7esp32c33bus6SocBusECsiFoDlLiyFRl_13esp32sim_wasm",
+    "$_RINvNtCs90MCovhM7DA_10riscv_rv324exec12step_outcomeNtNtCscfIrRrAE3Wr_7esp32c63bus6SocBusEBR_",
+    "$_RINvNtCs90MCovhM7DA_10riscv_rv324exec12step_outcomeNtNtCscfIrRrAE3Wr_7esp32c63bus6SocBusECs2LlbBbCcGAn_7esp32p4",
+    "$_RINvNtCs90MCovhM7DA_10riscv_rv324exec12step_outcomeNtNtCscfIrRrAE3Wr_7esp32c63bus6SocBusECsiFoDlLiyFRl_13esp32sim_wasm"
+  ],
+  "unmatched_added": [
+    "$_RINvXNtCs90MCovhM7DA_10riscv_rv324coreNtNtB5_5state3CpuNtNtCseMiYMGtzinh_8emu_core4core4Core3runNtNtCs2LlbBbCcGAn_7esp32p43bus6SocBusECsiFoDlLiyFRl_13esp32sim_wasm",
+    "$_RINvXNtCs90MCovhM7DA_10riscv_rv324coreNtNtB5_5state3CpuNtNtCseMiYMGtzinh_8emu_core4core4Core3runNtNtCscfIrRrAE3Wr_7esp32c63bus6SocBusEB1A_",
+    "$_RINvXNtCs90MCovhM7DA_10riscv_rv324coreNtNtB5_5state3CpuNtNtCseMiYMGtzinh_8emu_core4core4Core4stepNtNtCs2LlbBbCcGAn_7esp32p43bus6SocBusECsiFoDlLiyFRl_13esp32sim_wasm",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E9step_coreBQ_",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E9step_coreCs2LlbBbCcGAn_7esp32p4"
+  ],
+  "changed": {
+    "$_RINvNtNtCs9VM8swl6xFI_7esp_soc3ble4vhci7installNtNtCsdVb23m52xEC_5esp323bus6SocBusEBN_": "suffix-only",
+    "$_RINvXNtCs90MCovhM7DA_10riscv_rv324coreNtNtB5_5state3CpuNtNtCseMiYMGtzinh_8emu_core4core4Core4stepINtNtNtCs9VM8swl6xFI_7esp_soc7machine7modeled12RecordingBusNtNtCs2LlbBbCcGAn_7esp32p43bus6SocBusEECsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMNtCs3m4JQJ6BpI6_7esp32c36ble_lcNtB2_5BleLc7command": "suffix-only",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineINtNtCs2LlbBbCcGAn_7esp32p43soc7Esp32p4NtBP_6RevGe3EE11step_blocksCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineINtNtCs2LlbBbCcGAn_7esp32p43soc7Esp32p4NtBP_6RevGe3EE9step_coreCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCs3m4JQJ6BpI6_7esp32c33soc2C3E11step_blocksCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCs3m4JQJ6BpI6_7esp32c33soc2C3E9step_coreCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E11step_blocksCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E15run_until_cycleBQ_": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E15run_until_cycleCs2LlbBbCcGAn_7esp32p4": "body-changed",
+    "$_RNvMNtCs9VM8swl6xFI_7esp_soc7machineINtB2_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E9step_coreCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMs0_NtCs3m4JQJ6BpI6_7esp32c36ble_lcNtB5_5BleLc7service": "suffix-only",
+    "$_RNvMs0_NtNtCs9VM8swl6xFI_7esp_soc7machine7modeledINtB7_7MachineNtNtCs3m4JQJ6BpI6_7esp32c33soc2C3E17step_core_modeledCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMs0_NtNtCs9VM8swl6xFI_7esp_soc7machine7modeledINtB7_7MachineNtNtCscfIrRrAE3Wr_7esp32c63soc2C6E17step_core_modeledCsiFoDlLiyFRl_13esp32sim_wasm": "body-changed",
+    "$_RNvMsu_NtCs2LlbBbCcGAn_7esp32p46periphNtB5_11Peripherals7write32": "suffix-only",
+    "$_RNvXs1_NtCs2LlbBbCcGAn_7esp32p43socNtNtB7_3bus6SocBusNtNtCs9VM8swl6xFI_7esp_soc3soc6SocBus8boot_app": "suffix-only",
+    "$_RNvXs_NtCs3m4JQJ6BpI6_7esp32c33socNtNtB6_3bus6SocBusNtNtCs9VM8swl6xFI_7esp_soc3soc6SocBus11ble_command": "suffix-only",
+    "$_RNvXs_NtCs3m4JQJ6BpI6_7esp32c33socNtNtB6_3bus6SocBusNtNtCs9VM8swl6xFI_7esp_soc3soc6SocBus8boot_app": "suffix-only",
+    "$_RNvXs_NtCsdVb23m52xEC_5esp323socNtNtB6_3bus6SocBusNtNtCs9VM8swl6xFI_7esp_soc3soc6SocBus10load_bytes": "suffix-only"
+  }
+}

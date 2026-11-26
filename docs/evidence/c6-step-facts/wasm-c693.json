@@ -1,0 +1,689 @@
+{
+  "method": "wasm-dis named function text with type indices resolved to exact signatures; other layout differences retained",
+  "totals": {
+    "identical": 3508,
+    "removed": 41,
+    "added": 41,
+    "changed": 31
+  },
+  "rows": [
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv324exec12step_outcomeNtNtCs2oNLKspo05m_7esp32c63bus6SocBusEBR_",
+      "status": "removed",
+      "base_sha256": "1b8c9b97532633b183532ed4b1b8b7f9af351dbab7028192c9b6d91b24e4c1a8",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv324exec12step_outcomeNtNtCs2oNLKspo05m_7esp32c63bus6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "removed",
+      "base_sha256": "705cb1dee3f0a1826f1840f8af044c30798bd23b5b1de699033468c6f4c09742",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv324exec12step_outcomeNtNtCs2oNLKspo05m_7esp32c63bus6SocBusECs4jLQl22cn6Q_7esp32p4",
+      "status": "removed",
+      "base_sha256": "4273b06e2f8cb0802f72663daa6286d6a6f328fbabb67db4699586257bc66d1b",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv324exec12step_outcomeNtNtCs4jLQl22cn6Q_7esp32p43bus6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "removed",
+      "base_sha256": "c80f79caa69586a1f7e5ee0745c9d7d6a3eb9daceb16a8a61057b2e80e3f41dd",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv324exec12step_outcomeNtNtCsdo6hHi0GJOT_8esp32s313soc6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "removed",
+      "base_sha256": "4f4449f8fe544887824d9a663c1ab9b171a692dacefe1e1a8054d1d53ba69ca4",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv324exec12step_outcomeNtNtCsj5lEqAkFBxn_7esp32c33bus6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "removed",
+      "base_sha256": "d453c07b7ffd746eb14961f035c328e0c74637038042f4ca84e3094d5298d9d8",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RINvNtCs9lLG9CycX8R_10riscv_rv325block3runNtNtCsdo6hHi0GJOT_8esp32s313soc6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "f6075e63f6791b82dc02dff759cea7ecdd18bea0cdcea7374edc92f4d4ce86b5"
+    },
+    {
+      "name": "$_RINvNtNtCs1NWXOa1r5YX_7esp_soc3ble4vhci7installNtNtCsn4VjfUHh5z_5esp323bus6SocBusEBN_",
+      "status": "changed",
+      "base_sha256": "5905bb53c12544bb9cf670d33834b005970978a1e13cc66a53dab5f980be050a",
+      "candidate_sha256": "6e7e5f2392b7894f10a23350a997fa709d1ef4cb686c9d183a2936a4406e9812"
+    },
+    {
+      "name": "$_RINvXNtCs9lLG9CycX8R_10riscv_rv324coreNtNtB5_5state3CpuNtNtCs2cjwgcDKekk_8emu_core4core4Core3runNtNtCs4jLQl22cn6Q_7esp32p43bus6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "ea43a010c099b8ed2a9dfa91593f966d2aa2aed34bde29de74396e9d3d8d7ff7"
+    },
+    {
+      "name": "$_RINvXNtCs9lLG9CycX8R_10riscv_rv324coreNtNtB5_5state3CpuNtNtCs2cjwgcDKekk_8emu_core4core4Core4stepINtNtNtCs1NWXOa1r5YX_7esp_soc7machine7modeled12RecordingBusNtNtCs4jLQl22cn6Q_7esp32p43bus6SocBusEECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "5be39af0df9bd18b61c842a652da24091d514021a70c187c41b04879873bb6e9",
+      "candidate_sha256": "d995984241c827bca26d9df0b54720f0431f34f7d4d3f00b9e76cfc03cc550bd"
+    },
+    {
+      "name": "$_RINvXNtCs9lLG9CycX8R_10riscv_rv324coreNtNtB5_5state3CpuNtNtCs2cjwgcDKekk_8emu_core4core4Core4stepNtNtCs4jLQl22cn6Q_7esp32p43bus6SocBusECs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "74fc8386f9ef3a3570263776dc8a4aceb7b3aca8ffa0620fd4ec744765803f9a"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineINtNtCs4jLQl22cn6Q_7esp32p43soc7Esp32p4NtBP_6RevGe3EE11step_blocksCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "af088545cb5d3478f4c60e92c92012cdd0921acccdc774b827b93f9b9bb6576f",
+      "candidate_sha256": "b7526018c13869b31004c39d5934af1379b03e7268a1cdb525e9bc9b9616a8c7"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineINtNtCs4jLQl22cn6Q_7esp32p43soc7Esp32p4NtBP_6RevGe3EE9step_coreCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "37a768ef69279d0fdcd7828984c5697017730ef0a9cb3fa685b971d1d9831e3a",
+      "candidate_sha256": "0afa42aeac9c666fe5fb2342945fcc76977cd6066457a7eef140e77e7c97336f"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCs2oNLKspo05m_7esp32c63soc2C6E11step_blocksBQ_",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "a8e3178435c45f6575ca3549f28702406def14f9a503ab781c5be118867e61ec"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCs2oNLKspo05m_7esp32c63soc2C6E11step_blocksCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "b9373c52d60a2bde4fe4ce91bc1e69e381b68e9e0429393f477a37185ef51661",
+      "candidate_sha256": "ffd2747964cdd7b227451ac9adcf6ee15d1a2abc00fc543d8bba53a9c8bdc0cf"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCs2oNLKspo05m_7esp32c63soc2C6E15run_until_cycleBQ_",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "d0e33042212091ffd7401cdedf4aa386da9a636d46984020b2ea1753403458e7"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCs2oNLKspo05m_7esp32c63soc2C6E15run_until_cycleCs4jLQl22cn6Q_7esp32p4",
+      "status": "changed",
+      "base_sha256": "4fb6cb4e361ca7829236186bcce0a91897f2f39387bd8e8e517e64188ef73e2d",
+      "candidate_sha256": "f6377082f74b8eba4eac43e7e845246b53ec85e5bfda19d61443fd3ab788bd9f"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCs2oNLKspo05m_7esp32c63soc2C6E9step_coreCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "201f5aa82e91029b1d5ddf238770ed98b6d2f8922891dd4f67b7de761899b67f",
+      "candidate_sha256": "3279cafb1d9b151c6df6f4bc5982820f7eaa01f0b5260990ba9a890e16cef5b3"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCsdo6hHi0GJOT_8esp32s313soc3S31E11step_blocksCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "a83ebfb66e213a46b6125285550816a66f986d8111d61196be7386fbf217bce0",
+      "candidate_sha256": "033fe9afb80a46bfa7ce176915d34226f7d110055c62585001efab549771056d"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCsdo6hHi0GJOT_8esp32s313soc3S31E9step_coreCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "e8e0e9785e22e76776a3519e27800c14dab2623f3194094beb0c74444f56487e",
+      "candidate_sha256": "1d63fd2056fd365e43267ee7a9e7f6479836a7de7573302fc6efaa62ee2ea22c"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCsj5lEqAkFBxn_7esp32c33soc2C3E11step_blocksCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "429edd754fea70e0a8a7035e73ce40c4621ce9140dc66452860ee7cfeb3baa70",
+      "candidate_sha256": "5ce7c0b91d9d6eb9f796c06358684e8eed7af5badaed88a47f630012fc405b55"
+    },
+    {
+      "name": "$_RNvMNtCs1NWXOa1r5YX_7esp_soc7machineINtB2_7MachineNtNtCsj5lEqAkFBxn_7esp32c33soc2C3E9step_coreCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "a8c38841df5bdbc9cf5fa6da49d2c5389dd144bd40630b1fb97e447aed2a3e7d",
+      "candidate_sha256": "dec22d8e201cad8e01af5a1e1d0a8a57f31ee06b91c48799e8cfe68515144924"
+    },
+    {
+      "name": "$_RNvMNtCs2oNLKspo05m_7esp32c63bleNtB2_3Ble6enable",
+      "status": "changed",
+      "base_sha256": "6b101de5869d33511569870cf72805f59601ce4045930f54917efe39fc6dad03",
+      "candidate_sha256": "05afe6fe2a5d93d1189f3bd6f3c5bf32b489dd5ff4a3050893829ccab5fd678d"
+    },
+    {
+      "name": "$_RNvMNtCs6s9kdtrpLCf_10esp_periph4gpioNtB2_4Gpio14set_pin_config_1685",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "a84bc62162cb13e09b200f832f2350a7d609d5491e897ab471cbc759c1973aae"
+    },
+    {
+      "name": "$_RNvMNtCs6s9kdtrpLCf_10esp_periph4gpioNtB2_4Gpio14set_pin_config_1686",
+      "status": "removed",
+      "base_sha256": "1b862620645f179805d92afb89e55b24711c254e7eb9a5bd74ba3d25d36a0cc4",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvMNtCsj5lEqAkFBxn_7esp32c36ble_lcNtB2_5BleLc7command",
+      "status": "changed",
+      "base_sha256": "e684445448134de3298f3205ea9570145ca9a8b4447384e6b9b3354f5a7d4ad3",
+      "candidate_sha256": "a5bf6266bdd6f7d5c016fdcbce23b81dfcd0bc032ee4d0f1691d03a89d88df5a"
+    },
+    {
+      "name": "$_RNvMs0_NtCs2oNLKspo05m_7esp32c63netNtB5_7Network3add",
+      "status": "changed",
+      "base_sha256": "f4081c2a23eca67f67b83b26ddfb81e0aaf596422341cc53ac044b62d6596a73",
+      "candidate_sha256": "79a1c9a46947fb9552aef07676f739cd55c3257d4e1fccdf636d0dedfad72109"
+    },
+    {
+      "name": "$_RNvMs0_NtCs2oNLKspo05m_7esp32c63netNtB5_7Network4step",
+      "status": "removed",
+      "base_sha256": "49b0fcd8b65ef1e61867cb055effa3a2c00682c241b111da83b423d222416b9f",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvMs0_NtCs2oNLKspo05m_7esp32c63netNtB5_7Network9run_until",
+      "status": "changed",
+      "base_sha256": "0958b26ba6db8ebd9a56dcd653226cec9bf291d73bf6710a6b8b55fdd9520f68",
+      "candidate_sha256": "a2c2d052b0ef0014dc3806f88f571db44d1ee86155d84f52b81361a5c4d4a21b"
+    },
+    {
+      "name": "$_RNvMs0_NtCsj5lEqAkFBxn_7esp32c36ble_lcNtB5_5BleLc7service",
+      "status": "changed",
+      "base_sha256": "d385c3be0bdfc77f194cdb8709530245da7158710cd2f2257654397d165fa49c",
+      "candidate_sha256": "d3601ed8e91fd670b4e693893188381a4058dc2fa2687427d5ff7804f218694d"
+    },
+    {
+      "name": "$_RNvMs0_NtNtCs1NWXOa1r5YX_7esp_soc7machine7modeledINtB7_7MachineNtNtCs2oNLKspo05m_7esp32c63soc2C6E17step_core_modeledCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "cb444a801f54cc3fb5078da3a47c4bfb4e943ee1aee8646273bba236659b70b8",
+      "candidate_sha256": "d85db1398011f4756bd7dc285c423ebd99ae15d28bbfa7c8adfcf906ebdbbb28"
+    },
+    {
+      "name": "$_RNvMs0_NtNtCs1NWXOa1r5YX_7esp_soc7machine7modeledINtB7_7MachineNtNtCsdo6hHi0GJOT_8esp32s313soc3S31E17step_core_modeledCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "0a86357f414573ea673348a5b3b5bf1b42844ce60c9e372d3fac71f4ea160e5c",
+      "candidate_sha256": "7ad1c2c08e5a8fe05ad37df0d453008bce2166875fc432af9ea02468ed0bebe2"
+    },
+    {
+      "name": "$_RNvMs0_NtNtCs1NWXOa1r5YX_7esp_soc7machine7modeledINtB7_7MachineNtNtCsj5lEqAkFBxn_7esp32c33soc2C3E17step_core_modeledCs3rs9EW0OYux_13esp32sim_wasm",
+      "status": "changed",
+      "base_sha256": "afebb38bd98ef4418db0c51e836b349acd732b07021731f913e3c5f6287b9a04",
+      "candidate_sha256": "ce3ee148009cea3d1c506b67fbc1a282cd23d6c234164ada22c08c4acc825596"
+    },
+    {
+      "name": "$_RNvMs1_NtCs2oNLKspo05m_7esp32c65radioNtB5_10Ieee8021547receive",
+      "status": "changed",
+      "base_sha256": "39d872cf4527f89e30d34e021e355842e39934f932eb6728a693b16f3e75b94d",
+      "candidate_sha256": "270dd2dacba83d2922049c9bddc436234fece92f055423fa3a5e35778de019be"
+    },
+    {
+      "name": "$_RNvMs1_NtNtCs1NWXOa1r5YX_7esp_soc3ble4peerNtB5_4Peer13report_nearby",
+      "status": "changed",
+      "base_sha256": "5c0204b05429b8bf650737f67d95af946029428e06ddf2b4b3c301d94eaf0991",
+      "candidate_sha256": "d92797727c219479cb9fc6e89cffa1d469ac0aa2a4fe1c76ce21c3e27ebba0a1"
+    },
+    {
+      "name": "$_RNvMs_NtCs9lLG9CycX8R_10riscv_rv325stateNtB4_3Cpu4mret_1679",
+      "status": "removed",
+      "base_sha256": "ac7eb043914f68837e4dd60e0459998620bb9e41ad84a7bef8c9cbe0121c90d8",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvMs_NtCs9lLG9CycX8R_10riscv_rv325stateNtB4_3Cpu4mret_1684",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "97efb86890c9682e2a305a99dcb3b5707e1ba015d6903e2c81293246d3fd168d"
+    },
+    {
+      "name": "$_RNvMs_NtCs9lLG9CycX8R_10riscv_rv325stateNtB4_3Cpu4mret_1895",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "96e04860bf20031529737dfabad07f26d14c4c85c4c46e8c91205005a9c168a4"
+    },
+    {
+      "name": "$_RNvMs_NtCs9lLG9CycX8R_10riscv_rv325stateNtB4_3Cpu4mret_1896",
+      "status": "removed",
+      "base_sha256": "6da05c2f0355eced57da304ee1b64df210df38b8b3e5f596c96fd43c79875944",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvMs_NtCsdo6hHi0GJOT_8esp32s313socNtB4_11BoardInputs5apply",
+      "status": "changed",
+      "base_sha256": "1ff03337dfbfb301de0025fc623d1d8e576bc89509c289769dd9cd46c57a7fa7",
+      "candidate_sha256": "1f034bd3ea9b99737e284b17527467b48da77389b7cbba6f3be4d1ea9ac0b1fd"
+    },
+    {
+      "name": "$_RNvMsp_NtCs4jLQl22cn6Q_7esp32p46periphNtB5_11Peripherals7write32",
+      "status": "changed",
+      "base_sha256": "524bc206a2f29c41041948edda849928bc72bc8f24c3274d92fb0c69547be2b6",
+      "candidate_sha256": "b0b231d21d282e89f899af93e85faf3baf6039636b7a7fda1df31b2d54bfd6a7"
+    },
+    {
+      "name": "$_RNvNtCs2oNLKspo05m_7esp32c63ble9intercept",
+      "status": "changed",
+      "base_sha256": "e3c3b7600286351b30470bea85672cf5ad72ae2521fc90065932f59fa5ec80fb",
+      "candidate_sha256": "6eda2df6d6e43b2b7ae2a2149329b50e453e61cc1d6a6a9b1c9282754843a4f1"
+    },
+    {
+      "name": "$_RNvNtCs9lLG9CycX8R_10riscv_rv326decode10decode_for_1683",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "a96b3d23ef9543d2183f8be5b27b06d621ecd3011fd139ec9b606a5b12cf77c9"
+    },
+    {
+      "name": "$_RNvNtCs9lLG9CycX8R_10riscv_rv326decode10decode_for_1912",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "0dcbf98f4bbd5ae1771ff9ab8155c9fd90894d90c68ed340d436f02459873be5"
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1073",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "8d211535d3b8626905744e23c9440912558299757ce2ceaacf4d7ebd26f36296"
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1074",
+      "status": "removed",
+      "base_sha256": "c59bff54417725a9562f01f8986fcac11e1eef9cdfcaff2b5fe6092062787e83",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1273",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "bd143c7d5a039319862bb60306c8628ae2e49f1e6777305b771e6bc946ba7e77"
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1274",
+      "status": "removed",
+      "base_sha256": "e57205ee6c6a2447a504b8001d7fdf184f43d0dd69c2b6deb567ada77ca46a31",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1576",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "9f6b1ca3e6dbc1f74aaa6b5c38010763d2df7a66ef6b97ee4f635b74a5f87e96"
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1577",
+      "status": "removed",
+      "base_sha256": "387c44b4bae4fd9483d0ae2bc48ad2d03f532ebb6c52d099b9073705f8bba2eb",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1702",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "8e20ac5f81ab25cfdde6cb1ffe7ed05dc8a7cdb82b92e163042f7f4597a83595"
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc3fmt6format_1703",
+      "status": "removed",
+      "base_sha256": "d0c088f7e3e740e9a3c20013cde234f3976f952c838e581a25fbc700b3dd3ed8",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc5boxed14box_new_uninit_1557",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "ef9cb8fc7df4f044bd662592576789d75c9145ebc924d391bbf9fe521344736d"
+    },
+    {
+      "name": "$_RNvNtCshrt81WbuBY1_5alloc5boxed14box_new_uninit_1558",
+      "status": "removed",
+      "base_sha256": "bbebe639370f2867edcfca92fc113b005b5be352b54817e68a6e4bfd5e655bad",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1313",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "11003787f6460e86db835b28c55a3799e99330e49ec347568adadce0dc25cfe6"
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1314",
+      "status": "removed",
+      "base_sha256": "da70887c8f446c9c625c7f86ee3836d64f1700609a033a7a9d28d9b196f41635",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1578",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "e950229f60236100b4b556b21d21377fe8bf175e7b77b4229d5ff54f769f86a4"
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1579",
+      "status": "removed",
+      "base_sha256": "50f61788e0d280cd47d3958270f631d14b0b1c73bf06ee985a749f48f7f8de6a",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1713",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "9cea1bb0a788aa75162c5467d09914120e7ae983ee192b9c8877a47803684a82"
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel15uses_gpio_edges_1714",
+      "status": "removed",
+      "base_sha256": "01d697256468a1dac431f1e53e23580e5347e866d45bf774dd77c5ae7c8c96fb",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1314",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "689372f7103c5143546eec8d02d40ab3099ab2f4c089f05bad7b75c06f006d59"
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1315",
+      "status": "removed",
+      "base_sha256": "963dbe712570254c4c9061967d78136e2e5afc42df3935a32c738c2cd942d16b",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1579",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "bf6baa300592827eb04e536ee7e2bec4c035afd620d0631536af1cc30e435528"
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1580",
+      "status": "removed",
+      "base_sha256": "449d5f9b6c2384a80e6ed80735806b15679259273a1ed839ceeabdc2c6fa5190",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1714",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "4807eb6245cdddc7040f02fe96a25802127056f136ebe44c171c007593eb10ef"
+    },
+    {
+      "name": "$_RNvXNtCs1NWXOa1r5YX_7esp_soc5boardNtB2_7NoBoardNtB2_10BoardModel4name_1715",
+      "status": "removed",
+      "base_sha256": "b11473dc35b715d10871eb62334cefea2238f59b35810a2f65b32ebe6eb363d9",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs0_NtCs1NWXOa1r5YX_7esp_soc3socNtB5_4StopNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1705",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "a18ea9e5fb11270f19d72a94a019195f8d9997c36990cac9e9efe4b02730e046"
+    },
+    {
+      "name": "$_RNvXs0_NtCs1NWXOa1r5YX_7esp_soc3socNtB5_4StopNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1706",
+      "status": "removed",
+      "base_sha256": "0b4469d8121b2d3cd40cd641b3a7c4ceef93aceea640cbd7646d025a6e66b83f",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs0_NtCs1NWXOa1r5YX_7esp_soc7machineNtB5_12ScriptActionNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1916",
+      "status": "removed",
+      "base_sha256": "9c53db307c6551d7c6e7a5eee9a22978a9030afa5bf0355ff1ee364f5a321ca1",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs0_NtCs1NWXOa1r5YX_7esp_soc7machineNtB5_12ScriptActionNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1920",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "27e3942fee1373989a93dabfa3bfe57c334775a9cce0fff61b762eb7be52585a"
+    },
+    {
+      "name": "$_RNvXs13_NtCs2cjwgcDKekk_8emu_core4coreNtB6_13LifecycleKindNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1739",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "42ca60e193afa8506277caac6737dcca945934a9ba6c6af09d23a952e191d605"
+    },
+    {
+      "name": "$_RNvXs13_NtCs2cjwgcDKekk_8emu_core4coreNtB6_13LifecycleKindNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1740",
+      "status": "removed",
+      "base_sha256": "18d406278dee393b8b7c03ce443f54e80607bcb82666a5b88d31107a8f58c4aa",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs1_NtCs4jLQl22cn6Q_7esp32p43socNtNtB7_3bus6SocBusNtNtCs1NWXOa1r5YX_7esp_soc3soc6SocBus8boot_app",
+      "status": "changed",
+      "base_sha256": "01917cf78f34db32855cbcc3afb62cacf380edf6ef33852b7cabbe9d285edc3a",
+      "candidate_sha256": "f83b5f37feb21de1b95ecd029b5fcf9b891bf1f2c157c621f40dd5b7e088da8f"
+    },
+    {
+      "name": "$_RNvXs1_NtCsdo6hHi0GJOT_8esp32s313socNtB5_6SocBusNtNtCs1NWXOa1r5YX_7esp_soc3soc6SocBus8boot_app",
+      "status": "changed",
+      "base_sha256": "75272cba276094b0264f1cbe3b4814958d3b5f6d86fb5e3d69c9913cab427aba",
+      "candidate_sha256": "b2c70a254576bb04ebbf187d7fdc950e45b57792e5063c0a24dc17165f6331f4"
+    },
+    {
+      "name": "$_RNvXs2_NtCs2oNLKspo05m_7esp32c65radioNtB5_10Ieee802154NtNtCs6s9kdtrpLCf_10esp_periph6device6Device5write",
+      "status": "changed",
+      "base_sha256": "40375e45f91c982d27dcb7ab0d16da607f62b098a0ce0e5fdde7fe4ae24d50a3",
+      "candidate_sha256": "dc38085afc9f474caf3a4c1a696f7c31a154eb74944d9ea8e90b6c8e07dd9e93"
+    },
+    {
+      "name": "$_RNvXs2_NtCs6s9kdtrpLCf_10esp_periph3i2cNtB5_10Reg8DeviceNtB5_9I2cDevice4read_1766",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "ab8930a8b6afcd81fe511e75cabf59632c8e5aec37e844eb51d3a8a332c114d4"
+    },
+    {
+      "name": "$_RNvXs2_NtCs6s9kdtrpLCf_10esp_periph3i2cNtB5_10Reg8DeviceNtB5_9I2cDevice4read_1767",
+      "status": "removed",
+      "base_sha256": "017e41e8426e316dc2bcd8a14e7be39d4f7d2208991d13536215ff1e09f110ce",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs2_NtCs6s9kdtrpLCf_10esp_periph3i2cNtB5_10Reg8DeviceNtB5_9I2cDevice5start_1767",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "246e2160ef0c9311e334c42a835832512bed902f6a7f3c30928fe496d17384ff"
+    },
+    {
+      "name": "$_RNvXs2_NtCs6s9kdtrpLCf_10esp_periph3i2cNtB5_10Reg8DeviceNtB5_9I2cDevice5start_1768",
+      "status": "removed",
+      "base_sha256": "25e36142d4ce70cf50cd578e9438e0e438b596d600589854b328849a3f60a133",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs2_NtCs6s9kdtrpLCf_10esp_periph3i2cNtB5_10Reg8DeviceNtB5_9I2cDevice5write_1768",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "f773680cb280f81c82714fad8c2dbf4dff9b7a099358d0071187d047607b0ba8"
+    },
+    {
+      "name": "$_RNvXs2_NtCs6s9kdtrpLCf_10esp_periph3i2cNtB5_10Reg8DeviceNtB5_9I2cDevice5write_1769",
+      "status": "removed",
+      "base_sha256": "3623ad3ca470dadc883c3f9e039cac1b9334c6570c5d586fc49c97c5e03599ec",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs6_NtCs9lLG9CycX8R_10riscv_rv326decodeNtB5_2OpNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1886",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "81e60b9fc4042965fa686f054892732bc1c7a815e1bf2f0f23c5a6d4129c5d61"
+    },
+    {
+      "name": "$_RNvXs6_NtCs9lLG9CycX8R_10riscv_rv326decodeNtB5_2OpNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1887",
+      "status": "removed",
+      "base_sha256": "47a0a1f1428359d13b9f24cfe29b257a9f163c3e812eaac6ebbb5339d20ce14a",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs7_NtCs2cjwgcDKekk_8emu_core3busNtB5_5FaultNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1272",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "23a888d75a560a08f148b1533754151cb9d3cd2aeb005220d84a7335b85858c1"
+    },
+    {
+      "name": "$_RNvXs7_NtCs2cjwgcDKekk_8emu_core3busNtB5_5FaultNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1273",
+      "status": "removed",
+      "base_sha256": "097606a35762645ace64aec2f93b58119b5e9793e1813464a7891fd8ac3fed66",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs7_NtCs2cjwgcDKekk_8emu_core3busNtB5_5FaultNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_951",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "55d717ac8c4447ff3c370286b40600edec626e454233cecb08697fe41923e08c"
+    },
+    {
+      "name": "$_RNvXs7_NtCs2cjwgcDKekk_8emu_core3busNtB5_5FaultNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_952",
+      "status": "removed",
+      "base_sha256": "c50d8d6f7c80a4c63b1e7dc81f46dabc58bde3bba796322e18538fe63b5c9ed7",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsK_NtCs8hZryZq3oeI_4core3fmtNtB5_5ErrorNtB5_5Debug3fmt_1157",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "4664ebf397e3b200ea7ed7102df78f9a063639a2ae9696ae6658ce0376f4edef"
+    },
+    {
+      "name": "$_RNvXsK_NtCs8hZryZq3oeI_4core3fmtNtB5_5ErrorNtB5_5Debug3fmt_1158",
+      "status": "removed",
+      "base_sha256": "a00967aad86c129c2dee1374601de0a449c580eb0f9c6c5640696678d435154d",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsW_NtNtCs8hZryZq3oeI_4core3fmt3nummNtB7_5Debug3fmt_1782",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "947e2a868aad333b2fce2e9fe3436d2ec16eea44ccddc1ba11af70b5b06299ed"
+    },
+    {
+      "name": "$_RNvXsW_NtNtCs8hZryZq3oeI_4core3fmt3nummNtB7_5Debug3fmt_1783",
+      "status": "removed",
+      "base_sha256": "a7db17b185e3f4a946870b9857ad40c5612ffaad7b3799540da69d83a7221192",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsZ_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Write10write_char_1158",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "f3a41bc0951c74290f705df9723b7becaae6ea65f4e8e39d1aa44e68d1e29623"
+    },
+    {
+      "name": "$_RNvXsZ_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Write10write_char_1159",
+      "status": "removed",
+      "base_sha256": "0d91804f637d86ae08383e62c295456f1c10a6467a9f43848efdcbe7204252fb",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsZ_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Write9write_str_1159",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "0832f2e83f69c17e68a4c2f06642af2153798ada30c97df3b8091831a6b484b2"
+    },
+    {
+      "name": "$_RNvXsZ_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Write9write_str_1160",
+      "status": "removed",
+      "base_sha256": "f11ae1b0d158ede29a551cc61d69a04db5decea2738cd5f1db39aff730361a9a",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsZ_NtNtCs8hZryZq3oeI_4core3fmt3numjNtB7_5Debug3fmt_1783",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "a9df5348627072c986b2e821350197786653fc9d2dd39364cf0a428bd844159f"
+    },
+    {
+      "name": "$_RNvXsZ_NtNtCs8hZryZq3oeI_4core3fmt3numjNtB7_5Debug3fmt_1784",
+      "status": "removed",
+      "base_sha256": "006c2062facde05c1c73ece65de90bfd021ee9f470603e5d45c8a28ff1044534",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXs_NtCs2oNLKspo05m_7esp32c63socNtNtB6_3bus6SocBusNtNtCs1NWXOa1r5YX_7esp_soc3soc6SocBus6report",
+      "status": "changed",
+      "base_sha256": "359c557c6225040a409c9385e26f23fba2fec3e156d1f7148a3e922fd79f05d6",
+      "candidate_sha256": "b1475ecdbecbec568c1e3626b2d6d190fc5326700bd8e26af5f54d6392c6594f"
+    },
+    {
+      "name": "$_RNvXs_NtCsj5lEqAkFBxn_7esp32c33socNtNtB6_3bus6SocBusNtNtCs1NWXOa1r5YX_7esp_soc3soc6SocBus11ble_command",
+      "status": "changed",
+      "base_sha256": "10a224c2f4bc323f297b872b22762296d4132962d662b63176d5ce696b592e9e",
+      "candidate_sha256": "230b33bdc6530d122433f8d94e3bab302c1b381c12601da63807030c041aa1b4"
+    },
+    {
+      "name": "$_RNvXs_NtCsj5lEqAkFBxn_7esp32c33socNtNtB6_3bus6SocBusNtNtCs1NWXOa1r5YX_7esp_soc3soc6SocBus8boot_app",
+      "status": "changed",
+      "base_sha256": "96c955be705be4d6d81300ededfd41bb6fc926027dc7c4a4f3980f7a0845edfe",
+      "candidate_sha256": "09eb7c8ea4fa006095a2405761896ee4ddc74a7208d6e129bc8d134cb29ec47b"
+    },
+    {
+      "name": "$_RNvXs_NtCsn4VjfUHh5z_5esp323socNtNtB6_3bus6SocBusNtNtCs1NWXOa1r5YX_7esp_soc3soc6SocBus10load_bytes",
+      "status": "changed",
+      "base_sha256": "b58a9473626181081a058614122ccc3743439dc60054d5dd350ac12885b8db10",
+      "candidate_sha256": "9a5647068e790035d14761748c5b6e0522b75ae043cc82414997884ccbb04e0f"
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1067",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "d746f311752de71e4379c31e6734cfadc0b26e5f3c6ae8a52dbac273ce247525"
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1068",
+      "status": "removed",
+      "base_sha256": "22c4df006f5a5b55a6b28f6ce789813d0e4e4f7482e443934f9bd6295b000de6",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1252",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "cc6caf704c085edccf36b7a3bd6538adc8d1db0f66530e15d53408f144445ef8"
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1253",
+      "status": "removed",
+      "base_sha256": "b5da8a13906cb1d363c3f5e9e471db26bd02f4f9ac74000c3318d7e03a580f23",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1522",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "2812ab8f010bc210f9d3fb079c6bbb1a5ac974d324bd344fa0d2829ac768b30a"
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1523",
+      "status": "removed",
+      "base_sha256": "09d9b602dc316013202b4a8a654dec5bc5d53990f6ba65e1393dff6d9e3679c9",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1669",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "86640c48256fcc36f922defbc5ac3deae9bc6bb378091f1f8c395991a18a7be4"
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1670",
+      "status": "removed",
+      "base_sha256": "5d8d78d365985b8d77659cbafb098c150d79e00bfbbe6ca5d0198a4181cfbc05",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1876",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "8d8c4b82c47e593c19ca5c9ff3f736abc0cd7d94be6bac20ec580be533f94052"
+    },
+    {
+      "name": "$_RNvXsq_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt7Display3fmt_1877",
+      "status": "removed",
+      "base_sha256": "03eb603a3178477af834da60b357cdc757df20d0a8321a641f10338c5f3410d8",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsr_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1917",
+      "status": "removed",
+      "base_sha256": "db0d57b8713f122eb20c767f16c098dc55548e8842628485bf6c1ada43c30197",
+      "candidate_sha256": null
+    },
+    {
+      "name": "$_RNvXsr_NtCshrt81WbuBY1_5alloc6stringNtB5_6StringNtNtCs8hZryZq3oeI_4core3fmt5Debug3fmt_1921",
+      "status": "added",
+      "base_sha256": null,
+      "candidate_sha256": "bf8b85e1be473139aaefadc209d1892c2b6d33c6c4dcc4bbbd3a283a9d0dead3"
+    }
+  ]
+}

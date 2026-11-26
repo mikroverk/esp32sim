@@ -1,0 +1,17 @@
+[
+  {
+    "mutation": "drop-retirement",
+    "killed": true,
+    "exit": 101
+  },
+  {
+    "mutation": "double-cycles",
+    "killed": true,
+    "exit": 101
+  },
+  {
+    "mutation": "drop-observer-fetch",
+    "killed": true,
+    "exit": 101
+  }
+]
