@@ -131,7 +131,10 @@ built with ESP-IDF v5.5.4 for the classic ESP32, S3, C3 and C6, gets through on 
 seconds: the virtual station joins its access point through the WPA2 handshake and takes
 192.168.4.2, and its station joins `--wifi`'s, takes 10.0.2.15 and has 5 of 5 pings answered.
 `wifi_apsta_classic`, `wifi_apsta_s3`, `wifi_apsta_c3` and `wifi_apsta_c6` pin it (the
-firmware's lines, the console, both sides' counts and the instruction count).
+firmware's lines, the console, both sides' counts and the instruction count). With `--wifi`'s
+access point on another channel (`chan=1`; the guest's configured on 6) the classic's moves its
+access point there as the station joins (`wifi:ap channel adjust o:6,1 n:1,1`), the virtual
+station follows its beacons, and both sides get through as on channel 6.
 
 Joined, the station keeps its place. An access point disassociates a station it has not heard
 from for its inactive time: `examples/wifi-softap` (ESP-IDF v5.5.4, 300 s by default) logged
@@ -203,8 +206,10 @@ needs the first address and the BSSID both, and the source not to be the interfa
 the broadcasts an access point repeats to its BSS from the station got no bit, which is what the
 virtual station does with them. A second measurement with a phone joined to each side at once gave
 the same flags on the classic ESP32, S3, C3 and C6, and unicast to the station now gets 28 alone
-as on silicon, where the model had set 28 and 29: with the guest's access point enabled in AP+STA,
-bit 29 would pass a frame for its station to the access point too. The model still differs from
+as on silicon, where the model had set 28 and 29. libpp takes both: `examples/wifi-apsta` gets
+through with either, its C3 and C6 runs the same bit for bit and the classic's and S3's exception
+counts apart. The read of `wDev_ProcessRxSucData` suggests that bit 29 would pass a frame for the
+station to the enabled access point too; the runs do not show it. The model still differs from
 silicon in two places: silicon sets bit 31 on every frame received with promiscuous reception on,
 which the measurement needed (probably the sniffer interface's match), and the model leaves it
 clear; and every frame that is not for the guest's access point gets 28, also other networks'

@@ -15,6 +15,7 @@ fn wifi_sta_is_refused_where_it_does_not_work_yet() {
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--wifi-sta", "ssid=lab2"][..], "one for now"),
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--net", "none,epoch=1767225600"][..], "--net configures the network behind --wifi's access point"),
         (&["--chip", "p4", "--wifi-sta", "ssid=lab", "--wifi", "ssid=demo"][..], "the P4 has no WiFi of its own"),
+        (&["--chip", "esp32", "--wifi", "ssid=demo,bssid=02:53:54:41:00:01", "--wifi-sta", "ssid=lab"][..], "its mac is the BSSID of a --wifi access point"),
     ] {
         let (code, stderr) = esp32sim(args);
         assert_eq!(code, Some(2), "{args:?}: {stderr}");

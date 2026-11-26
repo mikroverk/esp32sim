@@ -626,7 +626,10 @@ impl StationLink {
     /// aborted first, so its transport hears of each (`Nat::abort_all`); the access point and the
     /// guest's lease stay. With a virtual station attached, `nat` goes behind the station instead,
     /// beside access points too (AP+STA), and carries its `--hostfwd` forwards to the guest's
-    /// access point (`Nat::set_peer`); `local_ntp` does not apply. An error without either.
+    /// access point (`Nat::set_peer`); `local_ntp` does not apply. So with AP+STA the access
+    /// points' NAT is the one `attach_new` gave them and cannot be replaced here (the browser's
+    /// `QueueTransport` comes this way; the board page attaches no station). An error without
+    /// either.
     pub fn set_nat(&mut self, nat: Option<crate::nat::Nat>, local_ntp: bool) -> Result<(), String> {
         if self.sta.is_some() {
             if let Some(old) = self.sta_nat.as_mut() { old.abort_all(); }
@@ -673,7 +676,8 @@ impl StationLink {
     /// station's frames go to the host instead of its own DHCP. Beside access points (AP+STA: the
     /// guest's station joins them while its access point takes this station), they and their
     /// network stay, the relay is theirs, and the station is the host on the guest's network. A
-    /// NAT for the station's forwards comes after it, through `set_nat`.
+    /// NAT for the station's forwards comes after it, through `set_nat`. Attach the access points
+    /// first: `attach` replaces the station too.
     pub fn attach_station(&mut self, mut station: sta::VirtualSta) -> Result<(), String> {
         if !self.aps.is_empty() {
             station.host = true;
@@ -718,12 +722,13 @@ impl StationLink {
     /// `components/esp_wifi/include/esp_wifi_he_types.h`), the S3's and C3's
     /// `wifi_pkt_rx_ctrl_t` leaves them reserved. A frame from the virtual station to the guest's
     /// own access point, addressed to the BSSID of its beacons, carries bit 29 alone; every other
-    /// frame is the station's, bit 28 alone, unicast or not. Silicon flags them so in AP+STA, with
-    /// a phone joined to each side, on the classic ESP32, S3, C3 and C6
-    /// (docs/evidence/wifi-softap-rx-match); the S31 was not measured. With 28 and 29 both on a
-    /// frame for the station, as the model had, the guest's access point, enabled in AP+STA, would
-    /// take it too; with them both on a frame for the access point the S3's (ESP-IDF v5.5.4) never
-    /// answered the station's authentication.
+    /// frame is the station's, bit 28 alone, unicast or not. Silicon flags the frames for each
+    /// interface so in AP+STA, with a phone joined to each side, on the classic ESP32, S3, C3 and
+    /// C6 (docs/evidence/wifi-softap-rx-match); the S31 was not measured. The model had 28 and 29
+    /// on unicast to the station, which libpp takes too: `examples/wifi-apsta` gets through with
+    /// either (the C3's and C6's runs are the same bit for bit, the classic's and S3's exception
+    /// counts differ). With them both on a frame for the access point, the S3's (ESP-IDF v5.5.4)
+    /// never answered the station's authentication.
     pub fn rx_match(&self, frame: &[u8]) -> u32 {
         let to_ap = self.sta.as_ref().is_some_and(|s| s.bssid() != [0; 6] && frame.get(4..10) == Some(&s.bssid()[..]));
         if to_ap { 1 << 29 } else { 1 << 28 }

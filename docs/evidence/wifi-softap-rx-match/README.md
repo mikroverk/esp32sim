@@ -131,9 +131,9 @@ joined (`apsta` in `counts-apsta.json`):
 | C3 | 113 | `1010` 273 of 273 | `1001` 538 of 538 | `1001` 405 | `1011` 396 | `1000` 10 |
 | C6 | 102 | `1010` 787 of 787 | `1001` 579 of 579 | `1001` 98 | `1011` 159 | `1001` 1 |
 
-The S3, C3 and C6 also ran one side at a time (`softap`, `station`), with the same flags: the C6's
-station alone 5337 of 5337 unicast frames `1001` in 798 s, the C3's 86 of 86, and 524 and 283
-frames to the C3's and S3's SoftAPs `1010`. The few `1001` frames to the station in a `softap` run
+The S3 also ran its SoftAP alone (`softap`), the C6 its station alone (`station`) and the C3 both,
+with the same flags: the C6's station alone 5337 of 5337 unicast frames `1001` in 798 s, the C3's
+86 of 86, and 524 and 283 frames to the C3's and S3's SoftAPs `1010`. The few `1001` frames to the station in a `softap` run
 are probe responses to the station's own scans.
 
 One difference between the chips: the broadcasts the joined network repeats with the station's own

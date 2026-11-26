@@ -309,6 +309,10 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if let Some(spec) = &o.wifi_sta {
         if let Err(e) = esp_soc::wifi::sta::StaConfig::parse(spec) { usage_error(&format!("--wifi-sta: {e}")); }
         if o.net_given && o.wifi.is_empty() { usage_error("--net configures the network behind --wifi's access point; with --wifi-sta alone the network is the guest's own"); }
+        // beside --wifi the two sides are told apart by address (`StationLink::rx_meta`)
+        if let (Ok(sta), Ok(aps)) = (esp_soc::wifi::sta::StaConfig::parse(spec), esp_soc::wifi::ApConfig::parse_all(&o.wifi)) {
+            if aps.iter().any(|a| a.bssid == sta.mac) { usage_error("--wifi-sta: its mac is the BSSID of a --wifi access point"); }
+        }
         if matches!(o.chip.as_str(), "p4" | "esp32p4") { usage_error("--wifi-sta: the P4 has no WiFi of its own, and its co-processor's station is not modelled"); }
     }
     // through the virtual station the forwards have a NAT of their own, whatever `--wifi`'s network is

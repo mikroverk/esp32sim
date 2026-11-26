@@ -235,8 +235,8 @@ impl SocBus {
         // point's, slot 1 (0x048). A frame for the guest's own access point carries bit 29 alone,
         // or libpp drops it; every other frame is the station's, bit 28 alone, unicast or not. A
         // classic ESP32 rev 1.0 under ESP-IDF v5.5.4 flags them so in AP+STA, with a phone joined
-        // to each side (docs/evidence/wifi-softap-rx-match). With 28 and 29 both on a frame for
-        // the station, the guest's access point, enabled in AP+STA, would take it too.
+        // to each side (docs/evidence/wifi-softap-rx-match). libpp takes 28 and 29 on a frame for
+        // the station too, as the model had them: examples/wifi-apsta gets through with either.
         let slot1 = self.periph.wifi.slot_mac(1);
         let to_ap = slot1 != [0; 6] && slot1 != self.periph.wifi.slot_mac(0) && frame.get(4..10) == Some(&slot1[..]);
         let matched = if to_ap { 1 << 29 } else { 1 << 28 };

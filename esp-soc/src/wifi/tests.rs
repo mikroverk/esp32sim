@@ -1853,3 +1853,30 @@ fn ap_sta_both_networks_poll_in_the_same_step() {
     l.set_nat(None, false).unwrap();
     assert!(l.has_net(), "the access point's network");
 }
+
+/// Beside access points, the virtual station has what the guest's own access point sends: its
+/// management frames from its BSSID (an action frame, a deauthentication) and its data from the
+/// DS alone. The guest station's frames, data to the DS and four-address (WDS) frames go to the
+/// access points; control frames to neither.
+#[test]
+fn ap_sta_the_guests_frames_go_to_the_side_they_are_from() {
+    let (l, _) = apsta();
+    let mac = l.station().unwrap().cfg.mac;
+    let frame = |fc: [u8; 2], a1: [u8; 6], a2: [u8; 6], a3: [u8; 6]| [&fc[..], &[0, 0], &a1, &a2, &a3, &[0; 2]].concat();
+    for (what, f, to_station) in [
+        ("an action frame from the guest's access point", frame([0xd0, 0], mac, GUEST_AP, GUEST_AP), true),
+        ("a broadcast deauthentication from it", frame([0xc0, 0], [0xff; 6], GUEST_AP, GUEST_AP), true),
+        ("its data from the DS", frame([0x08, 0x02], mac, GUEST_AP, GUEST_AP), true),
+        ("the guest station's authentication", frame([0xb0, 0], config().bssid, STA, config().bssid), false),
+        ("its probe request", frame([0x40, 0], [0xff; 6], STA, [0xff; 6]), false),
+        ("its data to the DS", frame([0x08, 0x01], config().bssid, STA, [0xff; 6]), false),
+        ("a four-address frame", frame([0x08, 0x03], config().bssid, STA, [0xff; 6]), false),
+        ("a control frame", frame([0xd4, 0], GUEST_AP, STA, [0; 6]), false),
+        ("a frame too short to tell", vec![0xc0, 0, 0, 0], false),
+    ] {
+        assert_eq!(l.for_station(&f), to_station, "{what}");
+    }
+    let (mut alone, _) = apsta();
+    alone.aps.clear();
+    assert!(alone.for_station(&[0xc0, 0, 0, 0]), "alone, the virtual station has every frame");
+}
