@@ -395,6 +395,22 @@ fn a_line_over_the_limit_is_an_error() {
     }
 }
 
+/// A peer that hangs up while the board is writing to it is named as having closed the
+/// connection, not left as a bare broken pipe.
+#[cfg(unix)]
+#[test]
+fn a_peer_gone_while_written_to_is_named() {
+    use esp_soc::BoardModel;
+    let (mut board, b) = scripted("{\"type\":\"hello\",\"version\":1,\"quiet_until\":null,\"latency\":null}\n", TIMEOUT);
+    drop(b);
+    for i in 0..1u64 << 20 {
+        board.uart_tx(i / 256, uart1(), b'U');
+        if board.error().is_some() { break; }
+    }
+    let e = board.error().unwrap_or("no error");
+    assert!(e.contains("[socket] peer test: closed the connection while the emulator wrote to it"), "{e}");
+}
+
 /// A peer that never reads what the board writes fails at the write timeout, not never.
 #[cfg(unix)]
 #[test]

@@ -233,7 +233,11 @@ impl SocketBoard {
     }
 
     fn write_error(&self, e: std::io::Error) -> String {
-        if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) { format!("took nothing the emulator wrote for {:?}", self.timeout) } else { format!("write: {e}") }
+        match e.kind() {
+            ErrorKind::WouldBlock | ErrorKind::TimedOut => format!("took nothing the emulator wrote for {:?}", self.timeout),
+            ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => format!("closed the connection while the emulator wrote to it ({e})"),
+            _ => format!("write: {e}"),
+        }
     }
     fn send(&mut self, line: &str) -> Result<(), String> {
         self.output.write_all(line.as_bytes()).and_then(|_| self.output.write_all(b"\n")).map_err(|e| self.write_error(e))
