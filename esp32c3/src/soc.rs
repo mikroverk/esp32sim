@@ -173,6 +173,7 @@ impl esp_soc::SocBus for SocBus {
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
         // the MMU and the flash bytes the BLE trampoline restored
         self.invalidate_code();
+        self.board.guest_reset(self.cycles, cause);
         self.attach_board_devices();
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
         self.periph.misc.log_all = self.debug.has("mmio");

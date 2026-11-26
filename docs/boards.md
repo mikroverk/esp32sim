@@ -33,6 +33,7 @@ pub trait BoardModel {
     fn set_camera_picture(&mut self, p: Picture) {}
     fn camera_frame(&mut self) -> Option<(u32, u32, Arc<Vec<u8>>)>   // YUYV at sensor size
     fn camera_preview(&self, w: u32, h: u32) -> Option<Vec<u8>>       // RGB for the UI
+    fn guest_reset(&mut self, cycle: VirtualCycle, cause: u32) {}    // the guest left a chip reset
 }
 ```
 
@@ -43,7 +44,9 @@ a device to (SDA, SCL); fixed devices keep their controller-only behavior.
 `esp_soc::pins::ChipPins` decodes GPIO matrix and IO_MUX routes.
 
 After assigning or replacing `bus.board`, call `bus.attach_board_devices()` to
-attach devices and refresh cached board capabilities. `uses_gpio_edges` defaults
+attach devices and refresh cached board capabilities. The board persists across a chip reset;
+every chip's reboot path calls `guest_reset` with the reset cause before attaching it again, and
+not at power-on. `uses_gpio_edges` defaults
 to true; `NoBoard` returns false so C3 skips its deadline and edge callbacks.
 
 The SoC model produces the events; the board interprets them. `make_board(name)` maps the

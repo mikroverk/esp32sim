@@ -203,6 +203,7 @@ impl esp_soc::SocBus for SocBus {
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
         self.invalidate_tlb();
         self.reset_approximate_cache();
+        self.board.guest_reset(self.cycles, cause);
         self.attach_board_devices();
         self.refresh_tick_budget();
         self.irq_dirty = true;

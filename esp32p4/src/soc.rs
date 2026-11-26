@@ -242,6 +242,7 @@ impl esp_soc::SocBus for SocBus {
         self.mmu_psram_index = 0;
         self.invalidate_code();
         self.reservation = [None; 2];
+        self.board.guest_reset(self.cycles, cause);
         self.attach_board_devices();                     // the board's I2C devices, on the new controller
         for area in self.debug.iter() { esp_periph::Dispatch::debug(&mut self.periph, area, true); }
         self.periph.misc.log_all = self.debug.has("mmio");
