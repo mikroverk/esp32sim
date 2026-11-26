@@ -142,7 +142,8 @@ As the host on the guest's network, the station renews its lease (RFC 2131 4.4.5
 54; at T2 (option 59, or seven-eighths) the same REQUEST broadcast; at the lease's end it gives the
 address up, ARP stops answering for it, and it starts again with DISCOVER, as after a NAK. T1, T2
 and the end count from when the exchange's first REQUEST went out, not from the ACK (RFC 2131
-4.4.1); retransmissions, and the rebinding REQUESTs after the renewing ones, keep its `xid`.
+4.4.1); retransmissions keep its `xid`. Renewing and rebinding take a new `xid` each, so a late ACK
+to a renewing REQUEST is discarded and a rebinding ACK counts from the first rebinding REQUEST.
 ESP-IDF v5.5.4's DHCP server (`components/lwip/apps/dhcpserver/dhcpserver.c`) leases for 120
 minutes by default and acknowledges a REQUEST without option 50 whose `ciaddr` is the address it
 leased to that MAC, unicast or broadcast; its ACK carries option 51 and neither 58 nor 59. With
