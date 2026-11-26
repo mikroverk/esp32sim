@@ -1,0 +1,26 @@
+menu "WiFi AP+STA"
+config APSTA_AP_SSID
+    string "SSID of the guest's own access point"
+    default "esp32sim-ap"
+config APSTA_AP_PASSWORD
+    string "Its WPA2 passphrase (empty = open network)"
+    default "esp32sim-pass"
+    help
+        WPA2-PSK with protected management frames optional, as Arduino-ESP32 3.x's
+        WiFi.softAP configures it. The defaults are what the emulator's --wifi-sta joins.
+config APSTA_UPLINK_SSID
+    string "SSID of the network the guest's station joins"
+    default "esp32sim"
+config APSTA_UPLINK_PASSWORD
+    string "Its WPA2 passphrase"
+    default "esp32sim-pass"
+    help
+        The defaults are the emulator's --wifi ssid=esp32sim,psk=esp32sim-pass.
+config APSTA_CHANNEL
+    int "Channel of the access point until the station joins (it then follows the uplink's)"
+    default 6
+    range 1 13
+config APSTA_PING_COUNT
+    int "Pings to the uplink's gateway once the station has a lease"
+    default 5
+endmenu

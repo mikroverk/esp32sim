@@ -471,7 +471,7 @@ impl SocBus {
         // A network around's frames carry its own channel and signal (`VirtualAp::rx_meta`)
         let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.rx_log()) };
         let mut b = Vec::with_capacity(total);
-        // address-match bits (`StationLink::rx_match`): inherited from the S3 model, not measured on C3 silicon
+        // address-match bits (`StationLink::rx_match`), as C3 silicon sets them (docs/evidence/wifi-softap-rx-match)
         let fm = self.periph.wifi.link.rx_match(frame);
         let w0: u32 = fm | (rssi as u8 as u32);   // rssi (−40 dBm for the access point), 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary

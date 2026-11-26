@@ -30,9 +30,11 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
     eprintln!("  --imu-motion N        scripted IMU motion: 0 at rest, 1 the 30 s tilt/flip/shake script (amoled18-v2, mosaico)");
     eprintln!("  --wifi ssid=…,psk=…   a virtual access point with DHCP, DNS, NTP and NAT to the host network");
-    eprintln!("  --wifi-sta ssid=…,psk=…   a virtual station that joins the guest's own access point (not the P4)");
+    eprintln!("  --wifi-sta ssid=…,psk=…   a virtual station that joins the guest's own access point (not the P4;");
+    eprintln!("                        with --wifi too the guest is both, AP+STA)");
     eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi or --wifi-sta)");
-    eprintln!("  --hostfwd tcp|udp:H:HP-G:GP  publish a guest TCP or UDP port on the host (repeatable; needs --wifi or --wifi-sta)");
+    eprintln!("  --hostfwd tcp|udp:H:HP-G:GP  publish a guest TCP or UDP port on the host (repeatable; needs --wifi or --wifi-sta;");
+    eprintln!("                        with --wifi-sta, through it to the guest's access point)");
     eprintln!("  --script F            host actions at emulated times (button presses, touches, serial input, stop)");
     eprintln!("  --exit-on TEXT        end the run, status 0, once the console prints TEXT (status 1 if it never does)");
     eprintln!("  --timeout DUR         end the run after DUR of wall-clock time (5s, 500ms), status 124");
@@ -157,7 +159,7 @@ pub struct Opts {
     pub pcap: Option<String>,
     /// `--wifi-sta SPEC`: a virtual station that joins the guest's own access point
     pub wifi_sta: Option<String>,
-    /// whether `--net` was given, which `--wifi-sta` refuses: it configures `--wifi`'s network
+    /// whether `--net` was given, which `--wifi-sta` alone refuses: it configures `--wifi`'s network
     pub net_given: bool,
     pub board: String, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
@@ -306,11 +308,11 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
     if o.pcap.is_some() && o.wifi.is_empty() && o.wifi_sta.is_none() { usage_error("--pcap requires --wifi or --wifi-sta"); }
     if let Some(spec) = &o.wifi_sta {
         if let Err(e) = esp_soc::wifi::sta::StaConfig::parse(spec) { usage_error(&format!("--wifi-sta: {e}")); }
-        if !o.wifi.is_empty() { usage_error("--wifi-sta and --wifi together (a virtual access point and a virtual station at once) are not modelled yet"); }
-        if o.net_given { usage_error("--net configures the network behind --wifi's access point; with --wifi-sta the network is the guest's own"); }
+        if o.net_given && o.wifi.is_empty() { usage_error("--net configures the network behind --wifi's access point; with --wifi-sta alone the network is the guest's own"); }
         if matches!(o.chip.as_str(), "p4" | "esp32p4") { usage_error("--wifi-sta: the P4 has no WiFi of its own, and its co-processor's station is not modelled"); }
     }
-    if !o.hostfwd.is_empty() && !matches!(o.net.split(',').next(), Some("nat" | "user")) { usage_error("--hostfwd requires --net nat"); }
+    // through the virtual station the forwards have a NAT of their own, whatever `--wifi`'s network is
+    if !o.hostfwd.is_empty() && o.wifi_sta.is_none() && !matches!(o.net.split(',').next(), Some("nat" | "user")) { usage_error("--hostfwd requires --net nat"); }
     for spec in &o.hostfwd {
         if let Err(e) = hostfwd_spec(spec, o.wifi_sta.is_some()) { usage_error(&format!("--hostfwd: {e}")); }
     }
@@ -623,9 +625,12 @@ fn wifi_config(specs: &[String], net: &str, net_log: bool, hostfwd: &[String]) -
     (cfgs, nat)
 }
 
-/// Every `--wifi` access point, and the network behind them, on the bus's air.
+/// Every `--wifi` access point, and the network behind them, on the bus's air. With `--wifi-sta`
+/// too (AP+STA) the `--hostfwd` forwards go through the virtual station to the guest's access
+/// point (`attach_wifi_station`), not to the guest's station on this network.
 fn attach_wifi<B: SocBus>(bus: &mut B, o: &Opts, net_log: bool) {
-    let (cfgs, nat) = wifi_config(&o.wifi, &o.net, net_log, &o.hostfwd);
+    let hostfwd = if o.wifi_sta.is_some() { &[][..] } else { &o.hostfwd[..] };
+    let (cfgs, nat) = wifi_config(&o.wifi, &o.net, net_log, hostfwd);
     let mut cfgs = cfgs.into_iter();
     let first = cfgs.next().expect("at least one --wifi");
     bus.attach_wifi(first, nat).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
@@ -655,8 +660,9 @@ fn hostfwd_nat(mut transport: esp_soc::nat::StdTransport, hostfwd: &[String], to
 }
 
 /// `--wifi-sta SPEC`: the virtual station that joins the guest's own access point, on any chip
-/// whose WiFi MAC model takes one (`SocBus::attach_wifi_station`), and with `--hostfwd` the NAT
-/// behind it that forwards host ports to the guest's access point (`SocBus::attach_nat`).
+/// whose WiFi MAC model takes one (`SocBus::attach_wifi_station`), beside `--wifi`'s access points
+/// too (AP+STA), and with `--hostfwd` the NAT behind it that forwards host ports to the guest's
+/// access point (`SocBus::attach_nat`).
 fn attach_wifi_station<B: SocBus>(bus: &mut B, o: &Opts, net_log: bool) {
     let Some(spec) = &o.wifi_sta else { return };
     let cfg = esp_soc::wifi::sta::StaConfig::parse(spec).unwrap_or_else(|e| usage_error(&format!("--wifi-sta: {e}")));

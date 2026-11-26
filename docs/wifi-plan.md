@@ -81,7 +81,7 @@ Not yet working:
   addresses. TCP and UDP servers in the guest are reachable with `--hostfwd`.
 - Hardware AES-GCM (block mode 6) and the DS/HMAC peripherals; mbedTLS has not asked for them yet.
 - Roaming, power save, 802.11n rates, multiple stations, WPA3/SAE, PMF.
-- The guest as an access point beyond the first steps (below): AP+STA and more than one station.
+- The guest as an access point beyond the first steps (below): more than one station.
 
 ## The guest as an access point (`--wifi-sta`)
 
@@ -114,6 +114,22 @@ repeats to the BSS that it sent itself, as a station does.
 A guest in `WIFI_MODE_APSTA` whose station scans is joined too: its access point leaves the
 channel for the scans (21 beacons in 12 s against about 117), with gaps under the 3 s the station
 waits.
+
+With `--wifi` beside `--wifi-sta` (AP+STA) both sides are on the air at once: the guest's station
+joins the virtual access points while the virtual station joins the guest's access point, on the
+one channel the guest's radio has (its access point follows its station's, ESP-IDF's rule).
+`StationLink` keeps both: a frame the guest sends goes to the virtual station when it is from the
+guest's access point, which sends its management frames from its BSSID (A2 = A3) and its data from
+the DS alone, and to the access points otherwise, so a broadcast deauthentication from the guest's
+access point does not end the guest station's association. The air delivers from both in one queue,
+management frames first as before. `--net` configures the access points' network, behind which the
+guest's station reaches the host as with `--wifi` alone; `--hostfwd` goes through the virtual
+station to the guest's access point, with a NAT of its own that reads the host's sockets on its own
+clock. In relay mode the relay is the access points'; the virtual station stays the host on the
+guest's network. `examples/wifi-apsta` (both at once, its station pinging its network's gateway),
+built with ESP-IDF v5.5.4 for the classic ESP32, S3, C3 and C6, gets through on each in 10 emulated
+seconds: the virtual station joins its access point through the WPA2 handshake and takes
+192.168.4.2, and its station joins `--wifi`'s, takes 10.0.2.15 and has 5 of 5 pings answered.
 
 Joined, the station keeps its place. An access point disassociates a station it has not heard
 from for its inactive time: `examples/wifi-softap` (ESP-IDF v5.5.4, 300 s by default) logged
@@ -163,8 +179,8 @@ access point) the forwarded connections are closed. It carries nothing else: the
 connections and datagrams to the station are not relayed. Without `--hostfwd` there is no NAT,
 and nothing of it runs.
 
-Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
-AP+STA with both sides on the air. In relay mode the host program is the station:
+Not yet: probe requests, so an access point with a hidden SSID is not found; a second station.
+In relay mode the host program is the station:
 without four-address frames it sends from and receives at the station's MAC, and a frame it relays
 before the station has joined is refused; one the station takes and cannot carry, because it left
 the access point in between, is counted in the end-of-run line. The CLI's `--wifi-sta` and
@@ -175,18 +191,21 @@ libpp, `wDev_ProcessRxSucData` keeps a frame when interface 1 is enabled and bit
 interface 0 and bit 28, or interface 2 and bit 30, and drops it otherwise; `ppRxProtoProc` takes
 the interface from the same bits. The guest writes its station MAC to address slot 0 (0x040) and
 its access point's, one higher, to slot 1 (0x048). A frame whose first address is slot 1's gets bit
-29 alone; every other frame keeps the flags it had (bit 28, and 29 for unicast). The meaning is
-inferred from the disassembly, as no header documents it, and was then compared with silicon
+29 alone; every other frame gets bit 28 alone, unicast or not. The meaning is
+inferred from the disassembly, as no header documents it on the classic, and was then compared with silicon
 ([receipt](evidence/wifi-softap-rx-match/README.md)): on a classic ESP32 rev 1.0 in
 `WIFI_MODE_APSTA`, every frame addressed to the SoftAP carried bits 31 and 29 and not 28, every
 unicast frame to the station (joined to another network) bits 31 and 28 and not 29, wildcard probe
 requests (for both interfaces) 28 and 29 together, and frames of other networks neither. A match
 needs the first address and the BSSID both, and the source not to be the interface's own address:
 the broadcasts an access point repeats to its BSS from the station got no bit, which is what the
-virtual station does with them. The model differs from silicon in three places, which libpp takes
-and the model keeps, since no golden runs the classic station and a change would go untested:
-silicon sets bit 31 on every frame received and the model leaves it clear; unicast to the station
-gets 28 and 29 where silicon sets 28 alone; and every broadcast gets 28, also other networks'
+virtual station does with them. A second measurement with a phone joined to each side at once gave
+the same flags on the classic ESP32, S3, C3 and C6, and unicast to the station now gets 28 alone
+as on silicon, where the model had set 28 and 29: with the guest's access point enabled in AP+STA,
+bit 29 would pass a frame for its station to the access point too. The model still differs from
+silicon in two places: silicon sets bit 31 on every frame received with promiscuous reception on,
+which the measurement needed (probably the sniffer interface's match), and the model leaves it
+clear; and every frame that is not for the guest's access point gets 28, also other networks'
 beacons (`--wifi-nearby`, a further `--wifi`), which silicon gives no bit.
 
 Verified with ESP-IDF v5.3.6's `softAP` example (open, and WPA2-PSK without SAE and with PMF
@@ -198,11 +217,15 @@ association (status 43), as the station offers WPA2-PSK only.
 The S3, C3, C6 and S31 MACs (`esp-soc/src/wifi/mac.rs` for the S3 and C3, the C6's and S31's own)
 flag received frames in the same `rx_ctrl` word 0 bits (`StationLink::rx_match`). No slot
 registers are read there: with a virtual station on the air, a frame whose first address is the
-BSSID the station took from the guest's beacons gets bit 29 alone, and every other frame keeps
-bit 28, and 29 for unicast, as before. With bits 28 and 29 both set on the station's frames, the
+BSSID the station took from the guest's beacons gets bit 29 alone, and every other frame bit 28
+alone. With bits 28 and 29 both set on the virtual station's frames, the
 S3's softAP never answered its authentication (three attempts in 6 s, no response); with bit 29
 alone the S3, C3 and C6 (ESP-IDF v5.5.4) and the S31 (ESP-IDF v6.1) logged the join and the lease
-within the first seconds. Not compared with silicon on these chips. `examples/wifi-softap` built
+within the first seconds. The S3, C3 and C6 silicon flags frames so (the AP+STA measurement in the
+receipt; the C6's `esp_wifi_rxctrl_t` names the bits `rxmatch0` to `rxmatch3`); the S31 was not
+measured. With bit 28 alone on unicast to the station, where 28 and 29 had been, the C3, C6 and
+S31 station goldens did not change and the S3's console did not either, its instruction count
+and exception count did. `examples/wifi-softap` built
 for each is pinned by `wifi_softap_s3`, `wifi_softap_c3`, `wifi_softap_c6` (the console and counts
 as on the classic) and `wifi_softap_s31_mosaico` (the firmware's lines).
 

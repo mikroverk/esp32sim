@@ -67,6 +67,12 @@ station: the guest's own connections to the station are not relayed to the host,
 not apply. In a manual run Arduino-ESP32's `WiFiAccessPoint` example, unmodified, served its page
 to `curl` this way on the classic ESP32, S3, C3 and C6.
 
+A guest that is both (`WIFI_MODE_APSTA`, a provisioning portal beside its uplink, say) takes both
+flags: `--wifi ssid=esp32sim,psk=esp32sim-pass --wifi-sta ssid=yourAP,psk=yourPassword --hostfwd
+tcp:127.0.0.1:8080-:80`. Its station joins `--wifi`'s access point and reaches the host through
+the NAT behind it (`--net nat`, the default) as with `--wifi` alone, and the forwards go through
+the virtual station to its access point, whatever `--net` says.
+
 The same `--wifi` and `--net` work on the **ESP32-C6** (`esp32sim-c6`): the access point and the
 network are the same code, the MAC model is the C6's own ([wifi-c6-plan.md](wifi-c6-plan.md)). What
 has been tried is one station on one open or WPA2 network; `examples/c6-wifi-station` has the full command. The C3 also supports `--wifi` with open/WPA2 station mode and the same network backend.

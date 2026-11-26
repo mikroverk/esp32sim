@@ -685,9 +685,8 @@ impl SocBus {
         let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.rx_log()) };
         let mut b = Vec::with_capacity(total);
         // rx_ctrl word 0 (silicon: a real broadcast beacon reads 0x111b20ad — bit 28 set, signed rssi in the low
-        // byte). The address-match bits say which interface the frame is for (`StationLink::rx_match`): a frame
-        // the hardware accepted because addr1 is our unicast MAC must carry the unicast-match bit (29) too, or
-        // wDev_IndicateFrame drops it as "not for me".
+        // byte). The address-match bits say which interface the frame is for (`StationLink::rx_match`): bit 28
+        // alone for the station's, unicast or not, as S3 silicon flags them (docs/evidence/wifi-softap-rx-match).
         let fm = self.periph.wifi.link.rx_match(frame);
         let w0: u32 = fm | (rssi as u8 as u32);   // rssi as the network reports it (`rx_meta`), 1 Mbps, legacy
         let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
