@@ -920,7 +920,7 @@ impl SocBus {
             // (capture or VSYNC enabled), AES (dma_pending) and mem-to-mem (needs the OUT side running),
             // all listed here, so an armed-but-idle receive channel does not hold the cadence.
             || p.gdma.out.iter().any(|c| c.running)
-            || p.wifi.link.on_air() || p.wifi.link.net().is_some() || !p.wifi.tx_pending.is_empty()
+            || p.wifi.link.on_air() || p.wifi.link.has_net() || !p.wifi.tx_pending.is_empty()
             || p.aes.dma_pending || p.sha.dma_pending
             || p.spi2.has_pending_transfer() || p.spi2.dma_tx_pending.is_some()
             || p.spi3.has_pending_transfer() || p.spi3.dma_tx_pending.is_some()
@@ -1013,8 +1013,8 @@ impl SocBus {
         if self.periph.sha.dma_pending { self.sha_dma_step(); }
         if self.periph.wifi.link.on_air() { self.wifi_air_step(); }
         // the S3 runs its network even without an access point (the C3 and C6 only with one); nothing
-        // reaches it then, but the host sockets are still read
-        if self.periph.wifi.link.net().is_some() { let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
+        // reaches it then, but the host sockets are still read. The virtual station's NAT too
+        if self.periph.wifi.link.has_net() { let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
         if !self.periph.gpio.changes.is_empty() {
             let ch = &self.periph.gpio.changes;
             if let Some(ev) = &mut self.gpio_events { for &(pin, level) in ch { ev.push((self.cycles, pin, level)); } }

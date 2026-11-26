@@ -54,6 +54,19 @@ with the guest's own flows but never push those out: on a full table a new sende
 the least recently active sender the guest has never answered, or, with none, is turned away and
 its datagram lost (`inbound turned away` in the `[emu] nat:` line).
 
+With the guest as the access point (`--wifi-sta`), `--hostfwd` reaches the guest's servers through
+the virtual station: `--wifi-sta ssid=yourAP,psk=yourPassword --hostfwd tcp:127.0.0.1:8080-:80`,
+and a browser on the host opens the firmware's own pages at `http://127.0.0.1:8080/`, a captive
+portal included. The SYN, or the datagram, comes from the address the guest's DHCP server leased
+the station (192.168.4.2 with ESP-IDF's SoftAP) and goes to that server's address (192.168.4.1),
+or to the GUEST address given. Connections and datagrams wait until the station has a lease; when
+it loses the lease (it left the access point, the guest rebooted or stopped its access point) the
+forwarded connections are closed, and new ones wait for the next. A GUEST address given is used as
+it is: `--wifi`'s 10.0.2.15 is not on the guest's network, so leave it empty. There is no gateway behind a
+station: the guest's own connections to the station are not relayed to the host, and `--net` does
+not apply. In a manual run Arduino-ESP32's `WiFiAccessPoint` example, unmodified, served its page
+to `curl` this way on the classic ESP32, S3, C3 and C6.
+
 The same `--wifi` and `--net` work on the **ESP32-C6** (`esp32sim-c6`): the access point and the
 network are the same code, the MAC model is the C6's own ([wifi-c6-plan.md](wifi-c6-plan.md)). What
 has been tried is one station on one open or WPA2 network; `examples/c6-wifi-station` has the full command. The C3 also supports `--wifi` with open/WPA2 station mode and the same network backend.

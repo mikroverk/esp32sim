@@ -11,7 +11,7 @@ mod counts;
 
 fn flow() -> Tcp {
     Tcp { guest_mac: [2; 6], guest_ip: [10, 0, 2, 15], guest_port: 1234,
-        dst_ip: [127, 0, 0, 1], dst_port: 80, inbound: false, state: FlowState::Closed,
+        dst_ip: [127, 0, 0, 1], dst_port: 80, our_mac: GATEWAY_MAC, inbound: false, state: FlowState::Closed,
         guest_write: GuestWrite::Open, host_closed: false,
         our_seq: 100, guest_seq: 200, guest_window: WINDOW,
         to_host: VecDeque::new(), unacked: VecDeque::new(), last_activity_us: 0 }
@@ -946,4 +946,135 @@ fn udp_datagrams_over_the_mtu_are_dropped_both_ways() {
     nat.udp_out(&[2; 6], &GUEST, 1235, &[127, 0, 0, 1], &[127, 0, 0, 1], sport, &[0x77; MAX_UDP_PAYLOAD], 3);
     assert_eq!(server.recv_from(&mut buf).unwrap().0, MAX_UDP_PAYLOAD);
     assert_eq!(nat.udp_oversize, 4);
+}
+
+// ---- Behind the virtual station (`--wifi-sta`): `--hostfwd` to the guest's own access point ----
+
+/// The station's lease and MAC, and the guest's access point that leased it, as `Nat::set_peer`
+/// takes them: ESP-IDF's SoftAP numbering.
+const LEASE: [u8; 4] = [192, 168, 4, 2];
+const STA_MAC: [u8; 6] = [0x02, 0x53, 0x54, 0x41, 0x00, 0x01];
+const AP_IP: [u8; 4] = [192, 168, 4, 1];
+const AP_MAC: [u8; 6] = [0x24, 0x6f, 0x28, 0x00, 0x11, 0x23];
+
+/// A TCP segment from the guest's access point to the station, as an Ethernet frame.
+fn from_ap(sport: u16, dport: u16, seq: u32, ack: u32, flags: u8, data: &[u8]) -> Vec<u8> {
+    let mut seg = segment_ports(sport, dport, seq, ack, flags, data);
+    let check = transport_checksum(&AP_IP, &LEASE, 6, &seg);
+    seg[16..18].copy_from_slice(&check.to_be_bytes());
+    ethernet(&STA_MAC, &AP_MAC, 0x0800, &ip_packet(6, &AP_IP, &LEASE, &seg))
+}
+
+/// `HostFwdSpec::parse_to` for a forward through the station: no guest address, or 0.0.0.0, is the
+/// guest's access point, found from the lease; one given stays; `parse` is as before.
+#[test]
+fn a_forward_through_the_station_without_a_guest_address_goes_to_the_access_point() {
+    let to = |spec| HostFwdSpec::parse_to(spec, HostFwdSpec::TO_ACCESS_POINT).unwrap().guest_ip;
+    assert_eq!(to("tcp::8080-:80"), HostFwdSpec::TO_ACCESS_POINT);
+    assert_eq!(to("udp::5353-0.0.0.0:7"), HostFwdSpec::TO_ACCESS_POINT);
+    assert_eq!(to("tcp::8080-192.168.4.1:80"), AP_IP);
+    assert_eq!(HostFwdSpec::parse("tcp::8080-:80").unwrap().guest_ip, [10, 0, 2, 15]);
+    assert!(HostFwdSpec::parse_to("tcp::8080-:0", HostFwdSpec::TO_ACCESS_POINT).is_err());
+}
+
+/// A host connection waits for the lease, then goes from the station's address and MAC to the
+/// access point that leased it, carries data both ways, and ends with the guest's FIN.
+#[test]
+fn behind_the_station_a_forward_comes_from_its_lease_and_reaches_the_access_point() {
+    let (mut nat, bound) = listening(HostFwdSpec::parse_to("tcp:127.0.0.1:0-:80", HostFwdSpec::TO_ACCESS_POINT).unwrap());
+    let mut host = TcpStream::connect(bound).unwrap();
+    host.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
+    host.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    assert!(nat.poll(0).is_empty(), "no SYN before the station has a lease");
+    nat.set_peer(LEASE, STA_MAC, AP_MAC, AP_IP);
+    let syn = poll_ready(&mut nat, 1);
+    assert_eq!(syn.len(), 1);
+    let f = &syn[0];
+    assert_eq!((&f[0..6], &f[6..12], f[47]), (&AP_MAC[..], &STA_MAC[..], SYN), "to the access point, from the station");
+    assert_eq!((&f[26..30], &f[30..34], u16::from_be_bytes([f[36], f[37]])), (&LEASE[..], &AP_IP[..], 80));
+    assert_eq!(transport_checksum(&LEASE, &AP_IP, 6, &f[34..]), 0);
+    let (eph, syn_seq) = (u16::from_be_bytes([f[34], f[35]]), seq_of(f));
+    let ack = nat.from_guest(&from_ap(80, eph, 5000, syn_seq + 1, SYN | ACK, &[]), 2);
+    assert_eq!((ack.len(), flags(&ack[0])), (1, ACK));
+    let req = poll_ready(&mut nat, 3);
+    assert_eq!(&req[0][54..], b"GET / HTTP/1.0\r\n\r\n");
+    let ack = nat.from_guest(&from_ap(80, eph, 5001, syn_seq + 1 + 18, PSH | ACK | FIN, b"HTTP/1.0 200 OK\r\n\r\nhi"), 4);
+    assert_eq!((flags(&ack[0]), ack_of(&ack[0])), (ACK, 5001 + 21 + 1), "the data and the FIN acknowledged");
+    nat.poll(5);
+    let mut got = Vec::new();
+    host.read_to_end(&mut got).unwrap();
+    assert_eq!(got, b"HTTP/1.0 200 OK\r\n\r\nhi");
+    assert_eq!((nat.tcp_accepted, nat.tcp_refused), (1, 0));
+}
+
+/// A UDP sender's datagram goes to the access point from the station's lease, and the guest's
+/// answer back to the sender.
+#[test]
+fn behind_the_station_a_udp_forward_answers_its_sender() {
+    let (mut nat, bound) = listening(HostFwdSpec::parse_to("udp:127.0.0.1:0-:7", HostFwdSpec::TO_ACCESS_POINT).unwrap());
+    nat.set_peer(LEASE, STA_MAC, AP_MAC, AP_IP);
+    let host = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    host.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
+    host.send_to(b"ping", bound).unwrap();
+    let frames = poll_ready(&mut nat, 0);
+    let f = &frames[0];
+    assert_eq!((&f[0..6], &f[6..12], f[23]), (&AP_MAC[..], &STA_MAC[..], 17));
+    assert_eq!((&f[26..30], &f[30..34], &f[42..]), (&LEASE[..], &AP_IP[..], &b"ping"[..]));
+    let port = u16::from_be_bytes([f[34], f[35]]);
+    let udp = udp_packet(&AP_IP, &LEASE, 7, port, b"pong");
+    assert!(nat.from_guest(&ethernet(&STA_MAC, &AP_MAC, 0x0800, &ip_packet(17, &AP_IP, &LEASE, &udp)), 1).is_empty());
+    let mut buf = [0; 8];
+    let (n, from) = host.recv_from(&mut buf).unwrap();
+    assert_eq!((&buf[..n], from), (&b"pong"[..], bound));
+}
+
+/// Behind a station there is no gateway: the guest's own connections and datagrams to the station
+/// open nothing on the host, and frames for another address, malformed or cut short are left alone.
+#[test]
+fn behind_the_station_the_guests_own_connections_and_datagrams_go_nowhere() {
+    let mock = Mock::default();
+    let mut nat = mock.nat();
+    nat.set_peer(LEASE, STA_MAC, AP_MAC, AP_IP);
+    assert!(nat.from_guest(&from_ap(40000, 22, 1, 0, SYN, &[]), 0).is_empty());
+    let udp = udp_packet(&AP_IP, &LEASE, 5353, 53, b"query");
+    let datagram = ethernet(&STA_MAC, &AP_MAC, 0x0800, &ip_packet(17, &AP_IP, &LEASE, &udp));
+    assert!(nat.from_guest(&datagram, 1).is_empty());
+    assert!(mock.s().connects.is_empty() && mock.s().udp_opens.is_empty(), "nothing opened on the host");
+    let mut other = from_ap(40000, 22, 1, 0, SYN, &[]);
+    other[30..34].copy_from_slice(&[192, 168, 4, 3]);
+    let mut fragment = datagram.clone();
+    fragment[20] = 0x20;
+    // a UDP length past the IP payload: the slice of the datagram would run off its end
+    let mut long = datagram.clone();
+    long[38..40].copy_from_slice(&[0xff, 0xff]);
+    for f in [other, fragment, long] { assert!(nat.from_guest(&f, 2).is_empty()); }
+    for len in 0..datagram.len() { assert!(nat.from_guest(&datagram[..len], 3).is_empty()); }
+    assert!(nat.tcp.is_empty() && nat.udp.is_empty());
+}
+
+/// Before the station's first lease (`set_peer`) the guest's frames to it, its DHCP broadcasts
+/// among them, open nothing on the host either.
+#[test]
+fn before_the_first_lease_the_guests_frames_go_nowhere() {
+    let mock = Mock::default();
+    let mut nat = mock.nat();
+    let bootp = udp_packet(&AP_IP, &[255; 4], 67, 68, &[2; 300]);
+    let offer = ethernet(&[0xff; 6], &AP_MAC, 0x0800, &ip_packet(17, &AP_IP, &[255; 4], &bootp));
+    for f in [offer, from_ap(40000, 22, 1, 0, SYN, &[])] { assert!(nat.from_guest(&f, 0).is_empty()); }
+    assert!(mock.s().connects.is_empty() && mock.s().udp_opens.is_empty(), "nothing opened on the host");
+}
+
+/// Without a lease (`clear_peer`) accepted connections wait, and the next lease takes them.
+#[test]
+fn behind_the_station_forwards_wait_while_it_has_no_lease() {
+    let mock = Mock::default();
+    let mut nat = mock.nat();
+    nat.set_peer(LEASE, STA_MAC, AP_MAC, AP_IP);
+    nat.clear_peer();
+    mock.s().incoming.push_back((40, HostFwdSpec::TO_ACCESS_POINT, 80));
+    assert!(nat.poll(0).is_empty());
+    nat.set_peer([192, 168, 4, 3], STA_MAC, AP_MAC, AP_IP);
+    let syn = nat.poll(1);
+    assert_eq!((syn.len(), &syn[0][26..30], &syn[0][30..34]), (1, &[192u8, 168, 4, 3][..], &AP_IP[..]));
 }

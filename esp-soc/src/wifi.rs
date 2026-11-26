@@ -563,9 +563,18 @@ pub struct StationLink {
     /// the virtual station that joins the guest's own access point (`attach_station`), instead
     /// of the access points: the guest is then the access point and the station its client
     sta: Option<sta::VirtualSta>,
+    /// the NAT behind the virtual station (`set_nat` with a station attached): `--hostfwd` to the
+    /// guest's own access point, from the station's lease
+    sta_nat: Option<crate::nat::Nat>,
+    /// the lease `sta_nat` was last given (`VirtualSta::peer`): a change aborts its flows
+    sta_peer: Option<sta::Peer>,
     /// an access point or a virtual station is attached (`on_air`): kept as one flag because
     /// the chips test it every scheduling round, WiFi in use or not
     air: bool,
+    /// a network or the virtual station's NAT is attached (`has_net`), for the same reason: kept
+    /// equal to `net.is_some() || sta_nat.is_some()` wherever either is set (`attach`, `set_nat`,
+    /// `surviving_reboot`)
+    netted: bool,
 }
 
 /// A receive descriptor's `has_data` bit (word 0 bit 30), the same on the S3, C3 and C6 MACs: the
@@ -587,7 +596,7 @@ impl StationLink {
     /// Put an access point and the network behind it on the air, replacing any there were, and
     /// any station. The queues, pacing and counts start again; the relay mode stays.
     pub fn attach(&mut self, ap: Option<VirtualAp>, net: Option<crate::net::VirtualNet>) {
-        *self = StationLink { air: ap.is_some(), aps: ap.into_iter().collect(), net, relay: self.relay, tap: self.tap.take(), ..Default::default() };
+        *self = StationLink { air: ap.is_some(), netted: net.is_some(), aps: ap.into_iter().collect(), net, relay: self.relay, tap: self.tap.take(), ..Default::default() };
     }
     /// One more joinable access point for `cfg`, beside the ones attached, behind the same network.
     /// It needs an access point attached first and shares no SSID or BSSID with one there. Its
@@ -612,9 +621,17 @@ impl StationLink {
     /// Give the network behind the access point `nat` (None: none, connections past the gateway
     /// refused), with SNTP answered here even with a NAT when `local_ntp`. The old NAT's flows are
     /// aborted first, so its transport hears of each (`Nat::abort_all`); the access point and the
-    /// guest's lease stay. An error without a network.
+    /// guest's lease stay. With a virtual station attached instead, `nat` goes behind the station
+    /// and carries its `--hostfwd` forwards to the guest's access point (`Nat::set_peer`), and
+    /// `local_ntp` does not apply. An error without either.
     pub fn set_nat(&mut self, nat: Option<crate::nat::Nat>, local_ntp: bool) -> Result<(), String> {
-        let net = self.net.as_mut().ok_or("no virtual network: attach the access point first")?;
+        if self.sta.is_some() {
+            if let Some(old) = self.sta_nat.as_mut() { old.abort_all(); }
+            (self.sta_nat, self.sta_peer) = (nat, None);
+            self.netted = self.sta_nat.is_some();
+            return Ok(());
+        }
+        let net = self.net.as_mut().ok_or("no virtual network: attach the access point or a station first")?;
         if let Some(old) = net.nat.as_mut() { old.abort_all(); }
         net.nat = nat;
         net.local_ntp = local_ntp;
@@ -627,7 +644,10 @@ impl StationLink {
         let mut net = self.net;
         if let Some(nat) = net.as_mut().and_then(|net| net.nat.as_mut()) { nat.abort_all(); }
         let sta = self.sta.map(|mut s| { s.restart(); s });
-        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, sta, air: self.air, ..Default::default() }
+        // the station's lease is gone with the guest's DHCP server: forwards wait for the next
+        let mut sta_nat = self.sta_nat;
+        if let Some(nat) = sta_nat.as_mut() { nat.abort_all(); nat.clear_peer(); }
+        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, sta, sta_nat, air: self.air, netted: self.netted, ..Default::default() }
     }
 
     /// Record every Ethernet frame the station sends and receives into `tap`.
@@ -649,6 +669,7 @@ impl StationLink {
     /// It takes the place of access points: the guest with both an access point and a station of
     /// its own (AP+STA) is not modelled yet. The queues, pacing and counts start again; the relay
     /// mode stays, and with it on the station's frames go to the host instead of its own DHCP.
+    /// A NAT for the station's forwards comes after it, through `set_nat`.
     pub fn attach_station(&mut self, mut station: sta::VirtualSta) -> Result<(), String> {
         if !self.aps.is_empty() { return Err("a virtual station needs no access point attached: AP+STA is not modelled yet".into()); }
         station.host = !self.relay;
@@ -660,6 +681,12 @@ impl StationLink {
     /// Something on the air for the chip's MAC to hear: an access point, or a virtual station.
     #[inline]
     pub fn on_air(&self) -> bool { self.air }
+    /// A network to step (`net_step`): the access point's, or the NAT behind the virtual station.
+    #[inline]
+    pub fn has_net(&self) -> bool {
+        debug_assert_eq!(self.netted, self.net.is_some() || self.sta_nat.is_some());
+        self.netted
+    }
     /// The address-match bits of a received frame's `rx_ctrl` word 0 (bits 28 to 30), as the S3,
     /// C3, C6 and S31 MACs set them; the classic ESP32 has its own (`esp32/src/wifi.rs`). libpp
     /// takes the interface a frame is for from them, as `wDev_ProcessRxSucData` does in the
@@ -732,7 +759,12 @@ impl StationLink {
             let Some(eth) = self.sta.as_mut().and_then(|s| s.on_ap_tx(frame, now_us)) else { return };
             if !self.relay {
                 self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
-                let sent = self.sta.as_mut().map_or(Vec::new(), |s| { s.host_rx(&eth, now_us); s.take_sent() });
+                let sent = self.sta.as_mut().map_or(Vec::new(), |s| {
+                    s.host_rx(&eth, now_us);
+                    // a forwarded flow's segment or datagram, and what the NAT answers at once
+                    if let Some(nat) = self.sta_nat.as_mut() { for e in nat.from_guest(&eth, now_us) { s.data_to_ds(&e, now_us); } }
+                    s.take_sent()
+                });
                 for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
             } else if eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE {
                 self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
@@ -865,7 +897,7 @@ impl StationLink {
         if self.relay { return; }
         let sta = self.current().map(|i| self.aps[i].sta)
             .or_else(|| self.aps.iter().map(|ap| ap.sta).find(|m| *m != [0; 6]));
-        let Some(net) = self.net.as_mut() else { return };
+        let Some(net) = self.net.as_mut() else { return self.sta_net_step(now_us) };
         if let Some(mac) = sta { if mac != [0; 6] { net.sta_mac = mac; } }
         let out = std::mem::take(&mut self.eth_tx);
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
@@ -873,6 +905,28 @@ impl StationLink {
         if due { self.net_polled_us = now_us; }
         for e in out { self.eth_rx.extend(net.handle(&e, now_us)); }
         self.eth_rx.extend(net.poll(now_us));
+    }
+
+    /// The NAT behind the virtual station: it follows the station's lease (`VirtualSta::peer`),
+    /// dropping its flows when the lease goes or changes (the host's connections are closed; the
+    /// guest hears nothing, as from a station that has gone), and reads the host's sockets every
+    /// `NET_POLL_US`. What it sends goes to the guest through the station, and into the capture
+    /// at once, as `station_tx` does, so a frame from the guest that comes up before the next
+    /// one is received does not land before it.
+    fn sta_net_step(&mut self, now_us: u64) {
+        let (Some(nat), Some(s)) = (self.sta_nat.as_mut(), self.sta.as_mut()) else { return };
+        let peer = s.peer();
+        if peer != self.sta_peer {
+            // the flows' addresses were the old lease's
+            if self.sta_peer.is_some() { nat.abort_all(); }
+            match peer { Some(p) => nat.set_peer(p.ip, s.cfg.mac, p.server_mac, p.server), None => nat.clear_peer() }
+            self.sta_peer = peer;
+        }
+        if now_us.wrapping_sub(self.net_polled_us) < NET_POLL_US { return; }
+        self.net_polled_us = now_us;
+        // with a lease the station is joined (leaving ends the lease), so it carries every frame
+        for e in nat.poll(now_us) { s.data_to_ds(&e, now_us); }
+        for (at, e) in s.take_sent() { self.capture(crate::netcap::Dir::ToStation, at, &e); }
     }
 
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
@@ -915,14 +969,18 @@ impl StationLink {
             if self.relay_lost > 0 { relay += &format!(", {} relayed frames lost as the station had left", self.relay_lost); }
             lines.push(format!("{}{relay}", s.report()));
         }
+        if let Some(t) = &self.sta_nat { lines.push(nat_line(t)); }
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
-            if let Some(t) = &n.nat {
-                let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };
-                let mut udp_inbound = if t.udp_inbound == 0 { String::new() } else { format!(", {} inbound", t.udp_inbound) };
-                if t.udp_refused > 0 { udp_inbound += &format!(", {} inbound turned away", t.udp_refused); }
-                if t.udp_oversize > 0 { udp_inbound += &format!(", {} datagrams over the MTU dropped", t.udp_oversize); }
-                lines.push(format!("[emu] nat: {} TCP connections ({} failed{}), {} UDP flows ({} evicted, {} send errors{}), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, inbound, t.udp_flows, t.udp_evicted, t.udp_send_errors, udp_inbound, t.bytes_to_host, t.bytes_to_guest));
-            } }
+            if let Some(t) = &n.nat { lines.push(nat_line(t)); } }
         lines.join("\n")
     }
+}
+
+/// The end-of-run line of a NAT, behind the access point's network or the virtual station.
+fn nat_line(t: &crate::nat::Nat) -> String {
+    let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };
+    let mut udp_inbound = if t.udp_inbound == 0 { String::new() } else { format!(", {} inbound", t.udp_inbound) };
+    if t.udp_refused > 0 { udp_inbound += &format!(", {} inbound turned away", t.udp_refused); }
+    if t.udp_oversize > 0 { udp_inbound += &format!(", {} datagrams over the MTU dropped", t.udp_oversize); }
+    format!("[emu] nat: {} TCP connections ({} failed{}), {} UDP flows ({} evicted, {} send errors{}), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, inbound, t.udp_flows, t.udp_evicted, t.udp_send_errors, udp_inbound, t.bytes_to_host, t.bytes_to_guest)
 }

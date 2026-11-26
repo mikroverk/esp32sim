@@ -81,8 +81,7 @@ Not yet working:
   addresses. TCP and UDP servers in the guest are reachable with `--hostfwd`.
 - Hardware AES-GCM (block mode 6) and the DS/HMAC peripherals; mbedTLS has not asked for them yet.
 - Roaming, power save, 802.11n rates, multiple stations, WPA3/SAE, PMF.
-- The guest as an access point beyond the first steps (below): AP+STA, more than one station, and
-  host ports forwarded to the guest's access point.
+- The guest as an access point beyond the first steps (below): AP+STA and more than one station.
 
 ## The guest as an access point (`--wifi-sta`)
 
@@ -155,8 +154,17 @@ the program's MAC, and with the relay off again it starts DHCP anew. The end-of-
 keep-alives and renewals (rebinds among them) when there are any; the keep-alives are among its
 frames to the access point, not beside them.
 
+Host ports reach the guest's access point through the station (`--hostfwd` beside `--wifi-sta`):
+the NAT of `--wifi`'s network goes behind the station instead (`StationLink::set_nat`), and its
+forwarded connections and datagrams come from the station's lease and MAC, to the DHCP server that
+leased it (option 54 of its ACK) or to the address given. It follows the lease: without one the
+forwards wait, and when it goes or changes (the station left, the guest rebooted or stopped its
+access point) the forwarded connections are closed. It carries nothing else: the guest's own
+connections and datagrams to the station are not relayed. Without `--hostfwd` there is no NAT,
+and nothing of it runs.
+
 Not yet: probe requests, so an access point with a hidden SSID is not found; a second station;
-AP+STA with both sides on the air; host ports forwarded to the guest's access point. In relay mode the host program is the station:
+AP+STA with both sides on the air. In relay mode the host program is the station:
 without four-address frames it sends from and receives at the station's MAC, and a frame it relays
 before the station has joined is refused; one the station takes and cannot carry, because it left
 the access point in between, is counted in the end-of-run line. The CLI's `--wifi-sta` and

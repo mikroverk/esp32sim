@@ -2,6 +2,10 @@
 //! natively `StdTransport`, ordinary host sockets, which also carries `--hostfwd` inbound TCP
 //! connections and UDP datagrams to the station.
 //!
+//! Behind `--wifi`'s access point the NAT is the gateway, 10.0.2.2. Behind `--wifi-sta`'s virtual
+//! station (`set_peer`) it carries `--hostfwd` only: the forwarded connections and datagrams come
+//! from the station's leased address and MAC, to the guest's own access point.
+//!
 //! TCP uses bounded buffers in both directions. SYN, data and FIN share one retransmission queue,
 //! so a dropped virtual-air frame cannot discard acknowledged guest bytes or strand a handshake.
 //! This is a small relay, without window scaling, SACK or congestion control.
@@ -84,8 +88,16 @@ pub struct HostFwdSpec {
 }
 
 impl HostFwdSpec {
+    /// The guest address of a forward to the guest's own access point (`--wifi-sta`): the DHCP
+    /// server that leased the virtual station its address, once it has one (`Nat::set_peer`).
+    pub const TO_ACCESS_POINT: [u8; 4] = [0; 4];
+
     /// `tcp|udp:[hostaddr]:hostport-[guestaddr]:guestport`. Empty host binds loopback; empty guest is 10.0.2.15.
-    pub fn parse(spec: &str) -> Result<Self, String> {
+    pub fn parse(spec: &str) -> Result<Self, String> { Self::parse_to(spec, STATION_IP) }
+
+    /// `parse` with an empty guest address meaning `default_guest`: `TO_ACCESS_POINT` for a
+    /// forward through the virtual station, where 0.0.0.0 given means the same.
+    pub fn parse_to(spec: &str, default_guest: [u8; 4]) -> Result<Self, String> {
         let expected = || format!("invalid --hostfwd {spec:?}: expected tcp:HOST:HOSTPORT-GUEST:GUESTPORT or udp:HOST:HOSTPORT-GUEST:GUESTPORT");
         let (udp, rest) = match (spec.strip_prefix("tcp:"), spec.strip_prefix("udp:")) {
             (Some(rest), _) => (false, rest),
@@ -104,7 +116,7 @@ impl HostFwdSpec {
         };
         let host_port: u16 = host_port.parse().map_err(|_| format!("invalid --hostfwd host port {host_port:?}"))?;
         let guest_ip = if guest.is_empty() {
-            STATION_IP
+            default_guest
         } else {
             guest.parse::<Ipv4Addr>().map_err(|_| format!("invalid --hostfwd guest address {guest:?}"))?.octets()
         };
@@ -123,6 +135,8 @@ struct Pending {
 
 struct Tcp {
     guest_mac: [u8; 6], guest_ip: [u8; 4], guest_port: u16, dst_ip: [u8; 4], dst_port: u16,
+    /// the MAC the flow's frames come from (`Nat::gw_mac` when it began)
+    our_mac: [u8; 6],
     inbound: bool,
     state: FlowState,
     guest_write: GuestWrite,
@@ -179,7 +193,7 @@ impl Tcp {
         seg.extend_from_slice(data);
         let check = transport_checksum(&self.dst_ip, &self.guest_ip, 6, &seg);
         seg[16..18].copy_from_slice(&check.to_be_bytes());
-        ethernet(&self.guest_mac, &GATEWAY_MAC, 0x0800, &ip_packet(6, &self.dst_ip, &self.guest_ip, &seg))
+        ethernet(&self.guest_mac, &self.our_mac, 0x0800, &ip_packet(6, &self.dst_ip, &self.guest_ip, &seg))
     }
 
     fn send(&mut self, flags: u8, data: Vec<u8>, now_us: u64) -> Vec<u8> {
@@ -275,7 +289,16 @@ pub struct Nat {
     dns: VecDeque<DnsQuery>,
     transport: Box<dyn NatTransport>,
     pending: Vec<Pending>,
+    /// the guest's MAC, where the NAT's frames go
     sta_mac: [u8; 6],
+    /// the NAT's own address and MAC on the guest's network: the gateway's, or behind a virtual
+    /// station its lease and MAC (`set_peer`)
+    gw_ip: [u8; 4],
+    gw_mac: [u8; 6],
+    /// where a forward to `HostFwdSpec::TO_ACCESS_POINT` goes (`set_peer`)
+    guest_ap: [u8; 4],
+    /// only the `--hostfwd` flows: the guest's own new ones are not relayed (`set_peer`)
+    forwards_only: bool,
     next_eph: u16,
     isn: u32,
     pub resolver: [u8; 4],
@@ -304,7 +327,8 @@ impl Nat {
     /// The NAT over another host transport.
     pub fn with_transport(log: bool, transport: Box<dyn NatTransport>) -> Self {
         Self { tcp: Vec::new(), udp: Vec::new(), dns: VecDeque::new(), resolver: transport.resolver(), transport,
-            pending: Vec::new(), sta_mac: [0; 6], next_eph: INBOUND_PORT_BASE, isn: 0x1000, log,
+            pending: Vec::new(), sta_mac: [0; 6], gw_ip: GATEWAY_IP, gw_mac: GATEWAY_MAC, guest_ap: HostFwdSpec::TO_ACCESS_POINT,
+            forwards_only: false, next_eph: INBOUND_PORT_BASE, isn: 0x1000, log,
             tcp_opened: 0, tcp_refused: 0, tcp_accepted: 0, hostfwd: 0,
             udp_flows: 0, udp_inbound: 0, udp_refused: 0, udp_oversize: 0, udp_evicted: 0, udp_send_errors: 0, bytes_to_host: 0, bytes_to_guest: 0,
             dns_answers: 0 }
@@ -313,6 +337,49 @@ impl Nat {
     /// The station MAC learned from the virtual network; inbound SYNs wait until it is known.
     pub fn set_station(&mut self, mac: [u8; 6]) {
         if mac != [0; 6] { self.sta_mac = mac; }
+    }
+
+    /// Behind a virtual station on the guest's own network (`--wifi-sta`): forwarded flows come
+    /// from `local_ip` and `local_mac`, the station's lease and its MAC, in place of the gateway's,
+    /// and go to `guest_mac`; a forward without a guest address (`HostFwdSpec::TO_ACCESS_POINT`)
+    /// goes to `guest_ap`, the DHCP server that leased the address. From the first call the NAT
+    /// carries the forwards only: the guest's own new connections and datagrams to the station are
+    /// not relayed to the host, as there is no gateway behind a station.
+    pub fn set_peer(&mut self, local_ip: [u8; 4], local_mac: [u8; 6], guest_mac: [u8; 6], guest_ap: [u8; 4]) {
+        (self.gw_ip, self.gw_mac, self.sta_mac, self.guest_ap, self.forwards_only) = (local_ip, local_mac, guest_mac, guest_ap, true);
+    }
+    /// The virtual station has no lease: forwarded connections and datagrams wait for the next.
+    pub fn clear_peer(&mut self) { self.sta_mac = [0; 6]; }
+
+    /// Where a forward goes: its guest address, or for `TO_ACCESS_POINT` the guest's access point.
+    fn forward_to(&self, guest_ip: [u8; 4]) -> [u8; 4] { if guest_ip == HostFwdSpec::TO_ACCESS_POINT { self.guest_ap } else { guest_ip } }
+
+    /// An Ethernet frame the guest sent to the station `set_peer` names: a TCP segment or a UDP
+    /// datagram of a forwarded flow, to its local address. Returns the frames for the guest.
+    /// Anything else, malformed, fragmented or for no flow, is left alone, and so is every frame
+    /// before the first `set_peer`: until then the NAT would relay the guest's own traffic (its
+    /// DHCP broadcasts, say) to the host as `--wifi`'s gateway does.
+    pub fn from_guest(&mut self, eth: &[u8], now_us: u64) -> Vec<Vec<u8>> {
+        if !self.forwards_only || eth.len() < 34 || eth[12..14] != [0x08, 0x00] { return Vec::new(); }
+        let p = &eth[14..];
+        let ihl = ((p[0] & 0xf) as usize) * 4;
+        let total = u16::from_be_bytes([p[2], p[3]]) as usize;
+        if p[0] >> 4 != 4 || ihl < 20 || total < ihl || total > p.len() || u16::from_be_bytes([p[6], p[7]]) & 0x3fff != 0 { return Vec::new(); }
+        // a flow matches on both addresses, so a frame for another address finds none
+        let (sip, dip): ([u8; 4], [u8; 4]) = (p[12..16].try_into().unwrap(), p[16..20].try_into().unwrap());
+        let gmac: [u8; 6] = eth[6..12].try_into().unwrap();
+        let body = &p[ihl..total];
+        match p[9] {
+            6 => self.tcp_in(&gmac, &sip, &dip, body, now_us),
+            17 if body.len() >= 8 => {
+                let len = u16::from_be_bytes([body[4], body[5]]) as usize;
+                if len < 8 || len > body.len() { return Vec::new(); }
+                let (sport, dport) = (u16::from_be_bytes([body[0], body[1]]), u16::from_be_bytes([body[2], body[3]]));
+                self.udp_out(&gmac, &sip, sport, &dip, &dip, dport, &body[8..len], now_us);
+                Vec::new()
+            }
+            _ => Vec::new(),
+        }
     }
 
     /// Snapshot TCP transport state without polling sockets, retransmitting or expiring flows.
@@ -366,6 +433,7 @@ impl Nat {
         let idx = self.udp.iter().position(|f| f.guest_ip == *gip && f.guest_port == sport && f.dst_ip == *dip && f.dst_port == dport);
         let idx = match idx {
             Some(i) => i,
+            None if self.forwards_only => return,
             None => {
                 let Ok(id) = self.transport.udp_open(SocketAddrV4::new(ip(dip), dport)) else { return };
                 self.udp_insert(Udp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
@@ -417,6 +485,7 @@ impl Nat {
         let window = u16::from_be_bytes([seg[14], seg[15]]);
         let idx = self.tcp.iter().position(|c| c.guest_ip == *gip && c.guest_port == sport && c.dst_port == dport && c.dst_ip == *dip);
         if flags & (SYN | ACK | RST) == SYN && idx.is_none() {
+            if self.forwards_only { return Vec::new(); }
             let evict = if self.tcp.len() >= MAX_FLOWS {
                 // Finished flows remember final ACKs only while their bounded slots are spare.
                 let Some(i) = self.tcp.iter().position(|c| matches!(c.state, FlowState::TimeWait | FlowState::Closed)) else { return Vec::new() };
@@ -425,7 +494,7 @@ impl Nat {
             let Some(id) = self.transport.tcp_connect(SocketAddrV4::new(ip(dip), dport)) else { return Vec::new() };
             if let Some(i) = evict { self.tcp.remove(i); }
             self.isn = self.isn.wrapping_add(0x10000);
-            self.tcp.push(Tcp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
+            self.tcp.push(Tcp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport, our_mac: self.gw_mac,
                 inbound: false, state: FlowState::Connecting(id), guest_write: GuestWrite::Open, host_closed: false,
                 our_seq: self.isn, guest_seq: seq.wrapping_add(1), guest_window: window,
                 to_host: VecDeque::new(), unacked: VecDeque::new(), last_activity_us: now_us });
@@ -509,11 +578,11 @@ impl Nat {
             }
             let Some(eph) = self.alloc_eph() else { self.pending.push(p); continue; };
             self.isn = self.isn.wrapping_add(0x10000);
-            let mut c = Tcp { guest_mac: self.sta_mac, guest_ip: p.guest_ip, guest_port: p.guest_port,
-                dst_ip: GATEWAY_IP, dst_port: eph, inbound: true, state: FlowState::Connected(p.id),
+            let mut c = Tcp { guest_mac: self.sta_mac, guest_ip: self.forward_to(p.guest_ip), guest_port: p.guest_port,
+                dst_ip: self.gw_ip, dst_port: eph, our_mac: self.gw_mac, inbound: true, state: FlowState::Connected(p.id),
                 guest_write: GuestWrite::Open, host_closed: false, our_seq: self.isn, guest_seq: 0,
                 guest_window: WINDOW, to_host: VecDeque::new(), unacked: VecDeque::new(), last_activity_us: now_us };
-            if self.log { eprintln!("[nat] TCP hostfwd SYN {}:{} -> {}:{}", ip(&GATEWAY_IP), eph, ip(&c.guest_ip), c.guest_port); }
+            if self.log { eprintln!("[nat] TCP hostfwd SYN {}:{} -> {}:{}", ip(&self.gw_ip), eph, ip(&c.guest_ip), c.guest_port); }
             out.push(c.send(SYN, Vec::new(), now_us));
             self.tcp.push(c);
         }
@@ -544,9 +613,10 @@ impl Nat {
                 continue;
             };
             if let Some(i) = victim { self.udp_evict(i); }
-            if self.log { eprintln!("[nat] UDP hostfwd {}:{} -> {}:{}", ip(&GATEWAY_IP), eph, ip(&guest_ip), guest_port); }
-            self.udp.push(Udp { guest_mac: self.sta_mac, guest_ip, guest_port, dst_ip: GATEWAY_IP, dst_port: eph,
-                reply_src: GATEWAY_IP, id, inbound: true, guest_sent: false, last_activity_us: now_us });
+            let guest_ip = self.forward_to(guest_ip);
+            if self.log { eprintln!("[nat] UDP hostfwd {}:{} -> {}:{}", ip(&self.gw_ip), eph, ip(&guest_ip), guest_port); }
+            self.udp.push(Udp { guest_mac: self.sta_mac, guest_ip, guest_port, dst_ip: self.gw_ip, dst_port: eph,
+                reply_src: self.gw_ip, id, inbound: true, guest_sent: false, last_activity_us: now_us });
             self.udp_flows += 1;
             self.udp_inbound += 1;
             fresh += 1;
@@ -559,6 +629,7 @@ impl Nat {
         self.accept_inbound();
         self.start_pending(now_us, &mut out);
         self.accept_udp(now_us);
+        let gw_mac = self.gw_mac;
         let transport = &mut *self.transport;
         for c in &mut self.tcp {
             if c.closed() { continue; }
@@ -634,7 +705,7 @@ impl Nat {
                 self.bytes_to_guest += n as u64;
                 flow.last_activity_us = now_us;
                 let udp = udp_packet(&flow.reply_src, &flow.guest_ip, flow.dst_port, flow.guest_port, &buf[..n]);
-                out.push(ethernet(&flow.guest_mac, &GATEWAY_MAC, 0x0800, &ip_packet(17, &flow.reply_src, &flow.guest_ip, &udp)));
+                out.push(ethernet(&flow.guest_mac, &gw_mac, 0x0800, &ip_packet(17, &flow.reply_src, &flow.guest_ip, &udp)));
             }
         }
         while let Some((qid, result)) = transport.resolved() {
@@ -648,7 +719,7 @@ impl Nat {
             }
             self.dns_answers += 1;
             let udp = udp_packet(&q.dns_ip, &q.guest_ip, 53, q.guest_port, &dns_reply(&q.query, q.qtype, addrs, ttl, rcode));
-            out.push(ethernet(&q.guest_mac, &GATEWAY_MAC, 0x0800, &ip_packet(17, &q.dns_ip, &q.guest_ip, &udp)));
+            out.push(ethernet(&q.guest_mac, &gw_mac, 0x0800, &ip_packet(17, &q.dns_ip, &q.guest_ip, &udp)));
         }
         self.dns.retain(|q| now_us.wrapping_sub(q.at_us) < DNS_PENDING_US);
         self.tcp.retain(|c| {
