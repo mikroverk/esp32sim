@@ -1,0 +1,7 @@
+STARTED ssid="esp32sim-ap" channel=6 auth=WPA2 bssid=60:55:f9:00:11:23
+JOINED mac=02:53:54:41:00:01 aid=1
+LEASED ip=192.168.4.2 mac=02:53:54:41:00:01
+UPLINK CONNECTED ssid="esp32sim" channel=6
+UPLINK GOT_IP ip=10.0.2.15 gw=10.0.2.2
+PING done sent=5 received=5
+STATUS stations=1 uplink=2

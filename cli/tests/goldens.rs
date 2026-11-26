@@ -937,6 +937,46 @@ fn wifi_softap_c3() { wifi_softap("c3", BIN_C3, "esp32c3_rev3", &[]); }
 #[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
 fn wifi_softap_c6() { wifi_softap("c6", BIN_C6, "esp32c6_rev0", &[]); }
 
+/// The guest as an access point and a station at once (`examples/wifi-apsta`, ESP-IDF 5.5.4,
+/// `{chip}-wifi_apsta.bin` with `wifi-softap`'s bootloader and partition table, which it builds
+/// byte for byte): `--wifi-sta`'s virtual station joins the guest's access point through the WPA2
+/// handshake and takes a lease from its DHCP server, while the guest's station joins `--wifi`'s
+/// access point, takes a lease from the virtual network and has its gateway answer five pings.
+/// The firmware's lines say so from both sides; the console, the radio counts of both and the
+/// instruction count are pinned.
+fn wifi_apsta(chip: &str, bin: &str, rom_name: &str, args: &[&str]) {
+    let rom = rom(rom_name);
+    let (bl, pt, app) = (format!("{FW}/{chip}-softap-bootloader.bin"), format!("{FW}/{chip}-softap-ptable.bin"), format!("{FW}/{chip}-wifi_apsta.bin"));
+    let mut all = vec!["--rom", rom.to_str().unwrap(), "--boot", "rom", "--no-dump", "--bootloader", &bl, "--ptable", &pt, "--app", &app,
+        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--wifi-sta", "ssid=esp32sim-ap,psk=esp32sim-pass", "--max-seconds", "10"];
+    all.extend(args);
+    let r = run(bin, &all);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let apsta: String = r.stdout.lines().filter_map(|l| l.split_once("apsta: ").map(|(_, rest)| rest.trim_end_matches("\u{1b}[0m"))).map(|l| format!("{l}\n")).collect();
+    for want in ["JOINED mac=02:53:54:41:00:01 aid=1", "LEASED ip=192.168.4.2", "UPLINK GOT_IP ip=10.0.2.15", "PING done sent=5 received=5"] {
+        assert!(apsta.contains(want), "no {want}:\n{}\n{}", apsta, r.stderr);
+    }
+    expect_text(&format!("wifi-apsta-{chip}.apsta.txt"), &apsta);
+    expect_text(&format!("wifi-apsta-{chip}.console.txt"), &r.stdout);
+    let events = r.stderr.lines().find(|l| l.starts_with("[emu] stop:")).and_then(|l| l.rsplit_once("); ")).map_or("", |(_, e)| e);
+    let report: String = std::iter::once(events).chain(r.stderr.lines().filter(|l| l.starts_with("[emu] wifi") || l.starts_with("[emu] net:")))
+        .map(|l| format!("{l}\n")).collect();
+    expect_text(&format!("wifi-apsta-{chip}.report.txt"), &report);
+    expect_u64(&format!("wifi-apsta-{chip}.insns"), r.insns);
+}
+
+#[test] #[ignore = "needs the ESP32 ECO3 mask ROM ELF"]
+fn wifi_apsta_classic() { wifi_apsta("classic", BIN, "esp32_rev300", &["--chip", "esp32", "--board", "esp32dev", "--console", "uart0"]); }
+
+#[test] #[ignore = "needs the ESP32-S3 mask ROM ELF"]
+fn wifi_apsta_s3() { wifi_apsta("s3", BIN, "esp32s3_rev0", &["--flash-mb", "4", "--console", "usb", "--board", "none"]); }
+
+#[test] #[ignore = "needs the ESP32-C3 mask ROM ELF"]
+fn wifi_apsta_c3() { wifi_apsta("c3", BIN_C3, "esp32c3_rev3", &["--flash-mb", "4", "--console", "usb"]); }
+
+#[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
+fn wifi_apsta_c6() { wifi_apsta("c6", BIN_C6, "esp32c6_rev0", &["--flash-mb", "4", "--console", "usb"]); }
+
 /// The access point on the S31 of the ESP-Mosaico: `examples/wifi-softap` built with ESP-IDF v6.1
 /// by `tools/fetch-s31-firmware.sh` (`s31-wifi_softap.bin`, committed in `esp32s31/firmware`; its
 /// bootloader and partition table are the station's and hello's). The virtual station joins and

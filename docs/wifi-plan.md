@@ -130,6 +130,8 @@ guest's network. `examples/wifi-apsta` (both at once, its station pinging its ne
 built with ESP-IDF v5.5.4 for the classic ESP32, S3, C3 and C6, gets through on each in 10 emulated
 seconds: the virtual station joins its access point through the WPA2 handshake and takes
 192.168.4.2, and its station joins `--wifi`'s, takes 10.0.2.15 and has 5 of 5 pings answered.
+`wifi_apsta_classic`, `wifi_apsta_s3`, `wifi_apsta_c3` and `wifi_apsta_c6` pin it (the
+firmware's lines, the console, both sides' counts and the instruction count).
 
 Joined, the station keeps its place. An access point disassociates a station it has not heard
 from for its inactive time: `examples/wifi-softap` (ESP-IDF v5.5.4, 300 s by default) logged

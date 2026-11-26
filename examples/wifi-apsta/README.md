@@ -33,16 +33,20 @@ flash, no SAE):
 cd examples/wifi-apsta
 idf.py set-target esp32      # esp32s3, esp32c3, esp32c6
 idf.py build
+cp build/wifi_apsta.bin ../../web/wasm/fw/public/classic-wifi_apsta.bin   # s3-, c3-, c6-
 ```
 
 The bootloader and partition table come out byte for byte as `examples/wifi-softap`'s for each
-chip (`web/wasm/fw/public/{classic,s3,c3,c6}-softap-bootloader.bin`, `…-softap-ptable.bin`). The
-application images of one build each (`espressif/idf:v5.5.4`, GCC esp-14.2.0_20260121):
+chip, so the images run with `web/wasm/fw/public/{classic,s3,c3,c6}-softap-bootloader.bin` and
+`…-softap-ptable.bin`. The committed images, one build each (ESP-IDF v5.5.4, GCC
+esp-14.2.0_20260121):
 
-    91edbc46bb89ab596d04a4b77d6c5fe4b0e666797023c4bacfe66e3a95a20e71  wifi_apsta.bin (esp32)
-    469a3e4da43100bafc41936d4ced7a42ba821466509394aa0f0b888db7b6898b  wifi_apsta.bin (esp32s3)
-    45a93b7f0ae199968ea483cbddca9ad97db6593cee86a29a40c1102b2322de25  wifi_apsta.bin (esp32c3)
-    b846de415b58126c1609e7dc2fb7f7d69499e635a7db969b690d2d88dcc46138  wifi_apsta.bin (esp32c6)
+    91edbc46bb89ab596d04a4b77d6c5fe4b0e666797023c4bacfe66e3a95a20e71  classic-wifi_apsta.bin
+    469a3e4da43100bafc41936d4ced7a42ba821466509394aa0f0b888db7b6898b  s3-wifi_apsta.bin
+    45a93b7f0ae199968ea483cbddca9ad97db6593cee86a29a40c1102b2322de25  c3-wifi_apsta.bin
+    b846de415b58126c1609e7dc2fb7f7d69499e635a7db969b690d2d88dcc46138  c6-wifi_apsta.bin
+
+The licences linked into them are in [the notice](../../web/wasm/fw/public/apsta-NOTICE.txt).
 
 ## Run
 
@@ -51,10 +55,15 @@ target/release/esp32sim --chip esp32 --board esp32dev --boot rom --rom web/wasm/
   --console uart0 \
   --bootloader web/wasm/fw/public/classic-softap-bootloader.bin \
   --ptable web/wasm/fw/public/classic-softap-ptable.bin \
-  --app examples/wifi-apsta/build/wifi_apsta.bin \
+  --app web/wasm/fw/public/classic-wifi_apsta.bin \
   --wifi ssid=esp32sim,psk=esp32sim-pass --wifi-sta ssid=esp32sim-ap,psk=esp32sim-pass --max-seconds 10
 ```
 
 On the S3, C3 and C6 the console is on USB Serial/JTAG (`--console usb --flash-mb 4`, and
-`--board none` on the S3), as for `examples/wifi-softap`. Each of the four printed the lines above
-within 10 emulated seconds.
+`--board none` on the S3), as for `examples/wifi-softap`. Each of the four prints the lines above
+within 10 emulated seconds. The goldens (`cli/tests/goldens.rs`, `wifi_apsta_classic`,
+`wifi_apsta_s3`, `wifi_apsta_c3`, `wifi_apsta_c6`) run them from the repository root:
+
+```sh
+ESP32SIM_ROM_DIR="$PWD/web/wasm/fw" cargo test --release -p esp32sim --test goldens wifi_apsta -- --ignored
+```

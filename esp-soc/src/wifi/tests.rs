@@ -1696,13 +1696,16 @@ fn apsta() -> (StationLink, WebGuest) {
     (l, g)
 }
 
+/// The guest's station in `apsta_run`: the time and the frame the air brought it, if any, in; what it sends out.
+type GuestStation<'a> = dyn FnMut(u64, Option<&[u8]>) -> Vec<Vec<u8>> + 'a;
+
 /// The guest in AP+STA against `l` from `from_us` to `to_us` in 100 us steps, as a chip's bus
 /// drives the link: its access point (`g`) sends through `station_tx` and takes what the air
 /// brings for its BSSID; everything else the air brings goes to its station, which `station`
 /// plays: it gets the time and that frame, and returns what the station sends. Each delivered
 /// frame comes back with the flags `rx_match` gives it. Wherever `nothing_due` says so, the air
 /// brings nothing.
-fn apsta_run(l: &mut StationLink, g: &mut WebGuest, from_us: u64, to_us: u64, station: &mut dyn FnMut(u64, Option<&[u8]>) -> Vec<Vec<u8>>) -> Vec<(Vec<u8>, u32)> {
+fn apsta_run(l: &mut StationLink, g: &mut WebGuest, from_us: u64, to_us: u64, station: &mut GuestStation) -> Vec<(Vec<u8>, u32)> {
     let mut got = Vec::new();
     for now in (from_us..to_us).step_by(100) {
         for a in g.ap.step(now) { l.station_tx(&with_fcs_slot(a.frame), now); }
