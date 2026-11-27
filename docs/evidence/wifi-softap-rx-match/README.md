@@ -133,8 +133,8 @@ joined (`apsta` in `counts-apsta.json`):
 
 The S3 also ran its SoftAP alone (`softap`), the C6 its station alone (`station`) and the C3 both,
 with the same flags: the C6's station alone 5337 of 5337 unicast frames `1001` in 798 s, the C3's
-86 of 86, and 524 and 283 frames to the C3's and S3's SoftAPs `1010`. The few `1001` frames to the station in a `softap` run
-are probe responses to the station's own scans.
+86 of 86, and 524 and 283 frames to the C3's and S3's SoftAPs `1010`. The few `1001` frames to the
+station in a `softap` run are probe responses to the station's own scans.
 
 One difference between the chips: the broadcasts the joined network repeats with the station's own
 address as their source got no bit on the classic ESP32, S3 and C3 and bit 28 on the C6 (1 frame

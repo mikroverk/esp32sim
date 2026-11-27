@@ -207,8 +207,8 @@ the broadcasts an access point repeats to its BSS from the station got no bit, w
 virtual station does with them. A second measurement with a phone joined to each side at once gave
 the same flags on the classic ESP32, S3, C3 and C6, and unicast to the station now gets 28 alone
 as on silicon, where the model had set 28 and 29. libpp takes both: `examples/wifi-apsta` gets
-through with either, its C3 and C6 runs the same bit for bit and the classic's and S3's exception
-counts apart. The read of `wDev_ProcessRxSucData` suggests that bit 29 would pass a frame for the
+through with either: its C3 and C6 runs are the same bit for bit, and the classic's and S3's
+differ only in their instruction and exception counts. The read of `wDev_ProcessRxSucData` suggests that bit 29 would pass a frame for the
 station to the enabled access point too; the runs do not show it. The model still differs from
 silicon in two places: silicon sets bit 31 on every frame received with promiscuous reception on,
 which the measurement needed (probably the sniffer interface's match), and the model leaves it

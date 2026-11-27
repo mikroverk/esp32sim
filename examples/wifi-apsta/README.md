@@ -19,11 +19,10 @@ from a run of the classic ESP32 build in the emulator):
 
 `LEFT` and `UPLINK DISCONNECTED` report the other way; `STATUS` repeats every five seconds.
 `STARTED` gives the configured channel, which the access point leaves for the uplink's once the
-station joins. The
-access point is `examples/wifi-softap`'s (WPA2-PSK, PMF optional, no SAE, channel 6 until the
-station joins, when ESP-IDF moves it to the uplink's); the station joins `esp32sim` /
-`esp32sim-pass`, the emulator's `--wifi ssid=esp32sim,psk=esp32sim-pass`. `menuconfig` ("WiFi
-AP+STA") changes either side and the number of pings.
+station joins. The access point is `examples/wifi-softap`'s (WPA2-PSK, PMF optional, no SAE,
+channel 6 until the station joins, when ESP-IDF moves it to the uplink's); the station joins
+`esp32sim` / `esp32sim-pass`, the emulator's `--wifi ssid=esp32sim,psk=esp32sim-pass`.
+`menuconfig` ("WiFi AP+STA") changes either side and the number of pings.
 
 ## Build
 
