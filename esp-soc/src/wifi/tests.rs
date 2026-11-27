@@ -1677,3 +1677,206 @@ fn the_station_has_a_network_only_with_a_nat_and_keeps_it_across_a_reboot() {
     plain.attach(None, None);
     assert!(!plain.has_net());
 }
+
+// ------------------------------------------------------------------ AP+STA: the guest is both
+
+/// The guest's own access point in AP+STA: open, at the classic's SoftAP address, so its BSSID is
+/// not `--wifi`'s.
+const GUEST_AP: [u8; 6] = [0x24, 0x6f, 0x28, 0x00, 0x11, 0x23];
+
+/// `--wifi`'s access point and network (`config()`) with a virtual station for the guest's own
+/// access point beside them, as `--wifi ssid=esp32sim --wifi-sta ssid=esp32sim-ap` attaches them,
+/// and the guest's web server and DHCP at `GUEST_AP` (`WebGuest`).
+fn apsta() -> (StationLink, WebGuest) {
+    let mut l = StationLink::default();
+    l.attach(Some(VirtualAp::new(config(), false)), Some(crate::net::VirtualNet::new(false)));
+    l.attach_station(station("ssid=esp32sim-ap")).unwrap();
+    let mut g = WebGuest::new();
+    g.ap = VirtualAp::new(ApConfig { ssid: "esp32sim-ap".into(), bssid: GUEST_AP, ..config() }, false);
+    (l, g)
+}
+
+/// The guest's station in `apsta_run`: the time and the frame the air brought it, if any, in; what it sends out.
+type GuestStation<'a> = dyn FnMut(u64, Option<&[u8]>) -> Vec<Vec<u8>> + 'a;
+
+/// The guest in AP+STA against `l` from `from_us` to `to_us` in 100 us steps, as a chip's bus
+/// drives the link: its access point (`g`) sends through `station_tx` and takes what the air
+/// brings for its BSSID; everything else the air brings goes to its station, which `station`
+/// plays: it gets the time and that frame, and returns what the station sends. Each delivered
+/// frame comes back with the flags `rx_match` gives it. Wherever `nothing_due` says so, the air
+/// brings nothing.
+fn apsta_run(l: &mut StationLink, g: &mut WebGuest, from_us: u64, to_us: u64, station: &mut GuestStation) -> Vec<(Vec<u8>, u32)> {
+    let mut got = Vec::new();
+    for now in (from_us..to_us).step_by(100) {
+        for a in g.ap.step(now) { l.station_tx(&with_fcs_slot(a.frame), now); }
+        l.net_step(now);
+        let quiet = l.nothing_due(now);
+        let f = l.next_rx(now, false);
+        assert!(!(quiet && f.is_some()), "nothing_due at {now} but a frame came");
+        let mut for_station = None;
+        if let Some(f) = f {
+            l.rx_delivered(0x1000);
+            got.push((f.clone(), l.rx_match(&f)));
+            if f[4..10] == GUEST_AP {
+                if let Some(eth) = g.ap.on_station_tx(&with_fcs_slot(f), now).and_then(|d| data_to_eth(&d)) {
+                    let replies = if eth.len() >= 54 && eth[12..14] == [0x08, 0x00] && eth[23] == 6 { g.tcp(&eth) } else { g.net.handle(&eth, now) };
+                    for r in replies { if let Some(f) = g.ap.data_from_ds(&r) { g.ap.queue.push(AirFrame { at_us: now, frame: f }); } }
+                }
+            } else { for_station = Some(f); }
+        }
+        for f in station(now, for_station.as_deref()) { l.station_tx(&f, now); }
+    }
+    got
+}
+
+/// The guest's station (`STA`): authentication and association with `--wifi`'s open access point,
+/// then a DHCP discover; it counts the offers it hears.
+fn guest_station(offers: &mut u32) -> impl FnMut(u64, Option<&[u8]>) -> Vec<Vec<u8>> + '_ {
+    let bssid = config().bssid;
+    move |now, f| {
+        if f.is_some_and(|f| f[0] == 0x08 && f[1] & 3 == 2 && f[4..10] == STA && f[10..16] == bssid) { *offers += 1; }
+        match now {
+            10_000 => vec![frame_to(11 << 4, bssid, &[0, 0, 1, 0, 0, 0])],
+            11_000 => vec![frame_to(0, bssid, &[1, 0, 0, 0])],
+            60_000 => vec![frame_to(0x0108, bssid, &dhcp_discover())],
+            _ => Vec::new(),
+        }
+    }
+}
+
+/// Both sides of the guest at once: its station joins `--wifi`'s access point and hears its
+/// network's DHCP offer while the virtual station joins the guest's access point and takes a
+/// lease from it. Frames for the guest's access point carry bit 29 alone and every other frame,
+/// unicast to the guest's station too, bit 28 alone, as silicon flags them in AP+STA.
+#[test]
+fn ap_sta_each_side_of_the_guest_reaches_its_own_peer_with_its_own_flag() {
+    let (mut l, mut g) = apsta();
+    let mut offers = 0;
+    let got = apsta_run(&mut l, &mut g, 0, 1_500_000, &mut guest_station(&mut offers));
+    let sta = l.station().unwrap();
+    assert_eq!((sta.state, sta.lease), (sta::StaLink::Joined, Some([10, 0, 2, 15])), "{}", l.report());
+    assert_eq!(l.aps()[0].state, StaState::Associated, "the guest's station joined --wifi's access point");
+    assert!(offers >= 1, "the guest's station heard its network's DHCP offer: {}", l.report());
+    let (to_ap, to_sta): (Vec<_>, Vec<_>) = got.iter().partition(|(f, _)| f[4..10] == GUEST_AP);
+    assert!(!to_ap.is_empty() && to_ap.iter().all(|(_, m)| *m == 1 << 29), "frames to the guest's access point: bit 29 alone");
+    assert!(to_sta.iter().any(|(f, _)| f[4..10] == STA), "unicast to the guest's station came");
+    assert!(to_sta.iter().all(|(_, m)| *m == 1 << 28), "frames to the guest's station: bit 28 alone");
+    let report = l.report();
+    assert!(report.contains("frames sent by the guest's station and access point") && report.contains("state Associated") && report.contains("[emu] wifi-sta: 'esp32sim-ap' Joined"), "{report}");
+}
+
+/// A broadcast deauthentication from the guest's access point is the virtual station's: it
+/// leaves, and `--wifi`'s access point keeps the guest's station. The guest's station leaving
+/// `--wifi`'s access point leaves the virtual station joined.
+#[test]
+fn ap_sta_a_deauthentication_reaches_only_the_side_it_is_from() {
+    let (mut l, mut g) = apsta();
+    let mut offers = 0;
+    apsta_run(&mut l, &mut g, 0, 1_500_000, &mut guest_station(&mut offers));
+    assert_eq!((l.station().unwrap().state, l.aps()[0].state), (sta::StaLink::Joined, StaState::Associated));
+    let mut deauth = vec![0xc0, 0, 0, 0];
+    deauth.extend_from_slice(&[0xff; 6]); deauth.extend_from_slice(&GUEST_AP); deauth.extend_from_slice(&GUEST_AP);
+    deauth.extend_from_slice(&[0, 0, 3, 0]);
+    l.station_tx(&with_fcs_slot(deauth), 1_500_000);
+    assert_eq!((l.station().unwrap().state, l.aps()[0].state), (sta::StaLink::Listening, StaState::Associated));
+    let (mut l, mut g) = apsta();
+    apsta_run(&mut l, &mut g, 0, 1_500_000, &mut guest_station(&mut offers));
+    l.station_tx(&frame_to(0xc0, config().bssid, &[3, 0]), 1_500_000);
+    assert_eq!((l.station().unwrap().state, l.aps()[0].state), (sta::StaLink::Joined, StaState::Idle));
+}
+
+/// `--hostfwd` through the virtual station reaches the guest's web server on its access point
+/// while its station is on `--wifi`'s network, whose own polling does not hold the forward back.
+#[test]
+fn ap_sta_hostfwd_reaches_the_guests_access_point_beside_the_virtual_access_point() {
+    use std::io::{Read, Write};
+    let (mut l, mut g) = apsta();
+    let mut transport = crate::nat::StdTransport::new();
+    let bound = transport.listen(&crate::nat::HostFwdSpec::parse_to("tcp:127.0.0.1:0-:80", crate::nat::HostFwdSpec::TO_ACCESS_POINT).unwrap()).unwrap();
+    let mut nat = crate::nat::Nat::with_transport(false, Box::new(transport));
+    nat.hostfwd = 1;
+    l.set_nat(Some(nat), false).unwrap();
+    assert!(l.has_net() && l.net().is_some(), "both networks");
+    let mut host = std::net::TcpStream::connect(bound).unwrap();
+    host.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
+    host.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    let mut offers = 0;
+    apsta_run(&mut l, &mut g, 0, 1_500_000, &mut guest_station(&mut offers));
+    assert_eq!(g.syns.len(), 1, "one SYN, once the station had its lease");
+    assert_eq!(g.request, b"GET / HTTP/1.0\r\n\r\n");
+    let mut got = Vec::new();
+    host.read_to_end(&mut got).unwrap();
+    assert_eq!(got, RESPONSE);
+    assert_eq!(l.aps()[0].state, StaState::Associated);
+    assert!(offers >= 1);
+}
+
+/// A reboot keeps both sides: `--wifi`'s access point and network, and the virtual station, which
+/// listens for the guest's access point again.
+#[test]
+fn ap_sta_a_reboot_keeps_both_sides() {
+    let (mut l, mut g) = apsta();
+    let mut offers = 0;
+    apsta_run(&mut l, &mut g, 0, 1_500_000, &mut guest_station(&mut offers));
+    let l = l.surviving_reboot();
+    assert!(l.ap().is_some() && l.net().is_some() && l.has_net() && l.on_air());
+    assert_eq!(l.station().unwrap().state, sta::StaLink::Listening);
+}
+
+/// Frames due on both sides at once go out one airtime gap apart, the virtual station's and the
+/// access point's, none lost; each with its own side's channel (the virtual station's, from the
+/// guest's beacons, is still its first guess here, channel 1).
+#[test]
+fn ap_sta_frames_due_on_both_sides_all_go_out_on_their_own_channels() {
+    let (mut l, _) = apsta();
+    l.ap_mut().unwrap().next_beacon_us = u64::MAX;
+    let mac = l.station().unwrap().cfg.mac;
+    let mut ap_frame = vec![0x50, 0, 0, 0]; ap_frame.extend_from_slice(&STA); ap_frame.extend_from_slice(&config().bssid); ap_frame.extend_from_slice(&config().bssid); ap_frame.extend_from_slice(&[0; 2]);
+    let mut sta_frame = vec![0xb0, 0, 0, 0]; sta_frame.extend_from_slice(&GUEST_AP); sta_frame.extend_from_slice(&mac); sta_frame.extend_from_slice(&GUEST_AP); sta_frame.extend_from_slice(&[0; 2]);
+    l.ap_mut().unwrap().queue.push(AirFrame { at_us: 0, frame: ap_frame.clone() });
+    l.sta.as_mut().unwrap().queue.push(AirFrame { at_us: 0, frame: sta_frame.clone() });
+    let mut got = Vec::new();
+    for t in (1_000..20_000).step_by(100) { if let Some(f) = l.next_rx(t, false) { got.push(f); l.rx_delivered(0x1000); } }
+    assert_eq!(got.len(), 2, "{got:x?}");
+    assert!(got.contains(&ap_frame) && got.contains(&sta_frame));
+    assert_eq!((l.rx_meta(&ap_frame), l.rx_meta(&sta_frame)), ((6, -40), (1, -40)));
+}
+
+/// Each network reads the host's sockets on its own clock: in one step both do.
+#[test]
+fn ap_sta_both_networks_poll_in_the_same_step() {
+    let (mut l, _) = apsta();
+    l.set_nat(Some(crate::nat::Nat::new(false)), false).unwrap();
+    l.net_step(5_000);
+    assert_eq!((l.net_polled_us, l.sta_polled_us), (5_000, 5_000));
+    // and without the station's NAT the access point's network is still there to step
+    l.set_nat(None, false).unwrap();
+    assert!(l.has_net(), "the access point's network");
+}
+
+/// Beside access points, the virtual station has what the guest's own access point sends: its
+/// management frames from its BSSID (an action frame, a deauthentication) and its data from the
+/// DS alone. The guest station's frames, data to the DS and four-address (WDS) frames go to the
+/// access points; control frames to neither.
+#[test]
+fn ap_sta_the_guests_frames_go_to_the_side_they_are_from() {
+    let (l, _) = apsta();
+    let mac = l.station().unwrap().cfg.mac;
+    let frame = |fc: [u8; 2], a1: [u8; 6], a2: [u8; 6], a3: [u8; 6]| [&fc[..], &[0, 0], &a1, &a2, &a3, &[0; 2]].concat();
+    for (what, f, to_station) in [
+        ("an action frame from the guest's access point", frame([0xd0, 0], mac, GUEST_AP, GUEST_AP), true),
+        ("a broadcast deauthentication from it", frame([0xc0, 0], [0xff; 6], GUEST_AP, GUEST_AP), true),
+        ("its data from the DS", frame([0x08, 0x02], mac, GUEST_AP, GUEST_AP), true),
+        ("the guest station's authentication", frame([0xb0, 0], config().bssid, STA, config().bssid), false),
+        ("its probe request", frame([0x40, 0], [0xff; 6], STA, [0xff; 6]), false),
+        ("its data to the DS", frame([0x08, 0x01], config().bssid, STA, [0xff; 6]), false),
+        ("a four-address frame", frame([0x08, 0x03], config().bssid, STA, [0xff; 6]), false),
+        ("a control frame", frame([0xd4, 0], GUEST_AP, STA, [0; 6]), false),
+        ("a frame too short to tell", vec![0xc0, 0, 0, 0], false),
+    ] {
+        assert_eq!(l.for_station(&f), to_station, "{what}");
+    }
+    let (mut alone, _) = apsta();
+    alone.aps.clear();
+    assert!(alone.for_station(&[0xc0, 0, 0, 0]), "alone, the virtual station has every frame");
+}

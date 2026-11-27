@@ -14,6 +14,14 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "driver/uart.h"
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+// a board with only the chip's own USB port: the console (and "join") goes through USB-Serial-JTAG
+#include "driver/usb_serial_jtag.h"
+#include "driver/usb_serial_jtag_vfs.h"
+#define CONSOLE_READ(c) usb_serial_jtag_read_bytes(&(c), 1, portMAX_DELAY)
+#else
+#define CONSOLE_READ(c) uart_read_bytes(UART_NUM_0, &(c), 1, portMAX_DELAY)
+#endif
 #include "lwip/sockets.h"
 #include "esp_netif.h"
 
@@ -67,10 +75,13 @@ static void console(void *arg)
     char line[160]; int n = 0;
     for (;;) {
         uint8_t c;
-        if (uart_read_bytes(UART_NUM_0, &c, 1, portMAX_DELAY) != 1) continue;
+        if (CONSOLE_READ(c) != 1) continue;
         if (c != '\r' && c != '\n') { if (n < (int)sizeof line - 1) line[n++] = c; continue; }
         line[n] = 0; n = 0;
         char word[33] = "", pass[65] = "";
+        int power;
+        // "tx N": cap the transmit power at N quarter-dBm (some C3 boards authenticate only at about 34, 8.5 dBm)
+        if (sscanf(line, "tx %d", &power) == 1) { printf("probe: tx power %d: %s\n", power, esp_err_to_name(esp_wifi_set_max_tx_power(power))); continue; }
         // "join WORD PASS": scan, and join the first network whose SSID contains WORD
         if (sscanf(line, "join %32s %64s", word, pass) == 2) {
             wifi_scan_config_t scan = {0};
@@ -117,7 +128,12 @@ void app_main(void)
     esp_wifi_set_promiscuous_filter(&f);
     esp_wifi_set_promiscuous_rx_cb(on_rx);
     esp_wifi_set_promiscuous(true);
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    usb_serial_jtag_driver_config_t usb = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    usb_serial_jtag_driver_install(&usb); usb_serial_jtag_vfs_use_driver();
+#else
     uart_driver_install(UART_NUM_0, 512, 0, 0, NULL, 0);
+#endif
     xTaskCreate(console, "console", 6144, NULL, 5, NULL);
     xTaskCreate(traffic, "traffic", 4096, NULL, 5, NULL);
     for (;;) {

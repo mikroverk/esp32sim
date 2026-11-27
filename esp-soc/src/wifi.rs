@@ -560,14 +560,18 @@ pub struct StationLink {
     /// the network monitor (`--pcap`, the board page's Network panel): every Ethernet frame the
     /// station sends and receives; it survives `attach` and a guest reboot
     tap: Option<crate::netcap::NetTap>,
-    /// the virtual station that joins the guest's own access point (`attach_station`), instead
-    /// of the access points: the guest is then the access point and the station its client
+    /// the virtual station that joins the guest's own access point (`attach_station`): alone, the
+    /// guest is the access point and the station its client; beside the access points, the guest
+    /// is both (AP+STA), its station joined to them and its access point to this
     sta: Option<sta::VirtualSta>,
     /// the NAT behind the virtual station (`set_nat` with a station attached): `--hostfwd` to the
     /// guest's own access point, from the station's lease
     sta_nat: Option<crate::nat::Nat>,
     /// the lease `sta_nat` was last given (`VirtualSta::peer`): a change aborts its flows
     sta_peer: Option<sta::Peer>,
+    /// when `sta_nat` last read the host's sockets: its own clock, as with AP+STA the access
+    /// point's network reads them in the same step
+    sta_polled_us: u64,
     /// an access point or a virtual station is attached (`on_air`): kept as one flag because
     /// the chips test it every scheduling round, WiFi in use or not
     air: bool,
@@ -602,7 +606,6 @@ impl StationLink {
     /// It needs an access point attached first and shares no SSID or BSSID with one there. Its
     /// beacons go out a little after the others', not at the same instant.
     pub fn add_ap(&mut self, cfg: ApConfig, debug: &crate::DebugFlags) -> Result<(), String> {
-        if self.sta.is_some() { return Err("an access point beside a virtual station: not modelled yet".into()); }
         if self.aps.is_empty() { return Err("a further access point needs the first one attached".into()); }
         if self.aps.len() >= APS_MAX { return Err(format!("more than {APS_MAX} access points")); }
         check_new_ap(&self.aps.iter().map(|a| a.cfg.clone()).collect::<Vec<_>>(), &cfg)?;
@@ -621,14 +624,17 @@ impl StationLink {
     /// Give the network behind the access point `nat` (None: none, connections past the gateway
     /// refused), with SNTP answered here even with a NAT when `local_ntp`. The old NAT's flows are
     /// aborted first, so its transport hears of each (`Nat::abort_all`); the access point and the
-    /// guest's lease stay. With a virtual station attached instead, `nat` goes behind the station
-    /// and carries its `--hostfwd` forwards to the guest's access point (`Nat::set_peer`), and
-    /// `local_ntp` does not apply. An error without either.
+    /// guest's lease stay. With a virtual station attached, `nat` goes behind the station instead,
+    /// beside access points too (AP+STA), and carries its `--hostfwd` forwards to the guest's
+    /// access point (`Nat::set_peer`); `local_ntp` does not apply. So with AP+STA the access
+    /// points' NAT is the one `attach_new` gave them and cannot be replaced here (the browser's
+    /// `QueueTransport` comes this way; the board page attaches no station). An error without
+    /// either.
     pub fn set_nat(&mut self, nat: Option<crate::nat::Nat>, local_ntp: bool) -> Result<(), String> {
         if self.sta.is_some() {
             if let Some(old) = self.sta_nat.as_mut() { old.abort_all(); }
             (self.sta_nat, self.sta_peer) = (nat, None);
-            self.netted = self.sta_nat.is_some();
+            self.netted = self.net.is_some() || self.sta_nat.is_some();
             return Ok(());
         }
         let net = self.net.as_mut().ok_or("no virtual network: attach the access point or a station first")?;
@@ -666,16 +672,36 @@ impl StationLink {
     }
 
     /// Put a virtual station on the air (`--wifi-sta`) that joins the guest's own access point.
-    /// It takes the place of access points: the guest with both an access point and a station of
-    /// its own (AP+STA) is not modelled yet. The queues, pacing and counts start again; the relay
-    /// mode stays, and with it on the station's frames go to the host instead of its own DHCP.
-    /// A NAT for the station's forwards comes after it, through `set_nat`.
+    /// Alone, the queues, pacing and counts start again; the relay mode stays, and with it on the
+    /// station's frames go to the host instead of its own DHCP. Beside access points (AP+STA: the
+    /// guest's station joins them while its access point takes this station), they and their
+    /// network stay, the relay is theirs, and the station is the host on the guest's network. A
+    /// NAT for the station's forwards comes after it, through `set_nat`. Attach the access points
+    /// first: `attach` replaces the station too.
     pub fn attach_station(&mut self, mut station: sta::VirtualSta) -> Result<(), String> {
-        if !self.aps.is_empty() { return Err("a virtual station needs no access point attached: AP+STA is not modelled yet".into()); }
+        if !self.aps.is_empty() {
+            station.host = true;
+            (self.sta, self.sta_nat, self.sta_peer) = (Some(station), None, None);
+            self.netted = self.net.is_some();
+            return Ok(());
+        }
         station.host = !self.relay;
         *self = StationLink { relay: self.relay, tap: self.tap.take(), sta: Some(station), air: true, ..Default::default() };
         Ok(())
     }
+    /// Whether the virtual station has the frame `f` the guest sent: alone, every frame; beside
+    /// access points, what the guest's own access point sends, which the access points must not
+    /// take for their station's (a broadcast deauthentication, say). An access point sends its
+    /// management frames from its BSSID (A2 = A3) and its data from the DS alone; the guest's
+    /// station sends management frames to a BSSID not its own, and data to the DS.
+    fn for_station(&self, f: &[u8]) -> bool {
+        if self.sta.is_none() { return false; }
+        if self.aps.is_empty() { return true; }
+        if f.len() < 24 { return false; }
+        match (f[0] >> 2) & 3 { 0 => f[10..16] == f[16..22], 2 => f[1] & 3 == 2, _ => false }
+    }
+    /// The relay is the virtual station's: it is alone, and relay mode is on.
+    fn sta_relayed(&self) -> bool { self.relay && self.aps.is_empty() }
     /// The virtual station of `attach_station`, if there is one.
     pub fn station(&self) -> Option<&sta::VirtualSta> { self.sta.as_ref() }
     /// Something on the air for the chip's MAC to hear: an access point, or a virtual station.
@@ -688,19 +714,24 @@ impl StationLink {
         self.netted
     }
     /// The address-match bits of a received frame's `rx_ctrl` word 0 (bits 28 to 30), as the S3,
-    /// C3, C6 and S31 MACs set them; the classic ESP32 has its own (`esp32/src/wifi.rs`). libpp
-    /// takes the interface a frame is for from them, as `wDev_ProcessRxSucData` does in the
-    /// classic's (docs/wifi-plan.md); no header documents them. A frame the station hears carries
-    /// bit 28, and bit 29 too when it is unicast to it (an S3 broadcast beacon reads 0x111b20ad on
-    /// silicon). A frame from the virtual station to the guest's own access point, addressed to
-    /// the BSSID of its beacons, carries bit 29 alone, as the classic ESP32 flags its access
-    /// point's address slot on silicon (docs/evidence/wifi-softap-rx-match). Measured under
-    /// emulation with `examples/wifi-softap`: with bits 28 and 29 both set, the S3's access point
-    /// (ESP-IDF v5.5.4) never answered the station's authentication; with bit 29 alone the S3, C3
-    /// and C6 (v5.5.4) and the S31 (v6.1) take the station and lease it an address.
+    /// C3, C6 and S31 MACs set them; the classic ESP32 has its own (`esp32/src/wifi.rs`). Each is
+    /// one interface's match: bit 28 the station's (MAC address slot 0), bit 29 the access
+    /// point's (slot 1). libpp takes the interface a frame is for from them, as
+    /// `wDev_ProcessRxSucData` does in the classic's (docs/wifi-plan.md); the C6's
+    /// `esp_wifi_rxctrl_t` names them `rxmatch0` to `rxmatch3` (ESP-IDF v5.5.4,
+    /// `components/esp_wifi/include/esp_wifi_he_types.h`), the S3's and C3's
+    /// `wifi_pkt_rx_ctrl_t` leaves them reserved. A frame from the virtual station to the guest's
+    /// own access point, addressed to the BSSID of its beacons, carries bit 29 alone; every other
+    /// frame is the station's, bit 28 alone, unicast or not. Silicon flags the frames for each
+    /// interface so in AP+STA, with a phone joined to each side, on the classic ESP32, S3, C3 and
+    /// C6 (docs/evidence/wifi-softap-rx-match); the S31 was not measured. The model had 28 and 29
+    /// on unicast to the station, which libpp takes too: `examples/wifi-apsta` gets through with
+    /// either (the C3's and C6's runs are the same bit for bit, the classic's and S3's instruction
+    /// and exception counts differ). With them both on a frame for the access point, the S3's
+    /// (ESP-IDF v5.5.4) never answered the station's authentication.
     pub fn rx_match(&self, frame: &[u8]) -> u32 {
         let to_ap = self.sta.as_ref().is_some_and(|s| s.bssid() != [0; 6] && frame.get(4..10) == Some(&s.bssid()[..]));
-        if to_ap { 1 << 29 } else if frame.get(4).is_some_and(|a| a & 1 == 1) { 1 << 28 } else { (1 << 28) | (1 << 29) }
+        if to_ap { 1 << 29 } else { 1 << 28 }
     }
     /// Whether received frames are logged (`--debug wifi-frames`): the first access point's or the
     /// virtual station's flag.
@@ -716,7 +747,8 @@ impl StationLink {
     /// The channel and signal a frame from the air arrives with (`VirtualAp::rx_meta`): a further
     /// access point's channel for a frame from its BSSID, otherwise as the first one says.
     pub fn rx_meta(&self, frame: &[u8]) -> (u8, i8) {
-        if let Some(s) = &self.sta { return (s.channel(), -40); }
+        // the virtual station's frames come from its own address (A2)
+        if let Some(s) = &self.sta { if self.aps.is_empty() || frame.get(10..16) == Some(&s.cfg.mac[..]) { return (s.channel(), -40); } }
         if frame.len() >= 16 {
             if let Some(a) = self.aps.iter().skip(1).find(|a| frame[10..16] == a.cfg.bssid) { return (a.cfg.channel, -40); }
         }
@@ -752,12 +784,13 @@ impl StationLink {
     }
 
     /// The station sent `frame` at `now_us`: the access point hears it, and what it passes on as
-    /// data goes to the network or the relay.
+    /// data goes to the network or the relay. A frame from the guest's own access point goes to
+    /// the virtual station instead (`for_station`).
     pub fn station_tx(&mut self, frame: &[u8], now_us: u64) {
         self.tx_frames += 1;
-        if self.sta.is_some() {
+        if self.for_station(frame) {
             let Some(eth) = self.sta.as_mut().and_then(|s| s.on_ap_tx(frame, now_us)) else { return };
-            if !self.relay {
+            if !self.sta_relayed() {
                 self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
                 let sent = self.sta.as_mut().map_or(Vec::new(), |s| {
                     s.host_rx(&eth, now_us);
@@ -821,7 +854,10 @@ impl StationLink {
     /// every scheduling round while WiFi is on, before it reads the ring.
     #[inline]
     pub fn nothing_due(&self, now_us: u64) -> bool {
-        if let Some(s) = &self.sta { return self.in_rx_gap(now_us) || (s.idle_at(now_us) && self.eth_rx.is_empty()); }
+        if let Some(s) = &self.sta {
+            if self.aps.is_empty() { return self.in_rx_gap(now_us) || (s.idle_at(now_us) && self.eth_rx.is_empty()); }
+            if !s.idle_at(now_us) { return self.in_rx_gap(now_us); }
+        }
         self.in_rx_gap(now_us) || self.aps.is_empty() || (self.aps.iter().all(|ap| ap.idle_at(now_us)) && self.eth_rx.is_empty())
     }
 
@@ -839,7 +875,7 @@ impl StationLink {
     pub fn next_rx(&mut self, now_us: u64, ring_busy: bool) -> Option<Vec<u8>> {
         if self.in_rx_gap(now_us) { return None; }
         if ring_busy && now_us.wrapping_sub(self.last_rx_us) < RX_STALL_US { return None; }
-        if self.sta.is_some() {
+        if self.sta.is_some() && self.aps.is_empty() {
             let mut due = self.sta.as_mut().map_or(Vec::new(), |s| s.step(now_us));
             let sent = self.sta.as_mut().map_or(Vec::new(), |s| s.take_sent());
             for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
@@ -862,9 +898,16 @@ impl StationLink {
             return Some(first.frame);
         }
         if self.aps.is_empty() { return None; }
-        // each frame with the access point it came from, so what is not delivered goes back there
+        // each frame with the access point it came from, so what is not delivered goes back there;
+        // with AP+STA the virtual station's too (`STA`)
+        const STA: usize = usize::MAX;
         let mut due: Vec<(usize, AirFrame)> = Vec::new();
         for (i, ap) in self.aps.iter_mut().enumerate() { due.extend(ap.step(now_us).into_iter().map(|a| (i, a))); }
+        if let Some(s) = self.sta.as_mut() {
+            due.extend(s.step(now_us).into_iter().map(|a| (STA, a)));
+            let sent = s.take_sent();
+            for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
+        }
         let eth_in = if self.relay {
             if due.is_empty() && !self.eth_rx.is_empty() { vec![self.eth_rx.remove(0)] } else { Vec::new() }
         } else { std::mem::take(&mut self.eth_rx) };
@@ -877,7 +920,7 @@ impl StationLink {
         if due.is_empty() { return None; }
         due.sort_by_key(|(_, a)| (is_beacon(&a.frame), a.at_us));
         let (_, first) = due.remove(0);
-        for (i, a) in due { self.aps[i].queue.push(a); }
+        for (i, a) in due { if i == STA { if let Some(s) = self.sta.as_mut() { s.queue.push(a); } } else { self.aps[i].queue.push(a); } }
         self.last_rx_us = now_us;
         Some(first.frame)
     }
@@ -893,11 +936,14 @@ impl StationLink {
 
     /// The network behind the access point answers what the station sent at once and reads the
     /// host's sockets every `NET_POLL_US`. Nothing to do in relay mode: the host has the frames.
+    /// The virtual station's NAT steps too (`sta_net_step`), beside the access points as well;
+    /// their relay mode is not its.
     pub fn net_step(&mut self, now_us: u64) {
+        if self.sta_nat.is_some() && !self.sta_relayed() { self.sta_net_step(now_us); }
         if self.relay { return; }
         let sta = self.current().map(|i| self.aps[i].sta)
             .or_else(|| self.aps.iter().map(|ap| ap.sta).find(|m| *m != [0; 6]));
-        let Some(net) = self.net.as_mut() else { return self.sta_net_step(now_us) };
+        let Some(net) = self.net.as_mut() else { return };
         if let Some(mac) = sta { if mac != [0; 6] { net.sta_mac = mac; } }
         let out = std::mem::take(&mut self.eth_tx);
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
@@ -922,8 +968,8 @@ impl StationLink {
             match peer { Some(p) => nat.set_peer(p.ip, s.cfg.mac, p.server_mac, p.server), None => nat.clear_peer() }
             self.sta_peer = peer;
         }
-        if now_us.wrapping_sub(self.net_polled_us) < NET_POLL_US { return; }
-        self.net_polled_us = now_us;
+        if now_us.wrapping_sub(self.sta_polled_us) < NET_POLL_US { return; }
+        self.sta_polled_us = now_us;
         // with a lease the station is joined (leaving ends the lease), so it carries every frame
         for e in nat.poll(now_us) { s.data_to_ds(&e, now_us); }
         for (at, e) in s.take_sent() { self.capture(crate::netcap::Dir::ToStation, at, &e); }
@@ -932,7 +978,8 @@ impl StationLink {
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
     pub fn set_relay(&mut self, enabled: bool) {
         if self.relay != enabled { self.eth_tx.clear(); self.eth_rx.clear(); self.relay = enabled; }
-        if let Some(s) = &mut self.sta { s.set_host(!enabled); }
+        let alone = self.aps.is_empty();
+        if let Some(s) = &mut self.sta { s.set_host(!enabled || !alone); }
     }
 
     /// The frames the station sent since the last call, in relay mode.
@@ -943,7 +990,7 @@ impl StationLink {
     /// A frame from the host for the station, in relay mode.
     pub fn receive_relay_frame(&mut self, frame: &[u8]) -> Result<(), String> {
         if !self.relay || (self.aps.is_empty() && self.sta.is_none()) { return Err("Ethernet relay requires relay mode and a virtual AP or station".into()); }
-        if self.sta.as_ref().is_some_and(|s| s.state != sta::StaLink::Joined) { return Err("the virtual station has not joined the guest's access point yet".into()); }
+        if self.sta_relayed() && self.sta.as_ref().is_some_and(|s| s.state != sta::StaLink::Joined) { return Err("the virtual station has not joined the guest's access point yet".into()); }
         if !(14..=RELAY_FRAME_MAX).contains(&frame.len()) { return Err(format!("Ethernet frame must be 14..={RELAY_FRAME_MAX} bytes without FCS")); }
         if self.eth_rx.len() >= RELAY_QUEUE { return Err("Ethernet receive queue full".into()); }
         self.eth_rx.push(frame.to_vec());
@@ -957,7 +1004,7 @@ impl StationLink {
         let mut lines = Vec::new();
         if self.tx_frames + self.rx_frames + self.rx_dropped + self.rx_unarmed > 0 {
             let unarmed = if self.rx_unarmed > 0 { format!(", {} before the receive ring was set up", self.rx_unarmed) } else { String::new() };
-            let guest = if self.sta.is_some() { "the guest's access point" } else { "the station" };
+            let guest = match (&self.sta, self.aps.is_empty()) { (Some(_), true) => "the guest's access point", (Some(_), false) => "the guest's station and access point", _ => "the station" };
             lines.push(format!("[emu] wifi: {} frames sent by {guest}, {} received ({} dropped: no descriptor{unarmed}){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.aps.iter().map(|ap| {
                 let name = if self.aps.len() > 1 { format!(" '{}'", ap.cfg.ssid) } else { String::new() };
                 format!("; AP{name}: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)

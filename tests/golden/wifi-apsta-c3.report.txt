@@ -1,0 +1,4 @@
+0 exceptions, 2450 interrupts
+[emu] wifi: 204 frames sent by the guest's station and access point, 118 received (0 dropped: no descriptor, 1 before the receive ring was set up); AP: 97 beacons, 3 probe responses, 15 data frames from the station, state Associated
+[emu] wifi-sta: 'esp32sim-ap' Joined, 1 joins in 1 attempts, lease 192.168.4.2, 7 frames to the access point, 2 data frames from it, 1 keep-alives
+[emu] net: 1 DHCP leases, 1 ARP replies, 0 DNS answers, 0 NTP answers, 0 TCP refused, 5 pings, 0 frames ignored

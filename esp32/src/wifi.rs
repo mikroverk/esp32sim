@@ -228,19 +228,18 @@ impl SocBus {
         if !d.owner_dma || d.eof || d.buf == 0 || d.size < total as u32 { return None; }
         let range = dma_range(d.buf, total)?;
         let (chan, rssi) = { let (c, r) = self.periph.wifi.link.rx_meta(frame); (c as u32, i32::from(r)) };
-        let broadcast = frame.get(4).is_some_and(|v| v & 1 != 0);
         // wDev_ProcessRxSucData subtracts the classic 96 dB RSSI offset.
         // libpp takes the interface a frame is for from bits 28 to 30 (inferred from
         // wDev_ProcessRxSucData and ppRxProtoProc in ESP-IDF v5.3.6's libpp; no header documents
         // them): bit 28 alone is the station's, MAC slot 0 (0x040), and bit 29 alone the access
         // point's, slot 1 (0x048). A frame for the guest's own access point carries bit 29 alone,
-        // or libpp drops it, as silicon flags it (a classic ESP32 rev 1.0 under ESP-IDF v5.5.4:
-        // docs/evidence/wifi-softap-rx-match). Every other frame keeps the flags it had: silicon
-        // flags unicast to the station with bit 28 alone, which libpp takes as it takes 28 and 29
-        // together, and no golden runs the classic station, so a change here would go untested.
+        // or libpp drops it; every other frame is the station's, bit 28 alone, unicast or not. A
+        // classic ESP32 rev 1.0 under ESP-IDF v5.5.4 flags them so in AP+STA, with a phone joined
+        // to each side (docs/evidence/wifi-softap-rx-match). libpp takes 28 and 29 on a frame for
+        // the station too, as the model had them: examples/wifi-apsta gets through with either.
         let slot1 = self.periph.wifi.slot_mac(1);
         let to_ap = slot1 != [0; 6] && slot1 != self.periph.wifi.slot_mac(0) && frame.get(4..10) == Some(&slot1[..]);
-        let matched = if to_ap { 1 << 29 } else { (1 << 28) | if broadcast { 0 } else { 1 << 29 } };
+        let matched = if to_ap { 1 << 29 } else { 1 << 28 };
         let w0 = ((rssi + 96) as u32 & 0xff) | matched;
         // Classic rx_ctrl is 28 bytes: noise at +8, channel at +10, sig_len/state at +24.
         let mut bytes = Vec::with_capacity(total);
@@ -663,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn rx_ctrl_marks_a_frame_for_the_guests_access_point_with_bit_29_alone() {
+    fn rx_ctrl_marks_a_frame_for_the_guests_access_point_with_bit_29_and_any_other_with_bit_28() {
         // the softAP's slots as ESP-IDF v5.3.6 writes them: station 24:6f:28:00:11:22 in slot 0,
         // its access point, one higher, in slot 1
         let (station, ap) = ([0x24, 0x6f, 0x28, 0x00, 0x11, 0x22], [0x24, 0x6f, 0x28, 0x00, 0x11, 0x23]);
@@ -684,11 +683,11 @@ mod tests {
             b.dma_read_word(buf).unwrap() & 0x7000_0000
         };
         assert_eq!(flags(true, ap), 1 << 29);
-        assert_eq!(flags(true, station), (1 << 28) | (1 << 29));
+        assert_eq!(flags(true, station), 1 << 28);
         assert_eq!(flags(true, [0xff; 6]), 1 << 28);
-        // before the guest writes its slots, every frame keeps the station's flags
-        assert_eq!(flags(false, ap), (1 << 28) | (1 << 29));
-        assert_eq!(flags(false, [0; 6]), (1 << 28) | (1 << 29));
+        // before the guest writes its slots, every frame is the station's
+        assert_eq!(flags(false, ap), 1 << 28);
+        assert_eq!(flags(false, [0; 6]), 1 << 28);
     }
 }
 /// Classic analog I2C master, shared by the APB and ROM AHB register aliases.

@@ -1,0 +1,1012 @@
+{
+ "esp_idf": "v5.5.4",
+ "source": "rxprobe.c",
+ "chips": [
+  {
+   "chip": "ESP32-D0WDQ6 revision v1.0",
+   "console": "UART0, through the board's USB-UART bridge",
+   "probe_source_sha256": "399dae7105e6b662e124d7ed3853508d07f48267bd0924be576d1ce3ff5b3953",
+   "image_sha256": "962ae5d4c026065f70542a787b5ee95c06d1a98b790d1de873704d7bf88babc0",
+   "runs": [
+    {
+     "name": "apsta",
+     "what": "the station joined a phone's hotspot on channel 6; a second phone joined the SoftAP 10 s later and took a lease (it left and joined again once)",
+     "seconds": 113,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 9056
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 5439
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 4054
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 2172
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 829
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 735
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "joined-bssid",
+       "bits31_28": "1000",
+       "count": 722
+      },
+      {
+       "frame": "data",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 554
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 333
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 250
+      },
+      {
+       "frame": "probe-req",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 170
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "group",
+       "bits31_28": "1010",
+       "count": 67
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 35
+      },
+      {
+       "frame": "mgmt",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 31
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "station",
+       "bits31_28": "1000",
+       "count": 11
+      },
+      {
+       "frame": "mgmt",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 9
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 6
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 5
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 2
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "other",
+       "bits31_28": "1010",
+       "count": 2
+      },
+      {
+       "frame": "probe-req",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "chip": "ESP32-S3 (QFN56) revision v0.2",
+   "console": "USB-Serial-JTAG (the board has no USB-UART bridge)",
+   "probe_source_sha256": "399dae7105e6b662e124d7ed3853508d07f48267bd0924be576d1ce3ff5b3953",
+   "image_sha256": "da70271a99b81ce8b5160cbb62774afb4627b4e38db667689703db20ffe22ab8",
+   "runs": [
+    {
+     "name": "softap",
+     "what": "a second phone joined the SoftAP and took a lease; the station scanned for a phone's hotspot and did not find it",
+     "seconds": 126,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 7867
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 5796
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 4710
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 2811
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 555
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 280
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 241
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 66
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "group",
+       "bits31_28": "1010",
+       "count": 37
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 10
+      },
+      {
+       "frame": "mgmt",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 4
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "joined-bssid",
+       "bits31_28": "1010",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "name": "apsta",
+     "what": "the station joined the phone's hotspot on channel 6 while the second phone stayed on the SoftAP (it left and joined again once)",
+     "seconds": 121,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 8403
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 5689
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 4166
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 2453
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "joined-bssid",
+       "bits31_28": "1000",
+       "count": 765
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 749
+      },
+      {
+       "frame": "data",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 589
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 390
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 313
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 228
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "group",
+       "bits31_28": "1010",
+       "count": 69
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 20
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "station",
+       "bits31_28": "1000",
+       "count": 10
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 10
+      },
+      {
+       "frame": "mgmt",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 10
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 6
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 3
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "other",
+       "bits31_28": "1010",
+       "count": 2
+      },
+      {
+       "frame": "probe-req",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "chip": "ESP32-C3 (QFN32) revision v0.4",
+   "console": "USB-Serial-JTAG (the board has no USB-UART bridge)",
+   "probe_source_sha256": "399dae7105e6b662e124d7ed3853508d07f48267bd0924be576d1ce3ff5b3953",
+   "image_sha256": "b9cbdfeb2780e2edb760d874654cce3060c1ff2d1ed6618bcf600436cd452332",
+   "transmit_power": "tx 34 (8.5 dBm) before the station joined; tx 52 (13 dBm) before the phone could see the SoftAP",
+   "runs": [
+    {
+     "name": "station",
+     "what": "the station joined a phone's hotspot on channel 6 (transmit power capped at 8.5 dBm); its frames stopped after about 60 s without a disconnection; nothing joined to the SoftAP",
+     "seconds": 254,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 19345
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 12367
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 8449
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 5359
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 1082
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 603
+      },
+      {
+       "frame": "probe-req",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 286
+      },
+      {
+       "frame": "data",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 80
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 33
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "joined-bssid",
+       "bits31_28": "1000",
+       "count": 29
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 28
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "station",
+       "bits31_28": "1000",
+       "count": 10
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 3
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 3
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "name": "softap",
+     "what": "a second phone joined the SoftAP and took a lease (transmit power 13 dBm); the station no longer heard the hotspot",
+     "seconds": 102,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 8429
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 5158
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 4011
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 2526
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 471
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 431
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 237
+      },
+      {
+       "frame": "probe-req",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 173
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "group",
+       "bits31_28": "1010",
+       "count": 45
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 15
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 7
+      },
+      {
+       "frame": "mgmt",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 6
+      },
+      {
+       "frame": "probe-req",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 1
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "joined-bssid",
+       "bits31_28": "1010",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "name": "apsta",
+     "what": "the station joined the hotspot again while the second phone stayed on the SoftAP (it left and joined again once)",
+     "seconds": 113,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 8757
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 4599
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 3183
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 2873
+      },
+      {
+       "frame": "mgmt",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 622
+      },
+      {
+       "frame": "data",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 518
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "joined-bssid",
+       "bits31_28": "1000",
+       "count": 514
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 405
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 396
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 322
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 234
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 110
+      },
+      {
+       "frame": "probe-req",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 81
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "group",
+       "bits31_28": "1010",
+       "count": 33
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 18
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 16
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "station",
+       "bits31_28": "1000",
+       "count": 10
+      },
+      {
+       "frame": "mgmt",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 5
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 2
+      },
+      {
+       "frame": "probe-req",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "chip": "ESP32-C6FH4 (QFN32) revision v0.2",
+   "console": "USB-Serial-JTAG (the board has no USB-UART bridge)",
+   "probe_source_sha256": "a695b4d261637b0398b426454c27bfb9506dcaf453e1a4b2ec8ade8ff48b5112",
+   "image_sha256": "6348cae56cfe5d3a2aea615ed72291c9b1aa2296a9916a826bba82c8b09765df",
+   "runs": [
+    {
+     "name": "station",
+     "what": "the station joined a phone's hotspot on channel 6; nothing joined to the SoftAP",
+     "seconds": 798,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 60069
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 20780
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 15057
+      },
+      {
+       "frame": "data",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 5333
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "joined-bssid",
+       "bits31_28": "1000",
+       "count": 3545
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 3201
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 1518
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 1413
+      },
+      {
+       "frame": "mgmt",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 999
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 732
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 137
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "station",
+       "bits31_28": "1001",
+       "count": 23
+      },
+      {
+       "frame": "mgmt",
+       "a1": "station",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 4
+      },
+      {
+       "frame": "probe-req",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "name": "apsta",
+     "what": "the station stayed joined to the hotspot and a second phone joined the SoftAP and took a lease",
+     "seconds": 102,
+     "rows": [
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 7827
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 3625
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 2252
+      },
+      {
+       "frame": "mgmt",
+       "a1": "other",
+       "a3": "joined-bssid",
+       "bits31_28": "1000",
+       "count": 715
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 709
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1000",
+       "count": 613
+      },
+      {
+       "frame": "data",
+       "a1": "station",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 579
+      },
+      {
+       "frame": "data",
+       "a1": "other",
+       "a3": "group",
+       "bits31_28": "1000",
+       "count": 229
+      },
+      {
+       "frame": "probe-req",
+       "a1": "group",
+       "a3": "group",
+       "bits31_28": "1011",
+       "count": 159
+      },
+      {
+       "frame": "beacon",
+       "a1": "group",
+       "a3": "joined-bssid",
+       "bits31_28": "1001",
+       "count": 98
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "group",
+       "bits31_28": "1010",
+       "count": 72
+      },
+      {
+       "frame": "mgmt",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 4
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "other",
+       "bits31_28": "1001",
+       "count": 2
+      },
+      {
+       "frame": "probe-req",
+       "a1": "softap",
+       "a3": "softap",
+       "bits31_28": "1010",
+       "count": 1
+      },
+      {
+       "frame": "data",
+       "a1": "softap",
+       "a3": "other",
+       "bits31_28": "1010",
+       "count": 1
+      },
+      {
+       "frame": "data",
+       "a1": "group",
+       "a3": "station",
+       "bits31_28": "1001",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

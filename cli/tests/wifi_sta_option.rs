@@ -1,6 +1,6 @@
 // `--wifi-sta` puts a virtual station on the air of every chip with WiFi (the guest as access
-// point). It is refused where it does not work: on the P4, which has no WiFi of its own, beside
-// `--wifi` (AP+STA), and with a spec it cannot use.
+// point), beside `--wifi` too (AP+STA). It is refused where it does not work: on the P4, which has
+// no WiFi of its own, and with a spec it cannot use.
 fn esp32sim(args: &[&str]) -> (Option<i32>, String) {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_esp32sim")).args(args).output().unwrap();
     (output.status.code(), String::from_utf8(output.stderr).unwrap())
@@ -10,12 +10,12 @@ fn esp32sim(args: &[&str]) -> (Option<i32>, String) {
 fn wifi_sta_is_refused_where_it_does_not_work_yet() {
     for (args, why) in [
         (&["--chip", "p4", "--wifi-sta", "ssid=lab"][..], "the P4 has no WiFi of its own"),
-        (&["--chip", "c6", "--wifi-sta", "ssid=lab", "--wifi", "ssid=demo"][..], "are not modelled yet"),
-        (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--wifi", "ssid=demo"][..], "are not modelled yet"),
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab,psk=short"][..], "8 to 63 ASCII characters"),
         (&["--chip", "esp32", "--wifi-sta", "psk=lab-pass"][..], "needs ssid=NAME"),
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--wifi-sta", "ssid=lab2"][..], "one for now"),
         (&["--chip", "esp32", "--wifi-sta", "ssid=lab", "--net", "none,epoch=1767225600"][..], "--net configures the network behind --wifi's access point"),
+        (&["--chip", "p4", "--wifi-sta", "ssid=lab", "--wifi", "ssid=demo"][..], "the P4 has no WiFi of its own"),
+        (&["--chip", "esp32", "--wifi", "ssid=demo,bssid=02:53:54:41:00:01", "--wifi-sta", "ssid=lab"][..], "its mac is the BSSID of a --wifi access point"),
     ] {
         let (code, stderr) = esp32sim(args);
         assert_eq!(code, Some(2), "{args:?}: {stderr}");
@@ -45,4 +45,18 @@ fn hostfwd_beside_wifi_sta_forwards_to_the_guests_access_point() {
     let (code, stderr) = esp32sim(&["--chip", "esp32", "--hostfwd", "tcp:127.0.0.1:0-:80", "--max-insns", "1"]);
     assert_eq!(code, Some(2), "{stderr}");
     assert!(stderr.contains("--hostfwd requires --wifi or --wifi-sta"), "{stderr}");
+}
+
+/// `--wifi-sta` beside `--wifi` (AP+STA): both go on the air, `--net` configures the access
+/// point's network, and `--hostfwd` goes through the virtual station to the guest's access point,
+/// whatever that network is.
+#[test]
+fn wifi_sta_beside_wifi_puts_both_on_the_air() {
+    for chip in ["esp32", "s3", "c3", "c6", "s31"] {
+        let (code, stderr) = esp32sim(&["--chip", chip, "--wifi", "ssid=demo,psk=demo-pass", "--net", "none", "--wifi-sta", "ssid=lab,psk=lab-pass",
+            "--hostfwd", "tcp:127.0.0.1:0-:80", "--max-insns", "1"]);
+        assert!(!stderr.contains("panicked") && !stderr.contains("not modelled") && !stderr.contains("--hostfwd requires"), "{chip}: {code:?} {stderr}");
+        assert!(stderr.contains("[emu] virtual AP 'demo'") && stderr.contains("virtual station 02:53:54:41:00:01 for 'lab' (WPA2-PSK)"), "{chip}: {stderr}");
+        assert!(stderr.contains("-> the guest's access point:80"), "{chip}: {stderr}");
+    }
 }
