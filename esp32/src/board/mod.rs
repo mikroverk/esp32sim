@@ -10,10 +10,21 @@ pub mod aithinker;
 pub mod ulanzi;
 pub mod cyd;
 pub mod general_driver;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod rover_sim;
 
 pub use tdisplay::*;
 
 pub fn make_board(name: &str) -> Option<esp_soc::Board> {
+    // `waveshare-general-driver,sim=HOST:PORT`: the rover board linked to a physics simulation
+    if let Some((base, opts)) = name.split_once(',') {
+        if !matches!(base, "waveshare-general-driver" | "general-driver" | "ugv-rover") { return None; }
+        let addr = opts.strip_prefix("sim=").filter(|a| a.contains(':'))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        return Some(Box::new(general_driver::GeneralDriver::with_sim(addr)));
+        #[cfg(target_arch = "wasm32")]
+        { let _ = addr; return None; }
+    }
     match name {
         "none" | "bare" | "esp32dev" => Some(Box::new(esp_soc::NoBoard)),
         "ttgo-tdisplay" | "tdisplay" => Some(Box::new(TtgoTDisplay::new())),

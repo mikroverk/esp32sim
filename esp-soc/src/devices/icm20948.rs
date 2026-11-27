@@ -230,9 +230,11 @@ pub struct Icm20948 {
 }
 
 impl Icm20948 {
-    pub fn new(motion: Arc<ImuMotion>, clock_hz: u64) -> Self {
+    pub fn new(motion: Arc<ImuMotion>, clock_hz: u64) -> Self { Self::with_input(motion, clock_hz, Icm20948Input::default()) }
+    /// A chip on an existing pose handle: a board keeps one across guest resets.
+    pub fn with_input(motion: Arc<ImuMotion>, clock_hz: u64, input: Icm20948Input) -> Self {
         let mut d = Icm20948 { regs: [[0; 128]; 4], mem: vec![0; 0x10000], fifo: VecDeque::new(), count_latch: None, ak: Ak09916::new(), ptr: 0, first: true,
-                               input: Icm20948Input::default(), motion, clock_hz, next_sample: None, samples: 0, dropped: 0 };
+                               input, motion, clock_hz, next_sample: None, samples: 0, dropped: 0 };
         d.reset();
         d
     }

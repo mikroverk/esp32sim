@@ -17,6 +17,9 @@
 //! encoder pins at 660 counts per wheel turn (halfQuad: both edges of A) and an 80 mm wheel, so the
 //! firmware's odometry (movtion_module.h: plusesRate = pi * WHEEL_D / ONE_CIRCLE_PLUSES) reads the
 //! modelled speed. Forward is the phase ESP32Encoder 0.11 counts up in halfQuad mode (B leads A).
+//!
+//! `--board waveshare-general-driver,sim=HOST:PORT` hands the wheel speeds, the IMU's motion and
+//! the battery to a physics simulation over TCP (`rover_sim`).
 use std::sync::{Arc, Mutex};
 use esp_periph::i2c::I2cDevice;
 use esp_soc::board::{BoardEdge, BoardModel};
@@ -74,8 +77,9 @@ pub struct GeneralDriver {
     pub drive: DriveShared,
     pub battery: Ina219Shared,
     pub oled: Ssd1306Shared,
-    /// The IMU's pose (level and at rest by default); a physics simulation sets it.
-    pub imu: Option<Icm20948Input>,
+    /// The IMU's pose (level and at rest by default); a physics simulation sets it. It outlives
+    /// the chip, which a guest reset replaces.
+    pub imu: Icm20948Input,
     motion: Arc<ImuMotion>,
 }
 impl Default for GeneralDriver { fn default() -> Self { Self::new() } }
@@ -88,8 +92,15 @@ impl GeneralDriver {
             // three 18650 cells, mostly charged; the electronics' own draw
             battery: Arc::new(Mutex::new(Ina219Input { bus_v: 11.8, current_a: 0.25, shunt_ohm: 0.01 })),
             oled: Default::default(),
-            imu: None, motion: Default::default(),
+            imu: Icm20948Input::default(), motion: Default::default(),
         }
+    }
+    /// The board linked to a physics simulation at `addr` (see `rover_sim`).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_sim(addr: &str) -> Self {
+        let b = Self::new();
+        super::rover_sim::spawn(addr.to_string(), b.drive.clone(), b.imu.clone(), b.battery.clone());
+        b
     }
     fn level(&self, pin: u8) -> bool { self.output >> pin & 1 != 0 }
     /// Signed duty of wheel `i` now: the H-bridge inputs give the sign, the PWM the magnitude.
@@ -171,17 +182,16 @@ impl BoardModel for GeneralDriver {
             started |= target != 0.0 && self.wheels[i].target == 0.0;
             self.wheels[i].target = target;
         }
+        let external = d.external;
         drop(d);
-        if started && self.next_tick.is_none() { self.next_tick = cycle.checked_add(TICK); }
+        if (started || external) && self.next_tick.is_none() { self.next_tick = cycle.checked_add(TICK); }
     }
     fn take_edges(&mut self) -> Vec<BoardEdge> { std::mem::take(&mut self.edges) }
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> {
         let oled = Arc::new(Mutex::new(Ssd1306::new(self.oled.clone())));
         let ina = Arc::new(Mutex::new(Ina219::new(self.battery.clone())));
-        // a reset makes a new IMU: it keeps the pose the old one had
-        let icm = Icm20948::new(self.motion.clone(), CPU_HZ);
-        if let Some(old) = &self.imu { icm.input().set(old.get()); }
-        self.imu = Some(icm.input());
+        // a reset makes a new IMU chip on the same pose
+        let icm = Icm20948::with_input(self.motion.clone(), CPU_HZ, self.imu.clone());
         vec![(0, ICM20948_ADDRESS, Box::new(icm)), (0, SSD1306_ADDRESS, Box::new(Shared(oled))), (0, INA219_ADDRESS, Box::new(Shared(ina)))]
     }
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
