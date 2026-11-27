@@ -727,8 +727,8 @@ impl StationLink {
     /// C6 (docs/evidence/wifi-softap-rx-match); the S31 was not measured. The model had 28 and 29
     /// on unicast to the station, which libpp takes too: `examples/wifi-apsta` gets through with
     /// either (the C3's and C6's runs are the same bit for bit, the classic's and S3's instruction
-    /// and exception counts differ). With them both on a frame for the access point, the S3's (ESP-IDF v5.5.4)
-    /// never answered the station's authentication.
+    /// and exception counts differ). With them both on a frame for the access point, the S3's
+    /// (ESP-IDF v5.5.4) never answered the station's authentication.
     pub fn rx_match(&self, frame: &[u8]) -> u32 {
         let to_ap = self.sta.as_ref().is_some_and(|s| s.bssid() != [0; 6] && frame.get(4..10) == Some(&s.bssid()[..]));
         if to_ap { 1 << 29 } else { 1 << 28 }
