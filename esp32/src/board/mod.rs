@@ -2,12 +2,14 @@
 //!
 //! - `TtgoTDisplay` — the LilyGO TTGO T-Display: an ST7789 135×240 on VSPI, two buttons
 //! - `UlanziTc001` — the Ulanzi TC001 pixel clock: a 32×8 WS2812 matrix on RMT, three buttons
+//! - `GeneralDriver` — Waveshare's General Driver for Robots (UGV Rover): motors, encoders, OLED, INA219
 //! - `NoBoard` — a bare module (`none`, `bare`, `esp32dev`): nothing on the pins, console only
 //! - `esp32dev-loopback` — the SPI loopback fixture in `crate::spi`
 pub mod tdisplay;
 pub mod aithinker;
 pub mod ulanzi;
 pub mod cyd;
+pub mod general_driver;
 
 pub use tdisplay::*;
 
@@ -18,6 +20,7 @@ pub fn make_board(name: &str) -> Option<esp_soc::Board> {
         "ai-thinker-cam" | "esp32cam" => Some(Box::new(aithinker::AiThinkerCam::default())),
         "cyd" | "esp32-2432s028" => Some(Box::new(cyd::Cyd::new())),
         "ulanzi-tc001" | "tc001" => Some(Box::new(ulanzi::UlanziTc001::new())),
+        "waveshare-general-driver" | "general-driver" | "ugv-rover" => Some(Box::new(general_driver::GeneralDriver::new())),
         _ => crate::spi::make_board(name),
     }
 }
@@ -26,7 +29,7 @@ pub fn make_board(name: &str) -> Option<esp_soc::Board> {
 mod tests {
     #[test]
     fn classic_boards_reject_s3_names() {
-        for name in ["none", "bare", "esp32dev", "ttgo-tdisplay", "tdisplay", "ulanzi-tc001", "tc001"] { assert!(super::make_board(name).is_some()); }
+        for name in ["none", "bare", "esp32dev", "ttgo-tdisplay", "tdisplay", "ulanzi-tc001", "tc001", "waveshare-general-driver"] { assert!(super::make_board(name).is_some()); }
         for name in ["waveshare-amoled18-v2", "waveshare-lcd4b", "atech14", "waveshare-c6-lcd147"] { assert!(super::make_board(name).is_none()); }
     }
 }

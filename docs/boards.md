@@ -342,6 +342,20 @@ be in DRAM or, with `--psram-mb 4`, PSRAM.
 JPEG encoding, adjustable FPS and silicon/PCLK timing are unsupported.
 See [the fixture and scope](esp32.md#the-camera---board-ai-thinker-cam).
 
+## `waveshare-general-driver` — Waveshare General Driver for Robots, UGV Rover (classic ESP32)
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| Two TB6612FNG H-bridges, four gear motors | PWMA 25, AIN1 21, AIN2 17 (left); PWMB 26, BIN1 22, BIN2 23 (right); LEDC PWM | duty and direction from the PWM clock and the IN pins; each side's front and rear motors share the control lines (schematic), so one wheel per side; a first-order speed model, 1.3 m/s at full duty (product page), stalled below 23/255 duty (the firmware's THRESHOLD_PWM), 50 ms time constant (an assumption) |
+| Front motors' Hall encoders | A: 35, 34; B: 27, 16 | quadrature edges on guest time, 660 counts per turn in halfQuad (ugv_config.h), 80 mm wheels; counted by the firmware's PCNT |
+| ICM-20948 IMU, AK09916 magnetometer | I2C0 (SDA 32, SCL 33) at 0x68 | `Icm20948` (esp-soc `devices`): banks, DMP memory and FIFO packets, the auxiliary I2C master; reports the pose a host sets through `GeneralDriver::imu` (level and at rest by default); no sensor fusion |
+| SSD1306 128×32 OLED | I2C0 at 0x3C | `Ssd1306`: commands and GDDRAM; `display()` shows the glass |
+| INA219 battery monitor | I2C0 at 0x42, 0.01 Ω shunt | `Ina219`: bus 11.8 V, 0.25 A, settable through `GeneralDriver::battery` |
+| ST3215 bus servos (pan-tilt) | UART1 (18/19) at 1 Mbaud | not modelled |
+
+Selected with `--chip esp32 --board waveshare-general-driver` (aliases `general-driver`, `ugv-rover`);
+[esp32.md](esp32.md#the-board---board-waveshare-general-driver).
+
 ## `none` — bare module
 
 No devices; console only. For stock ESP-IDF projects (`examples/hello_world`).
