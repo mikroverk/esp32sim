@@ -34,7 +34,12 @@ pub const TIMG1_CLOCK: u32 = 0x2058_711c;
 pub mod src {
     pub const USB_SERIAL_JTAG: usize = 2;
     pub const UART0: usize = 9;
+    // IDF v6.1 soc/esp32s31/include/soc/interrupts.h: TIMERGRP0_T0, _T1, _WDT, then TIMERGRP1's.
+    pub const TG0_T0: usize = 25;
+    pub const TG0_T1: usize = 26;
     pub const TG0_WDT: usize = 27;
+    pub const TG1_T0: usize = 28;
+    pub const TG1_T1: usize = 29;
     pub const TG1_WDT: usize = 30;
     pub const SYSTIMER_TARGET0: usize = 33;
     pub const SYSTIMER_TARGET1: usize = 34;
@@ -178,10 +183,17 @@ impl Device for SystimerS31 {
 
 // ── TIMG: shared TimerGroup + local MWDT stages ─────────────────────────────
 
+/// HP_SYS_CLKRST TIMERGRPn_CTRL0 (IDF v6.1 hp_sys_clkrst_reg.h): Tn_SRC_SEL at bits 4:3 and
+/// 7:6, Tn_CLK_EN at bits 5 and 8, so timer `t`'s fields sit `3 * t` above T0's.
+const T0_SRC_SEL_SHIFT: u32 = 3;
+const T0_CLK_EN: u32 = 1 << 5;
+
 #[derive(Default)]
 pub struct TimgS31 {
     pub timers: TimerGroup,
     pub wdt: Mwdt,
+    /// T0's and T1's source ticks owed, in 1/`cpu_hz` of a tick (`advance_cpu`).
+    frac: [u64; 2],
 }
 
 impl TimgS31 {
@@ -189,9 +201,83 @@ impl TimgS31 {
         self.wdt.irq()
     }
 
+    /// Whether T0 or T1 counts (TnCONFIG.EN); `SocBus` keeps it for its rounds (`timg_counting`).
+    #[inline]
+    pub fn counting(&self) -> bool {
+        (self.timers.t[0].config | self.timers.t[1].config) >> 31 != 0
+    }
+
+    /// TIMG_T0_INT and TIMG_T1_INT, as INT_ST_TIMERS bits 0 and 1.
+    pub fn irq_timers(&self) -> u8 {
+        (self.timers.int_raw & self.timers.int_ena & 3) as u8
+    }
+
+    /// The watchdog's XTAL ticks; T0 and T1 count from their own source in `advance_cpu`.
     pub fn advance_xtal(&mut self, ticks: u64) -> Result<(), Fault> {
-        self.timers.tick(ticks);
         self.wdt.advance_xtal(ticks)
+    }
+
+    /// TIMERGRPn_CTRL0. RST_EN resets the whole group, so T0 and T1 with the watchdog.
+    pub fn clock_write(&mut self, value: u32) -> Result<(), Fault> {
+        self.wdt.clock_write(value)?;
+        if value & 2 != 0 { self.timers = TimerGroup::new(); self.frac = [0; 2]; }
+        Ok(())
+    }
+
+    /// The rate timer `t` counts at: 0 XTAL, 1 RC_FAST, 2 PLL_F80M, the order of IDF v6.1
+    /// `_timer_ll_set_clock_source` (esp_hal_timg/esp32s31/include/hal/timer_ll.h; esp-hal 1.2.3
+    /// `src/soc/esp32s31/clocks.rs` agrees), or 0 while Tn_CLK_EN is clear. PLL_F80M is the fixed
+    /// 80 MHz tap that LEDC also uses here (`ledc.rs`).
+    fn source_hz(&self, t: usize, rc_fast_hz: u64) -> u64 {
+        let clock = self.wdt.clock_read(); let shift = 3 * t as u32;
+        if clock & T0_CLK_EN << shift == 0 { return 0; }
+        match (clock >> (T0_SRC_SEL_SHIFT + shift)) & 3 { 0 => 40_000_000, 1 => rc_fast_hz, 2 => 80_000_000, _ => 0 }
+    }
+
+    /// Advances T0 and T1 by `cycles` of the `cpu_hz` machine clock, each at the rate of its own
+    /// source. A timer whose TnCONFIG.EN is clear costs a test. True when an alarm fired.
+    pub fn advance_cpu(&mut self, cycles: u64, cpu_hz: u64, rc_fast_hz: u64) -> bool {
+        let mut fired = false;
+        for t in 0..2 {
+            if self.timers.t[t].config >> 31 == 0 { continue; }
+            let hz = self.source_hz(t, rc_fast_hz);
+            if hz == 0 { continue; }
+            let owed = u128::from(cycles) * u128::from(hz) + u128::from(self.frac[t]);
+            self.frac[t] = (owed % u128::from(cpu_hz)) as u64;
+            let ticks = (owed / u128::from(cpu_hz)).min(u128::from(u64::MAX)) as u64;
+            let raw = &mut self.timers.int_raw;
+            self.timers.t[t].step(ticks, (1 << 54) - 1, || { *raw |= 1 << t; fired = true; });
+        }
+        fired
+    }
+
+    /// Machine cycles until the earlier armed alarm of T0 and T1, rounded up so that it is never
+    /// late: `advance_cpu` hands a timer its `ticks` once `cycles * hz + frac >= ticks * cpu_hz`.
+    pub fn cycles_until_alarm(&self, cpu_hz: u64, rc_fast_hz: u64) -> Option<u64> {
+        (0..2).filter_map(|t| {
+            let hz = self.source_hz(t, rc_fast_hz);
+            if hz == 0 { return None; }
+            let need = (u128::from(self.timers.t[t].deadline()?) * u128::from(cpu_hz)).saturating_sub(u128::from(self.frac[t]));
+            Some(need.div_ceil(u128::from(hz)).min(u128::from(u64::MAX)) as u64)
+        }).min()
+    }
+
+    /// The registers from 0x48, behind the group's APB gate: the watchdog's, and INT_*_TIMERS,
+    /// where bit 2 is the watchdog's and bits 0 and 1 are T0's and T1's (IDF v6.1
+    /// soc/esp32s31/register/soc/timer_group_reg.h). INT_RAW is write-1-to-clear (WTC) like INT_CLR.
+    pub fn read_wdt_half(&self, off: u32) -> Result<u32, Fault> {
+        let wdt = self.wdt.read(off)?;
+        let (raw, ena) = (self.timers.int_raw & 3, self.timers.int_ena & 3);
+        Ok(match off { 0x70 => wdt | ena, 0x74 => wdt | raw, 0x78 => wdt | (raw & ena), _ => wdt })
+    }
+
+    pub fn write_wdt_half(&mut self, off: u32, value: u32) -> Result<(), Fault> {
+        match off {
+            0x70 => { self.wdt.write(off, value & 4)?; self.timers.int_ena = value & 3; }
+            0x74 | 0x7c => { self.wdt.write(off, value & 4)?; self.timers.int_raw &= !(value & 3); }
+            _ => self.wdt.write(off, value)?,
+        }
+        Ok(())
     }
 }
 
@@ -200,7 +286,7 @@ impl Device for TimgS31 {
         if off < 0x48 {
             self.timers.read(off)
         } else {
-            self.wdt.read(off).unwrap_or(0)
+            self.read_wdt_half(off).unwrap_or(0)
         }
     }
 
@@ -208,13 +294,14 @@ impl Device for TimgS31 {
         if off < 0x48 {
             Device::write(&mut self.timers, off, v)
         } else {
-            let _ = self.wdt.write(off, v);
+            let _ = self.write_wdt_half(off, v);
             WriteEffect::NONE
         }
     }
 
+    /// In the order of the `device_set!` table: T0, T1, WDT.
     fn irq_sources(&self) -> u64 {
-        u64::from(self.wdt.irq())
+        u64::from(self.irq_timers()) | u64::from(self.wdt.irq()) << 2
     }
 }
 
@@ -421,8 +508,8 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Xtal, 8), (Cloc
     0x2038a "UART0" (uart0) => [src::UART0];
     0x20391 "USB_SERIAL_JTAG" (usb) => [src::USB_SERIAL_JTAG];
     0x20399 "SYSTIMER" (systimer) => [src::SYSTIMER_TARGET0, src::SYSTIMER_TARGET1, src::SYSTIMER_TARGET2];
-    0x20580 "TIMG0" (timg[0]) => [src::TG0_WDT];
-    0x20581 "TIMG1" (timg[1]) => [src::TG1_WDT];
+    0x20580 "TIMG0" (timg[0]) => [src::TG0_T0, src::TG0_T1, src::TG0_WDT];
+    0x20581 "TIMG1" (timg[1]) => [src::TG1_T0, src::TG1_T1, src::TG1_WDT];
     0x20715 "EFUSE" (efuse) => [NO_SOURCE];
 }
 
@@ -518,5 +605,71 @@ mod tests {
         assert!(Peripherals::owns(0x2071_5000));
         assert!(!Peripherals::owns(SYSTIMER_CLOCK));
         assert!(!Peripherals::owns(0x2058_3000)); // GPIO stays local
+    }
+
+    /// esp-hal 1.2.3 `OneShotTimer::schedule` on timer `t`: LOAD 0, autoreload off, the alarm,
+    /// then EN and ALARM_EN; the divider stays at its reset value 1, which divides by 2.
+    fn one_shot(g: &mut TimgS31, t: u32, alarm: u32) {
+        let base = 0x24 * t;
+        Device::write(g, base + 0x18, 0); Device::write(g, base + 0x1c, 0); Device::write(g, base + 0x20, 1);
+        Device::write(g, base + 0x10, alarm); Device::write(g, base + 0x14, 0);
+        Device::write(g, base, 1 << 31 | 1 << 30 | 1 << 13 | 1 << 10);
+    }
+
+    #[test]
+    fn timg_timers_count_from_their_selected_source() {
+        const CPU: u64 = 320_000_000;
+        // T0 and T1 from XTAL, RC_FAST or PLL_F80M; one 2-tick alarm (divider 2: 4 source ticks).
+        for (sel, hz) in [(0, 40_000_000), (1, 17_500_000), (2, 80_000_000)] {
+            for t in 0..2 {
+                let mut g = TimgS31::default();
+                g.clock_write(0x001 | 0x120 | sel << 3 | sel << 6).unwrap();
+                one_shot(&mut g, t, 2);
+                // Four cycles in, the deadline is the first cycle by which four source ticks have
+                // passed since the start: exact, never late, whatever the warm-up left owed.
+                for warm in [0, 1, 3] { assert!(!g.advance_cpu(warm, CPU, 17_500_000)); }
+                let left = g.cycles_until_alarm(CPU, 17_500_000).unwrap();
+                assert_eq!(4 + left, (4 * CPU).div_ceil(hz), "sel={sel} t={t}");
+                assert!(!g.advance_cpu(left - 1, CPU, 17_500_000), "sel={sel} t={t}: early");
+                assert!(g.advance_cpu(1, CPU, 17_500_000), "sel={sel} t={t}: late");
+                assert_eq!(g.timers.int_raw, 1 << t);
+                assert_eq!(g.irq_timers(), 0, "INT_ENA clear");
+            }
+        }
+        // Tn_CLK_EN clear: the timer stands still and has no deadline.
+        let mut g = TimgS31::default();
+        g.clock_write(0x001 | 2 << 3).unwrap(); one_shot(&mut g, 0, 2);
+        assert_eq!(g.cycles_until_alarm(CPU, 17_500_000), None);
+        assert!(!g.advance_cpu(1 << 20, CPU, 17_500_000));
+        // RC_FAST powered down: no source clock either.
+        g.clock_write(0x021 | 1 << 3).unwrap();
+        assert_eq!(g.cycles_until_alarm(CPU, 0), None); assert!(!g.advance_cpu(1 << 20, CPU, 0));
+        // There is no fourth source, and the WDT keeps XTAL and its reset behaviour.
+        for bad in [0x921 | 3 << 3, 0x921 | 3 << 6, 0x921 | 1 << 9, 0x921 | 1 << 2] { assert_eq!(g.clock_write(bad), Err(Fault::Prohibited), "{bad:#x}"); }
+        assert_eq!(g.wdt.clock_read(), 0x021 | 1 << 3);
+    }
+
+    #[test]
+    fn timg_int_registers_are_shared_by_the_timers_and_the_watchdog() {
+        let mut g = TimgS31::default();
+        g.clock_write(0x1b1).unwrap(); // esp-hal 1.2.3: PLL_F80M for T0 and T1, WDT clock off
+        g.write_wdt_half(0x70, 7).unwrap();
+        assert_eq!((g.read_wdt_half(0x70), g.wdt.read(0x70), g.timers.int_ena), (Ok(7), Ok(4), 3));
+        one_shot(&mut g, 1, 1);
+        assert!(g.advance_cpu(8, 320_000_000, 17_500_000));
+        assert_eq!(g.irq_timers(), 2); assert!(!g.irq_wdt());
+        assert_eq!((g.read_wdt_half(0x74), g.read_wdt_half(0x78)), (Ok(2), Ok(2)));
+        assert_eq!(Device::irq_sources(&g), 2, "T0, T1, WDT, as the device_set! table lists them");
+        g.write_wdt_half(0x7c, 1).unwrap(); assert_eq!(g.irq_timers(), 2, "T0's clear bit");
+        g.write_wdt_half(0x74, 2).unwrap(); assert_eq!(g.irq_timers(), 0, "INT_RAW is WTC");
+        g.write_wdt_half(0x70, 1).unwrap(); assert_eq!(g.read_wdt_half(0x70), Ok(1));
+        // The group's APB gate guards these registers, as it guards the watchdog's.
+        g.clock_write(0x1b0).unwrap();
+        assert_eq!(g.read_wdt_half(0x70), Err(Fault::Prohibited)); assert_eq!(g.write_wdt_half(0x70, 3), Err(Fault::Prohibited));
+        assert_eq!(g.timers.int_ena, 1);
+        // RST_EN resets T0 and T1 with the watchdog.
+        g.clock_write(0x1b3).unwrap();
+        assert_eq!((g.timers.t[1].config, g.timers.int_ena), (0x6000_2000, 0));
+        assert_eq!(g.cycles_until_alarm(320_000_000, 17_500_000), None);
     }
 }
