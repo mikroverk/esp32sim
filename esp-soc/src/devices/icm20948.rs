@@ -68,7 +68,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Arc, Mutex};
 
-/// AD0 low, as on the Waveshare General Driver for Robots (`ROS_Driver.ino` AD0_VAL 0).
+/// AD0 low, as on the Waveshare ROS Driver for Robots (`ROS_Driver.ino` AD0_VAL 0).
 pub const ICM20948_ADDRESS: u8 = 0x68;
 pub const ICM20948_WHO_AM_I: u8 = 0xea;
 pub const AK09916_ADDRESS: u8 = 0x0c;

@@ -1,10 +1,13 @@
-//! Waveshare's General Driver for Robots (ESP32-WROOM-32), as the UGV Rover carries it, with the
+//! Waveshare's ROS Driver for Robots (ESP32-WROOM-32), as the UGV Rover carries it, with the
 //! wiring of Waveshare's ugv_base_ros firmware (ROS_Driver/ugv_config.h at 2e7df97): a TB6612FNG
 //! dual H-bridge (PWMA 25, AIN1 21, AIN2 17; PWMB 26, BIN1 22, BIN2 23) driving the left (A) and
 //! right (B) gear motors, their Hall encoders (A: 35, 34; B: 27, 16), and on I2C0 (SDA 32, SCL 33)
 //! an ICM-20948 IMU at 0x68 (AD0 low, AK09916 magnetometer behind it), an SSD1306 128x32 OLED at 0x3C
 //! and an INA219 battery monitor at 0x42 with a 0.01 ohm shunt
 //! (battery_ctrl.h). UART0 is the host link (the Jetson's 40-pin header, JSON lines at 115200).
+//! The same board and firmware drive Waveshare's RaspRover and UGV Beast (`mainType` 1 and 3, with
+//! their own wheel and encoder constants); this model has the UGV Rover's. Waveshare's General Driver
+//! for Robots (ugv_base_general: WAVE ROVER, UGV01) is a different board with a different IMU.
 //! Waveshare's schematic (ROS_Driver_for_Robots.pdf) agrees: INA219 at 0x42 across a 0.01 ohm
 //! shunt, encoders on IO34/35 and IO27/16, and a second TB6612FNG on the same six control lines
 //! for the rear motors, which have no encoder. Each side's two motors run in parallel, so one wheel
@@ -18,7 +21,7 @@
 //! firmware's odometry (movtion_module.h: plusesRate = pi * WHEEL_D / ONE_CIRCLE_PLUSES) reads the
 //! modelled speed. Forward is the phase ESP32Encoder 0.11 counts up in halfQuad mode (B leads A).
 //!
-//! `--board waveshare-general-driver,sim=HOST:PORT` hands the wheel speeds, the IMU's motion and
+//! `--board waveshare-ros-driver,sim=HOST:PORT` hands the wheel speeds, the IMU's motion and
 //! the battery to a physics simulation over TCP (`rover_sim`).
 use std::sync::{Arc, Mutex};
 use esp_periph::i2c::I2cDevice;
@@ -66,7 +69,7 @@ pub struct Drive {
 }
 pub type DriveShared = Arc<Mutex<Drive>>;
 
-pub struct GeneralDriver {
+pub struct RosDriver {
     wheels: [Wheel; 2],
     output: u64,
     now: u64,
@@ -82,10 +85,10 @@ pub struct GeneralDriver {
     pub imu: Icm20948Input,
     motion: Arc<ImuMotion>,
 }
-impl Default for GeneralDriver { fn default() -> Self { Self::new() } }
-impl GeneralDriver {
+impl Default for RosDriver { fn default() -> Self { Self::new() } }
+impl RosDriver {
     pub fn new() -> Self {
-        GeneralDriver {
+        RosDriver {
             wheels: [Wheel::new(25, 21, 17, 35, 34), Wheel::new(26, 22, 23, 27, 16)],
             output: 0, now: 0, next_tick: None, pending: Vec::new(), edges: Vec::new(),
             drive: Default::default(),
@@ -156,8 +159,8 @@ impl<T: I2cDevice> I2cDevice for Shared<T> {
     fn stop(&mut self) { self.0.lock().unwrap().stop() }
 }
 
-impl BoardModel for GeneralDriver {
-    fn name(&self) -> &'static str { "waveshare-general-driver" }
+impl BoardModel for RosDriver {
+    fn name(&self) -> &'static str { "waveshare-ros-driver" }
     fn input_levels(&self) -> Vec<(u8, bool)> {
         self.wheels.iter().flat_map(|w| { let (a, b) = Wheel::levels(w.phase); [(w.enc_a, a), (w.enc_b, b)] }).collect()
     }
@@ -201,7 +204,7 @@ impl BoardModel for GeneralDriver {
     fn display_version(&self) -> u64 { self.oled.lock().unwrap().version }
     fn report(&self) -> String {
         let d = self.drive.lock().unwrap();
-        format!("[emu] general-driver: wheels L {:+.3} m/s {:+.3} m, R {:+.3} m/s {:+.3} m; duty L {:+.2} R {:+.2}",
+        format!("[emu] ros-driver: wheels L {:+.3} m/s {:+.3} m, R {:+.3} m/s {:+.3} m; duty L {:+.2} R {:+.2}",
                 d.speed_mps[0], d.travel_m[0], d.speed_mps[1], d.travel_m[1], d.duty[0], d.duty[1])
     }
 }
@@ -211,7 +214,7 @@ mod tests {
     use super::*;
 
     /// Drives the board as the bus does: outputs, then inputs every 100 us with a fixed PWM duty.
-    fn run(b: &mut GeneralDriver, output: u64, duty: u32, until: u64) -> Vec<BoardEdge> {
+    fn run(b: &mut RosDriver, output: u64, duty: u32, until: u64) -> Vec<BoardEdge> {
         let mut edges = Vec::new();
         b.gpio_output_at(0, &[], output, output);
         let clock = move |pin: u8| if pin == 25 || pin == 26 { Some((100_000.0, duty)) } else { None };
@@ -222,7 +225,7 @@ mod tests {
 
     #[test]
     fn forward_duty_turns_into_halfquad_counts_at_the_modelled_speed() {
-        let mut b = GeneralDriver::new();
+        let mut b = RosDriver::new();
         // A forward (AIN1 21 high, AIN2 17 low), B backward (BIN1 22 low, BIN2 23 high), full duty, 1 s
         let edges = run(&mut b, 1 << 21 | 1 << 23, 65535, CPU_HZ);
         let d = *b.drive.lock().unwrap();
@@ -247,7 +250,7 @@ mod tests {
 
     #[test]
     fn duty_in_the_dead_band_does_not_move() {
-        let mut b = GeneralDriver::new();
+        let mut b = RosDriver::new();
         let edges = run(&mut b, 1 << 21, 65535 * 20 / 255, CPU_HZ / 10);
         assert!(edges.is_empty());
         assert_eq!(b.drive.lock().unwrap().speed_mps, [0.0, 0.0]);

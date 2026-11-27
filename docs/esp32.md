@@ -191,12 +191,12 @@ and the browser runs it as the `tdisplay-prices` demo (`run.html?wasm&fw=tdispla
 official MicroPython image fetched by `tools/fetch-micropython.sh`, the app's LittleFS image in
 `web/wasm/fw/public/`, demo prices instead of a fetch because the browser has no sockets.
 
-## The board: `--board waveshare-general-driver`
+## The board: `--board waveshare-ros-driver`
 
-Waveshare's General Driver for Robots (ESP32-WROOM-32) is the lower computer of the UGV Rover:
+Waveshare's ROS Driver for Robots (ESP32-WROOM-32) is the lower computer of the UGV Rover:
 the host (a Raspberry Pi or a Jetson Orin) sends it JSON lines on UART0 at 115200
 (`{"T":1,"L":0.3,"R":0.3}`, wheel speeds in m/s) and reads its feedback (`{"T":1001,...}`: wheel
-speeds, the IMU, odometry, battery voltage). `esp32/src/board/general_driver.rs` wires what
+speeds, the IMU, odometry, battery voltage). `esp32/src/board/ros_driver.rs` wires what
 Waveshare's ugv_base_ros firmware drives (`ROS_Driver/ugv_config.h` at 2e7df97, UGV Rover
 mainType 2), checked against Waveshare's schematic (`ROS_Driver_for_Robots.pdf`): two TB6612FNG
 H-bridges on one set of control lines, Hall encoders on the front motors, an ICM-20948 at 0x68,
@@ -206,9 +206,9 @@ The motors are a model, not a measurement: a wheel's target speed is its signed 
 dead band, scaled to the product page's 1.3 m/s, and the wheel follows it with a 50 ms time
 constant. The encoders turn the wheel's travel into quadrature edges at 660 counts per turn, so
 the firmware's PID and odometry close their loop on the model. The `Drive` state
-(`GeneralDriver::drive`) holds each side's duty, speed and travel; with `external` set, the board
+(`RosDriver::drive`) holds each side's duty, speed and travel; with `external` set, the board
 takes the speeds written there instead, for a physics simulation outside the emulator. The IMU
-reports the pose set through `GeneralDriver::imu` (orientation, angular rate, linear acceleration,
+reports the pose set through `RosDriver::imu` (orientation, angular rate, linear acceleration,
 magnetic field) as the DMP's quaternion and raw packets. Not modelled: the ST3215 servo bus on
 UART1 (the pan-tilt), the SD card, the motors' current in the INA219 reading.
 
@@ -217,14 +217,14 @@ The firmware is GPL-3.0 and not part of this repository; build it unmodified wit
 `-Wno-error=return-type`, as the Arduino IDE build does not make that warning an error), then:
 
 ```sh
-./target/release/esp32sim --chip esp32 --board waveshare-general-driver --boot rom \
+./target/release/esp32sim --chip esp32 --board waveshare-ros-driver --boot rom \
     --rom esp32_rev300_rom.elf --bootloader bootloader.bin --ptable partitions.bin --app firmware.bin \
     --uart-tcp 127.0.0.1:5500     # the host connects here
 ```
 
 ### Linking a physics simulation
 
-`--board waveshare-general-driver,sim=HOST:PORT` connects the board to a simulation over TCP,
+`--board waveshare-ros-driver,sim=HOST:PORT` connects the board to a simulation over TCP,
 one JSON object per line. The board retries while nobody listens. While the link is up, the
 simulation owns the wheels, the IMU and the battery, and the board turns its numbers into
 encoder edges and I2C readings. The run should be paced in real time: `--uart-tcp` already

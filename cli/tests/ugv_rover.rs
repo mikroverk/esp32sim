@@ -2,7 +2,7 @@ use std::{path::PathBuf, process::Command};
 
 /// Waveshare's ugv_base_ros firmware (waveshareteam/ugv_base_ros at 2e7df97, GPL-3.0, built
 /// unmodified with PlatformIO: bootloader.bin, partitions.bin, firmware.bin) on the
-/// `waveshare-general-driver` board. Not redistributed here.
+/// `waveshare-ros-driver` board. Not redistributed here.
 #[test]
 #[ignore = "set UGV_BASE_FW_DIR to a ugv_base_ros PlatformIO build and ESP32SIM_ROM_DIR to esp32_rev300_rom.elf"]
 fn external_ugv_base_drives_and_reports_odometry() {
@@ -13,7 +13,7 @@ fn external_ugv_base_drives_and_reports_odometry() {
     // The firmware's T:1 is a closed-loop speed command in m/s; it streams T:1001 feedback lines.
     std::fs::write(&script, "0 waituart0 30 \"T\":1001\n0 uart0 {\"T\":1,\"L\":0.3,\"R\":-0.2}\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_esp32sim"))
-        .args(["--chip", "esp32", "--board", "waveshare-general-driver", "--boot", "rom", "--rom"]).arg(&rom)
+        .args(["--chip", "esp32", "--board", "waveshare-ros-driver", "--boot", "rom", "--rom"]).arg(&rom)
         .arg("--bootloader").arg(dir.join("bootloader.bin"))
         .arg("--ptable").arg(dir.join("partitions.bin"))
         .arg("--app").arg(dir.join("firmware.bin"))

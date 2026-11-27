@@ -1,5 +1,5 @@
-//! The `waveshare-general-driver` board's link to a physics simulation (`--board
-//! waveshare-general-driver,sim=HOST:PORT`): the board connects to HOST:PORT over TCP, retrying
+//! The `waveshare-ros-driver` board's link to a physics simulation (`--board
+//! waveshare-ros-driver,sim=HOST:PORT`): the board connects to HOST:PORT over TCP, retrying
 //! while nobody listens, and exchanges one JSON object per line in wall-clock time (the run is
 //! `--realtime`-paced when a host drives it, as with `--uart-tcp`).
 //!
@@ -19,7 +19,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 use esp_soc::devices::{Icm20948Input, Ina219Shared};
-use super::general_driver::DriveShared;
+use super::ros_driver::DriveShared;
 
 /// The numbers of `"key":[...]` in a flat JSON line, if it holds exactly `n` finite ones.
 pub fn numbers(line: &str, key: &str, n: usize) -> Option<Vec<f64>> {
@@ -57,11 +57,11 @@ pub fn spawn(addr: String, drive: DriveShared, imu: Icm20948Input, battery: Ina2
         let mut said = false;
         loop {
             let Ok(s) = TcpStream::connect(&addr) else {
-                if !said { eprintln!("[emu] general-driver: waiting for the simulation at {addr}"); said = true; }
+                if !said { eprintln!("[emu] ros-driver: waiting for the simulation at {addr}"); said = true; }
                 std::thread::sleep(Duration::from_millis(500));
                 continue;
             };
-            eprintln!("[emu] general-driver: simulation connected at {addr}");
+            eprintln!("[emu] ros-driver: simulation connected at {addr}");
             let _ = s.set_nodelay(true);
             let Ok(reader) = s.try_clone() else { continue };
             let (d2, i2, b2) = (drive.clone(), imu.clone(), battery.clone());
@@ -82,7 +82,7 @@ pub fn spawn(addr: String, drive: DriveShared, imu: Icm20948Input, battery: Ina2
             let _ = w.shutdown(std::net::Shutdown::Both);
             let _ = rx.join();
             drive.lock().unwrap_or_else(|e| e.into_inner()).external = false;
-            eprintln!("[emu] general-driver: simulation disconnected");
+            eprintln!("[emu] ros-driver: simulation disconnected");
             said = false;
         }
     }).expect("spawn the rover-sim thread");
