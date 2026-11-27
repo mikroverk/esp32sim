@@ -354,6 +354,7 @@ See [the fixture and scope](esp32.md#the-camera---board-ai-thinker-cam).
 | ST3215 bus servos (pan-tilt) | UART1 (18/19) at 1 Mbaud | not modelled |
 
 Selected with `--chip esp32 --board waveshare-general-driver` (aliases `general-driver`, `ugv-rover`);
+`,sim=HOST:PORT` links the wheels, IMU and battery to a physics simulation;
 [esp32.md](esp32.md#the-board---board-waveshare-general-driver).
 
 ## `none` — bare module

@@ -222,6 +222,23 @@ The firmware is GPL-3.0 and not part of this repository; build it unmodified wit
     --uart-tcp 127.0.0.1:5500     # the host connects here
 ```
 
+### Linking a physics simulation
+
+`--board waveshare-general-driver,sim=HOST:PORT` connects the board to a simulation over TCP,
+one JSON object per line. The board retries while nobody listens. While the link is up, the
+simulation owns the wheels, the IMU and the battery, and the board turns its numbers into
+encoder edges and I2C readings. The run should be paced in real time: `--uart-tcp` already
+implies `--realtime`.
+
+| Direction | Message |
+| --- | --- |
+| Board to simulation, every 10 ms | `{"duty":[l,r],"speed":[l,r],"travel":[l,r]}`: the signed H-bridge duty (-1..1) per side, and the speed (m/s) and travel (m) the encoders report |
+| Simulation to board, any subset | `"speed":[l,r]` wheel surface speeds in m/s, replacing the built-in motor model. `"q":[w,x,y,z]`, `"w":[x,y,z]`, `"a":[x,y,z]`, `"mag":[x,y,z]` set the ICM-20948's pose: body to world, body angular rate in rad/s, world acceleration without gravity in m/s², world field in µT. `"bat":[volts,amps]` sets what the INA219 measures |
+
+Values that are not finite numbers, and arrays of the wrong length, are ignored. When the
+simulation disconnects, the board goes back to its own motor model. The link is native only:
+the browser build has no sockets. `esp32/src/board/rover_sim.rs` has the details.
+
 `cli/tests/ugv_rover.rs` (`external_ugv_base_drives_and_reports_odometry`, with
 `UGV_BASE_FW_DIR` set to the build) boots it, waits for its feedback, sends a speed command and
 checks the odometry, the IMU's DMP setup and the battery voltage it reports.
