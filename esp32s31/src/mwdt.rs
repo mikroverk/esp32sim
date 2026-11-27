@@ -23,9 +23,10 @@ impl Default for Mwdt {
 impl Mwdt {
     pub fn clock_read(&self) -> u32 { self.clock }
     pub fn clock_write(&mut self, value: u32) -> Result<(), Fault> {
-        // Only documented default XTAL selection; force-no-reset and alternate
-        // sources remain unsupported. T0/T1 do not acquire fake timer behavior.
-        if value & 0x6dc != 0 { return Err(Fault::Prohibited); }
+        // The WDT counts from the documented default XTAL only; force-no-reset and its alternate
+        // sources remain unsupported. T0/T1 take XTAL, RC_FAST or PLL_F80M (0..=2, `TimgS31::
+        // source_hz`); there is no fourth GPTimer source (IDF v6.1 soc_periph_gptimer_clk_src_t).
+        if value & 0x604 != 0 || (value >> 3) & 3 == 3 || (value >> 6) & 3 == 3 { return Err(Fault::Prohibited); }
         let clock = value & 0xfff;
         if clock & 2 != 0 { *self = Self::default(); }
         self.clock = clock; Ok(())

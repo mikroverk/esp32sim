@@ -43,7 +43,9 @@ pub const EFUSE_SOURCE: usize = 152; // interrupt_core0_reg.h: LP_EFUSE_INTR_MAP
 pub(crate) const SOURCE_COUNT: usize = 169;
 const SOURCES: usize = SOURCE_COUNT;
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub struct Irqs { pub uart: bool, pub wdt: bool, pub efuse: bool, pub usb: bool, pub monitor: bool, pub cache: bool, pub mwdt: [bool; 2], pub systimer: [bool; 3], pub psram: bool, pub brownout: bool, pub from_cpu: [bool; 4], pub usb_otg: bool, pub spi2: bool, pub spi3: bool, pub i2c: [bool; 2], pub gpio: [bool; 4], pub axi_dma: u64,
+pub struct Irqs { pub uart: bool, pub wdt: bool, pub efuse: bool, pub usb: bool, pub monitor: bool, pub cache: bool, pub mwdt: [bool; 2],
+    /// TIMG alarms: bit 0 TIMG0 T0, 1 TIMG0 T1, 2 TIMG1 T0, 3 TIMG1 T1 (sources 25, 26, 28, 29)
+    pub timers: u8, pub systimer: [bool; 3], pub psram: bool, pub brownout: bool, pub from_cpu: [bool; 4], pub usb_otg: bool, pub spi2: bool, pub spi3: bool, pub i2c: [bool; 2], pub gpio: [bool; 4], pub axi_dma: u64,
     /// AES DMA-mode completion (INT_ENA bit 0).
     pub aes: bool,
     /// SHA DMA-mode completion (SHA_IRQ_ENA bit 0).
@@ -58,8 +60,8 @@ pub struct Irqs { pub uart: bool, pub wdt: bool, pub efuse: bool, pub usb: bool,
     /// LEDC0, LEDC1 (`ledc.rs`)
     pub ledc: [bool; 2] }
 impl Irqs {
-    // Fixed S31 interrupts.h: TIMERGRP0_WDT27,TIMERGRP1_WDT30,SYSTIMER_TARGET0..2 sources33..35,LP_ANAPERI143.
-    pub(crate) fn sources(self) -> [(usize, bool); 57] { [(UART0_SOURCE, self.uart), (AES_SOURCE, self.aes), (SHA_SOURCE, self.sha), (RTC_WDT_SOURCE, self.wdt), (EFUSE_SOURCE, self.efuse), (USB_SERIAL_SOURCE, self.usb), (MONITOR_SOURCE, self.monitor), (CACHE_SOURCE, self.cache), (27, self.mwdt[0]), (30, self.mwdt[1]), (33, self.systimer[0]), (34, self.systimer[1]), (35, self.systimer[2]), (112, self.psram), (143, self.brownout), (65, self.from_cpu[0]), (66, self.from_cpu[1]), (67, self.from_cpu[2]), (68, self.from_cpu[3]), (USB_OTG_SOURCE, self.usb_otg), (SPI2_SOURCE, self.spi2), (SPI2_SOURCE + 1, self.spi3), (I2C0_SOURCE, self.i2c[0]), (I2C0_SOURCE + 1, self.i2c[1]), (GPIO_SOURCE, self.gpio[0]), (GPIO_SOURCE + 1, self.gpio[1]), (GPIO_SOURCE + 2, self.gpio[2]), (GPIO_SOURCE + 3, self.gpio[3]),
+    // Fixed S31 interrupts.h: TIMERGRP0_T0/T1/WDT 25..27, TIMERGRP1_T0/T1/WDT 28..30,SYSTIMER_TARGET0..2 sources33..35,LP_ANAPERI143.
+    pub(crate) fn sources(self) -> [(usize, bool); 61] { [(UART0_SOURCE, self.uart), (AES_SOURCE, self.aes), (SHA_SOURCE, self.sha), (RTC_WDT_SOURCE, self.wdt), (EFUSE_SOURCE, self.efuse), (USB_SERIAL_SOURCE, self.usb), (MONITOR_SOURCE, self.monitor), (CACHE_SOURCE, self.cache), (27, self.mwdt[0]), (30, self.mwdt[1]), (25, self.timers & 1 != 0), (26, self.timers >> 1 & 1 != 0), (28, self.timers >> 2 & 1 != 0), (29, self.timers >> 3 & 1 != 0), (33, self.systimer[0]), (34, self.systimer[1]), (35, self.systimer[2]), (112, self.psram), (143, self.brownout), (65, self.from_cpu[0]), (66, self.from_cpu[1]), (67, self.from_cpu[2]), (68, self.from_cpu[3]), (USB_OTG_SOURCE, self.usb_otg), (SPI2_SOURCE, self.spi2), (SPI2_SOURCE + 1, self.spi3), (I2C0_SOURCE, self.i2c[0]), (I2C0_SOURCE + 1, self.i2c[1]), (GPIO_SOURCE, self.gpio[0]), (GPIO_SOURCE + 1, self.gpio[1]), (GPIO_SOURCE + 2, self.gpio[2]), (GPIO_SOURCE + 3, self.gpio[3]),
         (AXI_DMA_IN_SOURCE, self.axi_dma >> 5 & 1 != 0), (AXI_DMA_IN_SOURCE + 1, self.axi_dma >> 6 & 1 != 0), (AXI_DMA_IN_SOURCE + 2, self.axi_dma >> 7 & 1 != 0),
         (AXI_DMA_IN_SOURCE + 3, self.axi_dma & 1 != 0), (AXI_DMA_IN_SOURCE + 4, self.axi_dma >> 1 & 1 != 0), (AXI_DMA_IN_SOURCE + 5, self.axi_dma >> 2 & 1 != 0),
         (PPA_SOURCE, self.ppa), (DMA2D_IN_SOURCE, self.dma2d & 1 != 0), (DMA2D_IN_SOURCE + 1, self.dma2d >> 1 & 1 != 0), (DMA2D_IN_SOURCE + 2, self.dma2d >> 2 & 1 != 0),

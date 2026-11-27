@@ -549,7 +549,7 @@ impl S31Bus {
         let mut dma = UsbDma { sram: &mut self.sram, lp: &mut self.lp, ver: &mut self.code_ver };
         self.usb_otg.run(&mut dma);
     }
-    pub(crate) fn peripheral_irqs(&self) -> crate::interrupts::Irqs { crate::interrupts::Irqs { uart: self.uart_irq(), wdt: self.rtc_wdt.irq(), efuse: self.periph.efuse.irq(), usb: self.periph.usb.irq(), monitor: self.bus_monitor.irq(), cache: self.cache.irq(), mwdt: [self.periph.timg[0].irq_wdt(), self.periph.timg[1].irq_wdt()], systimer: self.periph.systimer.irqs(), psram: self.psram_controller.irq(), brownout: self.power.mode0.irq(), from_cpu: self.cores.from_cpu_irqs(), usb_otg: self.usb_otg.irq(), spi2: self.spi2.irq(), spi3: self.spi3.irq(), i2c: [self.i2c[0].irq(), self.i2c[1].irq()], gpio: self.pads.irq_lines(), axi_dma: esp_periph::Device::irq_sources(&self.axi_dma), aes: self.periph.aes.irq(), sha: self.sha.irq(), dma2d: self.dma2d.irq_bits() as u8, ppa: self.ppa.irq(), wifi_mac: self.wifi_mac.irq(), ahb_dma: esp_periph::Device::irq_sources(&self.ahb_dma), i2s: [self.i2s[0].irq(), self.i2s[1].irq()], ledc: self.ledc.irqs() } }
+    pub(crate) fn peripheral_irqs(&self) -> crate::interrupts::Irqs { crate::interrupts::Irqs { uart: self.uart_irq(), wdt: self.rtc_wdt.irq(), efuse: self.periph.efuse.irq(), usb: self.periph.usb.irq(), monitor: self.bus_monitor.irq(), cache: self.cache.irq(), mwdt: [self.periph.timg[0].irq_wdt(), self.periph.timg[1].irq_wdt()], timers: self.periph.timg[0].irq_timers() | self.periph.timg[1].irq_timers() << 2, systimer: self.periph.systimer.irqs(), psram: self.psram_controller.irq(), brownout: self.power.mode0.irq(), from_cpu: self.cores.from_cpu_irqs(), usb_otg: self.usb_otg.irq(), spi2: self.spi2.irq(), spi3: self.spi3.irq(), i2c: [self.i2c[0].irq(), self.i2c[1].irq()], gpio: self.pads.irq_lines(), axi_dma: esp_periph::Device::irq_sources(&self.axi_dma), aes: self.periph.aes.irq(), sha: self.sha.irq(), dma2d: self.dma2d.irq_bits() as u8, ppa: self.ppa.irq(), wifi_mac: self.wifi_mac.irq(), ahb_dma: esp_periph::Device::irq_sources(&self.ahb_dma), i2s: [self.i2s[0].irq(), self.i2s[1].irq()], ledc: self.ledc.irqs() } }
     pub(crate) fn set_hart(&mut self, hart: usize) { self.hart = hart; }
     pub(crate) fn reset_hart(&mut self, hart: usize) { self.reservations[hart] = None; self.interrupts.clic[hart] = Default::default(); }
     pub fn refresh_irq(&mut self, threshold: u32) -> Option<u32> {
@@ -764,9 +764,9 @@ impl S31Bus {
         if matches!(address >> 12, 0x20580 | 0x20581) {
             if bytes != 4 || address & 3 != 0 { return self.fault(address, bytes, false, false, Fault::Misaligned); }
             let id = if address >> 12 == 0x20580 { 0 } else { 1 };
-            // Preserve MWDT gate Faults for the WDT half; timer regs go through DeviceSet.
+            // Preserve MWDT gate Faults for the WDT half (with the shared INT_*_TIMERS); timer regs go through DeviceSet.
             if (address & 0xfff) >= 0x48 {
-                return match self.periph.timg[id].wdt.read(address & 0xfff) { Ok(v) => Ok(v), Err(e) => self.fault(address, bytes, false, false, e) };
+                return match self.periph.timg[id].read_wdt_half(address & 0xfff) { Ok(v) => Ok(v), Err(e) => self.fault(address, bytes, false, false, e) };
             }
             return Ok(self.periph.read32(address));
         }
@@ -1023,13 +1023,13 @@ impl S31Bus {
         }
         if let Some(id) = [TIMG0_CLOCK, TIMG1_CLOCK].iter().position(|&c| address & !3 == c) {
             if bytes != 4 || address & 3 != 0 { return self.fault(address, bytes, true, false, Fault::Misaligned); }
-            return match self.periph.timg[id].wdt.clock_write(value) { Ok(()) => { if id == 0 && value & 2 != 0 { self.rtc_calibration.reset(); } Ok(()) }, Err(e) => self.fault(address, bytes, true, false, e) };
+            return match self.periph.timg[id].clock_write(value) { Ok(()) => { if id == 0 && value & 2 != 0 { self.rtc_calibration.reset(); } Ok(()) }, Err(e) => self.fault(address, bytes, true, false, e) };
         }
         if matches!(address >> 12, 0x20580 | 0x20581) {
             if bytes != 4 || address & 3 != 0 { return self.fault(address, bytes, true, false, Fault::Misaligned); }
             let id = if address >> 12 == 0x20580 { 0 } else { 1 };
             if (address & 0xfff) >= 0x48 {
-                return match self.periph.timg[id].wdt.write(address & 0xfff, value) { Ok(()) => Ok(()), Err(e) => self.fault(address, bytes, true, false, e) };
+                return match self.periph.timg[id].write_wdt_half(address & 0xfff, value) { Ok(()) => Ok(()), Err(e) => self.fault(address, bytes, true, false, e) };
             }
             self.periph.write32(address, value); return Ok(());
         }

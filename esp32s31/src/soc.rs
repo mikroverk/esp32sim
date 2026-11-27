@@ -122,6 +122,10 @@ pub struct SocBus {
     board_ns: u64, board_ns_frac: u64,
     pub last_fault: Option<(u32, bool)>,
     pub irq_dirty: bool,
+    /// Whether a TIMG T0 or T1 counts (`TimgS31::counting`), tested by `tick` and `next_deadline`
+    /// on every round. Here rather than read from the timer groups each time, which cost an idle
+    /// IDF hello_world about 3 % of its host time; renewed after each TIMG write (`note_timg_write`).
+    timg_counting: bool,
     pub gpio_events: Option<Vec<(u64, u8, bool)>>,
     pub debug: esp_soc::DebugFlags,
     pub reset_cause: u32,
@@ -255,6 +259,7 @@ impl SocBus {
             cycles: 0, board_ns: 0, board_ns_frac: 0,
             last_fault: None,
             irq_dirty: true,
+            timg_counting: false,
             dev_dirty: true,
             presented: None,
             gpio_events: None,
@@ -413,6 +418,30 @@ impl SocBus {
         if moved && self.ledc_pins != 0 { self.deliver_ledc_levels(); }
     }
 
+    /// TnCONFIG.EN changes only through a TIMG register or RST_EN in a TIMERGRPn_CTRL0, and both
+    /// take 32-bit accesses only (`write32`).
+    #[inline(always)]
+    fn note_timg_write(&mut self, a: u32) {
+        if matches!(a >> 12, 0x20580 | 0x20581) || matches!(a & !3, crate::periph::TIMG0_CLOCK | crate::periph::TIMG1_CLOCK) {
+            self.timg_counting = self.inner.periph.timg.iter().any(crate::periph::TimgS31::counting);
+        }
+    }
+    /// TIMG T0/T1 (GPTimer; esp-hal's alarm timers, esp-rtos's time driver), each from the clock its
+    /// TIMERGRPn_CTRL0 selects. `tick` calls this only while one counts (IDF apps leave them off),
+    /// and out of line, so that the idle rounds of every other firmware do not pay for it.
+    #[inline(never)]
+    fn advance_timg(&mut self, cycles: u64) {
+        let rc_fast_hz = self.inner.clocks.rc_fast_hz();
+        for g in &mut self.inner.periph.timg { if g.advance_cpu(cycles, TIME_HZ, rc_fast_hz) { self.irq_dirty = true; } }
+    }
+    /// CPU cycles to the earliest armed T0/T1 alarm, at least 1 (`next_deadline`; out of line like
+    /// `advance_timg`).
+    #[inline(never)]
+    fn timg_deadline(&self) -> Option<u64> {
+        let rc_fast_hz = self.inner.clocks.rc_fast_hz();
+        self.inner.periph.timg.iter().filter_map(|g| g.cycles_until_alarm(TIME_HZ, rc_fast_hz)).min().map(|c| c.max(1))
+    }
+
     /// The modem's TSF timers (802.11 timing synchronization, microseconds). The Wi-Fi library
     /// reads timer n (0-3) by setting bit n of 0x2010D814, reading the latched value from
     /// 0x2010D820 (low) and 0x2010D824 (high), then clearing the bit (`hal_get_tsf_time`). With the block as plain storage the latch never moved, so every
@@ -563,7 +592,11 @@ impl esp_soc::SocBus for SocBus {
             let hz = self.ledc_source_hz();
             (0..2).filter_map(|g| self.inner.ledc.groups[g].cycles_until_step(hz[g], TIME_HZ)).min()
         } else { None };
-        let board = match (board, ledc) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+        let mut board = match (board, ledc) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+        // The next TIMG T0/T1 alarm: esp-rtos sleeps in `wfi` until it, with SYSTIMER idle.
+        if self.timg_counting {
+            if let Some(alarm) = self.timg_deadline() { board = Some(board.map_or(alarm, |b| b.min(alarm))); }
+        }
         let Some(ticks) = self.inner.periph.systimer.ticks_until_irq(stalled) else { return board };
         if ticks == 0 { return Some(1); }
         let source = if self.inner.periph.systimer.source_rc_fast() {
@@ -705,6 +738,7 @@ impl esp_soc::SocBus for SocBus {
         // The virtual AP is outside the chip: it survives the reset, as on the C6 (surviving_reboot).
         inner.wifi_mac.link = std::mem::take(&mut self.inner.wifi_mac.link).surviving_reboot();
         self.inner = inner;
+        self.timg_counting = false;
         self.attach_board_devices();                     // the board's I2C devices, on the new controllers
         self.deliver_pin_levels();                       // the pads are back to their reset state
         self.mac = mac;
@@ -971,6 +1005,7 @@ impl Bus for SocBus {
             }
             Ok(()) => {
                 self.deliver_board_events(a);
+                self.note_timg_write(a);
                 self.irq_dirty = true;
                 self.dev_dirty = true;
                 Ok(())
@@ -1030,6 +1065,7 @@ impl Bus for SocBus {
             }
         }
         self.advance_ledc(u64::from(cycles));
+        if self.timg_counting { self.advance_timg(u64::from(cycles)); }
         // Emulated time for the board (TE), in nanoseconds.
         let t = u128::from(cycles) * 1_000_000_000 + u128::from(self.board_ns_frac);
         self.board_ns += (t / u128::from(hz)) as u64; self.board_ns_frac = (t % u128::from(hz)) as u64;
@@ -1248,6 +1284,36 @@ mod tests {
         bus.write32(GPIO_BASE + 0x14, 1 << (60 - 32)).unwrap();
         send(&mut bus, 0x32, 0x2c, &[0x12, 0x34]);
         assert_eq!(bus.board.display().unwrap().3, 0, "an unpowered panel lost its RAM");
+    }
+
+    /// esp-rtos 0.4's time driver on TIMG0 T0 (esp-hal 1.2.3): PLL_F80M, divider 2, one-shot
+    /// alarms. The alarm bounds the machine's idle skip, raises source 25 at its own cycle, and an
+    /// alarm armed at the counter (a wake-up already due) fires on the next tick.
+    #[test]
+    fn timg0_t0_alarm_bounds_the_idle_skip_and_raises_source_25() {
+        use emu_core::Bus;
+        use esp_soc::SocBus as _;
+        let t0 = crate::mwdt::BASES[0];
+        let mut bus = SocBus::new(1 << 20, [0; 6]);
+        assert_eq!(bus.next_deadline(), None, "nothing armed");
+        bus.write32(crate::mwdt::CLOCKS[0], 0x1b1).unwrap();
+        bus.write32(t0 + 0x70, 1).unwrap(); // INT_ENA T0
+        let schedule = |bus: &mut SocBus, ticks: u32| {
+            bus.write32(t0, 0x6000_2000).unwrap(); bus.write32(t0 + 0x7c, 1).unwrap();
+            for (off, v) in [(0x18, 0), (0x1c, 0), (0x20, 1), (0x10, ticks), (0x14, 0)] { bus.write32(t0 + off, v).unwrap(); }
+            bus.write32(t0, 0x4000_2000 | 1 << 31 | 1 << 10).unwrap();
+        };
+        let pending = |bus: &mut SocBus| bus.read32(crate::interrupts::MATRIX_BASE + 0x2a8).unwrap() >> 25 & 1 != 0;
+        schedule(&mut bus, 40_000); // 1 ms at 40 MHz (80 MHz / 2)
+        assert_eq!(bus.next_deadline(), Some(TIME_HZ / 1000));
+        bus.tick(320_000 - 1); assert!(!pending(&mut bus));
+        bus.tick(1); assert!(pending(&mut bus)); assert_eq!(bus.inner.peripheral_irqs().timers, 1);
+        assert_eq!(bus.next_deadline(), None, "a one-shot alarm disarms itself");
+        schedule(&mut bus, 0);
+        assert!(!pending(&mut bus)); assert_eq!(bus.next_deadline(), Some(1));
+        bus.tick(1); assert!(pending(&mut bus));
+        // Stopped (EN clear), the timers leave the machine's rounds alone again.
+        bus.write32(t0, 0x6000_2000).unwrap(); assert!(!bus.timg_counting);
     }
 
     /// hal_get_tsf_time: setting bit n of 0x2010D814 latches emulated microseconds into
