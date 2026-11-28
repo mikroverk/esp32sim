@@ -2,7 +2,7 @@
 //!
 //! - `TtgoTDisplay` — the LilyGO TTGO T-Display: an ST7789 135×240 on VSPI, two buttons
 //! - `UlanziTc001` — the Ulanzi TC001 pixel clock: a 32×8 WS2812 matrix on RMT, three buttons
-//! - `RosDriver` — Waveshare's ROS Driver for Robots (UGV Rover): motors, encoders, OLED, INA219
+//! - `RosDriver` — Waveshare's ROS Driver for Robots (UGV Rover): motors, encoders, OLED, INA219, pan-tilt servos
 //! - `NoBoard` — a bare module (`none`, `bare`, `esp32dev`): nothing on the pins, console only
 //! - `esp32dev-loopback` — the SPI loopback fixture in `crate::spi`
 pub mod tdisplay;

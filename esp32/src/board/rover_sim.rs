@@ -3,8 +3,11 @@
 //! while nobody listens, and exchanges one JSON object per line in wall-clock time (the run is
 //! `--realtime`-paced when a host drives it, as with `--uart-tcp`).
 //!
-//! Board to simulation, every 10 ms: `{"duty":[l,r],"speed":[l,r],"travel":[l,r]}`, the signed
-//! H-bridge duty (-1..1) per side and the wheel speeds (m/s) and travel (m) the encoders report.
+//! Board to simulation, every 10 ms: `{"duty":[l,r],"speed":[l,r],"travel":[l,r],"pt":[pan,tilt]}`,
+//! the signed H-bridge duty (-1..1) per side, the wheel speeds (m/s) and travel (m) the encoders
+//! report, and the pan-tilt gimbal's present angles in degrees from its servos' shafts, in the
+//! firmware's convention (`ros_driver::GimbalShared`: T:133's X and Y, T:1001's pan and tilt; 0, 0
+//! at the servos' middle, pan = (pos - 2047) * 360 / 4095, tilt = (2047 - pos) * 360 / 4095).
 //! Simulation to board, any subset of the keys in one line:
 //! - `"speed":[l,r]`: wheel surface speeds in m/s; the encoders follow them instead of the built-in
 //!   motor model while the link is up.
@@ -19,7 +22,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 use esp_soc::devices::{Icm20948Input, Ina219Shared};
-use super::ros_driver::DriveShared;
+use super::ros_driver::{DriveShared, GimbalShared};
 
 /// The numbers of `"key":[...]` in a flat JSON line, if it holds exactly `n` finite ones.
 pub fn numbers(line: &str, key: &str, n: usize) -> Option<Vec<f64>> {
@@ -51,8 +54,14 @@ pub fn apply(line: &str, drive: &DriveShared, imu: &Icm20948Input, battery: &Ina
     }
 }
 
+/// The board's line to the simulation.
+pub fn line(d: &super::ros_driver::Drive, pt: [f64; 2]) -> String {
+    format!("{{\"duty\":[{:.4},{:.4}],\"speed\":[{:.4},{:.4}],\"travel\":[{:.5},{:.5}],\"pt\":[{:.2},{:.2}]}}\n",
+            d.duty[0], d.duty[1], d.speed_mps[0], d.speed_mps[1], d.travel_m[0], d.travel_m[1], pt[0], pt[1])
+}
+
 /// Starts the link thread; it lives as long as the process.
-pub fn spawn(addr: String, drive: DriveShared, imu: Icm20948Input, battery: Ina219Shared) {
+pub fn spawn(addr: String, drive: DriveShared, imu: Icm20948Input, battery: Ina219Shared, gimbal: GimbalShared) {
     std::thread::Builder::new().name("rover-sim".into()).spawn(move || {
         let mut said = false;
         loop {
@@ -74,8 +83,7 @@ pub fn spawn(addr: String, drive: DriveShared, imu: Icm20948Input, battery: Ina2
             let mut w = s;
             while !rx.is_finished() {
                 let d = *drive.lock().unwrap_or_else(|e| e.into_inner());
-                let msg = format!("{{\"duty\":[{:.4},{:.4}],\"speed\":[{:.4},{:.4}],\"travel\":[{:.5},{:.5}]}}\n",
-                                  d.duty[0], d.duty[1], d.speed_mps[0], d.speed_mps[1], d.travel_m[0], d.travel_m[1]);
+                let msg = line(&d, *gimbal.lock().unwrap_or_else(|e| e.into_inner()));
                 if w.write_all(msg.as_bytes()).is_err() { break; }
                 std::thread::sleep(Duration::from_millis(10));
             }
@@ -113,5 +121,13 @@ mod tests {
         assert_eq!(imu.get().linear_accel, [0.0; 3]);
         assert_eq!(imu.get().orientation, [0.0, 0.0, 0.0, 1.0]);
         assert_eq!(numbers(r#"{"a" : [ 1, 2.5 ,-3 ]}"#, "a", 3), Some(vec![1.0, 2.5, -3.0]));
+    }
+
+    #[test]
+    fn the_board_line_carries_wheels_and_gimbal() {
+        let l = line(&Default::default(), [44.923, -19.956]);
+        assert_eq!(numbers(&l, "pt", 2), Some(vec![44.92, -19.96]));
+        assert_eq!(numbers(&l, "travel", 2), Some(vec![0.0, 0.0]));
+        assert!(l.ends_with("}\n"));
     }
 }

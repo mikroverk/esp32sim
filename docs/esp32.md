@@ -209,8 +209,23 @@ the firmware's PID and odometry close their loop on the model. The `Drive` state
 (`RosDriver::drive`) holds each side's duty, speed and travel; with `external` set, the board
 takes the speeds written there instead, for a physics simulation outside the emulator. The IMU
 reports the pose set through `RosDriver::imu` (orientation, angular rate, linear acceleration,
-magnetic field) as the DMP's quaternion and raw packets. Not modelled: the ST3215 servo bus on
-UART1 (the pan-tilt), the SD card, the motors' current in the INA219 reading.
+magnetic field) as the DMP's quaternion and raw packets. Not modelled: the SD card, the motors'
+current in the INA219 reading.
+
+The pan-tilt module is two Feetech ST3215 bus servos (pan ID 2, tilt ID 1) on the servo line,
+S_TXD 19 and S_RXD 18, which the firmware runs as UART1 at 1 Mbaud through Feetech's SCServo
+library. `St3215Bus` (`esp-soc/src/devices/st3215.rs`) hears what UART1 sends on GPIO19 and
+answers on GPIO18, byte by byte at the line rate after the servo's return delay: Feetech's STS
+packets (PING, READ, WRITE, REG_WRITE and ACTION, SYNC_READ, SYNC_WRITE, with the checksum and
+error byte), the memory table `SMS_STS` uses (goal position, time, speed and acceleration;
+present position, speed, load, voltage, temperature, current and moving; torque enable and the
+middle calibration; ID, baud, PID and the other EEPROM settings). The shaft runs to the goal at
+the goal speed (0 = the fastest, 3072 step/s from the ST3215's 45 rpm) with a trapezoidal ramp
+at the acceleration (100 step/s² units, 0 = none); 4096 steps make a turn. There is no load, so
+the servos always arrive; what the module documents as guessed (power-up torque, torque off
+holding the position, defaults) is listed there. The firmware talks to the gimbal once
+`moduleType` is 2 (`{"T":900,"main":2,"module":2}`), points it with T:133/T:134/T:141 and adds
+`pan` and `tilt` (degrees) to its T:1001 feedback; the end-of-run report shows the same angles.
 
 The firmware is GPL-3.0 and not part of this repository; build it unmodified with PlatformIO
 (pioarduino platform 53.03.10: Arduino-ESP32 3.1.0, IDF 5.3; `-DICM_20948_USE_DMP` and
@@ -227,12 +242,12 @@ The firmware is GPL-3.0 and not part of this repository; build it unmodified wit
 `--board waveshare-ros-driver,sim=HOST:PORT` connects the board to a simulation over TCP,
 one JSON object per line. The board retries while nobody listens. While the link is up, the
 simulation owns the wheels, the IMU and the battery, and the board turns its numbers into
-encoder edges and I2C readings. The run should be paced in real time: `--uart-tcp` already
+encoder edges and I2C readings; the board tells it where the gimbal points. The run should be paced in real time: `--uart-tcp` already
 implies `--realtime`.
 
 | Direction | Message |
 | --- | --- |
-| Board to simulation, every 10 ms | `{"duty":[l,r],"speed":[l,r],"travel":[l,r]}`: the signed H-bridge duty (-1..1) per side, and the speed (m/s) and travel (m) the encoders report |
+| Board to simulation, every 10 ms | `{"duty":[l,r],"speed":[l,r],"travel":[l,r],"pt":[pan,tilt]}`: the signed H-bridge duty (-1..1) per side, the speed (m/s) and travel (m) the encoders report, and the gimbal's present pan and tilt in degrees from the servos' shafts, in the firmware's convention (T:133's X and Y, T:1001's `pan`/`tilt`: 0, 0 at the servos' middle 2047; pan = (pos − 2047) · 360 / 4095, tilt = (2047 − pos) · 360 / 4095; T:133 limits Y to −30..90) |
 | Simulation to board, any subset | `"speed":[l,r]` wheel surface speeds in m/s, replacing the built-in motor model. `"q":[w,x,y,z]`, `"w":[x,y,z]`, `"a":[x,y,z]`, `"mag":[x,y,z]` set the ICM-20948's pose: body to world, body angular rate in rad/s, world acceleration without gravity in m/s², world field in µT. `"bat":[volts,amps]` sets what the INA219 measures |
 
 Values that are not finite numbers, and arrays of the wrong length, are ignored. When the
@@ -241,4 +256,7 @@ the browser build has no sockets. `esp32/src/board/rover_sim.rs` has the details
 
 `cli/tests/ugv_rover.rs` (`external_ugv_base_drives_and_reports_odometry`, with
 `UGV_BASE_FW_DIR` set to the build) boots it, waits for its feedback, sends a speed command and
-checks the odometry, the IMU's DMP setup and the battery voltage it reports.
+checks the odometry, the IMU's DMP setup and the battery voltage it reports;
+`external_ugv_base_points_the_gimbal` sends `{"T":900,"main":2,"module":2}` and
+`{"T":133,"X":45,"Y":20,"SPD":0,"ACC":0}` and checks that T:1001 reports pan 44.9 and tilt 20.0
+(the firmware rounds the angles to whole steps) once the servos have moved there.

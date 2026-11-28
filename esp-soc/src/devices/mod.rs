@@ -12,6 +12,7 @@ pub mod icm20948;
 pub mod imu_motion;
 pub mod ina219;
 pub mod spi_bitbang;
+pub mod st3215;
 pub mod ssd1306;
 pub mod ws2812;
 
@@ -23,5 +24,6 @@ pub use ft5x06::{Ft5x06, Ft5x06Points, FT5X06_ADDRESS};
 pub use icm20948::{Icm20948, Icm20948Input, Icm20948Pose, ICM20948_ADDRESS};
 pub use ina219::{Ina219, Ina219Input, Ina219Shared};
 pub use spi_bitbang::SpiBitBang;
+pub use st3215::{St3215, St3215Bus};
 pub use ssd1306::{Ssd1306, Ssd1306Shared, Ssd1306State, SSD1306_ADDRESS};
 pub use ws2812::Ws2812Chain;

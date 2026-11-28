@@ -21,12 +21,21 @@
 //! firmware's odometry (movtion_module.h: plusesRate = pi * WHEEL_D / ONE_CIRCLE_PLUSES) reads the
 //! modelled speed. Forward is the phase ESP32Encoder 0.11 counts up in halfQuad mode (B leads A).
 //!
-//! `--board waveshare-ros-driver,sim=HOST:PORT` hands the wheel speeds, the IMU's motion and
-//! the battery to a physics simulation over TCP (`rover_sim`).
+//! The pan-tilt module (ugv_config.h `GIMBAL_PAN_ID` 2, `GIMBAL_TILT_ID` 1) is two Feetech ST3215
+//! bus servos (`St3215Bus`) on the servo line, UART1 at 1 Mbaud with S_TXD 19 and S_RXD 18 (the
+//! firmware's `Serial1.begin(1000000, SERIAL_8N1, S_RXD, S_TXD)`); the board's half-duplex
+//! buffer does not echo the ESP32's own bytes (SCServo's `Ack` would take an echo for the answer).
+//! The firmware talks to them once `moduleType` is 2 (`{"T":900,"main":2,"module":2}`) and reports
+//! `pan`/`tilt` in T:1001 (gimbal_module.h: pan = (pos - 2047) * 360 / 4095, tilt = (2047 - pos)
+//! * 360 / 4095 degrees); `RosDriver::gimbal` holds the same two angles from the servos' shafts.
+//!
+//! `--board waveshare-ros-driver,sim=HOST:PORT` hands the wheel speeds, the IMU's motion, the
+//! battery and the gimbal's angles to a physics simulation over TCP (`rover_sim`).
 use std::sync::{Arc, Mutex};
 use esp_periph::i2c::I2cDevice;
 use esp_soc::board::{BoardEdge, BoardModel};
-use esp_soc::devices::{Icm20948, Icm20948Input, ICM20948_ADDRESS, imu_motion::ImuMotion, Ina219, Ina219Input, Ina219Shared, Ssd1306, Ssd1306Shared, SSD1306_ADDRESS};
+use esp_soc::devices::{Icm20948, Icm20948Input, ICM20948_ADDRESS, imu_motion::ImuMotion, Ina219, Ina219Input, Ina219Shared, Ssd1306, Ssd1306Shared, SSD1306_ADDRESS, St3215Bus};
+use esp_soc::uart::{UartInput, UartRoute};
 
 const CPU_HZ: u64 = crate::periph::CPU_HZ;
 /// The model's step: wheel speeds change once per millisecond.
@@ -43,6 +52,17 @@ const STEPS_PER_TURN: f64 = 2.0 * COUNTS_PER_TURN;
 pub const FULL_SPEED: f64 = 1.3;
 const DEAD_BAND: f64 = 23.0 / 255.0;
 const TAU_S: f64 = 0.05;
+/// ugv_config.h: the servo line (S_TXD 19 out of the ESP32, S_RXD 18 in) and the gimbal's servo IDs.
+pub const S_TXD: u8 = 19;
+pub const S_RXD: u8 = 18;
+pub const GIMBAL_PAN_ID: u8 = 2;
+pub const GIMBAL_TILT_ID: u8 = 1;
+
+/// The gimbal's present (pan, tilt) in degrees, in ugv_base_ros's convention (T:133's X and Y,
+/// T:1001's pan and tilt): 0 at the servos' middle (2047), pan = (pos - 2047) * 360 / 4095,
+/// tilt = (2047 - pos) * 360 / 4095.
+pub type GimbalShared = Arc<Mutex<[f64; 2]>>;
+pub fn pan_tilt_degrees(pan_steps: f64, tilt_steps: f64) -> [f64; 2] { [(pan_steps - 2047.0) * 360.0 / 4095.0, (2047.0 - tilt_steps) * 360.0 / 4095.0] }
 
 /// One motor channel: its pins and the wheel's state.
 #[derive(Clone, Copy, Debug)]
@@ -84,11 +104,15 @@ pub struct RosDriver {
     /// the chip, which a guest reset replaces.
     pub imu: Icm20948Input,
     motion: Arc<ImuMotion>,
+    /// The pan-tilt's servos on the servo line, and when their shafts last moved on.
+    pub servos: St3215Bus,
+    servo_now: u64,
+    pub gimbal: GimbalShared,
 }
 impl Default for RosDriver { fn default() -> Self { Self::new() } }
 impl RosDriver {
     pub fn new() -> Self {
-        RosDriver {
+        let mut b = RosDriver {
             wheels: [Wheel::new(25, 21, 17, 35, 34), Wheel::new(26, 22, 23, 27, 16)],
             output: 0, now: 0, next_tick: None, pending: Vec::new(), edges: Vec::new(),
             drive: Default::default(),
@@ -96,13 +120,30 @@ impl RosDriver {
             battery: Arc::new(Mutex::new(Ina219Input { bus_v: 11.8, current_a: 0.25, shunt_ohm: 0.01 })),
             oled: Default::default(),
             imu: Icm20948Input::default(), motion: Default::default(),
-        }
+            servos: St3215Bus::new(CPU_HZ, &[GIMBAL_PAN_ID, GIMBAL_TILT_ID]), servo_now: 0,
+            gimbal: Arc::new(Mutex::new([0.0, 0.0])),
+        };
+        // the gimbal powers up looking ahead (the firmware's 0, 0)
+        for s in &mut b.servos.servos { s.place(2047.0); }
+        b.update_gimbal();
+        b
+    }
+    /// The servos' shafts, in degrees, into `gimbal`.
+    fn update_gimbal(&self) {
+        let steps = |id| self.servos.servo(id).map_or(2047.0, |s| s.position_steps());
+        let pt = pan_tilt_degrees(steps(GIMBAL_PAN_ID), steps(GIMBAL_TILT_ID));
+        *self.gimbal.lock().unwrap_or_else(|e| e.into_inner()) = pt;
+    }
+    /// Moves the servos' shafts on to `cycle`.
+    fn advance_servos(&mut self, cycle: u64) {
+        self.servo_now = cycle;
+        if self.servos.advance(cycle) { self.update_gimbal(); }
     }
     /// The board linked to a physics simulation at `addr` (see `rover_sim`).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_sim(addr: &str) -> Self {
         let b = Self::new();
-        super::rover_sim::spawn(addr.to_string(), b.drive.clone(), b.imu.clone(), b.battery.clone());
+        super::rover_sim::spawn(addr.to_string(), b.drive.clone(), b.imu.clone(), b.battery.clone(), b.gimbal.clone());
         b
     }
     fn level(&self, pin: u8) -> bool { self.output >> pin & 1 != 0 }
@@ -165,10 +206,25 @@ impl BoardModel for RosDriver {
         self.wheels.iter().flat_map(|w| { let (a, b) = Wheel::levels(w.phase); [(w.enc_a, a), (w.enc_b, b)] }).collect()
     }
     fn gpio_output_at(&mut self, _: u64, _: &[(u8, bool)], _enabled: u64, output: u64) { self.output = output; }
-    fn next_deadline(&self) -> Option<u64> { self.pending.first().map(|e| e.cycle).into_iter().chain(self.next_tick).min() }
+    fn next_deadline(&self) -> Option<u64> { self.pending.first().map(|e| e.cycle).into_iter().chain(self.next_tick).chain(self.servos.next_due()).min() }
+    fn uses_uart_pins(&self) -> bool { true }
+    fn uart_tx(&mut self, cycle: u64, route: UartRoute, byte: u8) {
+        let Some(baud) = route.baud.filter(|_| route.transmits_on(S_TXD)) else { return };
+        let v = self.battery.lock().unwrap_or_else(|e| e.into_inner()).bus_v;
+        for s in &mut self.servos.servos { s.supply_v = v; }
+        self.servos.receive(cycle, baud, byte);
+        self.servo_now = self.servo_now.max(cycle);
+        self.update_gimbal();
+    }
+    fn uart_rx(&mut self, cycle: u64) -> Vec<UartInput> {
+        if self.servos.next_due().is_none_or(|t| t > cycle) { return Vec::new(); }
+        self.servos.take_due(cycle).into_iter().map(|(baud, data)| UartInput::new(S_RXD, baud, data)).collect()
+    }
     fn advance_to(&mut self, cycle: u64) {
         if cycle < self.now { return; }
         self.motion.cycle.store(cycle, std::sync::atomic::Ordering::Relaxed);
+        // the servos' shafts move on in millisecond steps (and at once when a packet reads them)
+        if cycle >= self.servo_now.saturating_add(TICK) { self.advance_servos(cycle); }
         while let Some(at) = self.next_tick.filter(|&at| at <= cycle) { self.release(at); self.step(at); }
         self.release(cycle);
         self.now = cycle;
@@ -204,8 +260,9 @@ impl BoardModel for RosDriver {
     fn display_version(&self) -> u64 { self.oled.lock().unwrap().version }
     fn report(&self) -> String {
         let d = self.drive.lock().unwrap();
-        format!("[emu] ros-driver: wheels L {:+.3} m/s {:+.3} m, R {:+.3} m/s {:+.3} m; duty L {:+.2} R {:+.2}",
-                d.speed_mps[0], d.travel_m[0], d.speed_mps[1], d.travel_m[1], d.duty[0], d.duty[1])
+        let pt = *self.gimbal.lock().unwrap_or_else(|e| e.into_inner());
+        format!("[emu] ros-driver: wheels L {:+.3} m/s {:+.3} m, R {:+.3} m/s {:+.3} m; duty L {:+.2} R {:+.2}; gimbal pan {:+.1} tilt {:+.1} deg",
+                d.speed_mps[0], d.travel_m[0], d.speed_mps[1], d.travel_m[1], d.duty[0], d.duty[1], pt[0], pt[1])
     }
 }
 
@@ -246,6 +303,36 @@ mod tests {
         run(&mut b, 0, 65535, 2 * CPU_HZ);
         assert_eq!(b.drive.lock().unwrap().speed_mps, [0.0, 0.0]);
         assert_eq!(b.next_deadline(), None);
+    }
+
+    #[test]
+    fn the_gimbal_servos_answer_on_s_rxd_and_report_their_angles() {
+        use esp_soc::devices::st3215::{inst, packet, reg, BROADCAST};
+        let mut b = RosDriver::new();
+        assert!(b.uses_uart_pins());
+        assert_eq!(*b.gimbal.lock().unwrap(), [0.0, 0.0]);
+        let line = UartRoute::new(1, 1 << S_TXD, Some(S_RXD), Some(1_000_000));
+        // gimbal_module.h gimbalCtrlSimple(45, 20, 0, 0): pan 2047 + 511, tilt 2047 - 227, speed and ACC 0
+        let mut params = vec![reg::ACC, 7];
+        for (id, pos) in [(GIMBAL_PAN_ID, 2558u16), (GIMBAL_TILT_ID, 1820)] { params.push(id); params.push(0); params.extend(pos.to_le_bytes()); params.extend([0; 4]); }
+        for byte in packet(BROADCAST, inst::SYNC_WRITE, &params) { b.uart_tx(0, line, byte); }
+        // bytes on another pin or at another rate do not reach the servos
+        for byte in packet(GIMBAL_PAN_ID, inst::PING, &[]) { b.uart_tx(10, UartRoute::new(1, 1 << 4, None, Some(1_000_000)), byte); }
+        for byte in packet(GIMBAL_PAN_ID, inst::PING, &[]) { b.uart_tx(10, UartRoute::new(1, 1 << S_TXD, None, Some(115_200)), byte); }
+        assert_eq!(b.next_deadline(), None);
+        b.advance_to(CPU_HZ);
+        let pt = *b.gimbal.lock().unwrap();
+        assert!((pt[0] - 44.92).abs() < 0.01 && (pt[1] - 19.96).abs() < 0.01, "{pt:?}");
+        assert!(b.report().contains("gimbal pan +44.9 tilt +20.0 deg"), "{}", b.report());
+        // SMS_STS::FeedBack: READ 15 bytes from the present position; the answer comes on S_RXD at 1 Mbaud
+        for byte in packet(GIMBAL_TILT_ID, inst::READ, &[reg::PRESENT_POSITION, 15]) { b.uart_tx(CPU_HZ, line, byte); }
+        let due = b.next_deadline().unwrap();
+        assert!(b.uart_rx(due - 1).is_empty());
+        let mut got = Vec::new();
+        for c in due..due + CPU_HZ / 1000 { for i in b.uart_rx(c) { assert_eq!((i.pin, i.baud), (S_RXD, 1_000_000)); got.extend(i.data); } }
+        assert_eq!(got.len(), 21);
+        assert_eq!(u16::from_le_bytes([got[5], got[6]]), 1820);
+        assert_eq!(got[5 + 6], 118, "the battery's 11.8 V");
     }
 
     #[test]
