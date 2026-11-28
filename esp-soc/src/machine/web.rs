@@ -139,6 +139,9 @@ impl<S: Soc> Machine<S> {
             match t.as_str() {
                 "btn" => { let pin: u8 = field("pin").and_then(|x| x.parse().ok()).unwrap_or(0); let v = field("v").unwrap_or_default() == "1";
                            self.bus.gpio_set_input(pin, !v); *self.bus.irq_dirty() = true; }
+                // An input pin driven to a level: a button wired to GND or to 3V3, a switch (docs/web-ui.md).
+                "gpio" => { let pin: u8 = field("pin").and_then(|x| x.parse().ok()).unwrap_or(0); let level = field("level").unwrap_or_default() == "1";
+                            self.bus.gpio_set_input(pin, level); *self.bus.irq_dirty() = true; }
                 "knobpress" => { let v = field("v").unwrap_or_default() == "1"; if let Some(sw) = self.bus.board_ref().named_pin("sw") { self.bus.gpio_set_input(sw, !v); *self.bus.irq_dirty() = true; } }
                 "knob" => {
                     // Bound each browser message to about one second of encoder motion.

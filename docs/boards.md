@@ -342,6 +342,23 @@ be in DRAM or, with `--psram-mb 4`, PSRAM.
 JPEG encoding, adjustable FPS and silicon/PCLK timing are unsupported.
 See [the fixture and scope](esp32.md#the-camera---board-ai-thinker-cam).
 
+## `breadboard` — bare ESP32-S3 module on a breadboard
+
+Nothing is soldered to the module: a host that draws its own circuit (LEDs, buttons, … wired on a
+breadboard) needs every pin's state, not a fixed set of devices. Every GPIO 0–48 is one entry of the
+`leds()` strip, published through the existing `ring` message only when something changed:
+
+| Channel | Meaning |
+| --- | --- |
+| red | duty over the last 20 ms window, 0–255: the fraction of the window the pin was driven high (GPIO edges), or the LEDC/MCPWM duty for a pin those drive (they synthesize no edges) |
+| green | 1 while the pin's output driver is enabled |
+| blue | the level last driven on the pin as an output |
+
+PWM levels reach the board through `advance_inputs_with_clock`, which the S3 bus calls only for a
+board whose `uses_pwm_levels()` is true (every other board keeps plain `advance_to`). Inputs come from
+the page's `gpio` message (`pin`, `level`) or `btn`. With Arduino-ESP32 4.0.0: `digitalWrite`
+blink, `analogWrite` fade and a button read through `INPUT_PULLUP` all behave as expected.
+
 ## `none` — bare module
 
 No devices; console only. For stock ESP-IDF projects (`examples/hello_world`).
