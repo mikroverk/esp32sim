@@ -155,6 +155,11 @@ pub trait BoardModel {
     /// Whether `camera_frame_with_clock` currently returns one whole JPEG file (its length
     /// is the file's) rather than `w`x`h` raw pixels. Queried only by capture adapters.
     fn camera_frame_is_jpeg(&self) -> bool { false }
+    /// Whether `advance_inputs_with_clock` should be fed the LEDC/MCPWM output of each pin (PWM levels:
+    /// those peripherals synthesize no GPIO edges). Only consulted when `uses_gpio_edges` is true.
+    /// Cached by `attach_board_devices`; boards that keep the default get plain `advance_to`.
+    /// Appended at the end so the hot-call vtable offsets stay put.
+    fn uses_pwm_levels(&self) -> bool { false }
 }
 
 pub type Board = Box<dyn BoardModel>;

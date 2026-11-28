@@ -8,16 +8,19 @@
 //! - `WaveshareLcd4b` — ESP32-S3-Touch-LCD-4B
 //! - `WaveshareAmoled18V2` — ESP32-S3-Touch-AMOLED-1.8 V2
 //! - `StopWatch` — M5Stack StopWatch
+//! - `Breadboard` — a bare module on a breadboard: every pin's duty, direction and level for the host
 //! - `NoBoard` — a bare module: nothing on the pins (any ESP32-S3 firmware, console only)
 pub use esp_soc::board::{Board, BoardEdge, BoardModel, NoBoard, VirtualCycle};
 
 pub mod atech14;
+pub mod breadboard;
 pub mod stopwatch;
 pub mod waveshare_amoled18;
 pub mod waveshare_cam;
 pub mod waveshare_lcd4b;
 
 pub use atech14::*;
+pub use breadboard::*;
 pub use stopwatch::*;
 pub use waveshare_amoled18::*;
 pub use waveshare_cam::*;
@@ -28,6 +31,7 @@ pub fn make_board(name: &str) -> Option<Board> {
     match name {
         "atech14" | "atech" => Some(Box::new(Atech14::new())),
         "none" | "bare" => Some(Box::new(NoBoard)),
+        "breadboard" => Some(Box::new(Breadboard::new())),
         "stopwatch" | "m5stack-stopwatch" => Some(Box::new(StopWatch::new())),
         "waveshare-cam" | "waveshare" => Some(Box::new(WaveshareCam::new())),
         "waveshare-lcd4b" | "lcd4b" => Some(Box::new(WaveshareLcd4b::new())),

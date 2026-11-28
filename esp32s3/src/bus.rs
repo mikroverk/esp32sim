@@ -104,6 +104,8 @@ pub struct SocBus {
     cache_resource: CacheResource,
     pub(crate) fetch_cache: xtensa_lx7::state::SharedFetchCache,
     board_edges: bool,
+    /// `board.uses_pwm_levels()`, cached by `attach_board_devices`.
+    board_pwm: bool,
     /// a USB host is on the OTG port (`attach_usb_host`): only then can the core's work fall due
     pub(crate) usb_host: bool,
 }
@@ -188,7 +190,7 @@ impl SocBus {
             ble: Default::default(),
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
-            mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), uart_pins: false, cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, ena_latency: Default::default(), gpio_events: None, debug: Default::default(), board_edges: true,
+            mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), uart_pins: false, cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, ena_latency: Default::default(), gpio_events: None, debug: Default::default(), board_edges: true, board_pwm: false,
             spi2_timing: false, spi2_scheduled: None, spi2_pins: None, spi3_dma_fault: None, spi3_pins: None,
             tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
@@ -338,6 +340,7 @@ impl SocBus {
         }
         self.uart_pins = self.board.uses_uart_pins();
         self.board_edges = self.board.uses_gpio_edges();
+        self.board_pwm = self.board.uses_pwm_levels();
         for (bus, address, device) in self.board.i2c_devices() {
             self.periph.i2c[bus as usize].attach(address, device);
         }
@@ -988,7 +991,13 @@ impl SocBus {
 
     fn tick_impl(&mut self, cycles: u32) -> u32 {
         // Board time advances before peripheral callbacks; inputs are delivered after them.
-        if self.board_edges { self.board.advance_to(self.cycles); }
+        if self.board_edges {
+            if self.board_pwm {
+                // The board reads PWM levels: hand it each pin's LEDC/MCPWM output (no edges are synthesized for them).
+                let periph = &self.periph;
+                self.board.advance_inputs_with_clock(self.cycles, &|pin| periph.ledc.output(&periph.gpio, pin).or_else(|| periph.mcpwm.iter().find_map(|pwm| pwm.output(&periph.gpio, pin))));
+            } else { self.board.advance_to(self.cycles); }
+        }
         // Reads may flush before the periodic backstop. Refresh for either edge
         // of a clocked source, without breaking every block that polls MMIO.
         self.irq_dirty |= self.periph.tick(cycles as u64);
