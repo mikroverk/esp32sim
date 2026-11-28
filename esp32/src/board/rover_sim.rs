@@ -3,11 +3,13 @@
 //! while nobody listens, and exchanges one JSON object per line in wall-clock time (the run is
 //! `--realtime`-paced when a host drives it, as with `--uart-tcp`).
 //!
-//! Board to simulation, every 10 ms: `{"duty":[l,r],"speed":[l,r],"travel":[l,r],"pt":[pan,tilt]}`,
+//! Board to simulation, every 10 ms: `{"duty":[l,r],"speed":[l,r],"travel":[l,r],"pt":[pan,tilt],"led":[io4,io5]}`,
 //! the signed H-bridge duty (-1..1) per side, the wheel speeds (m/s) and travel (m) the encoders
 //! report, and the pan-tilt gimbal's present angles in degrees from its servos' shafts, in the
 //! firmware's convention (`ros_driver::GimbalShared`: T:133's X and Y, T:1001's pan and tilt; 0, 0
-//! at the servos' middle, pan = (pos - 2047) * 360 / 4095, tilt = (2047 - pos) * 360 / 4095).
+//! at the servos' middle, pan = (pos - 2047) * 360 / 4095, tilt = (2047 - pos) * 360 / 4095),
+//! and the two LED lights' brightness 0..1 (`led`: IO4 by the depth camera, IO5 by the USB camera,
+//! as the firmware's T:132 sets their PWM).
 //! Simulation to board, any subset of the keys in one line:
 //! - `"speed":[l,r]`: wheel surface speeds in m/s; the encoders follow them instead of the built-in
 //!   motor model while the link is up.
@@ -56,8 +58,8 @@ pub fn apply(line: &str, drive: &DriveShared, imu: &Icm20948Input, battery: &Ina
 
 /// The board's line to the simulation.
 pub fn line(d: &super::ros_driver::Drive, pt: [f64; 2]) -> String {
-    format!("{{\"duty\":[{:.4},{:.4}],\"speed\":[{:.4},{:.4}],\"travel\":[{:.5},{:.5}],\"pt\":[{:.2},{:.2}]}}\n",
-            d.duty[0], d.duty[1], d.speed_mps[0], d.speed_mps[1], d.travel_m[0], d.travel_m[1], pt[0], pt[1])
+    format!("{{\"duty\":[{:.4},{:.4}],\"speed\":[{:.4},{:.4}],\"travel\":[{:.5},{:.5}],\"pt\":[{:.2},{:.2}],\"led\":[{:.3},{:.3}]}}\n",
+            d.duty[0], d.duty[1], d.speed_mps[0], d.speed_mps[1], d.travel_m[0], d.travel_m[1], pt[0], pt[1], d.lights[0], d.lights[1])
 }
 
 /// Starts the link thread; it lives as long as the process.
@@ -124,8 +126,10 @@ mod tests {
     }
 
     #[test]
-    fn the_board_line_carries_wheels_and_gimbal() {
-        let l = line(&Default::default(), [44.923, -19.956]);
+    fn the_board_line_carries_wheels_gimbal_and_lights() {
+        let d = super::super::ros_driver::Drive { lights: [0.5, 1.0], ..Default::default() };
+        let l = line(&d, [44.923, -19.956]);
+        assert_eq!(numbers(&l, "led", 2), Some(vec![0.5, 1.0]));
         assert_eq!(numbers(&l, "pt", 2), Some(vec![44.92, -19.96]));
         assert_eq!(numbers(&l, "travel", 2), Some(vec![0.0, 0.0]));
         assert!(l.ends_with("}\n"));

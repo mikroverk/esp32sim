@@ -54,6 +54,9 @@ const DEAD_BAND: f64 = 23.0 / 255.0;
 const TAU_S: f64 = 0.05;
 /// ugv_config.h: the servo line (S_TXD 19 out of the ESP32, S_RXD 18 in) and the gimbal's servo IDs.
 pub const S_TXD: u8 = 19;
+/// The LED lights (ugv_config.h IO4_PIN, IO5_PIN).
+const IO4: u8 = 4;
+const IO5: u8 = 5;
 pub const S_RXD: u8 = 18;
 pub const GIMBAL_PAN_ID: u8 = 2;
 pub const GIMBAL_TILT_ID: u8 = 1;
@@ -86,6 +89,9 @@ pub struct Drive {
     pub travel_m: [f64; 2],
     /// Speeds come from outside (`speed_mps` as written) instead of the built-in motor model.
     pub external: bool,
+    /// The two LED lights' brightness, 0..1 (IO4 by the depth camera, IO5 by the USB camera; the
+    /// firmware's `T:132` sets their LEDC PWM; a pin driven as a plain output gives 0 or 1).
+    pub lights: [f64; 2],
 }
 pub type DriveShared = Arc<Mutex<Drive>>;
 
@@ -240,6 +246,12 @@ impl BoardModel for RosDriver {
             let target = if duty.abs() <= DEAD_BAND { 0.0 } else { duty.signum() * (duty.abs() - DEAD_BAND) / (1.0 - DEAD_BAND) * FULL_SPEED };
             started |= target != 0.0 && self.wheels[i].target == 0.0;
             self.wheels[i].target = target;
+        }
+        for (k, pin) in [IO4, IO5].into_iter().enumerate() {
+            d.lights[k] = match clock(pin) {
+                Some((hz, duty)) if hz.is_finite() && hz > 0.0 => (f64::from(duty) / 65535.0).clamp(0.0, 1.0),
+                _ => f64::from(u8::from(self.level(pin))),
+            };
         }
         let external = d.external;
         drop(d);
