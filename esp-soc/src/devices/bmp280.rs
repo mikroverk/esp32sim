@@ -385,4 +385,18 @@ mod tests {
         let (t1, _) = d.compensate();
         assert!(t1 < t0, "cooler raw sample should read cooler: {t0} -> {t1}");
     }
+
+    /// Sleep and forced mode publish only on a `ctrl_meas` write, so a staged sample waits for the
+    /// next measurement instead of turning up in the data registers at once. That is what separates
+    /// `set_raw` from the normal-mode path, and nothing covered it: making `set_raw` publish in
+    /// every mode left all the other tests green.
+    #[test]
+    fn a_sample_staged_in_sleep_mode_waits_for_a_measurement() {
+        let mut d = Bmp280::new();
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
+        d.set_raw(ADC_T - 100_000, ADC_P);
+        assert_eq!(read_at(&mut d, REG_TEMP, 3), [0x7E, 0xED, 0x00]);
+        d.start(false); d.write(REG_CTRL_MEAS); d.write(0x6D);
+        assert_ne!(read_at(&mut d, REG_TEMP, 3), [0x7E, 0xED, 0x00]);
+    }
 }
