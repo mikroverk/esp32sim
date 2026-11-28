@@ -342,6 +342,23 @@ be in DRAM or, with `--psram-mb 4`, PSRAM.
 JPEG encoding, adjustable FPS and silicon/PCLK timing are unsupported.
 See [the fixture and scope](esp32.md#the-camera---board-ai-thinker-cam).
 
+## `waveshare-ros-driver` — Waveshare ROS Driver for Robots, UGV Rover (classic ESP32)
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| Two TB6612FNG H-bridges, four gear motors | PWMA 25, AIN1 21, AIN2 17 (left); PWMB 26, BIN1 22, BIN2 23 (right); LEDC PWM | duty and direction from the PWM clock and the IN pins; each side's front and rear motors share the control lines (schematic), so one wheel per side; a first-order speed model, 1.3 m/s at full duty (product page), stalled below 23/255 duty (the firmware's THRESHOLD_PWM), 50 ms time constant (an assumption) |
+| Front motors' Hall encoders | A: 35, 34; B: 27, 16 | quadrature edges on guest time, 660 counts per turn in halfQuad (ugv_config.h), 80 mm wheels; counted by the firmware's PCNT |
+| ICM-20948 IMU, AK09916 magnetometer | I2C0 (SDA 32, SCL 33) at 0x68 | `Icm20948` (esp-soc `devices`): banks, DMP memory and FIFO packets, the auxiliary I2C master; reports the pose a host sets through `RosDriver::imu` (level and at rest by default); no sensor fusion |
+| SSD1306 128×32 OLED | I2C0 at 0x3C | `Ssd1306`: commands and GDDRAM; `display()` shows the glass |
+| INA219 battery monitor | I2C0 at 0x42, 0.01 Ω shunt | `Ina219`: bus 11.8 V, 0.25 A, settable through `RosDriver::battery` |
+| Two ST3215 bus servos (pan-tilt: pan ID 2, tilt ID 1) | servo line S_TXD 19 / S_RXD 18 (UART1 at 1 Mbaud, ugv_config.h) | `St3215Bus` (esp-soc `devices`): Feetech's STS protocol (PING, READ, WRITE, REG_WRITE/ACTION, SYNC_READ, SYNC_WRITE), the memory table SCServo's `SMS_STS` uses, answers paced at the line rate after the return delay; the shaft runs to the goal at the goal speed and acceleration (0..4095 = 360°, 3072 step/s top speed); no load or stall. The firmware drives it with `moduleType` 2 (`{"T":900,"main":2,"module":2}`) and reports `pan`/`tilt` in T:1001 |
+
+Selected with `--chip esp32 --board waveshare-ros-driver` (aliases `ros-driver`, `ugv-rover`);
+`,sim=HOST:PORT` links the wheels, IMU and battery to a physics simulation, and tells it the gimbal's pan and tilt;
+the same board drives the RaspRover and UGV Beast (other wheel constants, not modelled here). Not to be
+confused with Waveshare's General Driver for Robots (WAVE ROVER, UGV01), a different board;
+[esp32.md](esp32.md#the-board---board-waveshare-ros-driver).
+
 ## `none` — bare module
 
 No devices; console only. For stock ESP-IDF projects (`examples/hello_world`).

@@ -191,3 +191,72 @@ and the browser runs it as the `tdisplay-prices` demo (`run.html?wasm&fw=tdispla
 official MicroPython image fetched by `tools/fetch-micropython.sh`, the app's LittleFS image in
 `web/wasm/fw/public/`, demo prices instead of a fetch because the browser has no sockets.
 
+## The board: `--board waveshare-ros-driver`
+
+Waveshare's ROS Driver for Robots (ESP32-WROOM-32) is the lower computer of the UGV Rover:
+the host (a Raspberry Pi or a Jetson Orin) sends it JSON lines on UART0 at 115200
+(`{"T":1,"L":0.3,"R":0.3}`, wheel speeds in m/s) and reads its feedback (`{"T":1001,...}`: wheel
+speeds, the IMU, odometry, battery voltage). `esp32/src/board/ros_driver.rs` wires what
+Waveshare's ugv_base_ros firmware drives (`ROS_Driver/ugv_config.h` at 2e7df97, UGV Rover
+mainType 2), checked against Waveshare's schematic (`ROS_Driver_for_Robots.pdf`): two TB6612FNG
+H-bridges on one set of control lines, Hall encoders on the front motors, an ICM-20948 at 0x68,
+an SSD1306 128×32 at 0x3C and an INA219 at 0x42 across a 0.01 Ω shunt on I2C0 (SDA 32, SCL 33).
+
+The motors are a model, not a measurement: a wheel's target speed is its signed duty above the
+dead band, scaled to the product page's 1.3 m/s, and the wheel follows it with a 50 ms time
+constant. The encoders turn the wheel's travel into quadrature edges at 660 counts per turn, so
+the firmware's PID and odometry close their loop on the model. The `Drive` state
+(`RosDriver::drive`) holds each side's duty, speed and travel; with `external` set, the board
+takes the speeds written there instead, for a physics simulation outside the emulator. The IMU
+reports the pose set through `RosDriver::imu` (orientation, angular rate, linear acceleration,
+magnetic field) as the DMP's quaternion and raw packets. Not modelled: the SD card, the motors'
+current in the INA219 reading.
+
+The pan-tilt module is two Feetech ST3215 bus servos (pan ID 2, tilt ID 1) on the servo line,
+S_TXD 19 and S_RXD 18, which the firmware runs as UART1 at 1 Mbaud through Feetech's SCServo
+library. `St3215Bus` (`esp-soc/src/devices/st3215.rs`) hears what UART1 sends on GPIO19 and
+answers on GPIO18, byte by byte at the line rate after the servo's return delay: Feetech's STS
+packets (PING, READ, WRITE, REG_WRITE and ACTION, SYNC_READ, SYNC_WRITE, with the checksum and
+error byte), the memory table `SMS_STS` uses (goal position, time, speed and acceleration;
+present position, speed, load, voltage, temperature, current and moving; torque enable and the
+middle calibration; ID, baud, PID and the other EEPROM settings). The shaft runs to the goal at
+the goal speed (0 = the fastest, 3072 step/s from the ST3215's 45 rpm) with a trapezoidal ramp
+at the acceleration (100 step/s² units, 0 = none); 4096 steps make a turn. There is no load, so
+the servos always arrive; what the module documents as guessed (power-up torque, torque off
+holding the position, defaults) is listed there. The firmware talks to the gimbal once
+`moduleType` is 2 (`{"T":900,"main":2,"module":2}`), points it with T:133/T:134/T:141 and adds
+`pan` and `tilt` (degrees) to its T:1001 feedback; the end-of-run report shows the same angles.
+
+The firmware is GPL-3.0 and not part of this repository; build it unmodified with PlatformIO
+(pioarduino platform 53.03.10: Arduino-ESP32 3.1.0, IDF 5.3; `-DICM_20948_USE_DMP` and
+`-Wno-error=return-type`, as the Arduino IDE build does not make that warning an error), then:
+
+```sh
+./target/release/esp32sim --chip esp32 --board waveshare-ros-driver --boot rom \
+    --rom esp32_rev300_rom.elf --bootloader bootloader.bin --ptable partitions.bin --app firmware.bin \
+    --uart-tcp 127.0.0.1:5500     # the host connects here
+```
+
+### Linking a physics simulation
+
+`--board waveshare-ros-driver,sim=HOST:PORT` connects the board to a simulation over TCP,
+one JSON object per line. The board retries while nobody listens. While the link is up, the
+simulation owns the wheels, the IMU and the battery, and the board turns its numbers into
+encoder edges and I2C readings; the board tells it where the gimbal points. The run should be paced in real time: `--uart-tcp` already
+implies `--realtime`.
+
+| Direction | Message |
+| --- | --- |
+| Board to simulation, every 10 ms | `{"duty":[l,r],"speed":[l,r],"travel":[l,r],"pt":[pan,tilt],"led":[io4,io5]}`: the signed H-bridge duty (-1..1) per side, the speed (m/s) and travel (m) the encoders report, and the gimbal's present pan and tilt in degrees from the servos' shafts, in the firmware's convention (T:133's X and Y, T:1001's `pan`/`tilt`: 0, 0 at the servos' middle 2047; pan = (pos − 2047) · 360 / 4095, tilt = (2047 − pos) · 360 / 4095; T:133 limits Y to −30..90), and the two LED lights' brightness 0..1 (`led`: IO4 by the depth camera, IO5 by the USB camera; T:132 sets their PWM) |
+| Simulation to board, any subset | `"speed":[l,r]` wheel surface speeds in m/s, replacing the built-in motor model. `"q":[w,x,y,z]`, `"w":[x,y,z]`, `"a":[x,y,z]`, `"mag":[x,y,z]` set the ICM-20948's pose: body to world, body angular rate in rad/s, world acceleration without gravity in m/s², world field in µT. `"bat":[volts,amps]` sets what the INA219 measures |
+
+Values that are not finite numbers, and arrays of the wrong length, are ignored. When the
+simulation disconnects, the board goes back to its own motor model. The link is native only:
+the browser build has no sockets. `esp32/src/board/rover_sim.rs` has the details.
+
+`cli/tests/ugv_rover.rs` (`external_ugv_base_drives_and_reports_odometry`, with
+`UGV_BASE_FW_DIR` set to the build) boots it, waits for its feedback, sends a speed command and
+checks the odometry, the IMU's DMP setup and the battery voltage it reports;
+`external_ugv_base_points_the_gimbal` sends `{"T":900,"main":2,"module":2}` and
+`{"T":133,"X":45,"Y":20,"SPD":0,"ACC":0}` and checks that T:1001 reports pan 44.9 and tilt 20.0
+(the firmware rounds the angles to whole steps) once the servos have moved there.

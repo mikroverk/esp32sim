@@ -170,7 +170,8 @@ See [esp32c6.md](esp32c6.md).
 ## Classic ESP32
 
 The classic ESP32 boots its ECO3 mask ROM on dual LX6 cores, with GPIO, UART and timers:
-`--chip esp32`. `--board ttgo-tdisplay` adds the LilyGO TTGO T-Display's ST7789 and buttons. See
+`--chip esp32`. `--board ttgo-tdisplay` adds the LilyGO TTGO T-Display's ST7789 and buttons; `--board waveshare-ros-driver` the
+Waveshare UGV Rover's motor, encoder, IMU and battery board. See
 [esp32.md](esp32.md) for how to run it.
 
 ## ESP32-P4
