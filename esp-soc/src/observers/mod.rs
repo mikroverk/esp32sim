@@ -3,6 +3,7 @@
 //! run at full speed on the block path (block profile, coverage, interrupt latency, VCD).
 pub mod block_profile;
 pub mod breakpoints;
+pub mod buslog;
 pub mod coverage;
 pub mod irq_latency;
 pub mod mmio_heat;
@@ -14,6 +15,7 @@ pub mod watch;
 
 pub use block_profile::BlockProfile;
 pub use breakpoints::Breakpoints;
+pub use buslog::BusLog;
 pub use coverage::Coverage;
 pub use irq_latency::IrqLatency;
 pub use mmio_heat::MmioHeat;

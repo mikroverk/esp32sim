@@ -342,6 +342,44 @@ be in DRAM or, with `--psram-mb 4`, PSRAM.
 JPEG encoding, adjustable FPS and silicon/PCLK timing are unsupported.
 See [the fixture and scope](esp32.md#the-camera---board-ai-thinker-cam).
 
+## `custom` — bare S3 with the parts you wire on it
+
+Not a board of its own: `--board custom --device SPEC` (repeatable) starts from the SoC with no
+preset peripherals and attaches exactly the devices named. Every spec is `BUS:ADDR:MODEL` for I2C
+(bus 0 or 1, address 0x08 to 0x77, decimal or `0x` hex), `PIN:LEDS:ws2812`,
+`SCLK:MOSI:CS:DC:st7735` or `ili9341`, `SCLK:MOSI:CS:RS:nt7534`, or
+`HOST:WIDTH:HEIGHT:XOFF:co5300` for a QSPI panel.
+
+Models, and where they answer:
+
+| Model | Bus | Notes |
+| --- | --- | --- |
+| `bmp280` | I2C 0x76 or 0x77 | pressure and temperature, integer compensation path |
+| `bmi270` | I2C 0x68 or 0x69 | IMU; follows `--imu-motion` |
+| `bmm150` | I2C 0x10 to 0x13 | magnetometer; follows `--imu-motion` |
+| `aht20` | I2C 0x38 | temperature and humidity, CRC-checked frame |
+| `lsm6ds3` | I2C 0x6A or 0x6B | IMU with a die temperature; follows `--imu-motion` |
+| `ft5x06` | I2C 0x38 to 0x3E | touch panel points |
+| `sh1106` | I2C 0x3C or 0x3D | 128×64 monochrome OLED; the glass shows GDDRAM columns 2..129 |
+| `ws2812` | any output pin | addressable strip on an RMT channel |
+| `st7735` / `ili9341` | three output pins + D/C | 160×80 / 240×320 panel |
+| `nt7534` | three output pins + RS | 128×64 monochrome LCD; the glass shows GDDRAM columns 1..128 |
+| `co5300` | GP-SPI host | QSPI panel with its geometry |
+
+Two rules the CLI enforces, because the board has one slot for each: no two devices may share a
+(bus, address), and no second panel of a kind (a second `st7735`, `ili9341`, `nt7534`, `sh1106` or
+`co5300`) — a duplicate used to replace the first silently.
+
+**The panels are bit-banged only.** `st7735`, `ili9341` and `nt7534` are driven by software
+toggling SCLK/MOSI/CS (and D/C or RS) through the GPIO matrix, so a firmware using hardware SPI
+(`esp_lcd`, TFT_eSPI, SPI2 DMA) does not reach them: there is no SPI host behind those pins in this
+model. The same reason puts a strip on an RMT channel and a `co5300` on a GP-SPI host.
+
+`--imu-motion 1` works on a bare board: the board stores the guest clock, and the sensor model
+samples the shared script at `cycle / CPU_HZ`, so a run is deterministic and a driver polling at any
+rate sees the same motion. `--buslog FILE` records the GPIO edges, the GP-SPI transactions and the
+decoded bytes of each CS pulse; without it nothing is recorded and no `[buslog]` line is printed.
+
 ## `none` — bare module
 
 No devices; console only. For stock ESP-IDF projects (`examples/hello_world`).

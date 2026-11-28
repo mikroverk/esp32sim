@@ -2,6 +2,7 @@
 //! what the SoC model already decoded (GPIO levels, SPI bytes, RMT bit streams). A board owns
 //! them and adds what is module-specific — pin numbers, the visible window of a glass, where
 //! each LED of a chain sits physically.
+pub mod aht20;
 pub mod bmi270;
 pub mod bmm150;
 pub mod bmp280;
@@ -9,10 +10,15 @@ pub mod co5300;
 pub mod dcs_panel;
 pub mod ft5x06;
 pub mod imu_motion;
+pub mod lsm6ds3;
+pub mod mono_lcd;
 pub mod spi_bitbang;
 pub mod ws2812;
 
+pub use aht20::{Aht20, AHT20_ADDRESS};
 pub use bmi270::{Bmi270, BMI270_ADDRESS};
+pub use lsm6ds3::{Lsm6ds3, LSM6DS3_ADDRESS};
+pub use mono_lcd::{MonoPanel, Nt7534, Sh1106, SH1106_ADDRESS};
 pub use bmm150::{Bmm150, Bmm150Trim};
 pub use bmp280::{Bmp280, BMP280_ADDRESS};
 pub use dcs_panel::DcsPanel;

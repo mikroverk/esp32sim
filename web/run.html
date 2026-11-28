@@ -77,6 +77,12 @@
 .bare main { grid-template-columns: 1fr; }
 .bare .right { max-width: 1100px; }
 #term { display:none; background:#0b0d10; border-radius:8px; padding:8px; height:436px; overflow:auto; }
+  /* A bare board can carry several panels: one canvas each, side by side and wrapping when the
+     window is narrow. Slot 0 is #lcd, so the rotate control and touch input keep working. */
+  .lcdrow { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-top: 8px; }
+  .lslot { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .lslot .lcap { font-size: 11px; line-height: 1.3; color: #6b7280; }
+  .lslot .lcap:empty { display: none; }
 </style><link rel="stylesheet" href="vendor/xterm/xterm.css"><link rel="stylesheet" href="workbench.css"></head>
 <body>
 <script src="emu.js"></script>
@@ -107,7 +113,11 @@
   <section class="right">
     <div class="card" id="lcdpanel" style="display:none">
       <div class="row"><strong>Panel</strong><span class="st" id="lcdstat">ST7701S 480×480 over the RGB bus — click/drag to touch</span><span style="flex:1"></span><label class="st">rotate <select id="lcdrot"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label></div>
-      <canvas id="lcd" width="480" height="480" style="margin-top:8px;width:480px;height:480px;border-radius:12px;background:#000;cursor:crosshair;touch-action:none"></canvas>
+      <div class="lcdrow" id="lcdrow">
+        <div class="lslot"><div class="lcap" id="lcdcap0"></div>
+          <canvas id="lcd" width="480" height="480" style="margin-top:0;border-radius:12px;background:#000;cursor:crosshair;touch-action:none"></canvas>
+        </div>
+      </div>
       <div class="row" id="lcdextras" style="display:none;margin-top:8px"><span class="boardbtn" id="lcdboot" data-pin="9">BOOT</span><span class="st">press to switch all-channel / single-channel scan</span><span class="led" id="lcdled" title="WS2812"></span><span class="st">WS2812</span></div>
       <div class="row" id="mosaicobuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="7">AI button (GPIO 7)</span><span class="boardbtn" data-pin="61">Boot key (GPIO 61)</span><span class="st">click = single press, hold = long press</span><span class="led" id="mosaicomotor" title="vibration motor (GPIO 8)"></span><span class="st">vibration motor</span></div>
       <div class="row" id="tdbuttons" style="display:none;margin-top:8px"><span class="boardbtn" data-pin="0">left (GPIO 0)</span><span class="boardbtn" data-pin="35">right (GPIO 35)</span><span class="st">the board's two buttons</span></div>
@@ -227,6 +237,47 @@ function send(o) { linkSend(JSON.stringify(o)); }
 // selector in the panel's header changes it live.
 const lcdRaw = document.createElement('canvas');
 let lcdRotation = 0;
+// A bare board can show more than one panel at once: each slot gets its own canvas in one row.
+// Slot 0 is the long-standing #lcd (rotate + touch act on it); the rest are plain canvases sized
+// from the frames the emulator sends as type 6, captioned by its {"t":"panel"} announcements.
+const lcdSlots = [{ raw: lcdRaw, canvas: $('#lcd'), cap: $('#lcdcap0'), rotation: () => lcdRotation }];
+function lcdSlot(i) {
+  while (lcdSlots.length <= i) {
+    const box = document.createElement('div'); box.className = 'lslot';
+    const cap = document.createElement('div'); cap.className = 'lcap';
+    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+    canvas.style.cssText = 'border-radius:12px;background:#000;display:block';
+    box.append(cap, canvas); $('#lcdrow').appendChild(box);
+    lcdSlots.push({ raw: document.createElement('canvas'), canvas, cap, rotation: () => 0 });
+  }
+  return lcdSlots[i];
+}
+function paintSlot(slot) {
+  const w = slot.raw.width, h = slot.raw.height, c = slot.canvas;
+  if (!w || !h) return;
+  const deg = slot.rotation(), quarter = deg === 90 || deg === 270;
+  const cw = quarter ? h : w, ch = quarter ? w : h;
+  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+  const scale = Math.min(w, h) <= 240 ? 2 : 1;   // a 128×64 glass is unreadable at 1:1
+  c.style.width = (cw * scale) + 'px'; c.style.height = (ch * scale) + 'px';
+  const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.save();
+  if (deg === 90) { ctx.translate(cw, 0); ctx.rotate(Math.PI / 2); }
+  else if (deg === 180) { ctx.translate(cw, ch); ctx.rotate(Math.PI); }
+  else if (deg === 270) { ctx.translate(0, ch); ctx.rotate(-Math.PI / 2); }
+  ctx.drawImage(slot.raw, 0, 0); ctx.restore();
+}
+// Type 6: [6][slot][w lo][w hi][h lo][h hi][RGB565…] — every panel after the first.
+function drawIndexedFrame(buf) {
+  const dv = new DataView(buf), index = dv.getUint8(1);
+  const w = dv.getUint16(2, true), h = dv.getUint16(4, true);
+  if (!w || !h) return;
+  const slot = lcdSlot(index);
+  if (slot.raw.width !== w || slot.raw.height !== h) { slot.raw.width = w; slot.raw.height = h; }
+  const rctx = slot.raw.getContext('2d'), im = rctx.createImageData(w, h), d = im.data;
+  for (let i = 0; i < w * h; i++) { const p = dv.getUint16(6 + i * 2, true); d[i*4] = (p >> 11) * 255 / 31; d[i*4+1] = ((p >> 5) & 63) * 255 / 63; d[i*4+2] = (p & 31) * 255 / 31; d[i*4+3] = 255; }
+  rctx.putImageData(im, 0, 0); paintSlot(slot);
+  $('#lcdpanel').style.display = '';
+}
 // what the panel header says once a frame has arrived, and the rotation that reads upright for a
 // board's usual firmware (the T-Display is used landscape, MADCTL MV|MX: its top is the glass's right edge)
 const PANEL_TEXT = { cyd: 'ILI9341 320×240 over SPI, XPT2046 touch — click the screen to tap', 'waveshare-c6-lcd147': 'ST7789 172×320 over SPI2 + GDMA', 'ttgo-tdisplay': 'ST7789 135×240 over VSPI', 'ulanzi-tc001': '256 WS2812, 32×8, on GPIO 32 via RMT', stopwatch: 'CO5300 468×466 QSPI · CST820 touch' };
@@ -331,7 +382,7 @@ function syncTitle() {
   document.title = demo ? demo + ' · esp32sim' : document.querySelector('h1').textContent;
 }
 function handleMessage(data) {
-    if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); else if (t === 5 && window.NetMon) window.NetMon.frame(data); return; }
+    if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); else if (t === 6) drawIndexedFrame(data); else if (t === 5 && window.NetMon) window.NetMon.frame(data); return; }
     const m = JSON.parse(data);
     if (m.t === 'board') window.dispatchEvent(new CustomEvent('esp32sim-board', { detail: m.name }));
     if (m.t === 'serial') { if (m.src === terminal.src) terminal.write(m.data); addSerial(m.src, m.data); }
@@ -353,6 +404,16 @@ function handleMessage(data) {
         lcd.style.width = lcd.width + 'px'; lcd.style.height = lcd.height + 'px';
         $('#lcdpanel').style.display = ''; syncTitle();
       }
+      if (m.name === 'custom') { $('#lcdstat').textContent = 'bare board — one canvas per panel you wired, captioned below'; }
+    }
+    else if (m.t === 'panel') {
+      // A slot announcement: caption it and give it its size before the first frame lands, so the
+      // row does not jump when the pixels arrive.
+      const idx = m.idx | 0, slot = lcdSlot(idx);
+      if (m.label) slot.cap.textContent = m.label;
+      if (m.w && m.h && !slot.raw.width) { slot.raw.width = m.w; slot.raw.height = m.h; }
+      if (idx === 0) paintLcd(); else paintSlot(slot);
+      $('#lcdpanel').style.display = '';
     }
     else if (m.t === 'grid') { drawGrid(m.id, m.leds); }
     else if (m.t === 'netmon') { if (window.NetMon) { window.NetMon.show(); if (window.EmuLink && window.EmuLink.netmonOpen) { const d = $('#netmondetails'); if (d) d.open = true; } } }

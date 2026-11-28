@@ -1,0 +1,299 @@
+//! An AHT20 temperature/humidity sensor on I2C (0x38), as esp-idf-lib's `aht` component drives
+//! it: a `0xAC 0x33 0x00` write starts a conversion, the status byte reads 0x18 once the
+//! calibration bit (bit 3) is set and the busy bit (bit 7) is clear, and a seven-byte read returns
+//! that status followed by a 20-bit humidity and a 20-bit temperature. The temperature's top
+//! nibble shares the humidity's last data byte, exactly as the datasheet packs them.
+//!
+//! Unlike a register-mapped part the AHT20 has no register pointer: each transaction is either a
+//! command or a read of the sensor's byte stream, so this model keeps a byte cursor rather than a
+//! memory map.
+use esp_periph::i2c::I2cDevice;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use super::imu_motion::{sin, ImuMotion};
+
+/// AHT10 and AHT20 share the fixed address.
+pub const AHT20_ADDRESS: u8 = 0x38;
+
+/// Calibrated and idle: CAL (bit 3) set, busy (bit 7) clear. Bit 4 reads 1 on silicon too, so
+/// the status byte a driver polls for is 0x18 (esp-idf-lib's `AHT20_STATUS_READY`).
+const STATUS_READY: u8 = 0x18;
+
+const CMD_TRIGGER: u8 = 0xAC;
+const CMD_RESET: u8 = 0xBE;
+
+/// 2^20: both channels are 20-bit.
+const FULL_SCALE: f32 = 1_048_576.0;
+
+/// CRC-8 over the first six bytes of the frame, as the datasheet defines the seventh byte
+/// (v1.1 §5.4 step 4): initial value 0xFF, polynomial 0x31, no reflection, no final xor.
+/// esp-idf-lib's `aht` and Linux's `aht10` both reject a frame whose seventh byte does not match.
+fn crc8(bytes: &[u8]) -> u8 {
+    let mut crc = 0xFFu8;
+    for &b in bytes {
+        crc ^= b;
+        for _ in 0..8 {
+            crc = if crc & 0x80 != 0 { (crc << 1) ^ 0x31 } else { crc << 1 };
+        }
+    }
+    crc
+}
+
+pub struct Aht20 {
+    /// Bytes written in the current transaction: a trigger/reset is three, a status read one.
+    cmd: [u8; 8],
+    cmd_len: usize,
+    /// Cursor into `sample` for the current read transaction.
+    rx_pos: usize,
+    /// Status byte then humidity and temperature, packed as the sensor sends them.
+    sample: [u8; 7],
+    pub status: u8,
+    /// Conversions the model has completed (a trigger that packed a new reading).
+    pub conversions: u64,
+    temperature: f32,
+    humidity: f32,
+    /// Shared motion selector: mode 0 holds the reading still, mode 1 drifts it.
+    motion: Arc<ImuMotion>,
+    /// Ticks per second of `motion.cycle` (the guest's CPU rate).
+    clock_hz: u64,
+}
+
+impl Default for Aht20 {
+    fn default() -> Self { Self::new() }
+}
+
+impl Aht20 {
+    pub fn new() -> Self { Self::with_motion(Arc::new(ImuMotion::default()), 1_000_000_000) }
+
+    /// Share the board's motion selector so the same `--imu-motion` switch that moves an IMU also
+    /// drifts this sensor. Deterministic by construction: the phase is guest time, not wall clock.
+    pub fn with_motion(motion: Arc<ImuMotion>, clock_hz: u64) -> Self {
+        Self {
+            cmd: [0; 8],
+            cmd_len: 0,
+            rx_pos: 0,
+            sample: [STATUS_READY, 0, 0, 0, 0, 0, 0],
+            status: STATUS_READY,
+            conversions: 0,
+            temperature: 25.0,
+            humidity: 50.0,
+            motion,
+            clock_hz,
+        }
+    }
+
+    /// Script seconds, from the board clock the guest drives.
+    fn seconds(&self) -> f64 { self.motion.cycle.load(Ordering::Relaxed) as f64 / self.clock_hz as f64 }
+
+    /// The reading the next conversion publishes.
+    pub fn set_reading(&mut self, temperature: f32, humidity: f32) {
+        self.temperature = temperature;
+        self.humidity = humidity;
+    }
+
+    /// The last conversion's reading, as a driver would decode it.
+    pub fn reading(&self) -> (f32, f32) { (self.temperature, self.humidity) }
+
+    /// A conversion finishes at once in the model: a real part needs ~80 ms, but tying that to wall
+    /// clock would only slow a run down, so the sample is ready as soon as the trigger is taken.
+    fn pack(&mut self) {
+        // Mode 1 ("the 30 s handling script" switch) turns the fixed reading into a slow drift:
+        // a warm room and its humidity wandering, sampled in guest time like the IMU script, so
+        // two drivers converting at different rates report the same reading.
+        if self.motion.mode.load(Ordering::Relaxed) != 0 {
+            let t = self.seconds();
+            self.temperature = (25.0 + 2.5 * sin(t * 0.13)) as f32;
+            self.humidity = (50.0 + 12.0 * sin(t * 0.07)) as f32;
+        }
+        // FULL_SCALE itself does not fit the 20-bit field (the maximum is 0xFFFFF), so 100 % or
+        // 150 °C used to wrap to 0: clamp to the largest code instead.
+        let h = (self.humidity.clamp(0.0, 100.0) / 100.0 * FULL_SCALE).round().min(FULL_SCALE - 1.0) as u32;
+        let t = ((self.temperature.clamp(-50.0, 150.0) + 50.0) / 200.0 * FULL_SCALE).round().min(FULL_SCALE - 1.0) as u32;
+        self.sample[0] = STATUS_READY;
+        self.sample[1] = (h >> 12) as u8;
+        self.sample[2] = (h >> 4) as u8;
+        self.sample[3] = ((h & 0x0f) << 4) as u8 | ((t >> 16) & 0x0f) as u8;
+        self.sample[4] = (t >> 8) as u8;
+        self.sample[5] = t as u8;
+        // Byte 7 is a CRC over the six before it, not padding: the drivers named in the header
+        // drop the frame when it does not match, so an all-zero byte fails every read.
+        let crc = crc8(&self.sample[..6]);
+        self.sample[6] = crc;
+        self.status = STATUS_READY;
+        self.conversions += 1;
+    }
+}
+
+impl I2cDevice for Aht20 {
+    fn start(&mut self, read: bool) -> bool {
+        if read { self.rx_pos = 0; } else { self.cmd_len = 0; }
+        true
+    }
+
+    fn write(&mut self, b: u8) -> bool {
+        if self.cmd_len < self.cmd.len() {
+            self.cmd[self.cmd_len] = b;
+            self.cmd_len += 1;
+        }
+        if self.cmd_len == 3 && self.cmd[0] == CMD_TRIGGER {
+            self.pack();
+        } else if self.cmd_len == 1 && self.cmd[0] == CMD_RESET {
+            // Recalibration is instantaneous here; the next status read already reports ready.
+            self.status = STATUS_READY;
+        }
+        true
+    }
+
+    fn read(&mut self) -> u8 {
+        let v = if self.rx_pos < self.sample.len() { self.sample[self.rx_pos] } else { 0 };
+        self.rx_pos += 1;
+        v
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn trigger(d: &mut Aht20) {
+        d.start(false);
+        for b in [0xAC, 0x33, 0x00] { d.write(b); }
+    }
+    fn read_bytes(d: &mut Aht20, n: usize) -> Vec<u8> {
+        d.start(true);
+        (0..n).map(|_| d.read()).collect()
+    }
+
+    #[test]
+    fn status_reports_calibrated_and_idle() {
+        let mut d = Aht20::new();
+        let s = read_bytes(&mut d, 1)[0];
+        assert_eq!(s & 0x80, 0, "busy must be clear");
+        assert_eq!(s & 0x08, 0x08, "calibration bit must be set");
+        assert_eq!(s, STATUS_READY);
+    }
+
+    #[test]
+    fn a_trigger_publishes_the_configured_reading() {
+        let mut d = Aht20::new();
+        // The values from the project's boot log: 31.9 °C / 63.9 %.
+        d.set_reading(31.9, 63.9);
+        trigger(&mut d);
+        assert_eq!(d.conversions, 1);
+
+        let b = read_bytes(&mut d, 7);
+        let raw_h = ((b[1] as u32) << 16 | (b[2] as u32) << 8 | b[3] as u32) >> 4;
+        let raw_t = (b[3] as u32 & 0x0f) << 16 | (b[4] as u32) << 8 | b[5] as u32;
+        let humidity = raw_h as f32 * 100.0 / FULL_SCALE;
+        let temperature = raw_t as f32 * 200.0 / FULL_SCALE - 50.0;
+        assert!((humidity - 63.9).abs() < 0.1, "humidity {humidity}");
+        assert!((temperature - 31.9).abs() < 0.1, "temperature {temperature}");
+    }
+
+    #[test]
+    fn the_seven_byte_read_starts_with_the_status_byte() {
+        let mut d = Aht20::new();
+        trigger(&mut d);
+        let b = read_bytes(&mut d, 7);
+        assert_eq!(b[0], STATUS_READY);
+        assert_eq!(b.len(), 7);
+    }
+
+    /// esp-idf-lib's `aht_get_data` reads seven bytes and drops the frame unless the CRC over the
+    /// first six matches (`if (size == 7 && crc8(buf, 6) != buf[6])`); Linux's `aht10` checks it
+    /// as well. The model used to send a zero there, so every reading was rejected.
+    #[test]
+    fn the_seventh_byte_is_the_crc8_over_the_first_six() {
+        let mut d = Aht20::new();
+        d.set_reading(31.9, 63.9);
+        trigger(&mut d);
+        let b = read_bytes(&mut d, 7);
+        assert_eq!(b[6], crc8(&b[..6]), "frame {b:02x?}");
+        assert_ne!(b[6], 0, "an all-zero CRC means the field is not computed");
+        // A different reading must move it: a constant would pass the check above by accident.
+        let mut e = Aht20::new();
+        e.set_reading(20.0, 40.0);
+        trigger(&mut e);
+        assert_ne!(read_bytes(&mut e, 7)[6], b[6]);
+    }
+
+    /// The frame esp-idf-lib's `aht_get_data` sees right after `aht_init` (`BE 08 00`) and one
+    /// trigger. Comparing byte 7 against the model's own `crc8` cannot catch a wrong polynomial or
+    /// initial value — both sides would be wrong together — so the whole frame is pinned instead.
+    #[test]
+    fn the_reset_frame_matches_the_driver_byte_for_byte() {
+        let mut d = Aht20::new();
+        d.start(false);
+        for b in [0xBE, 0x08, 0x00] { d.write(b); }
+        trigger(&mut d);
+        // The default reading is 25.0 °C / 50.0 %; 0x23 is crc8(18 80 00 06 00 00) with 0xFF/0x31.
+        assert_eq!(read_bytes(&mut d, 7), [0x18, 0x80, 0x00, 0x06, 0x00, 0x00, 0x23]);
+    }
+
+    #[test]
+    fn a_reset_clears_the_trigger_and_reads_ready() {
+        let mut d = Aht20::new();
+        d.start(false);
+        for b in [0xBE, 0x08, 0x00] { d.write(b); }
+        assert_eq!(read_bytes(&mut d, 1)[0], STATUS_READY);
+        assert_eq!(d.conversions, 0, "a reset is not a conversion");
+    }
+
+    /// The 20-bit fields top out at 0xFFFFF, one below FULL_SCALE: 100 % humidity or 150 °C used
+    /// to round up to 0x100000 and read back as 0.
+    #[test]
+    fn the_full_scale_reading_does_not_wrap_to_zero() {
+        let mut d = Aht20::new();
+        d.set_reading(150.0, 100.0);
+        trigger(&mut d);
+        let b = read_bytes(&mut d, 7);
+        let raw_h = ((b[1] as u32) << 16 | (b[2] as u32) << 8 | b[3] as u32) >> 4;
+        let raw_t = (b[3] as u32 & 0x0f) << 16 | (b[4] as u32) << 8 | b[5] as u32;
+        assert_eq!(raw_h, 0xF_FFFF, "100 % must be the largest code, not 0");
+        assert_eq!(raw_t, 0xF_FFFF, "150 C must be the largest code, not 0");
+    }
+
+    /// The drift is a function of guest time, not of how often a driver converts: the board stores
+    /// its clock and the sensor samples it, exactly like an on-board IMU.
+    #[test]
+    fn motion_mode_one_drifts_the_reading_with_guest_time() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Ordering::Relaxed);
+        let mut d = Aht20::with_motion(motion.clone(), 1_000_000_000);
+        let mut temps = Vec::new();
+        for i in 0..12u64 {
+            motion.cycle.store(i * 5_000_000_000, Ordering::Relaxed);
+            trigger(&mut d);
+            temps.push(d.reading().0);
+        }
+        assert!(temps.iter().any(|&t| (t - temps[0]).abs() > 0.05), "temperature must drift: {temps:?}");
+        assert!(temps.iter().all(|&t| (15.0..35.0).contains(&t)), "drift stays plausible: {temps:?}");
+    }
+
+    #[test]
+    fn conversions_at_one_instant_do_not_drift() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Ordering::Relaxed);
+        motion.cycle.store(7_000_000_000, Ordering::Relaxed);
+        let mut d = Aht20::with_motion(motion, 1_000_000_000);
+        let mut temps = Vec::new();
+        for _ in 0..5 {
+            trigger(&mut d);
+            temps.push(d.reading().0);
+        }
+        assert!(temps.iter().all(|&t| t == temps[0]), "guest time has not moved: {temps:?}");
+    }
+
+    #[test]
+    fn motion_mode_zero_keeps_the_reading_still() {
+        let motion = Arc::new(ImuMotion::default());
+        let mut d = Aht20::with_motion(motion, 1_000_000_000);
+        let mut temps = Vec::new();
+        for _ in 0..5 {
+            trigger(&mut d);
+            temps.push(d.reading().0);
+        }
+        assert!(temps.iter().all(|&t| (t - 25.0).abs() < f32::EPSILON), "mode 0 must not move: {temps:?}");
+    }
+}

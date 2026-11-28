@@ -2,7 +2,8 @@
 //! `esp32sim-c6`, `esp32sim-p4` and `esp32sim-s31` binaries are `--chip c3` / `--chip c6` / `--chip p4` / `--chip s31`). Parsing and everything a run does are chip-agnostic over
 //! `Machine<S>`; the few flags a chip owns (board, WiFi, camera, PSRAM, register presets) live in
 //! its setup function.
-use esp_soc::observers::{BlockProfile, Breakpoints, Coverage, IrqLatency, MmioHeat, PcHist, RegTrace, Trace, Vcd, Watch};
+use esp_soc::observers::{BlockProfile, Breakpoints, BusLog, Coverage, IrqLatency, MmioHeat, PcHist, RegTrace, Trace, Vcd, Watch};
+use esp_soc::board::{ConfigurableBoard, DeviceSpec};
 use esp_soc::{Machine, Soc, SocBus, Stop};
 use emu_core::{Bus, Core};
 use std::path::PathBuf;
@@ -25,10 +26,19 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --board NAME          board model (S3: atech14, waveshare-lcd4b, waveshare-amoled18-v2, waveshare-cam, stopwatch, none;");
     eprintln!("                        C6: waveshare-c6-lcd147, xiao-esp32c6, none; P4: waveshare-p4-lcd35, none; S31: mosaico, none;");
     eprintln!("                        classic: ttgo-tdisplay, cyd, ulanzi-tc001, ai-thinker-cam, esp32dev, none)");
+    eprintln!("  --device SPEC         (S3) with --board custom, wire one device onto the bare module; repeatable.");
+    eprintln!("                        Each bus takes only its real wiring, the trailing field being the model:");
+    eprintln!("                        I2C     BUS:ADDR:MODEL   bmp280, bmi270, bmm150, ft5x06, aht20, lsm6ds3, sh1106");
+    eprintln!("                                                 (e.g. 0:0x76:bmp280, 0:0x38:aht20, 0:0x3c:sh1106)");
+    eprintln!("                        WS2812  PIN:LEDS:ws2812  an addressable strip on an RMT data pin");
+    eprintln!("                        SPI     SCLK:MOSI:CS:DC:st7735|ili9341  a bit-banged DCS panel");
+    eprintln!("                        SPI     SCLK:MOSI:CS:RS:nt7534|st7565  a 128x64 monochrome panel");
+    eprintln!("                        QSPI    HOST:WIDTH:HEIGHT:XOFF:co5300  a panel on a GP-SPI host");
     eprintln!("  --flash-mb N, --psram-mb N   memory sizes (S3 default 8 / 2, C3, C6 and classic 4 / 0, P4 16 / 0, S31 2, mosaico 16 / 16)");
     eprintln!("  --max-seconds S       stop after S emulated seconds (always give one: the run returns)");
     eprintln!("  --console usb|uart0|both|none   which consoles to print (uart0 shows the ROM and bootloader)");
-    eprintln!("  --imu-motion N        scripted IMU motion: 0 at rest, 1 the 30 s tilt/flip/shake script (amoled18-v2, mosaico)");
+    eprintln!("  --imu-motion N        scripted sensor motion: 0 at rest, 1 the 30 s tilt/flip/shake script");
+    eprintln!("                        (amoled18-v2, mosaico; on --board custom it drives lsm6ds3 and drifts aht20)");
     eprintln!("  --wifi ssid=…,psk=…   a virtual access point with DHCP, DNS, NTP and NAT to the host network");
     eprintln!("  --wifi-sta ssid=…,psk=…   a virtual station that joins the guest's own access point (not the P4)");
     eprintln!("  --pcap F              write the station's Ethernet frames (both ways) to pcap F (needs --wifi or --wifi-sta)");
@@ -44,7 +54,9 @@ fn help(chip: &str, code: i32) -> ! {
     eprintln!("  --web PORT            serve the board UI at http://127.0.0.1:PORT/ in real time");
     eprintln!("  --elf F               symbols for logs, traces and profiles (repeatable)");
     eprintln!("  --trace-fn PREFIX, --break PC, --watch ADDR, --peek ADDR,N, --profile, --vcd F, --debug AREAS, --no-jit");
-    eprintln!("                        debugging; --no-jit is the oracle when a result looks wrong");
+    eprintln!("                        --debug AREAS logs subsystems; --no-jit is the oracle when a result looks wrong");
+    eprintln!("  --buslog F            GPIO edges as readable text (CS/RS/SCK/MOSI of bit-banged panels);");
+    eprintln!("                        pair with --debug i2c / --debug spi for a full bus trace");
     eprintln!("  --adc PIN, --adc-raw PIN=N   last ADC sample at exit / a 12-bit count into that pad");
     eprintln!("  --sd IMG, --sd-rw IMG (P4, S3) an SD card, copy-on-write / write-through;");
     eprintln!("                        --sd-prg-us N, --sd-serial HEX for its programming time and serial");
@@ -99,6 +111,9 @@ fn timing_cycles(value: &str, name: &str) -> Result<u32, String> {
 }
 
 fn validate_timing(o: &Opts) -> Result<(), String> {
+    if (o.board == "custom" || !o.devices.is_empty()) && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
+        return Err("--board custom / --device require --chip s3".into());
+    }
     if o.approximate_timing && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
         return Err("--approximate-timing, --approximate-memory and --approximate-cache require --chip s3".into());
     }
@@ -159,7 +174,7 @@ pub struct Opts {
     pub wifi_sta: Option<String>,
     /// whether `--net` was given, which `--wifi-sta` refuses: it configures `--wifi`'s network
     pub net_given: bool,
-    pub board: String, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
+    pub board: String, pub devices: Vec<String>, pub wifi: Vec<String>, pub wifi_nearby: Vec<String>, pub ble_nearby: Vec<String>, pub ble: bool, pub ble_full: bool, pub ble_observe: bool, pub ble_scan: bool, pub net: String, pub hostfwd: Vec<String>, pub cam_image: Option<String>, pub cam_stream: Option<String>, pub cam_size: Option<String>, pub cam_fps: f64,
     pub spi2_timing: bool, pub measured_te: bool,
     /// `--imu-motion N`: scripted IMU motion mode for boards with an IMU model (0 at rest, 1 the 30 s handling script)
     pub imu_motion: Option<u32>,
@@ -173,7 +188,7 @@ pub struct Opts {
     pub mic_wav: Vec<String>,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
     pub trace: bool, pub trace_from: u64, pub breaks: Vec<u32>, pub watch: Option<u32>, pub peeks: Vec<(u32, usize)>, pub pwm_pins: Vec<u8>, pub adc_pins: Vec<u8>, pub adc_raw: Vec<(u8, u16)>, pub disasms: Vec<(u32, usize)>,
-    pub profile: bool, pub profile_blocks: bool, pub coverage: Option<Option<String>>, pub irq_latency: bool, pub vcd: Option<String>,
+    pub profile: bool, pub profile_blocks: bool, pub coverage: Option<Option<String>>, pub irq_latency: bool, pub vcd: Option<String>, pub buslog: Option<String>,
     pub regstat: Option<String>, pub regtrace: Option<String>, pub regtrace_max: u64, pub regtrace_from_pc: Option<u32>,
     pub stubs: Vec<String>, pub trace_fns: Vec<String>, pub stop_exc: u64, pub log_periph: bool, pub no_jit: bool, pub debug: Vec<String>,
     /// `--cooja`: run as a Cooja-NG external mote over NDJSON on stdin/stdout (ESP32-C6 only)
@@ -217,6 +232,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--efuse-regs" => o.efuse_regs = Some(next()),
             "--regs-init" => o.regs_init = Some(next()),
             "--board" => o.board = next(),
+            "--device" => o.devices.push(next()),
             "--spi2-timing" => o.spi2_timing = true,
             "--measured-te" => o.measured_te = true,
             "--imu-motion" => o.imu_motion = Some(next().parse().unwrap_or_else(|_| usage_error("--imu-motion: expected a mode number (0 rest, 1 handling script)"))),
@@ -281,6 +297,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--coverage-file" => o.coverage = Some(Some(next())),
             "--irq-latency" => o.irq_latency = true,
             "--vcd" => o.vcd = Some(next()),
+            "--buslog" => o.buslog = Some(next()),
             "--regstat" => o.regstat = Some(next()),
             "--regtrace" => o.regtrace = Some(next()),
             "--regtrace-max" => o.regtrace_max = next().parse().expect("n"),
@@ -521,7 +538,17 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
         if invalid { usage_error(message); }
     }
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
-    m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none)", o.board); std::process::exit(2) });
+    if o.board == "custom" {
+        let specs: Vec<DeviceSpec> = o.devices.iter().map(|s| DeviceSpec::parse(s).unwrap_or_else(|e| usage_error(&e))).collect();
+        if specs.is_empty() { usage_error("--board custom needs at least one --device SPEC (e.g. 0:0x76:bmp280, 8:12:ws2812)"); }
+        if let Err(e) = esp_soc::board::validate_specs(&specs) { usage_error(&e); }
+        let mut board = ConfigurableBoard::new(specs, esp32s3::periph::CPU_HZ);
+        if o.buslog.is_some() { board.record_buslog(); }
+        m.bus.board = Box::new(board);
+    } else {
+        if !o.devices.is_empty() { usage_error("--device requires --board custom"); }
+        m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, stopwatch, none, custom)", o.board); std::process::exit(2) });
+    }
     if o.measured_te {
         assert_eq!(m.bus.board.name(), "waveshare-amoled18-v2", "--measured-te requires the AMOLED V2 board");
         m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::with_measured_te());
@@ -809,7 +836,7 @@ fn setup_s31(o: &Opts) -> esp32s31::Machine {
 fn set_imu_motion(board: &mut dyn esp_soc::BoardModel, o: &Opts) {
     let Some(mode) = o.imu_motion else { return };
     if mode > 1 { usage_error("--imu-motion: modes are 0 (at rest) and 1 (the 30 s handling script)"); }
-    if !board.set_imu_motion(mode) { usage_error(&format!("--imu-motion: board '{}' has no IMU model (waveshare-amoled18-v2 on the S3, mosaico on the S31)", board.name())); }
+    if !board.set_imu_motion(mode) { usage_error(&format!("--imu-motion: board '{}' has no sensor model (waveshare-amoled18-v2 on the S3, mosaico on the S31, custom on the S3)", board.name())); }
 }
 
 /// Everything after the chip is set up: images, boot, observers, the run, the reports.
@@ -1071,6 +1098,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }
     if let Some(p) = &o.vcd { m.add_observer(Box::new(Vcd::new(p, S::CPU_HZ))); }
+    if let Some(p) = &o.buslog { m.add_observer(Box::new(BusLog::new(p, S::CPU_HZ))); }
     for tone in &o.i2s_tone {
         let fields: Vec<_> = tone.split(':').collect();
         let configure = || -> Result<(usize, f64, f64), String> {
@@ -1122,7 +1150,19 @@ fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Stop, dt: f64) {
     { let r = m.reports(); if !r.is_empty() { eprintln!("{}", r); } }
     eprintln!("{}", m.irq_report());
     if let Some(w) = &o.wav { match m.write_wav(w) { Ok(n) => eprintln!("[emu] wrote {} samples ({:.2} s) to {}", n, n as f64 / m.bus.audio().1 as f64, w), Err(e) => eprintln!("[emu] wav: {}", e) } }
-    { let r = m.bus.report(); if !r.is_empty() { eprintln!("{}", r); } }
+    { let r = m.bus.report(); if !r.is_empty() {
+        eprintln!("{}", r);
+        // `--buslog F` collects GPIO edges in F via the BusLog observer; append the board's
+        // decoded bit-bang SPI transactions to the same file so an LLM reads one artifact.
+        if let Some(path) = &o.buslog {
+            use std::io::Write;
+            if let Ok(f) = std::fs::OpenOptions::new().append(true).open(path) {
+                let mut f = f;
+                let _ = writeln!(f, "\n# decoded bus transactions");
+                for line in r.lines().filter(|l| l.starts_with("[buslog]")) { let _ = writeln!(f, "{}", line); }
+            }
+        }
+    } }
     { let st: Vec<(u64, u64, u64, usize)> = m.cores.iter().filter_map(|c| c.code_cache_stats()).collect();
       if m.vq_stats[0] > 0 { eprintln!("[emu] virtual quanta: runs, quanta, stopped at a device register, at waiti = {:?}", m.vq_stats); }
       if st.iter().any(|s| s.0 > 0) { let b0 = st[0]; let b1 = st.get(1).copied().unwrap_or((0, 0, 0, 0)); eprintln!("[emu] blocks: {} built ({} cache flushes) core0, {} ({}) core1; jit: {} compiled, {} KB code", b0.0, b0.1, b1.0, b1.1, b0.2 + b1.2, (b0.3 + b1.3) / 1024); } }

@@ -15,6 +15,81 @@ fn stopwatch_memory_defaults_preserve_other_boards_and_explicit_overrides() {
 }
 
 #[test]
+fn custom_board_wires_devices_from_flags() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x76:bmp280",
+        "--device", "1:0x38:ft5x06",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.name(), "custom");
+    assert!(machine.bus.periph.i2c[0].has_device(0x76), "BMP280 not attached on I2C0");
+    assert!(machine.bus.periph.i2c[1].has_device(0x38), "FT5X06 not attached on I2C1");
+    assert!(!machine.bus.periph.i2c[0].has_device(0x38), "nothing should be on I2C0:0x38");
+}
+
+#[test]
+fn custom_board_wires_spi_and_gpio_without_i2c_addresses() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "8:12:ws2812",
+        "--device", "2:1:41:40:st7735",
+        "--device", "2:368:448:16:co5300",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.name(), "custom");
+    assert!(!machine.bus.periph.i2c[0].has_device(0x76), "SPI/GPIO specs must not land on I2C");
+    assert!(machine.bus.board.leds().is_some(), "the WS2812 strip is attached");
+    assert!(machine.bus.board.display().is_some(), "a panel is attached");
+}
+
+#[test]
+fn custom_board_wires_aht20_and_lsm6ds3_on_their_buses() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x38:aht20",
+        "--device", "1:0x6a:lsm6ds3",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.name(), "custom");
+    assert!(machine.bus.periph.i2c[0].has_device(0x38), "AHT20 not attached on I2C0");
+    assert!(machine.bus.periph.i2c[1].has_device(0x6a), "LSM6DS3 not attached on I2C1");
+    assert!(!machine.bus.periph.i2c[0].has_device(0x6a), "LSM6DS3 belongs on I2C1");
+}
+
+#[test]
+fn custom_board_accepts_scripted_sensor_motion() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x38:aht20",
+        "--device", "1:0x6a:lsm6ds3",
+        "--imu-motion", "1",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let mut machine = setup_s3(&options);
+    assert_eq!(machine.bus.board.imu_motion(), 1, "--imu-motion 1 must reach a custom board");
+    assert!(machine.bus.board.set_imu_motion(0));
+    assert_eq!(machine.bus.board.imu_motion(), 0);
+    assert!(!machine.bus.board.set_imu_motion(9), "only modes 0 and 1 exist");
+}
+
+#[test]
+fn custom_board_wires_the_two_mono_panels() {
+    let args = [
+        "esp32sim", "--board", "custom",
+        "--device", "0:0x3c:sh1106",
+        "--device", "2:1:41:40:nt7534",
+    ].map(String::from);
+    let options = parse(&args, "esp32s3");
+    let machine = setup_s3(&options);
+    assert!(machine.bus.periph.i2c[0].has_device(0x3c), "SH1106 not attached on I2C0");
+    assert_eq!(machine.bus.board.display().map(|d| (d.0, d.1)), Some((128, 64)));
+}
+
+#[test]
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);
