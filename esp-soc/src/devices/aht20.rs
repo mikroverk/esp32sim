@@ -218,6 +218,19 @@ mod tests {
         assert_ne!(read_bytes(&mut e, 7)[6], b[6]);
     }
 
+    /// The frame esp-idf-lib's `aht_get_data` sees right after `aht_init` (`BE 08 00`) and one
+    /// trigger. Comparing byte 7 against the model's own `crc8` cannot catch a wrong polynomial or
+    /// initial value — both sides would be wrong together — so the whole frame is pinned instead.
+    #[test]
+    fn the_reset_frame_matches_the_driver_byte_for_byte() {
+        let mut d = Aht20::new();
+        d.start(false);
+        for b in [0xBE, 0x08, 0x00] { d.write(b); }
+        trigger(&mut d);
+        // The default reading is 25.0 °C / 50.0 %; 0x23 is crc8(18 80 00 06 00 00) with 0xFF/0x31.
+        assert_eq!(read_bytes(&mut d, 7), [0x18, 0x80, 0x00, 0x06, 0x00, 0x00, 0x23]);
+    }
+
     #[test]
     fn a_reset_clears_the_trigger_and_reads_ready() {
         let mut d = Aht20::new();

@@ -350,6 +350,18 @@ fn mono_display(ram: &MonoRam) -> (u32, u32, Vec<u16>, u64) {
 }
 
 impl ConfigurableBoard {
+    /// How many GP-SPI transactions the board holds for `--buslog`. Zero unless the flag asked
+    /// for them: printing nothing while still recording every pixel write is the memory leak this
+    /// exposes, and the report alone cannot tell the two apart.
+    pub fn recorded_transactions(&self) -> usize { self.spi_tx_log.len() }
+
+    /// Whether a spec carries a part that samples the shared motion script. Used to keep the
+    /// guest clock running on a board with no panels, since that is what `--imu-motion` rides on.
+    pub fn has_motion_sensor(&self) -> bool {
+        self.specs.iter().any(|s| matches!(s, DeviceSpec::I2c { model, .. }
+            if model == "bmi270" || model == "bmm150" || model == "lsm6ds3" || model == "aht20"))
+    }
+
     /// Keep the bit-banged panels' decoded transactions for `--buslog`. Off by default: a guest
     /// renders megabytes of pixels through these buses, and without the flag nothing reads them.
     pub fn record_buslog(&mut self) {
@@ -459,8 +471,13 @@ impl BoardModel for ConfigurableBoard {
         true
     }
     fn imu_motion(&self) -> u32 { self.motion.mode.load(std::sync::atomic::Ordering::Relaxed) }
-    /// Only the bit-banged panels read pin levels; an I2C-only board needs no edge polling.
-    fn uses_gpio_edges(&self) -> bool { self.bitbang.is_some() || self.nt7534_spi.is_some() }
+    /// The bit-banged panels read pin levels, and the scripted motion rides on the same flag: the
+    /// S3 bus calls `advance_to` only when `board_edges` is set, and that is cached from here at
+    /// attach. A board whose only sensor sits on I2C therefore still needs it, or `--imu-motion`
+    /// never leaves the first frame — the clock stays at 0 for the whole run.
+    fn uses_gpio_edges(&self) -> bool {
+        self.bitbang.is_some() || self.nt7534_spi.is_some() || self.has_motion_sensor()
+    }
 
     fn advance_to(&mut self, cycle: VirtualCycle) {
         // The scripted motion is sampled in guest time. Storing the clock here is what makes an
@@ -842,6 +859,18 @@ mod configurable_tests {
             DeviceSpec::parse("1:0x3d:sh1106").unwrap(),
         ];
         assert!(validate_specs(&dup_oled).is_err(), "both would share one mono RAM");
+
+        let dup_qspi = vec![
+            DeviceSpec::parse("2:368:448:16:co5300").unwrap(),
+            DeviceSpec::parse("2:368:448:16:co5300").unwrap(),
+        ];
+        assert!(validate_specs(&dup_qspi).is_err(), "the board has one QSPI panel slot");
+
+        let dup_lcd = vec![
+            DeviceSpec::parse("2:1:41:40:nt7534").unwrap(),
+            DeviceSpec::parse("2:1:41:40:nt7534").unwrap(),
+        ];
+        assert!(validate_specs(&dup_lcd).is_err(), "the board has one NT7534 slot");
     }
 
     /// Clock 40 bytes into the bit-banged panel, one CS pulse.
@@ -917,5 +946,72 @@ mod configurable_tests {
             }
         }
         assert_eq!(board.display_frames(), 1, "eight pages of 128 bytes is one 128x64 frame");
+    }
+
+    /// The NT7534 carries the TG12864R glass, whose first visible column is GDDRAM column 1, not
+    /// the SH1106's 2. Building it with `MonoPanel::new()` left the suite green, so the left edge
+    /// is checked through the board rather than on the panel alone.
+    #[test]
+    fn the_board_wires_the_nt7534_glass_at_column_one() {
+        let specs = vec![DeviceSpec::parse("2:1:41:40:nt7534").unwrap()];
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
+        // CS low, RS low, then page 0 / column 1; RS high for one byte with every pixel lit.
+        board.gpio_changes(&[(41, false), (40, false)]);
+        for cmd in [0xB0u8, 0x01, 0x10] {
+            for bit in 0..8 {
+                let level = cmd & (0x80 >> bit) != 0;
+                board.gpio_changes(&[(1, level), (2, true), (2, false)]);
+            }
+        }
+        board.gpio_changes(&[(40, true)]);
+        for bit in 0..8 {
+            let level = (0x80u8 >> bit) != 0;
+            board.gpio_changes(&[(1, level), (2, true), (2, false)]);
+        }
+        let d = board.display().expect("the mono panel");
+        assert_ne!(d.2[0], 0, "GDDRAM column 1 is the left edge of this glass");
+    }
+
+    /// The GP-SPI transaction log is `--buslog`-only. A CO5300 panel clocks megabytes of pixels
+    /// through `spi_transfer`, so a plain run must record nothing and print no `[buslog]` section.
+    #[test]
+    fn the_gp_spi_log_is_off_unless_asked() {
+        let tx = [0x02u8, 0x00, 0x2c, 0x00];
+        let specs = vec![DeviceSpec::parse("2:368:448:16:co5300").unwrap()];
+        let mut quiet = ConfigurableBoard::new(specs, 1_000_000_000);
+        quiet.spi_transfer(2, &tx, 0);
+        let report = quiet.report();
+        assert_eq!(quiet.recorded_transactions(), 0, "a plain run must hold no transaction bytes");
+        assert!(!report.contains("gpspi"), "a plain run prints no GP-SPI log:\n{report}");
+
+        let specs = vec![DeviceSpec::parse("2:368:448:16:co5300").unwrap()];
+        let mut loud = ConfigurableBoard::new(specs, 1_000_000_000);
+        loud.record_buslog();
+        loud.spi_transfer(2, &tx, 0);
+        let report = loud.report();
+        assert_eq!(loud.recorded_transactions(), 1, "with --buslog the transaction is kept");
+        assert!(report.contains("gpspi"), "with --buslog the transactions show:\n{report}");
+    }
+
+    /// The board has to hand its shared motion to the sensor it wires. Constructing the BMM150
+    /// without it left `--imu-motion` doing nothing on a bare board, and a test that reads the
+    /// board's own motion field cannot see that.
+    #[test]
+    fn the_board_hands_its_clock_to_the_magnetometer() {
+        let specs = vec![DeviceSpec::parse("1:0x10:bmm150").unwrap()];
+        let mut board = ConfigurableBoard::new(specs, 1_000_000_000);
+        assert!(board.set_imu_motion(1), "the selector is accepted");
+        let mut mag = board.i2c_devices().pop().expect("the BMM150").2;
+        mag.start(false); mag.write(0x4b); mag.write(0x01); mag.stop();   // power control: on
+        let read = |dev: &mut Box<dyn I2cDevice>| -> [u8; 6] {
+            dev.start(false); dev.write(0x42); dev.start(true);
+            let mut out = [0u8; 6];
+            for b in out.iter_mut() { *b = dev.read(); }
+            out
+        };
+        let early = read(&mut mag);
+        board.advance_to(10_000_000_000);
+        let late = read(&mut mag);
+        assert_ne!(early, late, "10 s of guest time must turn the field: {early:?} vs {late:?}");
     }
 }

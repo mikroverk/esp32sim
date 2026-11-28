@@ -34,12 +34,20 @@ impl SpiBitBang {
     pub fn frames(&self) -> &[Vec<u8>] { &self.frames }
 
     /// Feed one GPIO output change, in order. Returns a byte when its last bit was clocked in.
+    ///
+    /// `#[inline]` matters: this is called three times per bit, and once for every edge a
+    /// bit-banged panel puts on the wire (3.1 M of them in a 5 s atech14 run). Left out of line it
+    /// cost about 17 host instructions per edge against the version that inlined it. The recording
+    /// below is moved into `#[cold]` helpers so the fast path carries no code for a flag that is
+    /// off in almost every run.
+    #[inline]
     pub fn pin(&mut self, pin: u8, level: bool) -> Option<u8> {
         if pin == self.mosi_pin { self.mosi = level; }
         else if pin == self.cs_pin {
-            if self.recording && self.cs && !level && self.frames.len() < self.frame_limit { self.frames.push(Vec::new()); }
+            let opening = self.cs && !level;
             self.cs = level;
             if level { self.nbits = 0; self.shift = 0; }
+            else if opening { self.open_frame(); }
         }
         else if pin == self.sclk_pin {
             let rising = level && !self.sclk;
@@ -51,15 +59,28 @@ impl SpiBitBang {
                     let b = self.shift;
                     self.nbits = 0;
                     self.shift = 0;
-                    if self.recording && self.recorded < self.byte_limit {
-                        if let Some(frame) = self.frames.last_mut() { frame.push(b); }
-                        self.recorded += 1;
-                    }
+                    self.keep(b);
                     return Some(b);
                 }
             }
         }
         None
+    }
+
+    /// Start a transaction for the recording, if `--buslog` asked for one. Out of line: a run that
+    /// clocks a megabyte of pixels should not carry this check in its hottest loop.
+    #[cold]
+    fn open_frame(&mut self) {
+        if self.recording && self.frames.len() < self.frame_limit { self.frames.push(Vec::new()); }
+    }
+
+    /// Append the byte just clocked in to the current transaction, if `--buslog` asked for one.
+    #[cold]
+    fn keep(&mut self, b: u8) {
+        if self.recording && self.recorded < self.byte_limit {
+            if let Some(frame) = self.frames.last_mut() { frame.push(b); }
+            self.recorded += 1;
+        }
     }
 }
 

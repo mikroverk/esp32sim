@@ -139,4 +139,22 @@ mod tests {
         assert!(text.contains("g2^") && text.contains("g2v"), "pin + level markers expected:\n{text}");
         assert!(!text.contains("vcd"), "must not emit VCD syntax:\n{text}");
     }
+
+    /// Writing 4000 lines out of every edge still meant holding all of them: a 5 s atech14 run kept
+    /// 3.1 M edges and wrote 0.93 s of them. Recording has to stop at the cap and say what it lost.
+    #[test]
+    fn recording_stops_at_the_cap_and_reports_what_was_dropped() {
+        let path = std::env::temp_dir().join(format!("buslog-cap-{}.txt", std::process::id()));
+        let p = path.to_string_lossy().to_string();
+        let mut b = BusLog::new(&p, 1_000_000).with_max_events(8);
+        for i in 0..20u64 { b.edge(i, 41, i % 2 == 0); }
+        let summary = b.render();
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(b.events.len(), 8, "only the cap is held");
+        assert_eq!(b.dropped, 12, "the rest is counted, not kept");
+        assert!(text.contains("12 further edges not recorded"), "{text}");
+        assert!(summary.contains("12 not recorded"), "{summary}");
+    }
 }

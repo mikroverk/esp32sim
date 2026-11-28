@@ -411,4 +411,21 @@ mod tests {
         assert!(lit(&p, 0, 0), "the GDDRAM survives a reset, as on silicon");
         assert_eq!(p.ram[2], 0xFF);
     }
+
+    /// A reset restores the command state, but the glass's column offset belongs to the module and
+    /// the icon row lives in the driver's RAM, so both survive. Nothing covered either: clearing
+    /// them on `0xE2` left the suite green.
+    #[test]
+    fn a_reset_keeps_the_glass_offset_and_the_icon_row() {
+        let mut p = MonoPanel::nt7534();
+        for c in [0xB8, 0x01, 0x10] { p.command(c); }
+        p.data(0x01);
+        for c in [0xB0, 0x01, 0x10] { p.command(c); }
+        p.data(0xFF);
+        assert!(lit(&p, 0, 0), "the NT7534 glass starts at GDDRAM column 1");
+
+        p.command(0xE2);
+        assert!(p.icon()[1], "the icon row is RAM: a reset keeps it");
+        assert!(lit(&p, 0, 0), "the offset survives, so column 1 is still the left edge");
+    }
 }
