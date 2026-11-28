@@ -209,8 +209,8 @@ impl Pads {
         if address == IO_MUX_BASE + 0x1fc { self.iomux_date = value & 0x0fff_ffff; return Ok(()); }
         if let Some(pin) = Self::pin_at(address, IO_MUX_BASE) { self.iomux[pin] = value & 0x7fff; return Ok(()); }
         if let Some(pin) = Self::pin_at(address, GPIO_BASE + 0xf4) {
-            if value & (1 << 10) != 0 { return Err(Fault::Prohibited); } // wakeup not implemented.
-            self.pin[pin] = value & 0x3fb9f; self.evaluate_interrupts(); return Ok(());
+            // WAKEUP_ENABLE (bit 10) is kept: light sleep is not modelled, so it wakes nothing.
+            self.pin[pin] = value & 0x3ff9f; self.evaluate_interrupts(); return Ok(());
         }
         if let Some(pin) = Self::pin_at(address, GPIO_BASE + 0xaf4) { self.out_sel[pin] = value & 0xfff; return Ok(()); }
         let off = address.checked_sub(GPIO_BASE).ok_or(Fault::Unmapped)?;
@@ -333,7 +333,6 @@ mod tests {
         p.set_input(10, Some(true)).unwrap(); assert_eq!(p.read(GPIO_BASE + 0x64), Err(Fault::Prohibited));
         p.set_input(10, None).unwrap(); p.write(GPIO_BASE + 0xaf4 + 40, 1).unwrap();
         assert_eq!(p.drive(10), Ok(Drive::Unsupported)); assert_eq!(p.read(GPIO_BASE + 0x64), Err(Fault::Prohibited));
-        assert_eq!(p.write(GPIO_BASE + 0xf4 + 40, 1 << 10), Err(Fault::Prohibited), "wakeup is not modelled");
     }
     #[test]
     fn the_chips_own_output_raises_an_edge_and_unbonded_pins_never_latch() {
@@ -369,5 +368,19 @@ mod tests {
         assert_eq!(p.irq_lines(), [false, true, false, false]);
         p.write(GPIO_BASE + 0x88, 1 << 11).unwrap();
         assert_eq!(p.irq_lines(), [false, true, false, false], "a level interrupt stays while the level holds");
+    }
+    #[test]
+    fn an_interrupt_armed_with_its_wakeup_enable_still_fires() {
+        // esp-hal 1.2's `listen` arms a pin in one write that also sets WAKEUP_ENABLE (bit 10), which
+        // IDF sets only for light sleep (`gpio_ll_wakeup_enable`). The bit is kept, and is inert.
+        let mut p = Pads::default();
+        p.write(IO_MUX_BASE + 7 * 4, 0x1200).unwrap();                        // GPIO function, input enabled
+        p.set_input(7, Some(false)).unwrap();
+        p.write(GPIO_BASE + 0xf4 + 7 * 4, 1 << 13 | 1 << 10 | 1 << 7).unwrap(); // line 0, wakeup, rising edge
+        assert_eq!(p.read(GPIO_BASE + 0xf4 + 7 * 4), Ok(1 << 13 | 1 << 10 | 1 << 7));
+        assert_eq!(p.irq_lines(), [false; 4]);
+        p.set_input(7, Some(true)).unwrap();
+        assert_eq!(p.irq_lines(), [true, false, false, false]);
+        assert_eq!(p.read(GPIO_BASE + 0xa4), Ok(1 << 7), "GPIO_INT_0: line 0, pins 0-31");
     }
 }
